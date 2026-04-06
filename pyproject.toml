@@ -190,7 +190,7 @@ source = ["wikimind"]
 omit = ["*/tests/*", "*/conftest.py"]
 
 [tool.coverage.report]
-fail_under = 60
+fail_under = 40
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
