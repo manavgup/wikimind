@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
-from wikimind.jobs.worker import enqueue_compile, enqueue_lint
-from wikimind.models import Job
+from wikimind.services.compiler import CompilerService, get_compiler_service
 
 router = APIRouter()
 
@@ -18,37 +16,42 @@ async def list_jobs(
     status: str | None = None,
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
+    service: CompilerService = Depends(get_compiler_service),
 ):
     """List jobs with optional status filter."""
-    query = select(Job).order_by(Job.queued_at.desc()).limit(limit)  # type: ignore[attr-defined]
-    if status:
-        query = query.where(Job.status == status)
-    result = await session.execute(query)
-    return result.scalars().all()
+    return await service.list_jobs(session, status=status, limit=limit)
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str, session: AsyncSession = Depends(get_session)):
+async def get_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: CompilerService = Depends(get_compiler_service),
+):
     """Get job by ID."""
-    job = await session.get(Job, job_id)
-    return job
+    return await service.get_job(job_id, session)
 
 
 @router.post("/compile/{source_id}")
-async def trigger_compile(source_id: str, session: AsyncSession = Depends(get_session)):
+async def trigger_compile(
+    source_id: str,
+    service: CompilerService = Depends(get_compiler_service),
+):
     """Trigger compilation for a source."""
-    job_id = await enqueue_compile(source_id)
-    return {"job_id": job_id, "status": "queued"}
+    return await service.trigger_compile(source_id)
 
 
 @router.post("/lint")
-async def trigger_lint(session: AsyncSession = Depends(get_session)):
+async def trigger_lint(
+    service: CompilerService = Depends(get_compiler_service),
+):
     """Trigger wiki linting."""
-    job_id = await enqueue_lint()
-    return {"job_id": job_id, "status": "queued"}
+    return await service.trigger_lint()
 
 
 @router.post("/reindex")
-async def trigger_reindex(session: AsyncSession = Depends(get_session)):
+async def trigger_reindex(
+    service: CompilerService = Depends(get_compiler_service),
+):
     """Trigger wiki reindexing."""
-    return {"status": "queued", "message": "Reindex job enqueued"}
+    return await service.trigger_reindex()
