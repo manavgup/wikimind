@@ -1,5 +1,7 @@
 """Tests for database session lifecycle — commit on success, rollback on error."""
 
+import contextlib
+
 import pytest
 from sqlmodel import select
 
@@ -33,10 +35,8 @@ class TestSessionLifecycle:
         source_id = source.id
 
         # Close the generator — triggers commit
-        try:
+        with contextlib.suppress(StopAsyncIteration):
             await gen.__anext__()
-        except StopAsyncIteration:
-            pass
 
         # Verify the row was persisted
         async with session_factory() as verify_session:
