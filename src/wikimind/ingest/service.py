@@ -1,7 +1,8 @@
 """WikiMind Ingest Service.
 
-Source adapters for all supported input types.
-All adapters produce NormalizedDocument.
+Source adapters for all supported input types. Each adapter fetches or reads raw
+content, persists a Source record and raw file, and returns the Source. Compilation
+is scheduled separately by the service layer, not by adapters.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ import trafilatura
 from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
-import wikimind.jobs.worker as _worker
 from wikimind.config import get_settings
 from wikimind.models import DocumentChunk, IngestStatus, NormalizedDocument, Source, SourceType
 
@@ -335,7 +335,11 @@ class YouTubeAdapter:
 
 
 class IngestService:
-    """Orchestrate ingestion across all adapters."""
+    """Orchestrate ingestion across all adapters.
+
+    Adapters save the source and return immediately. Compilation is scheduled
+    separately by the outer service layer (see ``wikimind.services.ingest``).
+    """
 
     def __init__(self):
         self.url_adapter = URLAdapter()
@@ -346,26 +350,18 @@ class IngestService:
     async def ingest_url(self, url: str, session: AsyncSession) -> Source:
         """Ingest a URL, routing to the appropriate adapter."""
         if "youtube.com" in url or "youtu.be" in url:
-            source, doc = await self.youtube_adapter.ingest(url, session)
+            source, _doc = await self.youtube_adapter.ingest(url, session)
         else:
-            source, doc = await self.url_adapter.ingest(url, session)
+            source, _doc = await self.url_adapter.ingest(url, session)
 
-        await self._enqueue_compilation(source, doc)
         return source
 
     async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:
         """Ingest a PDF file."""
-        source, doc = await self.pdf_adapter.ingest(file_bytes, filename, session)
-        await self._enqueue_compilation(source, doc)
+        source, _doc = await self.pdf_adapter.ingest(file_bytes, filename, session)
         return source
 
     async def ingest_text(self, content: str, title: str | None, session: AsyncSession) -> Source:
         """Ingest raw text content."""
-        source, doc = await self.text_adapter.ingest(content, title, session)
-        await self._enqueue_compilation(source, doc)
+        source, _doc = await self.text_adapter.ingest(content, title, session)
         return source
-
-    async def _enqueue_compilation(self, source: Source, doc: NormalizedDocument):
-        """Queue compilation job. Worker picks it up asynchronously."""
-        await _worker.enqueue_compile(source.id)
-        log.info("Compilation enqueued", source_id=source.id)

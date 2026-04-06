@@ -1,20 +1,22 @@
 """WikiMind Job Worker.
 
-ARQ async job queue workers.
-Runs as a separate process: `arq wikimind.jobs.worker.WorkerSettings`
+ARQ async job queue workers for compilation and linting.
+Runs as a separate process in production: ``arq wikimind.jobs.worker.WorkerSettings``
+
+In dev mode (no Redis), the same job functions are called in-process by
+``BackgroundCompiler`` via ``asyncio.create_task()``.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
 import structlog
-from arq import create_pool, cron
+from arq import cron
 from arq.connections import RedisSettings
 from sqlmodel import select
 
@@ -229,32 +231,21 @@ Return valid JSON only:
 
 
 # ---------------------------------------------------------------------------
-# Enqueue helpers — called from API routes
+# Redis settings — only used when REDIS_URL is set (production ARQ worker)
 # ---------------------------------------------------------------------------
 
 
-async def enqueue_compile(source_id: str) -> str:
-    """Enqueue a compilation job. Returns job ID."""
-    redis = await create_pool(get_redis_settings())
-    await redis.enqueue_job("compile_source", source_id)
-    await redis.close()
-    return str(uuid.uuid4())  # Placeholder — ARQ generates its own IDs
-
-
-async def enqueue_lint() -> str:
-    """Enqueue a wiki linting job. Returns job ID."""
-    redis = await create_pool(get_redis_settings())
-    await redis.enqueue_job("lint_wiki")
-    await redis.close()
-    return str(uuid.uuid4())
-
-
 def get_redis_settings() -> RedisSettings:
-    """Use fakeredis in dev, real Redis in prod."""
+    """Return ARQ RedisSettings from the REDIS_URL environment variable.
+
+    Only called when running the ARQ worker process in production.
+    Falls back to localhost:6379 so the WorkerSettings class can still
+    be imported without error, but the worker will fail to start without
+    a reachable Redis instance.
+    """
     redis_url = os.environ.get("REDIS_URL")
     if redis_url:
         return RedisSettings.from_dsn(redis_url)
-    # Default: fakeredis (no Redis install needed)
     return RedisSettings(host="localhost", port=6379)
 
 
@@ -264,7 +255,7 @@ def get_redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
-    """ARQ worker configuration."""
+    """ARQ worker configuration for production (requires Redis)."""
 
     functions: ClassVar[list] = [compile_source, lint_wiki]
     redis_settings = get_redis_settings()
