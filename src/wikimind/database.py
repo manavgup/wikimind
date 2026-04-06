@@ -2,11 +2,21 @@
 
 Metadata (sources, articles, jobs, costs) lives in SQLite.
 Article content (.md files) lives in the filesystem under ~/.wikimind/wiki/.
+
+Session lifecycle
+-----------------
+``get_session`` is a FastAPI dependency that yields a session with
+commit-on-success / rollback-on-error semantics.  The caller never needs
+to call ``session.commit()`` for read-only work; writes are committed
+automatically when the request handler returns without raising.  Any
+exception — including connection errors — triggers a rollback so the
+session is always left in a clean state.
 """
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
@@ -48,9 +58,22 @@ def get_session_factory():
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Yield an async database session for FastAPI dependency injection."""
+    """Yield an async database session with commit/rollback lifecycle.
+
+    On success the session is committed so that any pending writes are
+    flushed.  On any exception — including ``SQLAlchemyError`` connection
+    errors — the session is rolled back and the exception re-raised.
+    """
     async with get_session_factory()() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except SQLAlchemyError:
+            await session.rollback()
+            raise
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def init_db():

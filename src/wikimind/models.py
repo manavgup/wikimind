@@ -5,14 +5,12 @@ store sources, articles, concepts, backlinks, queries, jobs, and cost logs.
 Pydantic models carry data through the ingest → compile → query pipeline.
 """
 
-from __future__ import annotations
-
 import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -124,6 +122,14 @@ class Article(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     source_ids: str | None = None  # JSON array of source IDs
+
+    # ORM relationships — used for eager-loading backlinks
+    backlinks_out: list["Backlink"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Backlink.source_article_id]", "lazy": "selectin"},
+    )
+    backlinks_in: list["Backlink"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "[Backlink.target_article_id]", "lazy": "selectin"},
+    )
 
 
 class Concept(SQLModel, table=True):
