@@ -72,6 +72,10 @@ worker: ## Start ARQ background job worker
 
 ##@ 🔍 QUALITY
 
+.PHONY: pre-commit
+pre-commit: ## Run all pre-commit hooks locally (same as CI)
+	$(BIN)/pre-commit run --all-files
+
 .PHONY: lint
 lint: ## Run ruff linter (includes pylint + pydocstyle rules)
 	$(BIN)/ruff check src/

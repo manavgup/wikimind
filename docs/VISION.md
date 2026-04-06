@@ -266,4 +266,3 @@ It is the **knowledge synthesis layer** that sits above all of these — and can
 4. **Ask:** Q&A against wiki with "save answer" option
 
 **Success metric for MVP:** A user feeds 20 sources in one sitting, asks 5 questions, and says *"this knows more about my topic than my notes do."*
-

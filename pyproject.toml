@@ -119,6 +119,9 @@ ignore = [
     "PLW0603", # global statement — acceptable for singleton patterns (engine, session factory)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]
 
