@@ -14,6 +14,9 @@ from wikimind.api.routes import ingest, jobs, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, init_db
+from wikimind.middleware.correlation import CorrelationIdMiddleware
+from wikimind.middleware.logging_config import configure_logging
+from wikimind.middleware.request_logging import RequestLoggingMiddleware
 
 log = structlog.get_logger()
 
@@ -21,6 +24,8 @@ log = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
+    configure_logging()
+
     settings = get_settings()
     settings.ensure_dirs()
 
@@ -40,6 +45,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Middleware is evaluated bottom-to-top: correlation runs first, then
+# request logging, then CORS.
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
 
 # Allow Electron renderer and web dev server to connect
 app.add_middleware(
