@@ -112,14 +112,16 @@ class WikiService:
         Returns:
             GraphResponse containing nodes and edges.
         """
+        # Backlinks are eager-loaded via selectin on Article.backlinks_out
         articles_result = await session.execute(select(Article))
         articles = articles_result.scalars().all()
 
-        backlinks_result = await session.execute(select(Backlink))
-        backlinks = backlinks_result.scalars().all()
+        all_backlinks: list[Backlink] = []
+        for a in articles:
+            all_backlinks.extend(a.backlinks_out)
 
         connection_counts: dict[str, int] = {}
-        for bl in backlinks:
+        for bl in all_backlinks:
             connection_counts[bl.source_article_id] = connection_counts.get(bl.source_article_id, 0) + 1
             connection_counts[bl.target_article_id] = connection_counts.get(bl.target_article_id, 0) + 1
 
@@ -140,7 +142,7 @@ class WikiService:
                 target=bl.target_article_id,
                 context=bl.context,
             )
-            for bl in backlinks
+            for bl in all_backlinks
         ]
 
         return GraphResponse(nodes=nodes, edges=edges)
