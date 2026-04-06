@@ -1,0 +1,32 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# WikiMind — Pre-commit Hooks
+# Install: pre-commit install
+# Run all: pre-commit run --all-files
+# ──────────────────────────────────────────────────────────────────────────────
+
+fail_fast: true
+
+repos:
+  # ── General file hygiene ──────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: "^docs/"
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: "^apps/"
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # ── Ruff (lint + format) ──────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format

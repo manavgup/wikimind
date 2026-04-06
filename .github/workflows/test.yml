@@ -1,0 +1,115 @@
+# ===============================================================
+# 🧪  PyTest & Coverage — Quality Gate
+# ===============================================================
+#
+#   - runs the full test-suite across Python 3.11 and 3.12
+#   - measures branch + line coverage (fails < 60%)
+#   - uploads the HTML coverage report as a build artifact
+#   - executes on every push / PR to *main*
+# ---------------------------------------------------------------
+
+name: Tests & Coverage
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/test.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/test.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: pytest (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      # -----------------------------------------------------------
+      # 0️⃣  Checkout
+      # -----------------------------------------------------------
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1️⃣  Set up Python
+      # -----------------------------------------------------------
+      - name: 🐍  Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      # -----------------------------------------------------------
+      # 2️⃣  Install dependencies
+      # -----------------------------------------------------------
+      - name: 📦  Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # -----------------------------------------------------------
+      # 3️⃣  Run the tests with coverage (fail under 60%)
+      # -----------------------------------------------------------
+      - name: 🧪  Run pytest
+        run: |
+          pytest \
+            --cov=wikimind \
+            --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=html:htmlcov \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=60 \
+            -v
+
+      # -----------------------------------------------------------
+      # 4️⃣  Upload coverage artifacts (HTML report)
+      # -----------------------------------------------------------
+      - name: 📤  Upload HTML coverage
+        if: always() && matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # -----------------------------------------------------------
+      # 5️⃣  Upload coverage to Codecov (main branch only)
+      # -----------------------------------------------------------
+      - name: 📈  Codecov upload
+        if: matrix.python == '3.12' && github.event_name == 'push'
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -1,0 +1,72 @@
+# ===============================================================
+# 🪝  Pre-commit Hooks
+# ===============================================================
+#
+#   - validates all pre-commit hooks pass on PRs
+#   - checks: trailing whitespace, YAML/TOML/JSON syntax,
+#     large files, merge conflicts, private key detection,
+#     ruff lint + format
+#   - caches pre-commit environments for speed
+#   - runs on PRs only — push commits are validated locally
+# ---------------------------------------------------------------
+
+name: Pre-commit Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Run pre-commit hooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # -----------------------------------------------------------
+      # 0️⃣  Checkout
+      # -----------------------------------------------------------
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1️⃣  Set up Python
+      # -----------------------------------------------------------
+      - name: 🐍  Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # -----------------------------------------------------------
+      # 2️⃣  Install pre-commit
+      # -----------------------------------------------------------
+      - name: 📦  Install pre-commit
+        run: pip install pre-commit
+
+      # -----------------------------------------------------------
+      # 3️⃣  Cache hook environments
+      # -----------------------------------------------------------
+      - name: 💾  Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-
+
+      # -----------------------------------------------------------
+      # 4️⃣  Run all hooks
+      # -----------------------------------------------------------
+      - name: 🪝  Run pre-commit on all files
+        run: pre-commit run --all-files

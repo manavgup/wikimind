@@ -1,0 +1,61 @@
+# ===============================================================
+# 🔒  Dependency Review — Supply Chain Security
+# ===============================================================
+#
+#   - scans dependency changes for known vulnerabilities
+#   - fails on moderate+ severity CVEs
+#   - blocks copyleft licenses incompatible with MIT
+#     (GPL, AGPL, SSPL)
+#   - comments on PRs only when failures occur
+#   - runs only when dependency files change
+# ---------------------------------------------------------------
+
+name: Dependency Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - ".github/workflows/dependency-review.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    if: "!github.event.pull_request.draft"
+    name: Scan dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # -----------------------------------------------------------
+      # 0️⃣  Checkout
+      # -----------------------------------------------------------
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1️⃣  Review dependency changes
+      # -----------------------------------------------------------
+      - name: 🔒  Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure
+          deny-licenses: >-
+            GPL-1.0-only,
+            GPL-2.0-only,
+            GPL-3.0-only,
+            AGPL-3.0-only,
+            SSPL-1.0

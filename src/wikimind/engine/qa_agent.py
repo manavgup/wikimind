@@ -1,0 +1,242 @@
+"""WikiMind Q&A Agent.
+
+Answers questions against the compiled wiki.
+Every answer can be filed back to make the wiki smarter.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+
+import structlog
+from slugify import slugify
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from wikimind.config import get_settings
+from wikimind.engine.llm_router import get_llm_router
+from wikimind.models import Article, CompletionRequest, ConfidenceLevel, Query, QueryRequest, QueryResult, TaskType
+
+log = structlog.get_logger()
+
+
+QA_SYSTEM_PROMPT = """You are a knowledge retrieval agent for a personal wiki.
+
+Your job: answer the user's question using ONLY the wiki articles provided in context.
+
+Rules:
+- If the answer is not in the wiki, say so explicitly. Do NOT hallucinate.
+- Cite specific articles by title when making claims
+- If you can partially answer from the wiki, do so and note the gaps
+- Suggest follow-up questions that would help fill knowledge gaps
+- If the answer reveals a gap in the wiki, suggest a new article title
+
+You MUST respond with valid JSON only. No preamble, no markdown fences.
+
+Output schema:
+{
+  "answer": "Your complete answer in markdown",
+  "confidence": "high|medium|low",
+  "sources": ["Article Title 1", "Article Title 2"],
+  "related_articles": ["Title of related article worth reading"],
+  "new_article_suggested": "Optional: title of article that should be created",
+  "follow_up_questions": ["Question 1", "Question 2"]
+}
+"""
+
+
+class QAAgent:
+    """Answer questions against the compiled wiki."""
+
+    def __init__(self):
+        self.router = get_llm_router()
+        self.settings = get_settings()
+
+    async def answer(
+        self,
+        request: QueryRequest,
+        session: AsyncSession,
+    ) -> Query:
+        """Answer a question against the wiki."""
+        log.info("Q&A query", question=request.question[:100])
+
+        # Retrieve relevant wiki context
+        context = await self._retrieve_context(request.question, session)
+
+        if not context:
+            # No relevant articles — answer from LLM knowledge with caveat
+            result = QueryResult(
+                answer="No relevant articles found in your wiki for this question. Consider ingesting sources on this topic.",
+                confidence="low",
+                sources=[],
+                related_articles=[],
+                follow_up_questions=[f"What sources cover {request.question}?"],
+            )
+        else:
+            result = await self._query_llm(request.question, context, session)
+
+        # Persist query
+        query_record = Query(
+            question=request.question,
+            answer=result.answer,
+            confidence=result.confidence,
+            source_article_ids=json.dumps(result.sources),
+            related_article_ids=json.dumps(result.related_articles),
+        )
+
+        session.add(query_record)
+
+        # File back if requested
+        if request.file_back and result.confidence in ("high", "medium"):
+            article_id = await self._file_back(request.question, result, session)
+            query_record.filed_back = True
+            query_record.filed_article_id = article_id
+
+        await session.commit()
+        await session.refresh(query_record)
+
+        return query_record
+
+    async def _retrieve_context(self, question: str, session: AsyncSession) -> list[dict]:
+        """Retrieve relevant wiki articles for the question."""
+        # Extract key terms from question (simple approach for Phase 1)
+        terms = [t for t in question.lower().split() if len(t) > 3]
+
+        result = await session.execute(select(Article))
+        all_articles = result.scalars().all()
+
+        relevant = []
+        for article in all_articles:
+            content = self._read_article_content(article.file_path)
+            if not content:
+                continue
+
+            # Score by term overlap
+            score = sum(1 for t in terms if t in content.lower())
+            if score > 0:
+                relevant.append(
+                    {
+                        "title": article.title,
+                        "content": content[:3000],  # Truncate for context window
+                        "score": score,
+                    }
+                )
+
+        # Sort by relevance, take top 5
+        relevant.sort(key=lambda x: x["score"], reverse=True)
+        return relevant[:5]
+
+    def _read_article_content(self, file_path: str) -> str | None:
+        try:
+            return Path(file_path).read_text(encoding="utf-8")
+        except Exception:
+            return None
+
+    async def _query_llm(
+        self,
+        question: str,
+        context: list[dict],
+        session: AsyncSession,
+    ) -> QueryResult:
+        # Build context block
+        context_text = "\n\n---\n\n".join([f"## {c['title']}\n\n{c['content']}" for c in context])
+
+        request = CompletionRequest(
+            system=QA_SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Wiki context:
+
+{context_text}
+
+---
+
+Question: {question}
+
+Answer based only on the wiki content above.""",
+                }
+            ],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.QA,
+        )
+
+        response = await self.router.complete(request, session=session)
+
+        try:
+            data = self.router.parse_json_response(response)
+            return QueryResult(**data)
+        except Exception as e:
+            log.error("Failed to parse QA response", error=str(e))
+            return QueryResult(
+                answer="Error processing answer. Please try again.",
+                confidence="low",
+                sources=[],
+                related_articles=[],
+            )
+
+    async def _file_back(
+        self,
+        question: str,
+        result: QueryResult,
+        session: AsyncSession,
+    ) -> str | None:
+        """Save Q&A answer as a new wiki article."""
+        wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+
+        slug = slugify(question[:80])
+        file_path = wiki_dir / f"{slug}.md"
+
+        sources_list = "\n".join([f"- [[{s}]]" for s in result.sources])
+        related_list = "\n".join([f"- [[{r}]]" for r in result.related_articles])
+        questions_list = "\n".join([f"- {q}" for q in result.follow_up_questions])
+
+        content = f"""---
+title: "Q: {question}"
+slug: {slug}
+type: qa-answer
+confidence: {result.confidence}
+compiled: {datetime.utcnow().isoformat()}
+---
+
+## Question
+
+{question}
+
+## Answer
+
+{result.answer}
+
+## Sources
+
+{sources_list}
+
+## Related
+
+{related_list}
+
+## Follow-up Questions
+
+{questions_list}
+"""
+
+        file_path.write_text(content, encoding="utf-8")
+
+        article = Article(
+            slug=slug,
+            title=f"Q: {question[:80]}",
+            file_path=str(file_path),
+            summary=result.answer[:200],
+            confidence=ConfidenceLevel(result.confidence) if result.confidence else None,
+        )
+        session.add(article)
+        await session.commit()
+        await session.refresh(article)
+
+        log.info("Answer filed back to wiki", slug=slug)
+        return article.id

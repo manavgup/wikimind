@@ -1,0 +1,843 @@
+openapi: 3.1.0
+info:
+  title: WikiMind Gateway API
+  description: |
+    Local LLM Knowledge OS — Personal API.
+    Runs on localhost:7842. All reads/writes hit local storage first.
+    Cloud sync is a separate service.
+  version: 0.1.0
+  contact:
+    name: WikiMind
+    url: https://github.com/manavgup/wikimind
+
+servers:
+  - url: http://localhost:7842
+    description: Local Gateway (default)
+
+tags:
+  - name: Ingest
+    description: Add raw sources to the knowledge base
+  - name: Wiki
+    description: Read and navigate compiled wiki articles
+  - name: Query
+    description: Ask questions against the wiki
+  - name: Jobs
+    description: Async job queue management
+  - name: Settings
+    description: Configuration and API key management
+
+paths:
+
+  # ── Health ────────────────────────────────────────────────────────────────
+
+  /health:
+    get:
+      summary: Gateway health check
+      description: Used by Electron to confirm daemon is ready before loading UI.
+      operationId: health
+      responses:
+        "200":
+          description: Gateway is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 0.1.0
+
+  # ── Ingest ────────────────────────────────────────────────────────────────
+
+  /ingest/url:
+    post:
+      tags: [Ingest]
+      summary: Ingest a web URL or YouTube video
+      operationId: ingestUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestURLRequest"
+      responses:
+        "200":
+          description: Source created, compilation enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /ingest/pdf:
+    post:
+      tags: [Ingest]
+      summary: Upload and ingest a PDF
+      operationId: ingestPdf
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: PDF ingested, compilation enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /ingest/text:
+    post:
+      tags: [Ingest]
+      summary: Ingest raw text or a note
+      operationId: ingestText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestTextRequest"
+      responses:
+        "200":
+          description: Text ingested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+
+  /ingest/sources:
+    get:
+      tags: [Ingest]
+      summary: List all ingested sources
+      operationId: listSources
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/IngestStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+
+  /ingest/sources/{sourceId}:
+    get:
+      tags: [Ingest]
+      summary: Get source detail
+      operationId: getSource
+      parameters:
+        - $ref: "#/components/parameters/sourceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Ingest]
+      summary: Delete a source
+      operationId: deleteSource
+      parameters:
+        - $ref: "#/components/parameters/sourceId"
+      responses:
+        "200":
+          description: Source deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: string
+
+  # ── Wiki ─────────────────────────────────────────────────────────────────
+
+  /wiki/articles:
+    get:
+      tags: [Wiki]
+      summary: List wiki articles
+      operationId: listArticles
+      parameters:
+        - name: concept
+          in: query
+          schema:
+            type: string
+        - name: confidence
+          in: query
+          schema:
+            $ref: "#/components/schemas/ConfidenceLevel"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Article"
+
+  /wiki/articles/{slug}:
+    get:
+      tags: [Wiki]
+      summary: Get full article with content and backlinks
+      operationId: getArticle
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArticleResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Wiki]
+      summary: Delete an article
+      operationId: deleteArticle
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+
+  /wiki/graph:
+    get:
+      tags: [Wiki]
+      summary: Full knowledge graph (nodes + edges)
+      operationId: getGraph
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GraphResponse"
+
+  /wiki/search:
+    get:
+      tags: [Wiki]
+      summary: Full-text + semantic search
+      operationId: searchWiki
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Article"
+
+  /wiki/concepts:
+    get:
+      tags: [Wiki]
+      summary: Concept taxonomy tree
+      operationId: getConcepts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Concept"
+
+  /wiki/health:
+    get:
+      tags: [Wiki]
+      summary: Latest linter health report
+      operationId: getWikiHealth
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthReport"
+
+  # ── Query ─────────────────────────────────────────────────────────────────
+
+  /query:
+    post:
+      tags: [Query]
+      summary: Ask a question against the wiki
+      operationId: askQuestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueryRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryRecord"
+
+  /query/history:
+    get:
+      tags: [Query]
+      summary: Past query history
+      operationId: queryHistory
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueryRecord"
+
+  /query/{queryId}/file-back:
+    post:
+      tags: [Query]
+      summary: Save a past answer as a wiki article
+      operationId: fileBack
+      parameters:
+        - name: queryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filed:
+                    type: boolean
+                  article_id:
+                    type: string
+
+  # ── Jobs ─────────────────────────────────────────────────────────────────
+
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: List jobs
+      operationId: listJobs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/JobStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+  /jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      summary: Get job detail
+      operationId: getJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/compile/{sourceId}:
+    post:
+      tags: [Jobs]
+      summary: Trigger manual compilation of a source
+      operationId: triggerCompile
+      parameters:
+        - $ref: "#/components/parameters/sourceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+
+  /jobs/lint:
+    post:
+      tags: [Jobs]
+      summary: Trigger wiki linter
+      operationId: triggerLint
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+
+  # ── Settings ──────────────────────────────────────────────────────────────
+
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get all settings
+      operationId: getSettings
+      responses:
+        "200":
+          description: Current settings (API keys redacted)
+
+  /settings/llm/api-key:
+    post:
+      tags: [Settings]
+      summary: Store API key in OS keychain
+      operationId: setApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, api_key]
+              properties:
+                provider:
+                  type: string
+                  enum: [anthropic, openai, google, ollama]
+                api_key:
+                  type: string
+      responses:
+        "200":
+          description: Key stored
+
+  /settings/llm/test:
+    post:
+      tags: [Settings]
+      summary: Test LLM provider connection
+      operationId: testLlm
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Connection test result
+
+  /settings/llm/cost:
+    get:
+      tags: [Settings]
+      summary: LLM cost for current month
+      operationId: getLlmCost
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cost_this_month_usd:
+                    type: number
+                  budget_usd:
+                    type: number
+                  budget_remaining_usd:
+                    type: number
+
+# ── WebSocket ─────────────────────────────────────────────────────────────
+
+# WS /ws
+# Events pushed by gateway:
+# { "event": "connected" }
+# { "event": "job.progress", "job_id": "...", "pct": 45, "message": "..." }
+# { "event": "compilation.complete", "article_slug": "...", "article_title": "..." }
+# { "event": "compilation.failed", "source_id": "...", "error": "..." }
+# { "event": "sync.complete", "pushed": 3, "pulled": 1, "conflicts": 0 }
+# { "event": "linter.alert", "type": "contradiction", "articles": [...] }
+# { "event": "keepalive" }
+# Client sends: { "type": "ping" }
+
+# ── Components ────────────────────────────────────────────────────────────
+
+components:
+
+  parameters:
+    sourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+
+    SourceType:
+      type: string
+      enum: [url, pdf, youtube, audio, text, rss, email, obsidian]
+
+    IngestStatus:
+      type: string
+      enum: [pending, processing, compiled, failed]
+
+    ConfidenceLevel:
+      type: string
+      enum: [sourced, mixed, inferred, opinion]
+
+    JobType:
+      type: string
+      enum: [compile_source, lint_wiki, reindex, embed_chunks, sync_push, sync_pull]
+
+    JobStatus:
+      type: string
+      enum: [queued, running, complete, failed]
+
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        source_url:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        author:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/IngestStatus"
+        ingested_at:
+          type: string
+          format: date-time
+        compiled_at:
+          type: string
+          format: date-time
+          nullable: true
+        token_count:
+          type: integer
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+        linter_score:
+          type: number
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ArticleResponse:
+      allOf:
+        - $ref: "#/components/schemas/Article"
+        - type: object
+          properties:
+            content:
+              type: string
+              description: Full markdown content of the article
+            backlinks_in:
+              type: array
+              items:
+                type: string
+            backlinks_out:
+              type: array
+              items:
+                type: string
+            concepts:
+              type: array
+              items:
+                type: string
+
+    Concept:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        parent_id:
+          type: string
+          nullable: true
+        article_count:
+          type: integer
+        description:
+          type: string
+          nullable: true
+
+    GraphNode:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        concept_cluster:
+          type: string
+          nullable: true
+        connection_count:
+          type: integer
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+
+    GraphEdge:
+      type: object
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+        context:
+          type: string
+          nullable: true
+
+    GraphResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/GraphEdge"
+
+    HealthReport:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+          nullable: true
+        total_articles:
+          type: integer
+        total_sources:
+          type: integer
+        coverage_scores:
+          type: object
+          additionalProperties:
+            type: number
+        contradictions:
+          type: array
+          items:
+            type: object
+        orphaned_articles:
+          type: array
+          items:
+            type: string
+        stale_articles:
+          type: array
+          items:
+            type: string
+        gap_suggestions:
+          type: array
+          items:
+            type: string
+
+    QueryRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+        file_back:
+          type: boolean
+          default: false
+
+    QueryRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        confidence:
+          type: string
+        source_article_ids:
+          type: string
+        filed_back:
+          type: boolean
+        filed_article_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        job_type:
+          $ref: "#/components/schemas/JobType"
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        source_id:
+          type: string
+          nullable: true
+        priority:
+          type: integer
+        queued_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        result_summary:
+          type: string
+          nullable: true
+
+    IngestURLRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        auto_compile:
+          type: boolean
+          default: true
+
+    IngestTextRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+        title:
+          type: string
+          nullable: true
+        auto_compile:
+          type: boolean
+          default: true
