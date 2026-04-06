@@ -1,13 +1,13 @@
 """Manage compilation jobs and article persistence.
 
-Wraps the compilation engine and job queue, providing a clean interface
+Wraps the BackgroundCompiler and job queue, providing a clean interface
 for triggering compilation, linting, and reindexing from API routes.
 """
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.jobs.worker import enqueue_compile, enqueue_lint
+from wikimind.jobs.background import get_background_compiler
 from wikimind.models import Job
 
 
@@ -44,7 +44,7 @@ class CompilerService:
         return await session.get(Job, job_id)
 
     async def trigger_compile(self, source_id: str) -> dict[str, str]:
-        """Enqueue a compilation job for a source.
+        """Schedule a compilation job for a source.
 
         Args:
             source_id: The source UUID to compile.
@@ -52,16 +52,18 @@ class CompilerService:
         Returns:
             Dict with job_id and status.
         """
-        job_id = await enqueue_compile(source_id)
+        bg = get_background_compiler()
+        job_id = await bg.schedule_compile(source_id)
         return {"job_id": job_id, "status": "queued"}
 
     async def trigger_lint(self) -> dict[str, str]:
-        """Enqueue a wiki linting job.
+        """Schedule a wiki linting job.
 
         Returns:
             Dict with job_id and status.
         """
-        job_id = await enqueue_lint()
+        bg = get_background_compiler()
+        job_id = await bg.schedule_lint()
         return {"job_id": job_id, "status": "queued"}
 
     async def trigger_reindex(self) -> dict[str, str]:

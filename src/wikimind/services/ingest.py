@@ -1,25 +1,30 @@
 """Orchestrate source ingestion across URL, PDF, text, and YouTube adapters.
 
 Routes delegate to this service for all ingest operations. The service
-coordinates adapter selection, source persistence, and compilation enqueue.
+coordinates adapter selection, source persistence, and background compilation
+scheduling via BackgroundCompiler.
 """
 
+import structlog
 from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.ingest.service import IngestService as IngestAdapter
+from wikimind.jobs.background import get_background_compiler
 from wikimind.models import Source
+
+log = structlog.get_logger()
 
 
 class IngestService:
-    """Orchestrate source ingestion and compilation enqueue."""
+    """Orchestrate source ingestion and background compilation scheduling."""
 
     def __init__(self) -> None:
         self._adapter = IngestAdapter()
 
     async def ingest_url(self, url: str, session: AsyncSession) -> Source:
-        """Ingest a URL (web page or YouTube) and enqueue compilation.
+        """Ingest a URL (web page or YouTube) and schedule compilation.
 
         Args:
             url: The URL to ingest.
@@ -32,12 +37,15 @@ class IngestService:
             HTTPException: If ingestion fails due to invalid input or network error.
         """
         try:
-            return await self._adapter.ingest_url(url, session)
+            source = await self._adapter.ingest_url(url, session)
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+        await self._schedule_compile(source.id)
+        return source
+
     async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:
-        """Ingest a PDF file and enqueue compilation.
+        """Ingest a PDF file and schedule compilation.
 
         Args:
             file_bytes: Raw PDF bytes.
@@ -47,10 +55,12 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        return await self._adapter.ingest_pdf(file_bytes, filename, session)
+        source = await self._adapter.ingest_pdf(file_bytes, filename, session)
+        await self._schedule_compile(source.id)
+        return source
 
     async def ingest_text(self, content: str, title: str | None, session: AsyncSession) -> Source:
-        """Ingest raw text content and enqueue compilation.
+        """Ingest raw text content and schedule compilation.
 
         Args:
             content: The text content to ingest.
@@ -60,7 +70,16 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        return await self._adapter.ingest_text(content, title, session)
+        source = await self._adapter.ingest_text(content, title, session)
+        await self._schedule_compile(source.id)
+        return source
+
+    @staticmethod
+    async def _schedule_compile(source_id: str) -> None:
+        """Schedule background compilation for a source."""
+        compiler = get_background_compiler()
+        await compiler.schedule_compile(source_id)
+        log.info("compilation scheduled", source_id=source_id)
 
     async def list_sources(
         self, session: AsyncSession, status: str | None = None, limit: int = 50, offset: int = 0
