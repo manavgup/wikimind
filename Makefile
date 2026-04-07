@@ -175,6 +175,14 @@ test-integration: ## Run integration tests only
 coverage: ## Run tests with coverage report and HTML output
 	$(BIN)/pytest --cov=wikimind --cov-report=term-missing --cov-report=html
 
+.PHONY: test-matrix
+test-matrix: ## Show how to run the LLM × document type benchmark
+	@echo "Run a single matrix entry:"
+	@echo "  python scripts/run_test_matrix.py --doc PATH --doc-type LABEL --question TEXT --provider PROVIDER"
+	@echo ""
+	@echo "See docs/test-matrix-results.md for results template and methodology."
+	@echo "See scripts/README.md for full usage."
+
 ##@ 🗄️  DATABASE
 
 .PHONY: db-reset
