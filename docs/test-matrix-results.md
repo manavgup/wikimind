@@ -21,3 +21,4 @@ Quality scores (1-5) are filled in manually after running.
 |------|----------|----------|-----|---------|------|-----------|----------|-------------|--------------|-------------|-------|
 
 <!-- Results appended automatically by scripts/run_test_matrix.py -->
+| 2026-04-07 | openai | slide-deck | Digital Sovereignty Deck_2026.pdf | 10.1s | $0.0210 | 2 | | | | | |
