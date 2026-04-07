@@ -104,7 +104,11 @@ worker: ## Start ARQ background job worker
 
 .PHONY: pre-commit
 pre-commit: ## Run all pre-commit hooks locally (same as CI)
-	$(BIN)/pre-commit run --all-files
+	@# Prepend the venv bin to PATH so the local hooks (which use `python`
+	@# as their entry point) resolve to the venv's Python — needed because
+	@# pre-commit's `language: system` subprocesses inherit the parent shell's
+	@# PATH, and the user may not have the venv activated.
+	@PATH="$(abspath $(BIN)):$$PATH" $(BIN)/pre-commit run --all-files
 
 .PHONY: lint
 lint: ## Run ruff linter on src/ and tests/ (includes pylint + pydocstyle rules)

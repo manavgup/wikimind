@@ -44,7 +44,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12"]
+        # We pin to a single Python version. The matrix is preserved as a
+        # 1-element list so we can re-add 3.11/3.13 cheaply if needed.
+        python: ["3.12"]
 
     env:
       PYTHONUNBUFFERED: "1"

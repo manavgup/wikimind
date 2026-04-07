@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: regenerate-adr-index
         name: ADR index — regenerate docs/adr/README.md
-        entry: .venv/bin/python scripts/regenerate_adr_index.py
+        entry: python scripts/regenerate_adr_index.py
         language: system
         pass_filenames: false
         always_run: true
@@ -44,7 +44,7 @@ repos:
 
       - id: regenerate-readme-targets
         name: README make-targets section — regenerate
-        entry: .venv/bin/python scripts/regenerate_readme_targets.py
+        entry: python scripts/regenerate_readme_targets.py
         language: system
         pass_filenames: false
         always_run: true
@@ -52,7 +52,7 @@ repos:
 
       - id: check-openapi
         name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
-        entry: .venv/bin/python scripts/export_openapi.py --check
+        entry: python scripts/export_openapi.py --check
         language: system
         pass_filenames: false
         always_run: true
@@ -60,7 +60,7 @@ repos:
 
       - id: check-doc-sync
         name: Doc sync — verify docs are updated alongside code
-        entry: .venv/bin/python scripts/check_doc_sync.py
+        entry: python scripts/check_doc_sync.py
         language: system
         pass_filenames: false
         always_run: true
