@@ -111,6 +111,22 @@ docstyle: ## Run pydocstyle docstring checks
 .PHONY: verify
 verify: lint format-check typecheck pyright docstyle test ## Run all checks (lint + format + mypy + pyright + docstyle + tests)
 
+.PHONY: frontend-install
+frontend-install: ## Install frontend dependencies
+	cd apps/web && npm install
+
+.PHONY: frontend-dev
+frontend-dev: ## Start Vite dev server on :5173
+	cd apps/web && npm run dev
+
+.PHONY: frontend-build
+frontend-build: ## Build frontend production bundle
+	cd apps/web && npm run build
+
+.PHONY: frontend-verify
+frontend-verify: ## Run all frontend quality checks
+	cd apps/web && npm run lint && npm run typecheck && npm run build
+
 ##@ 🧪 TESTING
 
 .PHONY: test
