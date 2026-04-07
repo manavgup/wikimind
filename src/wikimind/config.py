@@ -16,6 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import keyring
+import keyring.errors
 import structlog
 from pydantic import BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,21 @@ log = structlog.get_logger()
 
 KEYRING_SERVICE = "wikimind"
 DEFAULT_DATA_DIR = Path.home() / ".wikimind"
+
+
+def _safe_keyring_get(provider: str) -> str | None:
+    """Read a key from the OS keychain, returning None on any failure.
+
+    Linux CI runners often lack a configured keyring backend (no
+    secret-service, no GNOME keyring, no KWallet), which causes
+    `keyring.get_password()` to raise `NoKeyringError`. We treat that
+    case the same as "no key stored" so Settings instantiation never
+    crashes for environments that don't use the keychain.
+    """
+    try:
+        return keyring.get_password(KEYRING_SERVICE, provider)
+    except keyring.errors.KeyringError:
+        return None
 
 
 class LLMProviderConfig(BaseModel):
@@ -151,7 +167,7 @@ class Settings(BaseSettings):
                 getattr(self, field)
                 or os.environ.get(raw_env)
                 or os.environ.get(f"WIKIMIND_{raw_env}")
-                or keyring.get_password(KEYRING_SERVICE, provider_name)
+                or _safe_keyring_get(provider_name)
             )
             if not has_key:
                 continue
@@ -176,7 +192,7 @@ class Settings(BaseSettings):
                 getattr(self, field)
                 or os.environ.get(raw_env)
                 or os.environ.get(f"WIKIMIND_{raw_env}")
-                or keyring.get_password(KEYRING_SERVICE, provider_name)
+                or _safe_keyring_get(provider_name)
             )
             if not has_key:
                 log.warning(
@@ -226,7 +242,7 @@ class Settings(BaseSettings):
             getattr(self, field)
             or os.environ.get(raw_env)
             or os.environ.get(f"WIKIMIND_{raw_env}")
-            or keyring.get_password(KEYRING_SERVICE, provider)
+            or _safe_keyring_get(provider)
         )
 
 
@@ -280,7 +296,7 @@ def get_api_key(provider: str) -> str | None:
             return env_val
 
     # Fall back to keychain
-    return keyring.get_password(KEYRING_SERVICE, provider)
+    return _safe_keyring_get(provider)
 
 
 def set_api_key(provider: str, key: str) -> None:

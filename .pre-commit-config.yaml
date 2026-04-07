@@ -30,3 +30,37 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  # ── Doc sync (local hooks) ────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: regenerate-adr-index
+        name: ADR index — regenerate docs/adr/README.md
+        entry: python scripts/regenerate_adr_index.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^docs/adr/
+
+      - id: regenerate-readme-targets
+        name: README make-targets section — regenerate
+        entry: python scripts/regenerate_readme_targets.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^(Makefile|README\.md)$
+
+      - id: check-openapi
+        name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
+        entry: python scripts/export_openapi.py --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^(src/wikimind/api/|docs/openapi\.yaml)
+
+      - id: check-doc-sync
+        name: Doc sync — verify docs are updated alongside code
+        entry: python scripts/check_doc_sync.py
+        language: system
+        pass_filenames: false
+        always_run: true

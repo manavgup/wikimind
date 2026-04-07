@@ -50,10 +50,17 @@ jobs:
           cache: pip
 
       # -----------------------------------------------------------
-      # 2️⃣  Install pre-commit
+      # 2️⃣  Install pre-commit AND the wikimind package
       # -----------------------------------------------------------
-      - name: 📦  Install pre-commit
-        run: pip install pre-commit
+      # The local doc-sync hooks (export_openapi, regenerate_adr_index, etc.)
+      # import from `wikimind.*`, so the package must be installed in the
+      # same Python environment that pre-commit uses for `language: system`
+      # subprocesses. We install with the `[lint]` extras to pull pyyaml,
+      # pathspec, etc. that the doc-sync scripts depend on.
+      - name: 📦  Install pre-commit and wikimind
+        run: |
+          pip install pre-commit
+          pip install -e ".[lint]"
 
       # -----------------------------------------------------------
       # 3️⃣  Cache hook environments

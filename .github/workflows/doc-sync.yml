@@ -1,0 +1,120 @@
+# ===============================================================
+# 📚  Doc Sync — verify docs stay in step with code
+# ===============================================================
+#
+#   Two jobs:
+#     1. auto-gen-check — regenerate OpenAPI / ADR index / README
+#        make-targets block and fail if the committed files drift.
+#     2. co-change-check — run the co-change rule engine against
+#        the PR's diff to catch missing doc updates.
+#
+#   Both jobs honour the `docs-skip` PR label as an escape hatch.
+# ---------------------------------------------------------------
+
+name: Doc Sync
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "docs/**"
+      - "Makefile"
+      - "README.md"
+      - ".github/workflows/doc-sync.yml"
+      - ".docs-sync.yaml"
+      - "scripts/export_openapi.py"
+      - "scripts/regenerate_adr_index.py"
+      - "scripts/regenerate_readme_targets.py"
+      - "scripts/check_doc_sync.py"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # -----------------------------------------------------------
+  # Job 1 — Auto-gen check: regenerate and diff
+  # -----------------------------------------------------------
+  auto-gen-check:
+    if: >-
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+      && !contains(github.event.pull_request.labels.*.name, 'docs-skip')
+    name: auto-gen check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 🐍  Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 📦  Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: 📚  Verify auto-generated docs are in sync
+        run: |
+          python scripts/export_openapi.py --check
+          python scripts/regenerate_adr_index.py --check
+          python scripts/regenerate_readme_targets.py --check
+
+  # -----------------------------------------------------------
+  # Job 2 — Co-change rule engine
+  # -----------------------------------------------------------
+  co-change-check:
+    if: >-
+      github.event_name == 'pull_request'
+      && !github.event.pull_request.draft
+      && !contains(github.event.pull_request.labels.*.name, 'docs-skip')
+    name: co-change check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 🐍  Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 📦  Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml pathspec
+
+      - name: 📚  Run doc-sync rule engine
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python scripts/check_doc_sync.py --base "$BASE"

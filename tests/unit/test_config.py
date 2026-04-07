@@ -119,3 +119,46 @@ class TestSecurityStatus:
         status = s.get_security_status()
         assert status["openai_api_key"] is True
         assert status["anthropic_api_key"] is False
+
+
+class TestKeyringBackendMissing:
+    """Settings instantiation must survive a missing keyring backend.
+
+    Linux CI runners typically have no usable keyring backend (no
+    secret-service, no GNOME keyring, no KWallet). Calling
+    `keyring.get_password()` raises `NoKeyringError` in that case.
+    The auto-enable validator must treat this as 'no key stored'
+    instead of crashing the entire Settings load.
+    """
+
+    def test_settings_loads_when_keyring_raises(self, monkeypatch):
+        def raise_no_keyring(*_args, **_kwargs):
+            raise keyring.errors.NoKeyringError("No recommended backend was available")
+
+        monkeypatch.setattr(keyring, "get_password", raise_no_keyring)
+        # Should NOT raise — keyring failure is silently caught
+        s = Settings()
+        # Without any env vars set, no providers should auto-enable
+        assert s.llm.openai.enabled is False
+        assert s.llm.google.enabled is False
+
+    def test_env_var_still_works_when_keyring_raises(self, monkeypatch):
+        def raise_no_keyring(*_args, **_kwargs):
+            raise keyring.errors.NoKeyringError("No recommended backend was available")
+
+        monkeypatch.setattr(keyring, "get_password", raise_no_keyring)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        s = Settings()
+        # Env var path bypasses keyring entirely — auto-enable still works
+        assert s.llm.openai.enabled is True
+
+    def test_get_security_status_handles_keyring_failure(self, monkeypatch):
+        def raise_no_keyring(*_args, **_kwargs):
+            raise keyring.errors.NoKeyringError("No recommended backend was available")
+
+        monkeypatch.setattr(keyring, "get_password", raise_no_keyring)
+        s = Settings()
+        # Should not raise when computing the security audit summary
+        status = s.get_security_status()
+        assert status["openai_api_key"] is False
+        assert status["anthropic_api_key"] is False

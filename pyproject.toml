@@ -86,6 +86,9 @@ lint = [
     "pydocstyle>=6.3.0",
     "pre-commit>=3.8.0",
     "types-toml>=0.10.0",
+    # Doc-sync scripts (export_openapi, check_doc_sync, etc.)
+    "pyyaml>=6.0",
+    "pathspec>=0.12",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,0 +1,89 @@
+# Rules for the doc-sync co-change enforcer.
+# Run via: make check-doc-sync
+#
+# Each rule has the following shape:
+#   name:               short description printed in violation messages
+#   when_changed:       glob patterns — rule fires when any matching file changes
+#   when_diff_contains: optional regex list — further narrows the trigger
+#   require_changed:    ALL of these files must also be in the diff
+#   require_one_of:     at least ONE of these files must be in the diff
+#   severity:           error | warning | info
+#   fix_hint:           printed after the violation to tell humans what to do
+#
+# Escape hatches:
+#   commit_message_marker — put this in your commit subject/body to bypass.
+#   pr_label              — set this label on the PR to bypass in CI.
+
+escape_hatches:
+  commit_message_marker: "[skip-doc-check]"
+  pr_label: "docs-skip"
+
+rules:
+  - name: API routes need OpenAPI export
+    when_changed:
+      - "src/wikimind/api/routes/**/*.py"
+    require_changed:
+      - "docs/openapi.yaml"
+    severity: error
+    fix_hint: "Run: make export-openapi && git add docs/openapi.yaml"
+
+  - name: Config schema changes need .env.example
+    when_changed:
+      - "src/wikimind/config.py"
+    # Only fire when an actual schema field is added/changed.
+    # Defensive helpers, validator tweaks, refactors, and bug fixes don't
+    # need .env.example updates because they don't introduce new env vars.
+    when_diff_contains:
+      # New Pydantic field declarations: `name: type = ...` inside a class
+      - "^\\+\\s+\\w+:\\s*(SecretStr|str|int|bool|float|Path)"
+      # New Field() declarations
+      - "^\\+\\s+\\w+:.*=\\s*Field\\("
+      # New Pydantic model class definition
+      - "^\\+class \\w+(Config|Settings)"
+    require_changed:
+      - ".env.example"
+    severity: error
+    fix_hint: "Add the new setting (or its env var) to .env.example"
+
+  - name: Significant config behavior change should reference an ADR
+    when_changed:
+      - "src/wikimind/config.py"
+    when_diff_contains:
+      - "model_validator"
+      - "default_factory"
+    require_one_of:
+      - "docs/adr/**/*.md"
+    severity: warning
+    fix_hint: "Architectural change in config — update an existing ADR or add a new one"
+
+  - name: New SQLModel tables should be documented
+    when_changed:
+      - "src/wikimind/models.py"
+    when_diff_contains:
+      - "class .+\\(SQLModel"
+    require_one_of:
+      - "docs/adr/**/*.md"
+      - "docs/superpowers/specs/**/*.md"
+      - "CHANGELOG.md"
+    severity: warning
+    fix_hint: "New table — document the schema decision"
+
+  - name: New make targets surface in README
+    when_changed:
+      - "Makefile"
+    when_diff_contains:
+      - "^\\+\\.PHONY: [a-z]"
+    require_changed:
+      - "README.md"
+    severity: warning
+    fix_hint: "README's Make Targets section auto-regenerates; run `make regenerate-readme-targets` and commit"
+
+  - name: New ingest adapters need README update
+    when_changed:
+      - "src/wikimind/ingest/service.py"
+    when_diff_contains:
+      - "class .+Adapter:"
+    require_changed:
+      - "README.md"
+    severity: warning
+    fix_hint: "New ingest source type — document it in README's source-type list"
