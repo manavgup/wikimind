@@ -106,6 +106,10 @@ class Source(SQLModel, table=True):
     token_count: int | None = None
     error_message: str | None = None
     file_path: str | None = None  # Path in raw/ directory
+    # SHA-256 hex digest of the raw payload (issue #67). Used by the ingest
+    # layer to detect duplicates: re-ingesting the same content returns the
+    # existing source instead of creating a second row.
+    content_hash: str | None = Field(default=None, index=True)
 
 
 class Article(SQLModel, table=True):
@@ -122,6 +126,10 @@ class Article(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     source_ids: str | None = None  # JSON array of source IDs
+    # Which LLM provider compiled this article (issue #67). Recompiling the
+    # same source with the same provider replaces this article in place;
+    # different providers stack as separate articles for comparison.
+    provider: Provider | None = None
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
