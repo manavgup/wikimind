@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
+import fitz
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
@@ -40,10 +41,25 @@ from wikimind.models import (
     JobType,
     NormalizedDocument,
     Source,
+    SourceType,
     TaskType,
 )
 
 log = structlog.get_logger()
+
+
+def _extract_source_content(raw_path: Path, source_type: SourceType) -> str:
+    """Re-extract text from a raw source file by routing to the correct parser.
+
+    Text and YouTube sources are stored as UTF-8 and read directly.
+    PDFs are stored as binary and must be extracted via pymupdf.
+    """
+    if source_type == SourceType.PDF:
+        doc = fitz.open(str(raw_path))
+        pages: list[str] = [str(page.get_text()) for page in doc]
+        doc.close()
+        return "\n\n".join(pages)
+    return raw_path.read_text(encoding="utf-8", errors="replace")
 
 
 # ---------------------------------------------------------------------------
@@ -74,12 +90,12 @@ async def compile_source(ctx, source_id: str):
         await emit_job_progress(job.id, 10, "Reading source...")
 
         try:
-            # Re-read the raw file
+            # Re-read the raw file — route binary formats through their extractor
             if not source.file_path:
                 raise ValueError("No raw file path for source")
 
             raw_path = Path(source.file_path)
-            content = raw_path.read_text(encoding="utf-8", errors="replace")
+            content = _extract_source_content(raw_path, source.source_type)
 
             await emit_job_progress(job.id, 30, "Normalizing content...")
 
