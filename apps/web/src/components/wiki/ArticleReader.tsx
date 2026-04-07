@@ -13,6 +13,8 @@ interface ArticleReaderProps {
 
 const CONFIDENCE_TAG_REGEX = /\[(sourced|mixed|inferred|opinion)\]/gi;
 const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
+// Match a YAML frontmatter block at the very start of the document.
+const FRONTMATTER_REGEX = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
 function slugify(title: string): string {
   return title
@@ -22,14 +24,19 @@ function slugify(title: string): string {
     .replace(/\s+/g, "-");
 }
 
-// Pre-process the markdown to convert [[wikilinks]] into a token react-markdown
-// passes through. We use a HTML <a> tag with a data-wikilink attribute so the
-// custom anchor renderer below can intercept it and emit a React Router <Link>.
+// Pre-process the markdown to:
+//   1. Strip the YAML frontmatter block emitted by the compiler (it leaks into
+//      the visible article body otherwise — react-markdown doesn't parse YAML).
+//   2. Convert [[wikilinks]] into a token react-markdown passes through.
+//      We use an HTML <a> tag with a data-wikilink attribute so the custom
+//      anchor renderer below can intercept it and emit a React Router <Link>.
 function preprocessMarkdown(content: string): string {
-  return content.replace(WIKILINK_REGEX, (_, target: string) => {
-    const safe = target.trim();
-    return `<a data-wikilink="${slugify(safe)}" href="#">${safe}</a>`;
-  });
+  return content
+    .replace(FRONTMATTER_REGEX, "")
+    .replace(WIKILINK_REGEX, (_, target: string) => {
+      const safe = target.trim();
+      return `<a data-wikilink="${slugify(safe)}" href="#">${safe}</a>`;
+    });
 }
 
 export function ArticleReader({ article }: ArticleReaderProps) {
