@@ -1,8 +1,18 @@
 """WikiMind Ingest Service.
 
 Source adapters for all supported input types. Each adapter fetches or reads raw
-content, persists a Source record and raw file, and returns the Source. Compilation
-is scheduled separately by the service layer, not by adapters.
+content, persists a ``Source`` record alongside both the original raw file and a
+cleaned ``.txt`` extraction, and returns the source. Compilation is scheduled
+separately by the service layer, not by adapters.
+
+File lineage convention (see issue #59):
+
+* Every adapter writes the cleaned text to ``~/.wikimind/raw/{source_id}.txt``
+  and points ``Source.file_path`` at it. The compile worker only reads ``.txt``.
+* Adapters whose original payload is not already plain text additionally write
+  the raw bytes to ``~/.wikimind/raw/{source_id}.{ext}`` (``.html`` for URL,
+  ``.pdf`` for PDF). Text and YouTube payloads are already plain text, so the
+  raw and clean files are the same ``.txt`` file.
 """
 
 from __future__ import annotations
@@ -143,6 +153,7 @@ class URLAdapter:
         # keep the raw HTML alongside it for reference/reprocessing.
         settings = get_settings()
         raw_dir = Path(settings.data_dir) / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
         (raw_dir / f"{source.id}.html").write_text(html, encoding="utf-8")
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(downloaded, encoding="utf-8")
@@ -195,11 +206,14 @@ class PDFAdapter:
         await session.commit()
         await session.refresh(source)
 
-        # Save raw file
+        # Save the raw PDF binary alongside the extracted plain text. The
+        # worker only ever reads the .txt file (see issue #59), so file_path
+        # always points at the cleaned text. The raw .pdf is kept for lineage
+        # and future re-extraction (e.g. Docling — see issue #57).
         settings = get_settings()
-        raw_path = Path(settings.data_dir) / "raw" / f"{source.id}.pdf"
-        raw_path.write_bytes(file_bytes)
-        source.file_path = str(raw_path)
+        raw_dir = Path(settings.data_dir) / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / f"{source.id}.pdf").write_bytes(file_bytes)
 
         # Extract text — plain text is the most reliable format across PDFs
         doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -207,6 +221,10 @@ class PDFAdapter:
         doc.close()
 
         clean_text = "\n\n".join(pages_text)
+        text_path = raw_dir / f"{source.id}.txt"
+        text_path.write_text(clean_text, encoding="utf-8")
+        source.file_path = str(text_path)
+
         token_count = estimate_tokens(clean_text)
         source.token_count = token_count
         session.add(source)
@@ -251,11 +269,15 @@ class TextAdapter:
         await session.commit()
         await session.refresh(source)
 
-        # Save raw
+        # Pasted text is already plain text, so the raw and cleaned files are
+        # the same .txt file. file_path always points at the .txt the worker
+        # reads (see issue #59).
         settings = get_settings()
-        raw_path = Path(settings.data_dir) / "raw" / f"{source.id}.txt"
-        raw_path.write_text(content, encoding="utf-8")
-        source.file_path = str(raw_path)
+        raw_dir = Path(settings.data_dir) / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        text_path = raw_dir / f"{source.id}.txt"
+        text_path.write_text(content, encoding="utf-8")
+        source.file_path = str(text_path)
         session.add(source)
         await session.commit()
 
@@ -302,10 +324,14 @@ class YouTubeAdapter:
         await session.commit()
         await session.refresh(source)
 
+        # YouTube transcripts are already plain text, so the raw and cleaned
+        # files are the same .txt. There is no separate raw video payload.
         settings = get_settings()
-        raw_path = Path(settings.data_dir) / "raw" / f"{source.id}.txt"
-        raw_path.write_text(transcript_text, encoding="utf-8")
-        source.file_path = str(raw_path)
+        raw_dir = Path(settings.data_dir) / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        text_path = raw_dir / f"{source.id}.txt"
+        text_path.write_text(transcript_text, encoding="utf-8")
+        source.file_path = str(text_path)
         session.add(source)
         await session.commit()
 
