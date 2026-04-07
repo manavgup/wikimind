@@ -5,6 +5,12 @@ Runs as a separate process in production: ``arq wikimind.jobs.worker.WorkerSetti
 
 In dev mode (no Redis), the same job functions are called in-process by
 ``BackgroundCompiler`` via ``asyncio.create_task()``.
+
+The worker is intentionally agnostic to source format. Every ingest adapter
+(URL, PDF, text, YouTube) writes a cleaned ``.txt`` file alongside the source
+record (see ``wikimind.ingest.service`` and issue #59), and ``Source.file_path``
+always points at that ``.txt``. The worker therefore just reads the file as
+UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 """
 
 from __future__ import annotations
@@ -15,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
-import fitz
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
@@ -41,25 +46,10 @@ from wikimind.models import (
     JobType,
     NormalizedDocument,
     Source,
-    SourceType,
     TaskType,
 )
 
 log = structlog.get_logger()
-
-
-def _extract_source_content(raw_path: Path, source_type: SourceType) -> str:
-    """Re-extract text from a raw source file by routing to the correct parser.
-
-    Text and YouTube sources are stored as UTF-8 and read directly.
-    PDFs are stored as binary and must be extracted via pymupdf.
-    """
-    if source_type == SourceType.PDF:
-        doc = fitz.open(str(raw_path))
-        pages: list[str] = [str(page.get_text()) for page in doc]
-        doc.close()
-        return "\n\n".join(pages)
-    return raw_path.read_text(encoding="utf-8", errors="replace")
 
 
 # ---------------------------------------------------------------------------
@@ -90,12 +80,14 @@ async def compile_source(ctx, source_id: str):
         await emit_job_progress(job.id, 10, "Reading source...")
 
         try:
-            # Re-read the raw file — route binary formats through their extractor
+            # Every adapter writes a cleaned .txt and stores its path on the
+            # Source record (see issue #59). The worker is format-agnostic and
+            # just reads UTF-8 text — no PDF/HTML re-extraction here.
             if not source.file_path:
-                raise ValueError("No raw file path for source")
+                raise ValueError("No cleaned text file path for source")
 
-            raw_path = Path(source.file_path)
-            content = _extract_source_content(raw_path, source.source_type)
+            text_path = Path(source.file_path)
+            content = text_path.read_text(encoding="utf-8")
 
             await emit_job_progress(job.id, 30, "Normalizing content...")
 
