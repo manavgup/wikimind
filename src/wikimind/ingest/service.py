@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import fitz
@@ -32,6 +33,50 @@ from wikimind.config import get_settings
 from wikimind.models import DocumentChunk, IngestStatus, NormalizedDocument, Source, SourceType
 
 log = structlog.get_logger()
+
+
+# ---------------------------------------------------------------------------
+# Optional Docling integration (issue #57)
+#
+# Docling is a structured PDF parser that preserves heading hierarchy, tables,
+# multi-column layouts, and OCR'd text. It is opt-in via the ``parse-advanced``
+# extras group because it pulls in ~500MB of ML models on first use. When
+# docling is not installed the PDF adapter falls back to ``fitz`` plain-text
+# extraction (the previous behaviour), so the test suite and lightweight
+# installs continue to work without modification.
+# ---------------------------------------------------------------------------
+
+try:
+    from docling.document_converter import DocumentConverter as _DocumentConverter
+
+    _DOCLING_AVAILABLE = True
+except ImportError:
+    _DocumentConverter = None  # type: ignore[assignment,misc]
+    _DOCLING_AVAILABLE = False
+
+# Lazy-initialized singleton converter — instantiating ``DocumentConverter``
+# triggers ML model loading (slow, ~500MB), so we defer it until the first PDF
+# is actually ingested.
+_docling_converter: Any = None
+
+
+def _get_docling_converter() -> Any:
+    """Lazy-initialize the Docling converter singleton.
+
+    Loads the underlying ML models on first call. Subsequent calls return the
+    cached converter so model initialization only happens once per process.
+
+    Returns:
+        The shared :class:`docling.document_converter.DocumentConverter`
+        instance. Typed as :class:`Any` because docling is an optional
+        dependency that may not be installed.
+    """
+    global _docling_converter
+    if _docling_converter is None:
+        if _DocumentConverter is None:  # pragma: no cover - guarded by caller
+            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[parse-advanced]'")
+        _docling_converter = _DocumentConverter()
+    return _docling_converter
 
 
 def estimate_tokens(text: str) -> int:
@@ -185,7 +230,19 @@ class URLAdapter:
 
 
 class PDFAdapter:
-    """Adapter for ingesting PDF files."""
+    """Adapter for ingesting PDF files.
+
+    Uses :mod:`docling` for structured extraction (heading hierarchy, tables,
+    OCR fallback, multi-column layouts) when the ``parse-advanced`` extras
+    group is installed. Falls back to plain-text extraction via
+    :mod:`fitz` (pymupdf) when docling is not available, preserving the
+    behaviour the project shipped with before issue #57.
+
+    Both branches honour the dual-file lineage convention from issue #59: the
+    raw ``.pdf`` bytes are written to ``~/.wikimind/raw/{source_id}.pdf`` and
+    the cleaned extraction is written to ``~/.wikimind/raw/{source_id}.txt``,
+    with ``Source.file_path`` pointing at the latter.
+    """
 
     async def ingest(
         self,
@@ -193,8 +250,19 @@ class PDFAdapter:
         filename: str,
         session: AsyncSession,
     ) -> tuple[Source, NormalizedDocument]:
-        """Ingest a PDF file and return source and normalized document."""
-        log.info("Ingesting PDF", filename=filename)
+        """Ingest a PDF file and return source and normalized document.
+
+        Args:
+            file_bytes: Raw PDF binary contents.
+            filename: Original upload filename, used for the source title.
+            session: Async database session.
+
+        Returns:
+            A tuple of the persisted :class:`Source` row and the in-memory
+            :class:`NormalizedDocument` ready for compilation.
+        """
+        extractor = "docling" if _DOCLING_AVAILABLE else "fitz"
+        log.info("Ingesting PDF", filename=filename, extractor=extractor)
 
         # Create source record
         source = Source(
@@ -213,14 +281,17 @@ class PDFAdapter:
         settings = get_settings()
         raw_dir = Path(settings.data_dir) / "raw"
         raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / f"{source.id}.pdf").write_bytes(file_bytes)
+        raw_pdf_path = raw_dir / f"{source.id}.pdf"
+        raw_pdf_path.write_bytes(file_bytes)
 
-        # Extract text — plain text is the most reliable format across PDFs
-        doc = fitz.open(stream=file_bytes, filetype="pdf")
-        pages_text: list[str] = [str(page.get_text()) for page in doc]
-        doc.close()
+        # Extract text — prefer Docling for structured output (markdown with
+        # heading hierarchy, table-aware), fall back to fitz plain text when
+        # docling is not installed.
+        if _DOCLING_AVAILABLE:
+            clean_text, page_count = self._extract_via_docling(raw_pdf_path)
+        else:
+            clean_text, page_count = self._extract_via_fitz(file_bytes)
 
-        clean_text = "\n\n".join(pages_text)
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(clean_text, encoding="utf-8")
         source.file_path = str(text_path)
@@ -238,8 +309,57 @@ class PDFAdapter:
             chunks=chunk_text(clean_text, source.id),
         )
 
-        log.info("PDF ingested", title=source.title, tokens=token_count, pages=len(pages_text))
+        log.info(
+            "PDF ingested",
+            title=source.title,
+            tokens=token_count,
+            pages=page_count,
+            extractor=extractor,
+        )
         return source, normalized
+
+    @staticmethod
+    def _extract_via_fitz(file_bytes: bytes) -> tuple[str, int]:
+        """Extract plain text from a PDF using :mod:`fitz` (pymupdf).
+
+        This is the fallback path used when docling is not installed. It
+        produces the exact same output the adapter shipped with prior to
+        issue #57 — pages joined with a blank line.
+
+        Args:
+            file_bytes: Raw PDF binary contents.
+
+        Returns:
+            A tuple of ``(cleaned_text, page_count)``.
+        """
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        pages_text: list[str] = [str(page.get_text()) for page in doc]
+        doc.close()
+        return "\n\n".join(pages_text), len(pages_text)
+
+    @staticmethod
+    def _extract_via_docling(raw_pdf_path: Path) -> tuple[str, int]:
+        """Extract structured markdown from a PDF using :mod:`docling`.
+
+        Docling preserves heading hierarchy, tables, multi-column layouts,
+        and OCR'd text in images. The result is markdown — a strict
+        improvement over fitz plain text for slide decks and academic papers.
+
+        Args:
+            raw_pdf_path: Path to the saved raw PDF on disk. Docling reads
+                from a path rather than a byte stream.
+
+        Returns:
+            A tuple of ``(markdown_text, page_count)``.
+        """
+        converter = _get_docling_converter()
+        result = converter.convert(str(raw_pdf_path))
+        markdown = result.document.export_to_markdown()
+        # Docling exposes pages on the document; fall back to 0 if the
+        # attribute is missing on a future release.
+        pages = getattr(result.document, "pages", None)
+        page_count = len(pages) if pages is not None else 0
+        return markdown, page_count
 
 
 # ---------------------------------------------------------------------------
