@@ -139,11 +139,14 @@ class URLAdapter:
         await session.commit()
         await session.refresh(source)
 
-        # Save raw file
+        # Save clean extracted text (used by the compiler worker) and
+        # keep the raw HTML alongside it for reference/reprocessing.
         settings = get_settings()
-        raw_path = Path(settings.data_dir) / "raw" / f"{source.id}.html"
-        raw_path.write_text(html, encoding="utf-8")
-        source.file_path = str(raw_path)
+        raw_dir = Path(settings.data_dir) / "raw"
+        (raw_dir / f"{source.id}.html").write_text(html, encoding="utf-8")
+        text_path = raw_dir / f"{source.id}.txt"
+        text_path.write_text(downloaded, encoding="utf-8")
+        source.file_path = str(text_path)
 
         # Normalize
         clean_text = downloaded
@@ -198,11 +201,9 @@ class PDFAdapter:
         raw_path.write_bytes(file_bytes)
         source.file_path = str(raw_path)
 
-        # Extract text
+        # Extract text — plain text is the most reliable format across PDFs
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-        pages_text = []
-        for page in doc:
-            pages_text.append(page.get_text("markdown"))
+        pages_text: list[str] = [str(page.get_text()) for page in doc]
         doc.close()
 
         clean_text = "\n\n".join(pages_text)
