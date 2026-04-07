@@ -107,20 +107,20 @@ pre-commit: ## Run all pre-commit hooks locally (same as CI)
 	$(BIN)/pre-commit run --all-files
 
 .PHONY: lint
-lint: ## Run ruff linter (includes pylint + pydocstyle rules)
-	$(BIN)/ruff check src/
+lint: ## Run ruff linter on src/ and tests/ (includes pylint + pydocstyle rules)
+	$(BIN)/ruff check src/ tests/
 
 .PHONY: lint-fix
 lint-fix: ## Auto-fix lint issues where possible
-	$(BIN)/ruff check --fix src/
+	$(BIN)/ruff check --fix src/ tests/
 
 .PHONY: format
 format: ## Format source code with ruff
-	$(BIN)/ruff format src/
+	$(BIN)/ruff format src/ tests/
 
 .PHONY: format-check
 format-check: ## Check formatting without modifying files
-	$(BIN)/ruff format --check src/
+	$(BIN)/ruff format --check src/ tests/
 
 .PHONY: typecheck
 typecheck: ## Run mypy type checking

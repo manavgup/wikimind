@@ -3,6 +3,7 @@
 import contextlib
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from wikimind.database import get_session
@@ -12,8 +13,6 @@ from wikimind.models import Source, SourceType
 @pytest.fixture
 def session_factory(async_engine):
     """Override get_session to use the in-memory engine."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
     return async_sessionmaker(async_engine, expire_on_commit=False)
 
 
