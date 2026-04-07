@@ -84,7 +84,7 @@ class Compiler:
         request = CompletionRequest(
             system=COMPILER_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": self._build_user_prompt(doc)}],
-            max_tokens=4096,
+            max_tokens=8192,
             temperature=0.2,  # Low temp for factual compilation
             response_format="json",
             task_type=TaskType.COMPILE,
@@ -96,7 +96,11 @@ class Compiler:
             data = self.router.parse_json_response(response)
             return CompilationResult(**data)
         except Exception as e:
-            log.error("Failed to parse compilation response", error=str(e))
+            log.error(
+                "Failed to parse compilation response",
+                error=str(e),
+                response_preview=response.content[:500] if response else "no response",
+            )
             return None
 
     def _build_user_prompt(self, doc: NormalizedDocument) -> str:
