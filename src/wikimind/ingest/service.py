@@ -198,11 +198,9 @@ class PDFAdapter:
         raw_path.write_bytes(file_bytes)
         source.file_path = str(raw_path)
 
-        # Extract text
+        # Extract text — plain text is the most reliable format across PDFs
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-        pages_text = []
-        for page in doc:
-            pages_text.append(page.get_text("markdown"))
+        pages_text: list[str] = [str(page.get_text()) for page in doc]
         doc.close()
 
         clean_text = "\n\n".join(pages_text)
