@@ -76,11 +76,34 @@ def test_rule_passes_when_required_doc_updated() -> None:
     assert check_doc_sync.evaluate_rule(rule, changed, diff) is None
 
 
+def test_commit_message_marker_requires_own_line() -> None:
+    """The escape-hatch marker must be on its own line to count.
+
+    Ensures that a commit message that merely describes the escape hatch
+    (e.g. the doc-sync infrastructure PR itself) does not bypass the check.
+    """
+    marker = "[skip-doc-check]"
+
+    # On its own line (with surrounding whitespace) → matches.
+    assert check_doc_sync.commit_message_has_marker(f"fix: bump\n\n{marker}\n", marker)
+    assert check_doc_sync.commit_message_has_marker(f"fix: bump\n   {marker}   \n", marker)
+
+    # Embedded in a sentence → does NOT match.
+    assert not check_doc_sync.commit_message_has_marker(
+        f"chore: document the {marker} escape hatch",
+        marker,
+    )
+    assert not check_doc_sync.commit_message_has_marker(
+        "Use `[skip-doc-check]` in your commit message",
+        marker,
+    )
+
+
 def test_escape_hatch_commit_message_marker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """`[skip-doc-check]` in the commit message short-circuits the checker."""
-    monkeypatch.setattr(check_doc_sync, "last_commit_message", lambda: "fix: bump [skip-doc-check]")
+    """`[skip-doc-check]` on its own line short-circuits the checker."""
+    monkeypatch.setattr(check_doc_sync, "last_commit_message", lambda: "fix: bump\n\n[skip-doc-check]\n")
     monkeypatch.setattr(
         check_doc_sync,
         "load_config",

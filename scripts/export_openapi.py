@@ -24,6 +24,8 @@ from typing import Any
 
 import yaml
 
+from wikimind.main import app
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "openapi.yaml"
 
@@ -31,15 +33,13 @@ DEFAULT_OUTPUT = REPO_ROOT / "docs" / "openapi.yaml"
 def generate_schema() -> dict[str, Any]:
     """Return the FastAPI app's OpenAPI schema as a plain dict.
 
-    Importing `wikimind.main` triggers side-effects (router registration,
-    middleware stack) but does NOT start the server. The call is safe.
+    Importing `wikimind.main` at module level triggers side-effects (router
+    registration, middleware stack) but does NOT start the server, so the
+    import is safe even when the script is invoked with ``--help``.
 
     Returns:
         The OpenAPI 3.x schema as a JSON-serialisable dict.
     """
-    # Import inside the function so `--help` works without importing the app.
-    from wikimind.main import app
-
     schema: dict[str, Any] = app.openapi()
     return schema
 

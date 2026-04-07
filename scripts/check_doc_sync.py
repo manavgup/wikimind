@@ -154,6 +154,26 @@ def last_commit_message() -> str:
     return run_git(["log", "-1", "--format=%B"])
 
 
+def commit_message_has_marker(message: str, marker: str) -> bool:
+    """Return True when `marker` appears as its own line in `message`.
+
+    We require the marker to be on its own line so that commit messages that
+    merely describe the escape hatch (e.g. documentation of the doc-sync
+    infrastructure itself) do not accidentally bypass the check. Leading and
+    trailing whitespace are tolerated, but surrounding text is not.
+
+    Args:
+        message: Full commit message (subject + body).
+        marker: The escape-hatch token, e.g. `[skip-doc-check]`.
+
+    Returns:
+        True if any line in `message` equals `marker` after stripping.
+    """
+    if not marker:
+        return False
+    return any(line.strip() == marker for line in message.splitlines())
+
+
 def match_any(patterns: list[str], files: list[str]) -> list[str]:
     """Return files matching any of the given glob patterns.
 
@@ -271,7 +291,7 @@ def main() -> int:
     rules, escape = load_config(CONFIG_FILE)
 
     marker = escape.get("commit_message_marker")
-    if marker and marker in last_commit_message():
+    if marker and commit_message_has_marker(last_commit_message(), marker):
         print(f"OK   Escape hatch '{marker}' found in commit message — skipping doc-sync rules.")
         return 0
 
