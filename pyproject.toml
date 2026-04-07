@@ -61,6 +61,13 @@ search = [
 transcribe = [
     "openai-whisper>=20240930",
 ]
+parse-advanced = [
+    # Docling enables structured PDF parsing (heading hierarchy, tables, OCR
+    # fallback, multi-column layouts). Optional because it pulls in ~500MB of
+    # ML models on first use. The PDF adapter falls back to pymupdf when
+    # docling is not installed. See issue #57.
+    "docling>=2.0",
+]
 dev = [
     "wikimind[test,lint]",
 ]
