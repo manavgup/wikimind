@@ -315,8 +315,35 @@ class QueryRequest(BaseModel):
     file_back: bool = False  # Auto-save answer to wiki
 
 
+class SourceResponse(BaseModel):
+    """Provenance view of a raw ingested source exposed via the API.
+
+    Trimmed view of :class:`Source` suitable for embedding in article and
+    Q&A responses so callers can trace claims back to their origin
+    (URL, PDF filename, upload date, etc.).
+    """
+
+    id: str
+    source_type: SourceType
+    title: str | None
+    source_url: str | None
+    ingested_at: datetime
+
+
+class ArticleSourceSummary(BaseModel):
+    """Minimal source descriptor returned with listing/search endpoints.
+
+    A lightweight summary used when the full :class:`SourceResponse` is
+    overkill — e.g. article list and search result payloads.
+    """
+
+    id: str
+    source_type: SourceType
+    title: str | None
+
+
 class ArticleResponse(BaseModel):
-    """Full article response with content and backlinks."""
+    """Full article response with content, backlinks, and source provenance."""
 
     id: str
     slug: str
@@ -328,8 +355,62 @@ class ArticleResponse(BaseModel):
     backlinks_in: list[str] = []
     backlinks_out: list[str] = []
     content: str  # Full .md content
+    sources: list[SourceResponse] = []
     created_at: datetime
     updated_at: datetime
+
+
+class ArticleSummaryResponse(BaseModel):
+    """Summary article response for list and search endpoints.
+
+    Includes a lightweight list of sources so that callers can surface
+    provenance directly in search/listing views without fetching the full
+    article content.
+    """
+
+    id: str
+    slug: str
+    title: str
+    summary: str | None
+    confidence: ConfidenceLevel | None
+    linter_score: float | None
+    sources: list[ArticleSourceSummary] = []
+    created_at: datetime
+    updated_at: datetime
+
+
+class CitationArticleRef(BaseModel):
+    """Minimal reference to an article used inside a :class:`CitationResponse`."""
+
+    slug: str
+    title: str
+
+
+class CitationResponse(BaseModel):
+    """A single Q&A citation: an article plus the sources it was compiled from."""
+
+    article: CitationArticleRef
+    sources: list[SourceResponse] = []
+
+
+class QueryResponse(BaseModel):
+    """Q&A response enriched with a full Answer → Article → Source citation chain.
+
+    Mirrors the persisted :class:`Query` record fields while adding a
+    resolved ``citations`` list so clients can see which articles were
+    used and which original sources those articles came from.
+    """
+
+    id: str
+    question: str
+    answer: str
+    confidence: str | None
+    source_article_ids: str | None
+    related_article_ids: str | None
+    filed_back: bool
+    filed_article_id: str | None
+    created_at: datetime
+    citations: list[CitationResponse] = []
 
 
 class GraphNode(BaseModel):
