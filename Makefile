@@ -176,6 +176,20 @@ desktop-verify: ## Run desktop typecheck + build (auto-installs deps if needed)
 	@cd apps/desktop && [ -d node_modules ] || npm install
 	cd apps/desktop && npm run typecheck && npm run build
 
+##@ 🐳 DOCKER
+
+.PHONY: docker-build
+docker-build: ## Build the dev image used by docker-compose
+	docker compose build
+
+.PHONY: docker-up
+docker-up: ## Start gateway + worker + redis (dev stack)
+	docker compose up --build
+
+.PHONY: docker-down
+docker-down: ## Stop and remove the dev stack
+	docker compose down
+
 ##@ 🧪 TESTING
 
 .PHONY: test

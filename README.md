@@ -150,6 +150,14 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make desktop` | Launch the Electron shell for local dev (requires apps/web/dist + .venv) |
 | `make desktop-verify` | Run desktop typecheck + build (auto-installs deps if needed) |
 
+### 🐳 DOCKER
+
+| Target | Description |
+|--------|-------------|
+| `make docker-build` | Build the dev image used by docker-compose |
+| `make docker-up` | Start gateway + worker + redis (dev stack) |
+| `make docker-down` | Stop and remove the dev stack |
+
 ### 🧪 TESTING
 
 | Target | Description |
