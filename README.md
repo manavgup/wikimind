@@ -136,11 +136,19 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make pyright` | Run basedpyright type checking (requires Node.js) |
 | `make pylint` | Run pylint static analysis (fails under 9.0/10) |
 | `make docstyle` | Run pydocstyle docstring checks |
-| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + tests) |
+| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + tests + desktop) |
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
 | `make frontend-build` | Build frontend production bundle |
 | `make frontend-verify` | Run all frontend quality checks |
+
+### 🖥️  DESKTOP (Electron shell)
+
+| Target | Description |
+|--------|-------------|
+| `make desktop-install` | Install Electron shell dependencies |
+| `make desktop` | Launch the Electron shell for local dev (requires apps/web/dist + .venv) |
+| `make desktop-verify` | Run desktop typecheck + build (auto-installs deps if needed) |
 
 ### 🧪 TESTING
 

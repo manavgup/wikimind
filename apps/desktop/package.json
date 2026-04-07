@@ -1,0 +1,30 @@
+{
+  "name": "@wikimind/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Electron shell that wraps the WikiMind FastAPI daemon and React UI into a desktop app.",
+  "main": "dist/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "dev": "tsc && electron dist/main.js",
+    "package": "tsc && electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.6.2"
+  },
+  "build": {
+    "appId": "com.wikimind.desktop",
+    "productName": "WikiMind",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": { "target": "dir" },
+    "win": { "target": "dir" },
+    "linux": { "target": "dir" }
+  }
+}
