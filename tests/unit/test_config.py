@@ -3,7 +3,7 @@
 import keyring
 import pytest
 
-from wikimind.config import KEYRING_SERVICE, Settings, get_settings
+from wikimind.config import Settings, get_settings
 
 
 @pytest.fixture(autouse=True)
