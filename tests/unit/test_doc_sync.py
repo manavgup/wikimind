@@ -51,9 +51,9 @@ def test_rule_flags_config_change_without_env_example() -> None:
     )
 
     changed = ["src/wikimind/config.py"]
-    diff = "+    new_setting: str = 'default'\n"
 
-    violation = check_doc_sync.evaluate_rule(rule, changed, diff)
+    # No when_diff_contains → base ref unused.
+    violation = check_doc_sync.evaluate_rule(rule, changed, base=None)
 
     assert violation is not None
     assert violation.rule.name == "Config schema changes need .env.example"
@@ -71,9 +71,8 @@ def test_rule_passes_when_required_doc_updated() -> None:
     )
 
     changed = ["src/wikimind/config.py", ".env.example"]
-    diff = "+    new_setting: str = 'default'\n"
 
-    assert check_doc_sync.evaluate_rule(rule, changed, diff) is None
+    assert check_doc_sync.evaluate_rule(rule, changed, base=None) is None
 
 
 def test_commit_message_marker_requires_own_line() -> None:
@@ -121,7 +120,7 @@ def test_escape_hatch_commit_message_marker(
     )
     # If the escape hatch works, these should never be consulted.
     monkeypatch.setattr(check_doc_sync, "get_changed_files", lambda _base: pytest.fail("should not be called"))
-    monkeypatch.setattr(check_doc_sync, "get_diff_text", lambda _base: pytest.fail("should not be called"))
+    monkeypatch.setattr(check_doc_sync, "get_diff_for_files", lambda _base, _files: pytest.fail("should not be called"))
 
     # CONFIG_FILE just needs to exist.
     monkeypatch.setattr(check_doc_sync, "CONFIG_FILE", REPO_ROOT / ".docs-sync.yaml")
@@ -134,8 +133,13 @@ def test_escape_hatch_commit_message_marker(
     assert "Escape hatch" in captured.out
 
 
-def test_when_diff_contains_narrows_trigger() -> None:
-    """`when_diff_contains` acts as an AND filter on top of `when_changed`."""
+def test_when_diff_contains_narrows_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`when_diff_contains` acts as an AND filter on top of `when_changed`.
+
+    The scoped diff for the triggering files is fetched via
+    `get_diff_for_files`; we monkey-patch it to inject the diff text
+    directly without touching real git state.
+    """
     rule = check_doc_sync.Rule(
         name="only on validators",
         when_changed=["src/wikimind/config.py"],
@@ -144,17 +148,47 @@ def test_when_diff_contains_narrows_trigger() -> None:
         severity="warning",
     )
 
-    # Same file, but the diff doesn't contain the magic word → no violation.
-    assert check_doc_sync.evaluate_rule(rule, ["src/wikimind/config.py"], "+ unrelated = 1") is None
+    # Same file, but the (scoped) diff doesn't contain the magic word.
+    monkeypatch.setattr(check_doc_sync, "get_diff_for_files", lambda _base, _files: "+ unrelated = 1")
+    assert check_doc_sync.evaluate_rule(rule, ["src/wikimind/config.py"], base=None) is None
 
-    # Diff contains the word → violation, since docs/adr/new.md isn't present.
-    violation = check_doc_sync.evaluate_rule(
-        rule,
-        ["src/wikimind/config.py"],
-        "+@model_validator(mode='after')\n+def _v(self): ...",
+    # Now the scoped diff contains the word → violation.
+    monkeypatch.setattr(
+        check_doc_sync,
+        "get_diff_for_files",
+        lambda _base, _files: "+@model_validator(mode='after')\n+def _v(self): ...",
     )
+    violation = check_doc_sync.evaluate_rule(rule, ["src/wikimind/config.py"], base=None)
     assert violation is not None
     assert violation.rule.severity == "warning"
+
+
+def test_when_diff_contains_scoped_to_triggered_files(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The diff regex must NOT match content from unrelated files in the diff.
+
+    Regression test for the bug where a Python schema regex matched
+    content in `docs/openapi.yaml` because the rule used the full diff
+    text instead of the diff for files that triggered `when_changed`.
+    """
+    rule = check_doc_sync.Rule(
+        name="config schema",
+        when_changed=["src/wikimind/config.py"],
+        when_diff_contains=[r"^\+\s+\w+:\s*str"],
+        require_changed=[".env.example"],
+        severity="error",
+    )
+
+    # The full diff contains a matching line, BUT it's in openapi.yaml,
+    # not in config.py. The scoped diff for config.py is empty (no schema
+    # changes), so the rule must NOT fire.
+    def fake_scoped_diff(_base: object, files: list[str]) -> str:
+        if "src/wikimind/config.py" in files:
+            return "+def _helper(): pass\n"  # no schema fields
+        return ""
+
+    monkeypatch.setattr(check_doc_sync, "get_diff_for_files", fake_scoped_diff)
+
+    assert check_doc_sync.evaluate_rule(rule, ["src/wikimind/config.py", "docs/openapi.yaml"], base=None) is None
 
 
 # ---------------------------------------------------------------------------

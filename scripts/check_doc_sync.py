@@ -149,6 +149,29 @@ def get_diff_text(base: str | None) -> str:
     return run_git(["diff", "--cached"])
 
 
+def get_diff_for_files(base: str | None, files: list[str]) -> str:
+    """Return the diff restricted to the given files.
+
+    Used by `when_diff_contains` matching so a rule's content regex
+    only sees the diff of the files that triggered the rule, not
+    unrelated changes elsewhere in the same PR (e.g. an OpenAPI
+    YAML diff incidentally matching a Python schema regex).
+
+    Args:
+        base: Optional base ref; same semantics as `get_diff_text`.
+        files: Subset of changed files to scope the diff to.
+
+    Returns:
+        The unified diff text for `files` only, or empty string if
+        `files` is empty.
+    """
+    if not files:
+        return ""
+    if base:
+        return run_git(["diff", f"{base}..HEAD", "--", *files])
+    return run_git(["diff", "--cached", "--", *files])
+
+
 def last_commit_message() -> str:
     """Return the subject+body of the most recent commit, or an empty string."""
     return run_git(["log", "-1", "--format=%B"])
@@ -208,13 +231,18 @@ def diff_contains(diff: str, patterns: list[str]) -> bool:
     return any(re.search(pattern, diff, re.MULTILINE) for pattern in patterns)
 
 
-def evaluate_rule(rule: Rule, changed: list[str], diff: str) -> Violation | None:
+def evaluate_rule(rule: Rule, changed: list[str], base: str | None) -> Violation | None:
     """Evaluate a single rule against the current diff.
+
+    `when_diff_contains` patterns are matched only against the diff of
+    files that triggered the rule (`when_changed` matches), so a regex
+    written for one file type cannot accidentally match content in
+    unrelated files (e.g. an OpenAPI YAML diff matching a Python regex).
 
     Args:
         rule: The rule to evaluate.
         changed: All changed file paths.
-        diff: The full diff text.
+        base: Base ref for fetching scoped diffs (None = staged).
 
     Returns:
         A `Violation` if the rule fires and requirements are unmet, else `None`.
@@ -223,8 +251,10 @@ def evaluate_rule(rule: Rule, changed: list[str], diff: str) -> Violation | None
     if not triggered_by:
         return None
 
-    if rule.when_diff_contains and not diff_contains(diff, rule.when_diff_contains):
-        return None
+    if rule.when_diff_contains:
+        scoped_diff = get_diff_for_files(base, triggered_by)
+        if not diff_contains(scoped_diff, rule.when_diff_contains):
+            return None
 
     missing: list[str] = []
 
@@ -301,11 +331,9 @@ def main() -> int:
             print("INFO No changed files detected — nothing to check.")
         return 0
 
-    diff = get_diff_text(args.base)
-
     violations: list[Violation] = []
     for rule in rules:
-        violation = evaluate_rule(rule, changed, diff)
+        violation = evaluate_rule(rule, changed, args.base)
         if violation is not None:
             violations.append(violation)
 

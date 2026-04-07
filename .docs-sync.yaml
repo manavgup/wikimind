@@ -30,6 +30,16 @@ rules:
   - name: Config schema changes need .env.example
     when_changed:
       - "src/wikimind/config.py"
+    # Only fire when an actual schema field is added/changed.
+    # Defensive helpers, validator tweaks, refactors, and bug fixes don't
+    # need .env.example updates because they don't introduce new env vars.
+    when_diff_contains:
+      # New Pydantic field declarations: `name: type = ...` inside a class
+      - "^\\+\\s+\\w+:\\s*(SecretStr|str|int|bool|float|Path)"
+      # New Field() declarations
+      - "^\\+\\s+\\w+:.*=\\s*Field\\("
+      # New Pydantic model class definition
+      - "^\\+class \\w+(Config|Settings)"
     require_changed:
       - ".env.example"
     severity: error
