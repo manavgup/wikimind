@@ -11,6 +11,7 @@ from pathlib import Path
 
 import structlog
 from slugify import slugify
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
@@ -22,6 +23,7 @@ from wikimind.models import (
     ConfidenceLevel,
     IngestStatus,
     NormalizedDocument,
+    Provider,
     Source,
     TaskType,
 )
@@ -68,6 +70,11 @@ class Compiler:
     def __init__(self):
         self.router = get_llm_router()
         self.settings = get_settings()
+        # Provider that handled the most recent successful `complete()` call.
+        # Used by `save_article` to find an existing article from the same
+        # source compiled by the same provider, so re-runs replace in place
+        # while different providers stack as separate articles (issue #67).
+        self._last_provider_used: Provider | None = None
 
     async def compile(
         self,
@@ -91,6 +98,7 @@ class Compiler:
         )
 
         response = await self.router.complete(request, session=session)
+        self._last_provider_used = response.provider_used
 
         try:
             data = self.router.parse_json_response(response)
@@ -174,7 +182,64 @@ Compile this into a wiki article following the JSON schema exactly."""
         source: Source,
         session: AsyncSession,
     ) -> Article:
-        """Persist compiled article to filesystem and database."""
+        """Persist a compiled article, replacing any prior same-provider build.
+
+        Behavior (issue #67):
+            - If an article already exists for `(source, provider)`, it is
+              replaced **in place** — the slug and id are preserved, the
+              `.md` file is rewritten, and only the metadata fields change.
+            - If no article exists for that pair, a new row is created with
+              `provider` set, leaving any same-source articles from other
+              providers untouched.
+            - When the provider could not be tracked (e.g. tests that
+              bypass `compile()`), we fall back to always-create.
+
+        Args:
+            result: The compilation result returned by `compile()`.
+            source: The Source row that was compiled.
+            session: Async database session.
+
+        Returns:
+            The persisted Article (either replaced or freshly created).
+        """
+        provider = self._last_provider_used
+        existing = await self._find_article_for_source_and_provider(session, source.id, provider)
+        if existing is not None:
+            return await self._replace_article_in_place(existing, result, source, session)
+        return await self._create_article(result, source, session, provider)
+
+    async def _find_article_for_source_and_provider(
+        self,
+        session: AsyncSession,
+        source_id: str,
+        provider: Provider | None,
+    ) -> Article | None:
+        """Find an article previously compiled from this source by this provider.
+
+        `Article.source_ids` is a JSON-encoded string like ``["uuid1","uuid2"]``,
+        so we use a `LIKE` filter on the quoted UUID and then narrow by
+        provider in Python. Adequate for a single-user wiki — there is no
+        index on `source_ids` and we don't expect millions of rows.
+        """
+        if provider is None:
+            return None
+        needle = f'"{source_id}"'
+        result = await session.execute(
+            select(Article).where(Article.source_ids.contains(needle))  # type: ignore[union-attr]
+        )
+        for article in result.scalars().all():
+            if article.provider == provider:
+                return article
+        return None
+
+    async def _create_article(
+        self,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+        provider: Provider | None,
+    ) -> Article:
+        """Create a brand-new article (no existing same-provider article)."""
         slug = self._generate_unique_slug(result.title)
         file_path = self._write_article_file(result, source, slug)
 
@@ -186,11 +251,10 @@ Compile this into a wiki article following the JSON schema exactly."""
             summary=result.summary,
             source_ids=f'["{source.id}"]',
             concept_ids=f'["{chr(34).join(result.concepts)}"]',
+            provider=provider,
         )
-
         session.add(article)
 
-        # Update source status
         source.status = IngestStatus.COMPILED
         source.compiled_at = datetime.utcnow()
         session.add(source)
@@ -198,8 +262,52 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.commit()
         await session.refresh(article)
 
-        log.info("Article saved", slug=slug, title=result.title)
+        log.info("Article saved", slug=slug, title=result.title, provider=provider)
         return article
+
+    async def _replace_article_in_place(
+        self,
+        existing: Article,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+    ) -> Article:
+        """Replace an existing same-source same-provider article in place.
+
+        Keeps the slug and id stable so backlinks and external bookmarks
+        remain valid. The old `.md` file is unlinked and a new one is
+        written under the same slug. The new file may live in a different
+        concept directory if the compiler picked a different first concept
+        on this run — `existing.file_path` is updated to track the new
+        location.
+        """
+        old_path = Path(existing.file_path)
+        old_path.unlink(missing_ok=True)
+
+        new_path = self._write_article_file(result, source, existing.slug)
+
+        existing.title = result.title
+        existing.summary = result.summary
+        existing.confidence = self._overall_confidence(result)
+        existing.file_path = str(new_path)
+        existing.concept_ids = f'["{chr(34).join(result.concepts)}"]'
+        existing.updated_at = datetime.utcnow()
+        session.add(existing)
+
+        source.status = IngestStatus.COMPILED
+        source.compiled_at = datetime.utcnow()
+        session.add(source)
+
+        await session.commit()
+        await session.refresh(existing)
+
+        log.info(
+            "Article replaced in place",
+            slug=existing.slug,
+            title=result.title,
+            provider=existing.provider,
+        )
+        return existing
 
     def _generate_unique_slug(self, title: str) -> str:
         base = slugify(title, max_length=80)

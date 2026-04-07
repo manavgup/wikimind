@@ -47,7 +47,7 @@ class IngestService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        await self._schedule_compile(source.id)
+        await self._schedule_compile(source)
         return source
 
     async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:
@@ -62,7 +62,7 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
-        await self._schedule_compile(source.id)
+        await self._schedule_compile(source)
         return source
 
     async def ingest_text(self, content: str, title: str | None, session: AsyncSession) -> Source:
@@ -77,15 +77,31 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_text(content, title, session)
-        await self._schedule_compile(source.id)
+        await self._schedule_compile(source)
         return source
 
     @staticmethod
-    async def _schedule_compile(source_id: str) -> None:
-        """Schedule background compilation for a source."""
+    async def _schedule_compile(source: Source) -> None:
+        """Schedule background compilation, unless the source is already compiled.
+
+        A content-hash dedup hit (#67) returns a Source whose ``compiled_at``
+        is already set — re-running the compiler would just produce identical
+        output and burn LLM tokens. We skip the enqueue in that case so the
+        whole point of dedup (no wasted work) actually holds end-to-end.
+
+        Args:
+            source: The Source returned by an adapter (new or dedup hit).
+        """
+        if source.compiled_at is not None:
+            log.info(
+                "compile skipped (dedup hit, already compiled)",
+                source_id=source.id,
+                compiled_at=source.compiled_at.isoformat(),
+            )
+            return
         compiler = get_background_compiler()
-        await compiler.schedule_compile(source_id)
-        log.info("compilation scheduled", source_id=source_id)
+        await compiler.schedule_compile(source.id)
+        log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(
         self, session: AsyncSession, status: str | None = None, limit: int = 50, offset: int = 0

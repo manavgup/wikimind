@@ -17,6 +17,7 @@ File lineage convention (see issue #59):
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ import fitz
 import httpx
 import structlog
 import trafilatura
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -148,6 +150,77 @@ def chunk_text(text: str, doc_id: str, max_chunk_tokens: int = 4000) -> list[Doc
 
 
 # ---------------------------------------------------------------------------
+# Content-hash deduplication helpers (issue #67)
+#
+# Each adapter computes a SHA-256 of its raw payload (HTML bytes for URL,
+# PDF bytes for PDF, UTF-8 text for Text/YouTube) and consults the database
+# before creating a new Source row. A hit short-circuits the rest of the
+# adapter — we return the existing source plus a NormalizedDocument
+# reconstructed from the cached `.txt` so the caller's contract is
+# unchanged.
+# ---------------------------------------------------------------------------
+
+
+def compute_hash(payload: bytes) -> str:
+    """Return the SHA-256 hex digest of raw payload bytes.
+
+    Args:
+        payload: The raw bytes to hash. For URL/PDF this is the network
+            response or upload bytes; for Text/YouTube it is the UTF-8
+            encoding of the source string.
+
+    Returns:
+        Hex-encoded SHA-256 digest (64 characters).
+    """
+    return hashlib.sha256(payload).hexdigest()
+
+
+async def find_source_by_hash(session: AsyncSession, content_hash: str) -> Source | None:
+    """Look up an existing :class:`Source` by its content hash.
+
+    Args:
+        session: Async database session.
+        content_hash: SHA-256 hex digest produced by :func:`compute_hash`.
+
+    Returns:
+        The matching `Source`, or ``None`` if no source has this hash.
+    """
+    result = await session.execute(select(Source).where(Source.content_hash == content_hash))
+    return result.scalar_one_or_none()
+
+
+def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
+    """Rebuild a :class:`NormalizedDocument` from a previously-ingested source.
+
+    Used by the dedup hit path so the adapter's return contract
+    (``tuple[Source, NormalizedDocument]``) stays consistent whether the
+    source is new or replayed from the cache.
+
+    Args:
+        source: A persisted Source whose ``file_path`` points at the
+            cached cleaned text on disk.
+
+    Returns:
+        A NormalizedDocument loaded from the cached `.txt` file.
+
+    Raises:
+        ValueError: If the source has no `file_path` set.
+    """
+    if not source.file_path:
+        raise ValueError(f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument")
+    clean_text = Path(source.file_path).read_text(encoding="utf-8")
+    return NormalizedDocument(
+        raw_source_id=source.id,
+        clean_text=clean_text,
+        title=source.title or "Untitled",
+        author=source.author,
+        published_date=source.published_date,
+        estimated_tokens=source.token_count or estimate_tokens(clean_text),
+        chunks=chunk_text(clean_text, source.id),
+    )
+
+
+# ---------------------------------------------------------------------------
 # URL Adapter
 # ---------------------------------------------------------------------------
 
@@ -164,6 +237,16 @@ class URLAdapter:
             response = await client.get(url, headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"})
             response.raise_for_status()
             html = response.text
+
+        # Dedup: hash the raw HTML response and short-circuit if we've already
+        # ingested this exact content (issue #67). We use the HTML bytes — not
+        # the cleaned extraction — so the hash is stable across changes to the
+        # trafilatura extraction pipeline.
+        content_hash = compute_hash(html.encode("utf-8"))
+        existing = await find_source_by_hash(session, content_hash)
+        if existing is not None:
+            log.info("Source dedup hit (URL)", source_id=existing.id, hash=content_hash[:16])
+            return existing, reconstruct_normalized_doc(existing)
 
         # Extract article text
         downloaded = trafilatura.extract(
@@ -189,6 +272,7 @@ class URLAdapter:
             title=title,
             author=author,
             status=IngestStatus.PROCESSING,
+            content_hash=content_hash,
         )
         session.add(source)
         await session.commit()
@@ -264,11 +348,21 @@ class PDFAdapter:
         extractor = "docling" if _DOCLING_AVAILABLE else "fitz"
         log.info("Ingesting PDF", filename=filename, extractor=extractor)
 
+        # Dedup: hash the raw PDF bytes and short-circuit if we've already
+        # ingested this exact file (issue #67). The hash is computed before
+        # any LLM work or extraction so re-uploads are essentially free.
+        content_hash = compute_hash(file_bytes)
+        existing = await find_source_by_hash(session, content_hash)
+        if existing is not None:
+            log.info("Source dedup hit (PDF)", source_id=existing.id, hash=content_hash[:16])
+            return existing, reconstruct_normalized_doc(existing)
+
         # Create source record
         source = Source(
             source_type=SourceType.PDF,
             title=filename.replace(".pdf", ""),
             status=IngestStatus.PROCESSING,
+            content_hash=content_hash,
         )
         session.add(source)
         await session.commit()
@@ -379,11 +473,21 @@ class TextAdapter:
         """Ingest raw text and return source and normalized document."""
         log.info("Ingesting text", title=title, chars=len(content))
 
+        # Dedup: hash the UTF-8 bytes of the pasted content (issue #67).
+        # Title differences do NOT contribute — re-pasting the same body
+        # under a new title still hits the dedup.
+        content_hash = compute_hash(content.encode("utf-8"))
+        existing = await find_source_by_hash(session, content_hash)
+        if existing is not None:
+            log.info("Source dedup hit (text)", source_id=existing.id, hash=content_hash[:16])
+            return existing, reconstruct_normalized_doc(existing)
+
         source = Source(
             source_type=SourceType.TEXT,
             title=title or "Untitled Note",
             status=IngestStatus.PROCESSING,
             token_count=estimate_tokens(content),
+            content_hash=content_hash,
         )
         session.add(source)
         await session.commit()
@@ -433,12 +537,23 @@ class YouTubeAdapter:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore[attr-defined]
         transcript_text = " ".join([t["text"] for t in transcript_list])
 
+        # Dedup: hash the assembled transcript (issue #67). YouTube transcripts
+        # are stable for a given video so the hash is effectively a video-id
+        # alias, but hashing the actual content also catches the (rare) case
+        # where the same transcript appears under multiple URLs.
+        content_hash = compute_hash(transcript_text.encode("utf-8"))
+        existing = await find_source_by_hash(session, content_hash)
+        if existing is not None:
+            log.info("Source dedup hit (YouTube)", source_id=existing.id, hash=content_hash[:16])
+            return existing, reconstruct_normalized_doc(existing)
+
         source = Source(
             source_type=SourceType.YOUTUBE,
             source_url=url,
             title=f"YouTube: {video_id}",  # Will be enriched later
             status=IngestStatus.PROCESSING,
             token_count=estimate_tokens(transcript_text),
+            content_hash=content_hash,
         )
         session.add(source)
         await session.commit()

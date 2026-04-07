@@ -77,10 +77,58 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db():
-    """Create all tables. Called on app startup."""
+    """Create all tables and run idempotent column migrations.
+
+    `SQLModel.metadata.create_all` creates fresh tables from the current
+    SQLModel definitions but does not add new columns to pre-existing
+    tables. We follow it with `_migrate_added_columns` which inspects the
+    live schema and runs `ALTER TABLE` for any column the model declares
+    that isn't already present. This is the project's lightweight
+    alternative to Alembic and is safe to call on every startup.
+    """
     engine = get_async_engine()
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    await _migrate_added_columns(engine)
+
+
+async def _migrate_added_columns(engine) -> None:
+    """Add missing columns to existing tables (idempotent).
+
+    Inspects each tracked table via `PRAGMA table_info` and runs
+    `ALTER TABLE ... ADD COLUMN` for any column declared in the SQLModel
+    definitions that isn't already on disk. SQLite-specific because the
+    project is single-file SQLite — that assumption is documented in
+    ADR-001.
+
+    Currently tracks:
+        - source.content_hash (issue #67) + index
+        - article.provider    (issue #67)
+    """
+    additions: list[tuple[str, str, str]] = [
+        # (table, column, ALTER fragment)
+        ("source", "content_hash", "ALTER TABLE source ADD COLUMN content_hash TEXT"),
+        ("article", "provider", "ALTER TABLE article ADD COLUMN provider TEXT"),
+    ]
+    indexes: list[tuple[str, str]] = [
+        # (index name, CREATE fragment)
+        (
+            "ix_source_content_hash",
+            "CREATE INDEX IF NOT EXISTS ix_source_content_hash ON source (content_hash)",
+        ),
+    ]
+
+    async with engine.begin() as conn:
+        for table, column, alter_sql in additions:
+            existing = await conn.run_sync(
+                lambda sync_conn, t=table: {
+                    row[1] for row in sync_conn.exec_driver_sql(f"PRAGMA table_info({t})").fetchall()
+                }
+            )
+            if column not in existing:
+                await conn.exec_driver_sql(alter_sql)
+        for _name, create_sql in indexes:
+            await conn.exec_driver_sql(create_sql)
 
 
 async def close_db():

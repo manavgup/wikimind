@@ -1088,6 +1088,11 @@ components:
           - type: string
           - type: 'null'
           title: File Path
+        content_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Content Hash
       type: object
       required:
       - source_type
