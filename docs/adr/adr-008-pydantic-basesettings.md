@@ -83,3 +83,7 @@ individual users without requiring cloud infrastructure.
 - The keyring library behavior varies across operating systems; some Linux
   environments may not have a keyring backend configured. Mitigated by
   always checking env vars first and only falling back to keyring.
+
+## Subsequent decisions
+
+- **ADR-010** — Auto-enable LLM providers when their API key is detected (extends the validator pattern introduced here)

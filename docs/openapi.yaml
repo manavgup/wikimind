@@ -1,843 +1,1171 @@
 openapi: 3.1.0
 info:
-  title: WikiMind Gateway API
-  description: |
-    Local LLM Knowledge OS — Personal API.
-    Runs on localhost:7842. All reads/writes hit local storage first.
-    Cloud sync is a separate service.
+  title: WikiMind Gateway
+  description: Local LLM Knowledge OS — Personal API
   version: 0.1.0
-  contact:
-    name: WikiMind
-    url: https://github.com/manavgup/wikimind
-
-servers:
-  - url: http://localhost:7842
-    description: Local Gateway (default)
-
-tags:
-  - name: Ingest
-    description: Add raw sources to the knowledge base
-  - name: Wiki
-    description: Read and navigate compiled wiki articles
-  - name: Query
-    description: Ask questions against the wiki
-  - name: Jobs
-    description: Async job queue management
-  - name: Settings
-    description: Configuration and API key management
-
 paths:
-
-  # ── Health ────────────────────────────────────────────────────────────────
-
-  /health:
-    get:
-      summary: Gateway health check
-      description: Used by Electron to confirm daemon is ready before loading UI.
-      operationId: health
-      responses:
-        "200":
-          description: Gateway is running
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-                  version:
-                    type: string
-                    example: 0.1.0
-
-  # ── Ingest ────────────────────────────────────────────────────────────────
-
   /ingest/url:
     post:
-      tags: [Ingest]
-      summary: Ingest a web URL or YouTube video
-      operationId: ingestUrl
+      tags:
+      - Ingest
+      summary: Ingest Url
+      description: Ingest a web URL or YouTube video.
+      operationId: ingest_url_ingest_url_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/IngestURLRequest"
+              $ref: '#/components/schemas/IngestURLRequest'
+        required: true
       responses:
-        "200":
-          description: Source created, compilation enqueued
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
+                $ref: '#/components/schemas/Source'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /ingest/pdf:
     post:
-      tags: [Ingest]
-      summary: Upload and ingest a PDF
-      operationId: ingestPdf
+      tags:
+      - Ingest
+      summary: Ingest Pdf
+      description: Upload and ingest a PDF.
+      operationId: ingest_pdf_ingest_pdf_post
       requestBody:
-        required: true
         content:
           multipart/form-data:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
+              $ref: '#/components/schemas/Body_ingest_pdf_ingest_pdf_post'
+        required: true
       responses:
-        "200":
-          description: PDF ingested, compilation enqueued
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
+                $ref: '#/components/schemas/Source'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /ingest/text:
     post:
-      tags: [Ingest]
-      summary: Ingest raw text or a note
-      operationId: ingestText
+      tags:
+      - Ingest
+      summary: Ingest Text
+      description: Ingest raw text or a note.
+      operationId: ingest_text_ingest_text_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/IngestTextRequest"
+              $ref: '#/components/schemas/IngestTextRequest'
+        required: true
       responses:
-        "200":
-          description: Text ingested
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-
+                $ref: '#/components/schemas/Source'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /ingest/sources:
     get:
-      tags: [Ingest]
-      summary: List all ingested sources
-      operationId: listSources
+      tags:
+      - Ingest
+      summary: List Sources
+      description: List all ingested sources.
+      operationId: list_sources_ingest_sources_get
       parameters:
-        - name: status
-          in: query
-          schema:
-            $ref: "#/components/schemas/IngestStatus"
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
       responses:
-        "200":
-          description: List of sources
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Source"
-
-  /ingest/sources/{sourceId}:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/sources/{source_id}:
     get:
-      tags: [Ingest]
-      summary: Get source detail
-      operationId: getSource
+      tags:
+      - Ingest
+      summary: Get Source
+      description: Get source by ID.
+      operationId: get_source_ingest_sources__source_id__get
       parameters:
-        - $ref: "#/components/parameters/sourceId"
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Source"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/Source'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
-      tags: [Ingest]
-      summary: Delete a source
-      operationId: deleteSource
+      tags:
+      - Ingest
+      summary: Delete Source
+      description: Delete a source by ID.
+      operationId: delete_source_ingest_sources__source_id__delete
       parameters:
-        - $ref: "#/components/parameters/sourceId"
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
       responses:
-        "200":
-          description: Source deleted
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  deleted:
-                    type: string
-
-  # ── Wiki ─────────────────────────────────────────────────────────────────
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/articles:
     get:
-      tags: [Wiki]
-      summary: List wiki articles
-      operationId: listArticles
+      tags:
+      - Wiki
+      summary: List Articles
+      description: List wiki articles with optional filtering and source provenance.
+      operationId: list_articles_wiki_articles_get
       parameters:
-        - name: concept
-          in: query
-          schema:
-            type: string
-        - name: confidence
-          in: query
-          schema:
-            $ref: "#/components/schemas/ConfidenceLevel"
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
+      - name: concept
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concept
+      - name: confidence
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Confidence
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Article"
-
+                  $ref: '#/components/schemas/ArticleSummaryResponse'
+                title: Response List Articles Wiki Articles Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/articles/{slug}:
     get:
-      tags: [Wiki]
-      summary: Get full article with content and backlinks
-      operationId: getArticle
+      tags:
+      - Wiki
+      summary: Get Article
+      description: Get full article with content, backlinks, and source provenance.
+      operationId: get_article_wiki_articles__slug__get
       parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Slug
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ArticleResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      tags: [Wiki]
-      summary: Delete an article
-      operationId: deleteArticle
-      parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Deleted
-
+                $ref: '#/components/schemas/ArticleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/graph:
     get:
-      tags: [Wiki]
-      summary: Full knowledge graph (nodes + edges)
-      operationId: getGraph
+      tags:
+      - Wiki
+      summary: Get Graph
+      description: Full knowledge graph -- nodes and edges.
+      operationId: get_graph_wiki_graph_get
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphResponse"
-
+                $ref: '#/components/schemas/GraphResponse'
   /wiki/search:
     get:
-      tags: [Wiki]
-      summary: Full-text + semantic search
-      operationId: searchWiki
+      tags:
+      - Wiki
+      summary: Search
+      description: Full-text search across wiki articles with source provenance.
+      operationId: search_wiki_search_get
       parameters:
-        - name: q
-          in: query
-          required: true
-          schema:
-            type: string
-            minLength: 2
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 2
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Article"
-
+                  $ref: '#/components/schemas/ArticleSummaryResponse'
+                title: Response Search Wiki Search Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/concepts:
     get:
-      tags: [Wiki]
-      summary: Concept taxonomy tree
-      operationId: getConcepts
+      tags:
+      - Wiki
+      summary: Get Concepts
+      description: Concept taxonomy tree.
+      operationId: get_concepts_wiki_concepts_get
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Concept"
-
+              schema: {}
   /wiki/health:
     get:
-      tags: [Wiki]
-      summary: Latest linter health report
-      operationId: getWikiHealth
+      tags:
+      - Wiki
+      summary: Get Health
+      description: Latest wiki health report from linter.
+      operationId: get_health_wiki_health_get
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/HealthReport"
-
-  # ── Query ─────────────────────────────────────────────────────────────────
-
+              schema: {}
   /query:
     post:
-      tags: [Query]
-      summary: Ask a question against the wiki
-      operationId: askQuestion
+      tags:
+      - Query
+      summary: Ask
+      description: Ask a question against the wiki and receive an answer with citations.
+      operationId: ask_query_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/QueryRequest"
+              $ref: '#/components/schemas/QueryRequest'
+        required: true
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/QueryRecord"
-
+                $ref: '#/components/schemas/QueryResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query/history:
     get:
-      tags: [Query]
-      summary: Past query history
-      operationId: queryHistory
+      tags:
+      - Query
+      summary: Query History
+      description: List past queries.
+      operationId: query_history_query_history_get
       parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
       responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/QueryRecord"
-
-  /query/{queryId}/file-back:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /query/{query_id}/file-back:
     post:
-      tags: [Query]
-      summary: Save a past answer as a wiki article
-      operationId: fileBack
+      tags:
+      - Query
+      summary: File Back
+      description: Save a past answer as a wiki article.
+      operationId: file_back_query__query_id__file_back_post
       parameters:
-        - name: queryId
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: query_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Query Id
       responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  filed:
-                    type: boolean
-                  article_id:
-                    type: string
-
-  # ── Jobs ─────────────────────────────────────────────────────────────────
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /jobs:
     get:
-      tags: [Jobs]
-      summary: List jobs
-      operationId: listJobs
+      tags:
+      - Jobs
+      summary: List Jobs
+      description: List jobs with optional status filter.
+      operationId: list_jobs_jobs_get
       parameters:
-        - name: status
-          in: query
-          schema:
-            $ref: "#/components/schemas/JobStatus"
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 20
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+          title: Limit
       responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Job"
-
-  /jobs/{jobId}:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /jobs/{job_id}:
     get:
-      tags: [Jobs]
-      summary: Get job detail
-      operationId: getJob
+      tags:
+      - Jobs
+      summary: Get Job
+      description: Get job by ID.
+      operationId: get_job_jobs__job_id__get
       parameters:
-        - name: jobId
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
       responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Job"
-
-  /jobs/compile/{sourceId}:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /jobs/compile/{source_id}:
     post:
-      tags: [Jobs]
-      summary: Trigger manual compilation of a source
-      operationId: triggerCompile
+      tags:
+      - Jobs
+      summary: Trigger Compile
+      description: Trigger compilation for a source.
+      operationId: trigger_compile_jobs_compile__source_id__post
       parameters:
-        - $ref: "#/components/parameters/sourceId"
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
       responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  job_id:
-                    type: string
-                  status:
-                    type: string
-
+                $ref: '#/components/schemas/HTTPValidationError'
   /jobs/lint:
     post:
-      tags: [Jobs]
-      summary: Trigger wiki linter
-      operationId: triggerLint
+      tags:
+      - Jobs
+      summary: Trigger Lint
+      description: Trigger wiki linting.
+      operationId: trigger_lint_jobs_lint_post
       responses:
-        "200":
+        '200':
+          description: Successful Response
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  job_id:
-                    type: string
-                  status:
-                    type: string
-
-  # ── Settings ──────────────────────────────────────────────────────────────
-
+              schema: {}
+  /jobs/reindex:
+    post:
+      tags:
+      - Jobs
+      summary: Trigger Reindex
+      description: Trigger wiki reindexing.
+      operationId: trigger_reindex_jobs_reindex_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /settings:
     get:
-      tags: [Settings]
-      summary: Get all settings
-      operationId: getSettings
+      tags:
+      - Settings
+      summary: Get All Settings
+      description: Return all application settings.
+      operationId: get_all_settings_settings_get
       responses:
-        "200":
-          description: Current settings (API keys redacted)
-
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /settings/llm/api-key:
     post:
-      tags: [Settings]
-      summary: Store API key in OS keychain
-      operationId: setApiKey
+      tags:
+      - Settings
+      summary: Set Provider Api Key
+      description: Store API key in OS keychain.
+      operationId: set_provider_api_key_settings_llm_api_key_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [provider, api_key]
-              properties:
-                provider:
-                  type: string
-                  enum: [anthropic, openai, google, ollama]
-                api_key:
-                  type: string
+              $ref: '#/components/schemas/APIKeyRequest'
+        required: true
       responses:
-        "200":
-          description: Key stored
-
-  /settings/llm/test:
-    post:
-      tags: [Settings]
-      summary: Test LLM provider connection
-      operationId: testLlm
-      parameters:
-        - name: provider
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Connection test result
-
-  /settings/llm/cost:
-    get:
-      tags: [Settings]
-      summary: LLM cost for current month
-      operationId: getLlmCost
-      responses:
-        "200":
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  cost_this_month_usd:
-                    type: number
-                  budget_usd:
-                    type: number
-                  budget_remaining_usd:
-                    type: number
-
-# ── WebSocket ─────────────────────────────────────────────────────────────
-
-# WS /ws
-# Events pushed by gateway:
-# { "event": "connected" }
-# { "event": "job.progress", "job_id": "...", "pct": 45, "message": "..." }
-# { "event": "compilation.complete", "article_slug": "...", "article_title": "..." }
-# { "event": "compilation.failed", "source_id": "...", "error": "..." }
-# { "event": "sync.complete", "pushed": 3, "pulled": 1, "conflicts": 0 }
-# { "event": "linter.alert", "type": "contradiction", "articles": [...] }
-# { "event": "keepalive" }
-# Client sends: { "type": "ping" }
-
-# ── Components ────────────────────────────────────────────────────────────
-
+                $ref: '#/components/schemas/HTTPValidationError'
+  /settings/llm/test:
+    post:
+      tags:
+      - Settings
+      summary: Test Llm Connection
+      description: Test if a provider is configured and reachable.
+      operationId: test_llm_connection_settings_llm_test_post
+      parameters:
+      - name: provider
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Provider
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /settings/llm/cost:
+    get:
+      tags:
+      - Settings
+      summary: Get Llm Cost
+      description: Cost summary for current month.
+      operationId: get_llm_cost_settings_llm_cost_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /health:
+    get:
+      summary: Health
+      description: Health check — used by Electron to confirm daemon is ready.
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
 components:
-
-  parameters:
-    sourceId:
-      name: sourceId
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-
-  responses:
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-    BadRequest:
-      description: Bad request
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Error"
-
   schemas:
-
-    Error:
-      type: object
+    APIKeyRequest:
       properties:
-        detail:
+        provider:
           type: string
-
-    SourceType:
-      type: string
-      enum: [url, pdf, youtube, audio, text, rss, email, obsidian]
-
-    IngestStatus:
-      type: string
-      enum: [pending, processing, compiled, failed]
-
-    ConfidenceLevel:
-      type: string
-      enum: [sourced, mixed, inferred, opinion]
-
-    JobType:
-      type: string
-      enum: [compile_source, lint_wiki, reindex, embed_chunks, sync_push, sync_pull]
-
-    JobStatus:
-      type: string
-      enum: [queued, running, complete, failed]
-
-    Source:
+          title: Provider
+        api_key:
+          type: string
+          title: Api Key
       type: object
+      required:
+      - provider
+      - api_key
+      title: APIKeyRequest
+      description: Request to set an API key.
+    ArticleResponse:
       properties:
         id:
           type: string
-          format: uuid
-        source_type:
-          $ref: "#/components/schemas/SourceType"
-        source_url:
-          type: string
-          nullable: true
-        title:
-          type: string
-          nullable: true
-        author:
-          type: string
-          nullable: true
-        status:
-          $ref: "#/components/schemas/IngestStatus"
-        ingested_at:
-          type: string
-          format: date-time
-        compiled_at:
-          type: string
-          format: date-time
-          nullable: true
-        token_count:
-          type: integer
-          nullable: true
-        error_message:
-          type: string
-          nullable: true
-
-    Article:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
+          title: Id
         slug:
           type: string
+          title: Slug
         title:
           type: string
-        confidence:
-          $ref: "#/components/schemas/ConfidenceLevel"
-        linter_score:
-          type: number
-          nullable: true
+          title: Title
         summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        confidence:
+          anyOf:
+          - $ref: '#/components/schemas/ConfidenceLevel'
+          - type: 'null'
+        linter_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Linter Score
+        concepts:
+          items:
+            type: string
+          type: array
+          title: Concepts
+          default: []
+        backlinks_in:
+          items:
+            type: string
+          type: array
+          title: Backlinks In
+          default: []
+        backlinks_out:
+          items:
+            type: string
+          type: array
+          title: Backlinks Out
+          default: []
+        content:
           type: string
-          nullable: true
+          title: Content
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceResponse'
+          type: array
+          title: Sources
+          default: []
         created_at:
           type: string
           format: date-time
+          title: Created At
         updated_at:
           type: string
           format: date-time
-
-    ArticleResponse:
-      allOf:
-        - $ref: "#/components/schemas/Article"
-        - type: object
-          properties:
-            content:
-              type: string
-              description: Full markdown content of the article
-            backlinks_in:
-              type: array
-              items:
-                type: string
-            backlinks_out:
-              type: array
-              items:
-                type: string
-            concepts:
-              type: array
-              items:
-                type: string
-
-    Concept:
+          title: Updated At
       type: object
+      required:
+      - id
+      - slug
+      - title
+      - summary
+      - confidence
+      - linter_score
+      - content
+      - created_at
+      - updated_at
+      title: ArticleResponse
+      description: Full article response with content, backlinks, and source provenance.
+    ArticleSourceSummary:
       properties:
         id:
           type: string
-        name:
-          type: string
-        parent_id:
-          type: string
-          nullable: true
-        article_count:
-          type: integer
-        description:
-          type: string
-          nullable: true
-
-    GraphNode:
+          title: Id
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
       type: object
+      required:
+      - id
+      - source_type
+      - title
+      title: ArticleSourceSummary
+      description: 'Minimal source descriptor returned with listing/search endpoints.
+
+
+        A lightweight summary used when the full :class:`SourceResponse` is
+
+        overkill — e.g. article list and search result payloads.'
+    ArticleSummaryResponse:
       properties:
         id:
           type: string
-        label:
+          title: Id
+        slug:
           type: string
-        concept_cluster:
+          title: Slug
+        title:
           type: string
-          nullable: true
-        connection_count:
-          type: integer
+          title: Title
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
         confidence:
-          $ref: "#/components/schemas/ConfidenceLevel"
-
-    GraphEdge:
-      type: object
-      properties:
-        source:
-          type: string
-        target:
-          type: string
-        context:
-          type: string
-          nullable: true
-
-    GraphResponse:
-      type: object
-      properties:
-        nodes:
-          type: array
+          anyOf:
+          - $ref: '#/components/schemas/ConfidenceLevel'
+          - type: 'null'
+        linter_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Linter Score
+        sources:
           items:
-            $ref: "#/components/schemas/GraphNode"
-        edges:
+            $ref: '#/components/schemas/ArticleSourceSummary'
           type: array
-          items:
-            $ref: "#/components/schemas/GraphEdge"
-
-    HealthReport:
-      type: object
-      properties:
-        generated_at:
-          type: string
-          format: date-time
-          nullable: true
-        total_articles:
-          type: integer
-        total_sources:
-          type: integer
-        coverage_scores:
-          type: object
-          additionalProperties:
-            type: number
-        contradictions:
-          type: array
-          items:
-            type: object
-        orphaned_articles:
-          type: array
-          items:
-            type: string
-        stale_articles:
-          type: array
-          items:
-            type: string
-        gap_suggestions:
-          type: array
-          items:
-            type: string
-
-    QueryRequest:
-      type: object
-      required: [question]
-      properties:
-        question:
-          type: string
-        file_back:
-          type: boolean
-          default: false
-
-    QueryRecord:
-      type: object
-      properties:
-        id:
-          type: string
-        question:
-          type: string
-        answer:
-          type: string
-        confidence:
-          type: string
-        source_article_ids:
-          type: string
-        filed_back:
-          type: boolean
-        filed_article_id:
-          type: string
-          nullable: true
+          title: Sources
+          default: []
         created_at:
           type: string
           format: date-time
-
-    Job:
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
       type: object
+      required:
+      - id
+      - slug
+      - title
+      - summary
+      - confidence
+      - linter_score
+      - created_at
+      - updated_at
+      title: ArticleSummaryResponse
+      description: 'Summary article response for list and search endpoints.
+
+
+        Includes a lightweight list of sources so that callers can surface
+
+        provenance directly in search/listing views without fetching the full
+
+        article content.'
+    Body_ingest_pdf_ingest_pdf_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_ingest_pdf_ingest_pdf_post
+    CitationArticleRef:
+      properties:
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+      type: object
+      required:
+      - slug
+      - title
+      title: CitationArticleRef
+      description: Minimal reference to an article used inside a :class:`CitationResponse`.
+    CitationResponse:
+      properties:
+        article:
+          $ref: '#/components/schemas/CitationArticleRef'
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceResponse'
+          type: array
+          title: Sources
+          default: []
+      type: object
+      required:
+      - article
+      title: CitationResponse
+      description: 'A single Q&A citation: an article plus the sources it was compiled
+        from.'
+    ConfidenceLevel:
+      type: string
+      enum:
+      - sourced
+      - mixed
+      - inferred
+      - opinion
+      title: ConfidenceLevel
+      description: Confidence level for claims.
+    GraphEdge:
+      properties:
+        source:
+          type: string
+          title: Source
+        target:
+          type: string
+          title: Target
+        context:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Context
+      type: object
+      required:
+      - source
+      - target
+      - context
+      title: GraphEdge
+      description: An edge in the knowledge graph.
+    GraphNode:
       properties:
         id:
           type: string
-        job_type:
-          $ref: "#/components/schemas/JobType"
-        status:
-          $ref: "#/components/schemas/JobStatus"
-        source_id:
+          title: Id
+        label:
           type: string
-          nullable: true
-        priority:
+          title: Label
+        concept_cluster:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concept Cluster
+        connection_count:
           type: integer
-        queued_at:
-          type: string
-          format: date-time
-        started_at:
-          type: string
-          format: date-time
-          nullable: true
-        completed_at:
-          type: string
-          format: date-time
-          nullable: true
-        error:
-          type: string
-          nullable: true
-        result_summary:
-          type: string
-          nullable: true
-
-    IngestURLRequest:
+          title: Connection Count
+        confidence:
+          anyOf:
+          - $ref: '#/components/schemas/ConfidenceLevel'
+          - type: 'null'
       type: object
-      required: [url]
+      required:
+      - id
+      - label
+      - concept_cluster
+      - connection_count
+      - confidence
+      title: GraphNode
+      description: A node in the knowledge graph.
+    GraphResponse:
       properties:
-        url:
-          type: string
-          format: uri
-        auto_compile:
-          type: boolean
-          default: true
-
-    IngestTextRequest:
+        nodes:
+          items:
+            $ref: '#/components/schemas/GraphNode'
+          type: array
+          title: Nodes
+        edges:
+          items:
+            $ref: '#/components/schemas/GraphEdge'
+          type: array
+          title: Edges
       type: object
-      required: [content]
+      required:
+      - nodes
+      - edges
+      title: GraphResponse
+      description: Full knowledge graph response.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    IngestStatus:
+      type: string
+      enum:
+      - pending
+      - processing
+      - compiled
+      - failed
+      title: IngestStatus
+      description: Status of source ingestion.
+    IngestTextRequest:
       properties:
         content:
           type: string
+          title: Content
         title:
-          type: string
-          nullable: true
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
         auto_compile:
           type: boolean
+          title: Auto Compile
           default: true
+      type: object
+      required:
+      - content
+      title: IngestTextRequest
+      description: Request to ingest raw text.
+    IngestURLRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        auto_compile:
+          type: boolean
+          title: Auto Compile
+          default: true
+      type: object
+      required:
+      - url
+      title: IngestURLRequest
+      description: Request to ingest a URL.
+    QueryRequest:
+      properties:
+        question:
+          type: string
+          title: Question
+        file_back:
+          type: boolean
+          title: File Back
+          default: false
+      type: object
+      required:
+      - question
+      title: QueryRequest
+      description: Request to query the wiki.
+    QueryResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        question:
+          type: string
+          title: Question
+        answer:
+          type: string
+          title: Answer
+        confidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Confidence
+        source_article_ids:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Article Ids
+        related_article_ids:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Related Article Ids
+        filed_back:
+          type: boolean
+          title: Filed Back
+        filed_article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filed Article Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        citations:
+          items:
+            $ref: '#/components/schemas/CitationResponse'
+          type: array
+          title: Citations
+          default: []
+      type: object
+      required:
+      - id
+      - question
+      - answer
+      - confidence
+      - source_article_ids
+      - related_article_ids
+      - filed_back
+      - filed_article_id
+      - created_at
+      title: QueryResponse
+      description: 'Q&A response enriched with a full Answer → Article → Source citation
+        chain.
+
+
+        Mirrors the persisted :class:`Query` record fields while adding a
+
+        resolved ``citations`` list so clients can see which articles were
+
+        used and which original sources those articles came from.'
+    Source:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        published_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Published Date
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+          default: pending
+        ingested_at:
+          type: string
+          format: date-time
+          title: Ingested At
+        compiled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Compiled At
+        token_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Token Count
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        file_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: File Path
+      type: object
+      required:
+      - source_type
+      title: Source
+      description: Raw ingested source — before compilation.
+    SourceResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        ingested_at:
+          type: string
+          format: date-time
+          title: Ingested At
+      type: object
+      required:
+      - id
+      - source_type
+      - title
+      - source_url
+      - ingested_at
+      title: SourceResponse
+      description: 'Provenance view of a raw ingested source exposed via the API.
+
+
+        Trimmed view of :class:`Source` suitable for embedding in article and
+
+        Q&A responses so callers can trace claims back to their origin
+
+        (URL, PDF filename, upload date, etc.).'
+    SourceType:
+      type: string
+      enum:
+      - url
+      - pdf
+      - youtube
+      - audio
+      - text
+      - rss
+      - email
+      - obsidian
+      title: SourceType
+      description: Type of ingested source.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

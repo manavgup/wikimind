@@ -2,88 +2,214 @@
 
 > You never write the wiki. You feed it. Every question makes it smarter.
 
-WikiMind is a hybrid local/cloud personal knowledge OS. Feed it anything you read — articles, PDFs, YouTube videos, podcasts, papers. It compiles them into a structured, interconnected wiki using LLMs. Ask questions. The answers file back in. Your knowledge compounds.
+WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube videos, podcasts, or papers — it compiles them into a structured wiki and answers questions with full source attribution.
 
-## What It Is
+## What it is
 
-- **Not** a note-taking app (you never write)
-- **Not** a chatbot (it builds something persistent)
-- **Not** a RAG tool (the wiki is the product, not a retrieval layer)
+- **Not** a note-taking app — you never write
+- **Not** a chatbot — it builds something persistent
+- **Not** a RAG tool — the wiki is the product, not a retrieval layer
 
 It is the synthesis layer that sits above everything you consume.
 
-## How It Works
+## How it works
 
 ```
 Feed → Compile → Query → Answer files back → Wiki gets smarter → Repeat
 ```
 
-## Architecture
+## Quick start
 
-```
-apps/
-  desktop/        Electron shell (Mac, Windows, Linux)
-  web/            React UI (shared with desktop)
-  extension/      Chrome/Firefox browser extension
-
-packages/
-  ui/             Shared component library
-  types/          Shared TypeScript types
-
-services/
-  gateway/        Local FastAPI daemon (core engine)
-  sync/           Cloud sync service
-  llm_router/     LLM provider abstraction
-
-docs/             Architecture docs, specs, diagrams
-```
-
-## Quick Start
+WikiMind needs Python 3.11+ and (for the React frontend) Node.js 20+.
 
 ```bash
-# Install Python dependencies
-cd services/gateway
-pip install -r requirements.txt
+# 1. Set up the dev environment
+make venv
+make install-dev
+make check-env
 
-# Start local gateway
-uvicorn wikimind.main:app --port 7842 --reload
+# 2. Configure at least one LLM provider — copy .env.example and edit
+cp .env.example .env
+# Add: OPENAI_API_KEY=sk-... (or ANTHROPIC_API_KEY, GOOGLE_API_KEY)
+# Providers auto-enable when their key is detected.
 
-# Install frontend dependencies
+# 3. Start the local gateway (FastAPI on :7842)
+make dev
+
+# 4. (optional) Start the React UI in another terminal
 cd apps/web
 npm install
 npm run dev
+# Opens http://localhost:5173
 ```
 
-## Tech Stack
+## Architecture
+
+```
+wikimind/
+├── src/wikimind/          # Python backend (FastAPI gateway)
+│   ├── main.py            # App entry point
+│   ├── config.py          # Pydantic BaseSettings
+│   ├── models.py          # SQLModel tables + Pydantic schemas
+│   ├── database.py        # Async SQLite session lifecycle
+│   ├── api/routes/        # FastAPI route handlers (thin)
+│   ├── services/          # Business logic (ingest, compiler, query, wiki)
+│   ├── engine/            # LLM router, compiler, Q&A agent
+│   ├── ingest/            # Source adapters (URL, PDF, text, YouTube)
+│   ├── jobs/              # Background compilation worker
+│   └── middleware/        # Correlation ID, logging, security headers
+├── apps/web/              # React + Vite + TypeScript frontend
+├── tests/                 # pytest unit + integration tests
+├── docs/                  # ADRs, OpenAPI schema, design specs
+└── scripts/               # Operational scripts (test matrix, doc sync)
+```
+
+## Configuration
+
+All configuration lives in `.env` (gitignored). See `.env.example` for the full list of options.
+
+The most common case: just set ONE LLM API key and the provider will auto-enable.
+
+```bash
+# In .env:
+OPENAI_API_KEY=sk-...
+```
+
+For more advanced configuration (model selection, fallback chain, monthly budget), see `.env.example`.
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Local daemon | Python 3.11 / FastAPI |
-| Job queue | ARQ + fakeredis |
-| Vector store | ChromaDB |
-| Relational store | SQLite / SQLModel |
-| File storage | Plain `.md` files |
-| Desktop shell | Electron |
-| Frontend | React + TypeScript |
-| Graph viz | D3.js / react-force-graph |
-| Cloud sync | FastAPI on Fly.io |
-| Cloud storage | S3-compatible (R2) |
-| Auth | Clerk |
+| Backend gateway | Python 3.11+ / FastAPI |
+| Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
+| Database | SQLite via SQLModel + aiosqlite |
+| LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
+| PDF extraction | pymupdf (fitz) — default; IBM Docling — opt-in via `[parse-advanced]` |
+| Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
+| Logging | structlog (JSON in prod, console in dev) |
+| Type checking | mypy + basedpyright |
+| Linting | ruff (with pylint and pydocstyle rules) |
+| Frontend | React 18 + TypeScript + Vite + TanStack Query + Zustand + Tailwind CSS |
+| Testing | pytest + pytest-asyncio + httpx |
 
-## LLM Support
+## Make targets
 
-WikiMind is LLM-agnostic. Configure any provider in `settings.toml`:
+<!-- BEGIN make-targets -->
+<!-- (auto-generated by scripts/regenerate_readme_targets.py) -->
 
-- Anthropic Claude (default)
-- OpenAI GPT-4o
-- Google Gemini
-- Local models via Ollama (free, fully private)
+### General
+
+| Target | Description |
+|--------|-------------|
+| `make help` | Show this help |
+
+### 🌱 VIRTUAL ENVIRONMENT & INSTALLATION
+
+| Target | Description |
+|--------|-------------|
+| `make venv` | Create Python virtual environment |
+| `make install` | Install production dependencies |
+| `make install-dev` | Install all dev/test/lint dependencies |
+| `make check-venv` | Verify the venv editable install points at this checkout's src/ |
+| `make repair-venv` | Reinstall the editable package so it points at this checkout |
+| `make check-env` | Verify Python version, venv hygiene, and required tools |
+
+### ▶️  SERVE
+
+| Target | Description |
+|--------|-------------|
+| `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
+| `make serve` | Run production server on :7842 (gunicorn) |
+| `make worker` | Start ARQ background job worker |
+
+### 🔍 QUALITY
+
+| Target | Description |
+|--------|-------------|
+| `make pre-commit` | Run all pre-commit hooks locally (same as CI) |
+| `make lint` | Run ruff linter on src/ and tests/ (includes pylint + pydocstyle rules) |
+| `make lint-fix` | Auto-fix lint issues where possible |
+| `make format` | Format source code with ruff |
+| `make format-check` | Check formatting without modifying files |
+| `make typecheck` | Run mypy type checking |
+| `make pyright` | Run basedpyright type checking (requires Node.js) |
+| `make pylint` | Run pylint static analysis (fails under 9.0/10) |
+| `make docstyle` | Run pydocstyle docstring checks |
+| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + tests) |
+| `make frontend-install` | Install frontend dependencies |
+| `make frontend-dev` | Start Vite dev server on :5173 |
+| `make frontend-build` | Build frontend production bundle |
+| `make frontend-verify` | Run all frontend quality checks |
+
+### 🧪 TESTING
+
+| Target | Description |
+|--------|-------------|
+| `make test` | Run unit + integration tests with pytest |
+| `make test-unit` | Run unit tests only |
+| `make test-integration` | Run integration tests only |
+| `make coverage` | Run tests with coverage report and HTML output |
+| `make test-matrix` | Show how to run the LLM × document type benchmark |
+
+### 📚 DOCUMENTATION
+
+| Target | Description |
+|--------|-------------|
+| `make export-openapi` | Regenerate docs/openapi.yaml from the FastAPI app |
+| `make check-openapi` | Verify docs/openapi.yaml matches the FastAPI app |
+| `make regenerate-adr-index` | Regenerate docs/adr/README.md from ADR files |
+| `make check-adr-index` | Verify docs/adr/README.md is in sync with ADR files |
+| `make regenerate-readme-targets` | Regenerate README make-targets section from Makefile |
+| `make check-readme-targets` | Verify README make-targets section is in sync with Makefile |
+| `make regenerate-docs` | Regenerate all auto-generated docs |
+| `make check-docs` | Verify all auto-generated docs are in sync |
+| `make check-doc-sync` | Run the co-change rule engine against the staged diff |
+
+### 🗄️  DATABASE
+
+| Target | Description |
+|--------|-------------|
+| `make db-reset` | Reset local SQLite database (recreated on next startup) |
+
+### 🧹 CLEANUP
+
+| Target | Description |
+|--------|-------------|
+| `make clean` | Remove caches, build artefacts, coverage files |
+| `make clean-all` | Remove everything including .venv |
+
+<!-- END make-targets -->
+
+## Documentation
+
+- **[Architecture Decision Records](docs/adr/README.md)** — why the project is designed the way it is
+- **[Vision](docs/VISION.md)** — product spec and product vision
+- **[Architecture](docs/ARCHITECTURE.md)** — system design overview
+- **[Roadmap](docs/ROADMAP.md)** — phase-by-phase build plan
+- **[OpenAPI schema](docs/openapi.yaml)** — auto-generated from the FastAPI app
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and coding standards.
+
+Quality gates: `make verify` runs the full suite (ruff, format check, mypy, basedpyright, pydocstyle, pytest). Pre-commit hooks (`make pre-commit`) enforce the same checks before each commit.
 
 ## Status
 
-🚧 **Phase 1 — Active Development**
+**Phase 1 (Working Core)** — Done
+- [x] Backend pipeline: ingest → compile → query → file-back
+- [x] React UI: Inbox + Wiki Explorer
+- [x] LLM provider abstraction with auto-enable
+- [x] Multi-format ingest (URL, PDF, text, YouTube)
+- [x] Source provenance and citation chains
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for build sequence.
+**Phase 2 (Query Loop)** — In progress
+- [ ] Semantic search (ChromaDB + embeddings)
+- [ ] Knowledge graph view
+- [ ] Wiki linter and health dashboard
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
 
 ## License
 
