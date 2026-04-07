@@ -1,20 +1,25 @@
 """Async background compiler that dispatches compilation jobs.
 
-In dev mode (no REDIS_URL), runs compile_source() in-process via
-asyncio.create_task(). In prod mode, enqueues via ARQ + Redis.
-This decouples ingest from compilation so ingest never blocks on Redis.
+In dev mode (``Settings.redis_url`` unset), runs ``compile_source()``
+in-process via ``asyncio.create_task()``. In prod mode, enqueues via
+ARQ + Redis. This decouples ingest from compilation so ingest never
+blocks on Redis.
+
+The Redis URL is read through ``wikimind.config.get_settings()`` so it
+honours both ``WIKIMIND_REDIS_URL`` (matching the project env prefix)
+and the raw ``REDIS_URL`` fallback (ADR-002, CI/CD compatibility).
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import uuid
 
 import structlog
 from arq import create_pool
 from arq.connections import RedisSettings
 
+from wikimind.config import get_settings
 from wikimind.jobs.worker import compile_source, lint_wiki
 
 log = structlog.get_logger()
@@ -24,7 +29,7 @@ class BackgroundCompiler:
     """Schedule compilation and lint jobs in dev (in-process) or prod (ARQ/Redis) mode."""
 
     def __init__(self) -> None:
-        self._redis_url: str | None = os.environ.get("REDIS_URL")
+        self._redis_url: str | None = get_settings().redis_url
 
     @property
     def is_prod(self) -> bool:
