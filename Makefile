@@ -143,7 +143,7 @@ docstyle: ## Run pydocstyle docstring checks
 	$(BIN)/pydocstyle src/wikimind
 
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle test ## Run all checks (lint + format + mypy + pyright + docstyle + tests)
+verify: lint format-check typecheck pyright docstyle test desktop-verify ## Run all checks (lint + format + mypy + pyright + docstyle + tests + desktop)
 
 .PHONY: frontend-install
 frontend-install: ## Install frontend dependencies
@@ -160,6 +160,21 @@ frontend-build: ## Build frontend production bundle
 .PHONY: frontend-verify
 frontend-verify: ## Run all frontend quality checks
 	cd apps/web && npm run lint && npm run typecheck && npm run build
+
+##@ 🖥️  DESKTOP (Electron shell)
+
+.PHONY: desktop-install
+desktop-install: ## Install Electron shell dependencies
+	cd apps/desktop && npm install
+
+.PHONY: desktop
+desktop: ## Launch the Electron shell for local dev (requires apps/web/dist + .venv)
+	cd apps/desktop && npm run dev
+
+.PHONY: desktop-verify
+desktop-verify: ## Run desktop typecheck + build (auto-installs deps if needed)
+	@cd apps/desktop && [ -d node_modules ] || npm install
+	cd apps/desktop && npm run typecheck && npm run build
 
 ##@ 🧪 TESTING
 
