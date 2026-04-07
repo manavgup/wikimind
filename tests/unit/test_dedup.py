@@ -9,6 +9,7 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -27,6 +28,7 @@ from wikimind.ingest.service import (
     find_source_by_hash,
     reconstruct_normalized_doc,
 )
+from wikimind.jobs import background as bg
 from wikimind.models import (
     Article,
     CompilationResult,
@@ -38,6 +40,8 @@ from wikimind.models import (
     Source,
     SourceType,
 )
+from wikimind.services import ingest as svc_ingest
+from wikimind.services.ingest import IngestService
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -376,6 +380,82 @@ class TestCompilerSaveArticle:
 # ---------------------------------------------------------------------------
 # compile() captures the provider from the LLM response
 # ---------------------------------------------------------------------------
+
+
+class TestServiceSkipsEnqueueOnDedupHit:
+    """`IngestService` must skip compile-scheduling when dedup hits an existing source.
+
+    Re-running the compiler on the same content with the same provider would
+    produce identical output and waste LLM tokens — that's the whole point of
+    content-hash dedup.
+    """
+
+    async def test_skips_compile_when_source_already_compiled(
+        self,
+        db_session,
+        isolated_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Seed the DB with an already-compiled source whose hash matches the
+        # content we are about to ingest, so the adapter dedup hit path fires.
+        body = "already compiled body"
+        digest = compute_hash(body.encode("utf-8"))
+        text_path = isolated_data_dir / "raw" / "seed.txt"
+        text_path.write_text(body, encoding="utf-8")
+
+        existing = Source(
+            source_type=SourceType.TEXT,
+            title="seed",
+            content_hash=digest,
+            status=IngestStatus.COMPILED,
+            compiled_at=datetime.utcnow(),
+            file_path=str(text_path),
+        )
+        db_session.add(existing)
+        await db_session.commit()
+
+        # Capture every schedule_compile call so we can assert it never happens.
+        calls: list[str] = []
+
+        async def fake_schedule(source_id: str) -> str:
+            calls.append(source_id)
+            return "fake-job"
+
+        fake_compiler = MagicMock()
+        fake_compiler.schedule_compile = AsyncMock(side_effect=fake_schedule)
+        monkeypatch.setattr(bg, "get_background_compiler", lambda: fake_compiler)
+        monkeypatch.setattr(svc_ingest, "get_background_compiler", lambda: fake_compiler)
+
+        service = IngestService()
+        result = await service.ingest_text(body, title="dup", session=db_session)
+
+        # Dedup hit returned the existing already-compiled source unchanged.
+        assert result.id == existing.id
+        # And no compile was scheduled — the whole point of dedup.
+        assert calls == [], f"expected no schedule_compile calls, got {calls}"
+
+    async def test_schedules_compile_for_fresh_source(
+        self,
+        db_session,
+        isolated_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Sanity check: a NEW (non-dedup) ingest still schedules a compile."""
+        calls: list[str] = []
+
+        async def fake_schedule(source_id: str) -> str:
+            calls.append(source_id)
+            return "fake-job"
+
+        fake_compiler = MagicMock()
+        fake_compiler.schedule_compile = AsyncMock(side_effect=fake_schedule)
+        monkeypatch.setattr(bg, "get_background_compiler", lambda: fake_compiler)
+        monkeypatch.setattr(svc_ingest, "get_background_compiler", lambda: fake_compiler)
+
+        service = IngestService()
+        result = await service.ingest_text("brand new content", title="x", session=db_session)
+
+        assert calls == [result.id]
 
 
 class TestCompilerProviderTracking:
