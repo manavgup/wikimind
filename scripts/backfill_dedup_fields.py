@@ -87,6 +87,7 @@ async def backfill(dry_run: bool) -> int:
 
 
 def main() -> int:
+    """Parse CLI args and run the backfill."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
     args = parser.parse_args()

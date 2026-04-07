@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import fitz
 import pytest
+from sqlmodel import select
 
 from wikimind.config import Settings, get_settings
 from wikimind.engine import compiler as compiler_module
@@ -32,6 +33,7 @@ from wikimind.models import (
     CompiledClaim,
     ConfidenceLevel,
     IngestStatus,
+    NormalizedDocument,
     Provider,
     Source,
     SourceType,
@@ -313,8 +315,6 @@ class TestCompilerSaveArticle:
         assert second.provider == Provider.ANTHROPIC
 
         # Only one article in DB
-        from sqlmodel import select  # noqa: PLC0415
-
         result = await db_session.execute(select(Article))
         assert len(result.scalars().all()) == 1
 
@@ -344,8 +344,6 @@ class TestCompilerSaveArticle:
         assert anthropic_article.slug != openai_article.slug
         assert anthropic_article.provider == Provider.ANTHROPIC
         assert openai_article.provider == Provider.OPENAI
-
-        from sqlmodel import select  # noqa: PLC0415
 
         result = await db_session.execute(select(Article))
         assert len(result.scalars().all()) == 2
@@ -412,8 +410,6 @@ class TestCompilerProviderTracking:
                 "article_body": "body",
             }
         )
-
-        from wikimind.models import NormalizedDocument  # noqa: PLC0415
 
         doc = NormalizedDocument(
             raw_source_id="x",
