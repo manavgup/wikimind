@@ -3,6 +3,10 @@
 Environment variables are the primary configuration source. A `.env` file is loaded
 automatically when present. API keys are stored in the OS keychain via keyring and
 can be overridden by environment variables (e.g. for CI/CD).
+
+Nested settings use the `__` delimiter — e.g. ``WIKIMIND_LLM__OPENAI__ENABLED=true``
+sets ``settings.llm.openai.enabled``. The provider config classes use class-level
+defaults so that partial overrides preserve unset fields.
 """
 
 from __future__ import annotations
@@ -12,17 +16,48 @@ from functools import lru_cache
 from pathlib import Path
 
 import keyring
-from pydantic import BaseModel, SecretStr
+import structlog
+from pydantic import BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+log = structlog.get_logger()
 
 KEYRING_SERVICE = "wikimind"
 DEFAULT_DATA_DIR = Path.home() / ".wikimind"
 
 
 class LLMProviderConfig(BaseModel):
-    """LLM provider configuration."""
+    """Base provider configuration. Subclasses set the default model per provider."""
 
-    model: str
+    model: str = ""
+    enabled: bool = False
+
+
+class AnthropicConfig(LLMProviderConfig):
+    """Anthropic provider defaults."""
+
+    model: str = "claude-sonnet-4-5"
+    enabled: bool = True
+
+
+class OpenAIConfig(LLMProviderConfig):
+    """OpenAI provider defaults."""
+
+    model: str = "gpt-4o"
+    enabled: bool = False
+
+
+class GoogleConfig(LLMProviderConfig):
+    """Google Gemini provider defaults."""
+
+    model: str = "gemini-2.0-flash"
+    enabled: bool = False
+
+
+class OllamaConfig(LLMProviderConfig):
+    """Local Ollama provider defaults."""
+
+    model: str = "llama3.2"
     enabled: bool = False
 
 
@@ -32,10 +67,10 @@ class LLMConfig(BaseModel):
     default_provider: str = "anthropic"
     fallback_enabled: bool = True
     monthly_budget_usd: float = 50.0
-    anthropic: LLMProviderConfig = LLMProviderConfig(model="claude-sonnet-4-5", enabled=True)
-    openai: LLMProviderConfig = LLMProviderConfig(model="gpt-4o", enabled=False)
-    google: LLMProviderConfig = LLMProviderConfig(model="gemini-2.0-flash", enabled=False)
-    ollama: LLMProviderConfig = LLMProviderConfig(model="llama3.2", enabled=False)
+    anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    google: GoogleConfig = Field(default_factory=GoogleConfig)
+    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     ollama_base_url: str = "http://localhost:11434"
 
 
@@ -62,6 +97,15 @@ class ServerConfig(BaseModel):
     port: int = 7842
 
 
+# Mapping from provider name → (Settings field for SecretStr key, raw env var name).
+# Used by both `get_api_key` and the auto-enable validator below.
+_PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
+    "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+    "openai": ("openai_api_key", "OPENAI_API_KEY"),
+    "google": ("google_api_key", "GOOGLE_API_KEY"),
+}
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
 
@@ -69,16 +113,17 @@ class Settings(BaseSettings):
         env_prefix="WIKIMIND_",
         env_file=".env",
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 
     data_dir: str = str(DEFAULT_DATA_DIR)
     gateway_port: int = 7842
 
-    llm: LLMConfig = LLMConfig()
-    sync: SyncConfig = SyncConfig()
-    database: DatabaseConfig = DatabaseConfig()
-    server: ServerConfig = ServerConfig()
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    sync: SyncConfig = Field(default_factory=SyncConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
 
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None
@@ -86,6 +131,60 @@ class Settings(BaseSettings):
     google_api_key: SecretStr | None = None
     aws_access_key_id: SecretStr | None = None
     aws_secret_access_key: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def _auto_enable_providers_with_keys(self) -> Settings:
+        """Auto-enable any provider whose API key is configured.
+
+        Resolves the long-standing UX problem where exporting OPENAI_API_KEY
+        was not enough to use OpenAI — users also had to manually flip
+        WIKIMIND_LLM__OPENAI__ENABLED=true. Now any provider whose key is
+        present (env var, prefixed env var, or keyring) is automatically
+        marked enabled.
+
+        If a key is set but the user has explicitly disabled the provider via
+        env var, that override still wins — only the default-disabled state
+        is changed.
+        """
+        for provider_name, (field, raw_env) in _PROVIDER_KEY_FIELDS.items():
+            has_key = bool(
+                getattr(self, field)
+                or os.environ.get(raw_env)
+                or os.environ.get(f"WIKIMIND_{raw_env}")
+                or keyring.get_password(KEYRING_SERVICE, provider_name)
+            )
+            if not has_key:
+                continue
+            provider_cfg = getattr(self.llm, provider_name)
+            if not provider_cfg.enabled:
+                provider_cfg.enabled = True
+                log.info(
+                    "auto-enabled provider (key detected)",
+                    provider=provider_name,
+                    model=provider_cfg.model,
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _warn_on_misconfigured_providers(self) -> Settings:
+        """Warn when a provider is enabled but has no key configured."""
+        for provider_name, (field, raw_env) in _PROVIDER_KEY_FIELDS.items():
+            provider_cfg = getattr(self.llm, provider_name)
+            if not provider_cfg.enabled:
+                continue
+            has_key = bool(
+                getattr(self, field)
+                or os.environ.get(raw_env)
+                or os.environ.get(f"WIKIMIND_{raw_env}")
+                or keyring.get_password(KEYRING_SERVICE, provider_name)
+            )
+            if not has_key:
+                log.warning(
+                    "provider enabled but no API key configured — calls will fail",
+                    provider=provider_name,
+                    hint=f"set {raw_env} in your environment or .env file",
+                )
+        return self
 
     @property
     def wiki_dir(self) -> Path:
@@ -110,15 +209,25 @@ class Settings(BaseSettings):
     def get_security_status(self) -> dict[str, object]:
         """Return a summary of which API keys and security features are configured.
 
-        Useful for production readiness checks.
+        Checks all key sources: SecretStr field (prefixed env), raw env var
+        (unprefixed for CI/CD), and OS keychain.
         """
         return {
-            "anthropic_api_key": self.anthropic_api_key is not None
-            or bool(keyring.get_password(KEYRING_SERVICE, "anthropic")),
-            "openai_api_key": self.openai_api_key is not None or bool(keyring.get_password(KEYRING_SERVICE, "openai")),
-            "google_api_key": self.google_api_key is not None or bool(keyring.get_password(KEYRING_SERVICE, "google")),
+            "anthropic_api_key": self._has_provider_key("anthropic"),
+            "openai_api_key": self._has_provider_key("openai"),
+            "google_api_key": self._has_provider_key("google"),
             "keyring_backend": type(keyring.get_keyring()).__name__,
         }
+
+    def _has_provider_key(self, provider: str) -> bool:
+        """Check if a key for the given provider is configured anywhere."""
+        field, raw_env = _PROVIDER_KEY_FIELDS[provider]
+        return bool(
+            getattr(self, field)
+            or os.environ.get(raw_env)
+            or os.environ.get(f"WIKIMIND_{raw_env}")
+            or keyring.get_password(KEYRING_SERVICE, provider)
+        )
 
 
 @lru_cache(maxsize=1)
@@ -145,7 +254,7 @@ _ENV_MAP: dict[str, str] = {
 def get_api_key(provider: str) -> str | None:
     """Retrieve API key from environment / settings or OS keychain.
 
-    Priority: env var (via Settings SecretStr) -> keychain.
+    Priority: env var (via Settings SecretStr) -> raw env var -> keychain.
     """
     settings = get_settings()
 

@@ -63,7 +63,7 @@ class TestArticleProvenance:
         assert url.source_url == "https://example.com/ibm"
 
     async def test_list_articles_includes_source_summaries(self, db_session, tmp_path):
-        article, sources = await _seed_article_with_sources(db_session, tmp_path)
+        article, _sources = await _seed_article_with_sources(db_session, tmp_path)
         service = WikiService()
 
         results = await service.list_articles(db_session)

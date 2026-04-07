@@ -44,9 +44,39 @@ install-dev: ensure-venv ## Install all dev/test/lint dependencies
 	@$(PIP) install -e ".[dev]" > /dev/null
 	@echo "✅  Install complete."
 
+# Path to the editable install marker file inside the venv. We use this to
+# detect when an agent worktree has hijacked the root venv (issue #66).
+EDITABLE_PTH := $(VENV)/lib/python3.12/site-packages/__editable__.wikimind-0.1.0.pth
+EXPECTED_SRC := $(abspath src)
+
+.PHONY: check-venv
+check-venv: ## Verify the venv editable install points at this checkout's src/
+	@test -d $(VENV) || (echo "❌  No .venv found — run 'make venv' first" && exit 1)
+	@test -f $(EDITABLE_PTH) || (echo "❌  No editable install — run 'make install-dev' or 'make repair-venv'" && exit 1)
+	@actual=$$(cat $(EDITABLE_PTH) 2>/dev/null); \
+	if [ "$$actual" != "$(EXPECTED_SRC)" ]; then \
+	  echo "❌  Venv editable install is hijacked!"; \
+	  echo ""; \
+	  echo "    Expected: $(EXPECTED_SRC)"; \
+	  echo "    Actual:   $$actual"; \
+	  echo ""; \
+	  echo "    A subagent worktree probably ran 'pip install -e .' inside its"; \
+	  echo "    own copy and overwrote the root venv's editable path. The"; \
+	  echo "    server would serve stale code from the agent's branch."; \
+	  echo ""; \
+	  echo "    Fix: run 'make repair-venv'"; \
+	  exit 1; \
+	fi
+	@echo "✓ venv editable path: $(EXPECTED_SRC)"
+
+.PHONY: repair-venv
+repair-venv: ## Reinstall the editable package so it points at this checkout
+	@echo "🔧  Reinstalling editable package..."
+	@$(PIP) install -e . --force-reinstall --no-deps > /dev/null
+	@echo "✅  Repaired. Restart 'make dev' to pick up changes."
+
 .PHONY: check-env
-check-env: ## Verify Python version and required tools are present
-	@test -d $(VENV) || (echo "ERROR: No .venv found — run 'make venv' first" && exit 1)
+check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 	@$(PYTHON) --version | grep -qE "3\.(11|12|13)" || (echo "ERROR: Python 3.11+ required" && exit 1)
 	@echo "✓ Python: $$($(PYTHON) --version)"
 	@test -f $(BIN)/ruff && echo "✓ ruff: $$($(BIN)/ruff --version)" || echo "✗ ruff not found (run: make install-dev)"
@@ -59,7 +89,7 @@ check-env: ## Verify Python version and required tools are present
 ##@ ▶️  SERVE
 
 .PHONY: dev
-dev: ## Run fast-reload dev server on :7842 (uvicorn)
+dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
 	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload
 
 .PHONY: serve
@@ -77,20 +107,20 @@ pre-commit: ## Run all pre-commit hooks locally (same as CI)
 	$(BIN)/pre-commit run --all-files
 
 .PHONY: lint
-lint: ## Run ruff linter (includes pylint + pydocstyle rules)
-	$(BIN)/ruff check src/
+lint: ## Run ruff linter on src/ and tests/ (includes pylint + pydocstyle rules)
+	$(BIN)/ruff check src/ tests/
 
 .PHONY: lint-fix
 lint-fix: ## Auto-fix lint issues where possible
-	$(BIN)/ruff check --fix src/
+	$(BIN)/ruff check --fix src/ tests/
 
 .PHONY: format
 format: ## Format source code with ruff
-	$(BIN)/ruff format src/
+	$(BIN)/ruff format src/ tests/
 
 .PHONY: format-check
 format-check: ## Check formatting without modifying files
-	$(BIN)/ruff format --check src/
+	$(BIN)/ruff format --check src/ tests/
 
 .PHONY: typecheck
 typecheck: ## Run mypy type checking
