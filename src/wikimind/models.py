@@ -187,10 +187,11 @@ class Query(SQLModel, table=True):
     filed_back: bool = False
     filed_article_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    # Conversation grouping (added by ADR-011)
-    conversation_id: str | None = Field(
-        default=None, foreign_key="conversation.id", index=True
-    )
+    # Conversation grouping (ADR-011). Nullable in the schema because the
+    # repo's lightweight migration helper cannot add NOT NULL columns to
+    # existing tables, but ALWAYS populated by app code — every Query
+    # belongs to exactly one Conversation. Read it as "non-null in practice".
+    conversation_id: str | None = Field(default=None, foreign_key="conversation.id", index=True)
     turn_index: int = 0  # 0 for first turn, 1 for second, etc.
 
 
