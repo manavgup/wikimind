@@ -38,3 +38,6 @@ Thumbs.db
 # WikiMind local data (user data — never commit)
 # ~/.wikimind/ is outside repo, but just in case:
 *.db
+
+# Serena MCP tool — auto-generated per-worktree config + cache + memories
+.serena/
