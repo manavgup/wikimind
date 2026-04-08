@@ -1,0 +1,119 @@
+"""End-to-end integration test for the Q&A → file-back loop.
+
+Regression coverage for issue #84: the previous implementation of
+``QAAgent._file_back`` coerced ``QueryResult.confidence`` (one of
+``"high" | "medium" | "low"``) into the ``ConfidenceLevel`` enum (whose
+members are ``sourced/mixed/inferred/opinion``), which raised ``ValueError``
+on the real file-back path. Existing unit tests in
+``tests/unit/test_qa_agent.py`` mocked ``_file_back`` itself and never
+exercised the bug.
+
+This test wires the agent up against the real in-memory database, seeds an
+Article so retrieval has something to find, and runs the full
+``answer(file_back=True)`` path with only the LLM router mocked.
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from wikimind.engine import qa_agent as qa_mod
+from wikimind.engine.qa_agent import QAAgent
+from wikimind.models import (
+    Article,
+    CompletionResponse,
+    Provider,
+    Query,
+    QueryRequest,
+)
+
+
+async def test_ask_with_file_back_creates_article_end_to_end(
+    db_session: AsyncSession,
+    tmp_path,
+) -> None:
+    """``answer(file_back=True)`` must persist a Query and a filed Article.
+
+    Exercises the real loop: retrieve context → query LLM (mocked at the
+    router boundary) → persist Query row → file back as Article. Asserts
+    that no exception is raised (regression for #84) and that the
+    Query → Article linkage is intact in the DB.
+    """
+    # Seed an article so _retrieve_context returns a non-empty list and the
+    # agent takes the _query_llm branch (not the empty-context shortcut).
+    article_md = tmp_path / "knowledge.md"
+    article_md.write_text(
+        "# Knowledge\n\nThe wikimind project answers questions from sources.",
+        encoding="utf-8",
+    )
+    seed = Article(
+        slug="knowledge",
+        title="Knowledge",
+        file_path=str(article_md),
+        summary="seed article",
+    )
+    db_session.add(seed)
+    await db_session.commit()
+
+    # Build a QAAgent with the LLM router and settings patched at construction
+    # time, mirroring the helper used by tests/unit/test_qa_agent.py.
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(qa_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+    ):
+        agent = QAAgent()
+
+    # Mock the router boundary: complete() returns an envelope, and
+    # parse_json_response yields a canned QueryResult dict whose
+    # confidence is "high" — the exact value that used to crash _file_back.
+    fake_response = CompletionResponse(
+        content="{}",
+        provider_used=Provider.ANTHROPIC,
+        model_used="test-model",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    agent.router.complete = AsyncMock(return_value=fake_response)
+    agent.router.parse_json_response = lambda _resp: {
+        "answer": "Yes, wikimind answers questions from sources.",
+        "confidence": "high",
+        "sources": ["Knowledge"],
+        "related_articles": [],
+        "follow_up_questions": [],
+    }
+
+    request = QueryRequest(
+        question="Does wikimind answer questions from sources?",
+        file_back=True,
+    )
+
+    # Real call — must not raise. Pre-fix this raised ValueError because
+    # ConfidenceLevel("high") is not a member of the enum.
+    query = await agent.answer(request, db_session)
+
+    # Query row was persisted with the agent-confidence string preserved.
+    assert query.id is not None
+    assert query.confidence == "high"
+
+    # File-back populated the linkage fields.
+    assert query.filed_back is True
+    assert query.filed_article_id is not None
+
+    # The filed Article actually exists in the DB at the linked id.
+    filed = await db_session.get(Article, query.filed_article_id)
+    assert filed is not None
+    assert filed.title.startswith("Q: ")
+    # Per Option 2: article-level confidence is left unset on filed-back
+    # answers because Q&A confidence and Article confidence are different
+    # concepts. The Query row carries the agent's confidence string instead.
+    assert filed.confidence is None
+
+    # Sanity: the Query row is queryable end-to-end via the session.
+    fetched = (await db_session.execute(select(Query).where(Query.id == query.id))).scalar_one()
+    assert fetched.filed_article_id == filed.id
