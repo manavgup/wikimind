@@ -159,6 +159,22 @@ class Backlink(SQLModel, table=True):
     context: str | None = None  # Sentence where link appears
 
 
+class Conversation(SQLModel, table=True):
+    """A conversation thread of one or more Q&A turns.
+
+    Conversations group related Q&A turns that share LLM context. The
+    first turn's question becomes the conversation's title (truncated).
+    Filing a conversation back to the wiki is a per-conversation action,
+    not per-turn — see ADR-011.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    title: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    filed_article_id: str | None = Field(default=None, foreign_key="article.id")
+
+
 class Query(SQLModel, table=True):
     """Q&A history entry."""
 
@@ -171,6 +187,11 @@ class Query(SQLModel, table=True):
     filed_back: bool = False
     filed_article_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Conversation grouping (added by ADR-011)
+    conversation_id: str | None = Field(
+        default=None, foreign_key="conversation.id", index=True
+    )
+    turn_index: int = 0  # 0 for first turn, 1 for second, etc.
 
 
 class Job(SQLModel, table=True):
@@ -321,6 +342,7 @@ class QueryRequest(BaseModel):
 
     question: str
     file_back: bool = False  # Auto-save answer to wiki
+    conversation_id: str | None = None  # None means start a new conversation
 
 
 class SourceResponse(BaseModel):
@@ -419,6 +441,36 @@ class QueryResponse(BaseModel):
     filed_article_id: str | None
     created_at: datetime
     citations: list[CitationResponse] = []
+
+
+class ConversationResponse(BaseModel):
+    """Conversation metadata exposed via API."""
+
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    filed_article_id: str | None = None
+
+
+class ConversationSummary(ConversationResponse):
+    """Conversation summary for the history sidebar — adds turn count."""
+
+    turn_count: int
+
+
+class ConversationDetail(BaseModel):
+    """Full conversation thread with all queries ordered by turn_index."""
+
+    conversation: ConversationResponse
+    queries: list[QueryResponse]
+
+
+class AskResponse(BaseModel):
+    """Response shape for POST /query — wraps both the new query and its parent conversation."""
+
+    query: QueryResponse
+    conversation: ConversationResponse
 
 
 class GraphNode(BaseModel):
