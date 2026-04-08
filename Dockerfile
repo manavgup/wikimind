@@ -40,7 +40,13 @@ FROM base AS dev
 ARG EXTRAS=dev
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --upgrade pip \
+# Upgrade pip, setuptools, AND wheel before installing — the python:3.11-slim
+# base ships with older versions that Trivy flags for:
+#   CVE-2026-23949 (jaraco.context ≤5.3.0, vendored inside setuptools)
+#   CVE-2026-24049 (wheel ≤0.45.1, both top-level and vendored in setuptools)
+# Both are build-time tools, not runtime deps, but HIGH severity with fixes
+# available — cheaper to upgrade than to justify a .trivyignore exception.
+RUN pip install --upgrade pip setuptools wheel \
     && pip install -e ".[${EXTRAS}]"
 
 COPY . .
@@ -53,7 +59,8 @@ FROM base AS prod
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --upgrade pip \
+# Same CVE upgrade as the dev stage — see comment above.
+RUN pip install --upgrade pip setuptools wheel \
     && pip install .
 
 # Run as a non-root user in production.
