@@ -31,6 +31,15 @@ from wikimind.models import (
     QueryRequest,
 )
 
+_FAKE_QA_SETTINGS = SimpleNamespace(
+    data_dir="/tmp",
+    qa=SimpleNamespace(
+        max_prior_turns_in_context=5,
+        prior_answer_truncate_chars=500,
+        conversation_title_max_chars=120,
+    ),
+)
+
 
 async def test_ask_with_file_back_creates_article_end_to_end(
     db_session: AsyncSession,
@@ -129,3 +138,65 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # Sanity: the Query row is queryable end-to-end via the session.
     fetched = (await db_session.execute(select(Query).where(Query.id == query.id))).scalar_one()
     assert fetched.filed_article_id == filed.id
+
+
+async def test_multi_turn_conversation_includes_prior_context_in_prompt(
+    db_session: AsyncSession,
+) -> None:
+    """Q1 establishes context. Q2 in the same conversation must include Q1 in the LLM prompt."""
+    # Build the agent with patched router and settings
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(qa_mod, "get_settings", return_value=_FAKE_QA_SETTINGS),
+    ):
+        agent = QAAgent()
+
+    # Capture every CompletionRequest passed to router.complete
+    captured_requests: list = []
+
+    async def _fake_complete(request, session):
+        captured_requests.append(request)
+        return '{"answer": "fake answer", "confidence": "high", "sources": [], "related_articles": [], "follow_up_questions": []}'
+
+    agent.router.complete = AsyncMock(side_effect=_fake_complete)
+    agent.router.parse_json_response = lambda _resp: {
+        "answer": "fake answer",
+        "confidence": "high",
+        "sources": [],
+        "related_articles": [],
+        "follow_up_questions": [],
+    }
+
+    # Seed one Article so the empty-context shortcut is not taken
+    seed = Article(
+        id="art-multiturn",
+        slug="seed-multiturn",
+        title="Seed Article",
+        file_path="/dev/null",
+        summary="seed",
+    )
+    db_session.add(seed)
+    await db_session.commit()
+
+    # Stub _retrieve_context to avoid filesystem reads; return one item so
+    # context is non-empty and _query_llm is called for both turns
+    agent._retrieve_context = AsyncMock(return_value=[{"title": "Seed Article", "content": "seed content", "score": 1}])
+
+    # Q1 — starts a new conversation
+    _q1, conv = await agent.answer(QueryRequest(question="What is X?"), db_session)
+
+    # Q2 — continues the same conversation
+    _q2, _ = await agent.answer(
+        QueryRequest(question="How does it work?", conversation_id=conv.id),
+        db_session,
+    )
+
+    # Both LLM calls must have been captured
+    assert len(captured_requests) == 2
+
+    # The second call's user message must contain the Q1+A1 conversation block
+    second_user_msg = captured_requests[1].messages[0]["content"]
+    assert "Conversation so far:" in second_user_msg
+    assert "Q1: What is X?" in second_user_msg
+    assert "A1: fake answer" in second_user_msg
+    assert "Current question: How does it work?" in second_user_msg
