@@ -13,7 +13,9 @@ exception — including connection errors — triggers a rollback so the
 session is always left in a clean state.
 """
 
+import uuid
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -90,6 +92,7 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
     await _migrate_added_columns(engine)
+    await _backfill_conversation_for_legacy_queries(engine)
 
 
 async def _migrate_added_columns(engine) -> None:
@@ -138,6 +141,48 @@ async def _migrate_added_columns(engine) -> None:
                 await conn.exec_driver_sql(alter_sql)
         for _name, create_sql in indexes:
             await conn.exec_driver_sql(create_sql)
+
+
+async def _backfill_conversation_for_legacy_queries(engine) -> None:
+    """Create a Conversation row for any Query that has NULL conversation_id.
+
+    Idempotent: re-running finds zero NULL rows and is a no-op. Each
+    legacy Query becomes a single-turn Conversation whose title is the
+    question (truncated to qa.conversation_title_max_chars), whose
+    timestamps mirror the Query's, and whose filed_article_id mirrors
+    the Query's existing filed_article_id (so legacy file-back state
+    is preserved).
+
+    See ADR-011.
+    """
+    settings = get_settings()
+    title_max = settings.qa.conversation_title_max_chars
+
+    async with engine.begin() as conn:
+
+        def _select_legacy(sync_conn):
+            return sync_conn.exec_driver_sql(
+                "SELECT id, question, created_at, filed_article_id FROM query WHERE conversation_id IS NULL"
+            ).fetchall()
+
+        legacy_rows = await conn.run_sync(_select_legacy)
+
+        for row in legacy_rows:
+            query_id, question, created_at_raw, filed_article_id = row
+            conv_id = str(uuid.uuid4())
+            title = (question or "")[:title_max]
+            # SQLite stores datetimes as strings via SQLModel; reuse the raw value if present
+            created_at = created_at_raw or datetime.utcnow().isoformat()
+
+            await conn.exec_driver_sql(
+                "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (conv_id, title, created_at, created_at, filed_article_id),
+            )
+            await conn.exec_driver_sql(
+                "UPDATE query SET conversation_id = ?, turn_index = 0 WHERE id = ?",
+                (conv_id, query_id),
+            )
 
 
 async def close_db():
