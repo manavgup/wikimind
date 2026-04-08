@@ -7,7 +7,6 @@ Every answer can be filed back to make the wiki smarter.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 
 import structlog
@@ -15,6 +14,7 @@ from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.engine.llm_router import get_llm_router
@@ -189,7 +189,7 @@ class QAAgent:
         session.add(query_record)
 
         # Touch the conversation's updated_at
-        conversation.updated_at = datetime.utcnow()
+        conversation.updated_at = utcnow_naive()
         session.add(conversation)
 
         # File back if requested — stage the changes and let the single
@@ -339,7 +339,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         queries = list(result.scalars().all())
 
         markdown = serialize_conversation_to_markdown(conversation, queries)
-        now = datetime.utcnow()
+        now = utcnow_naive()
 
         # Defensive: if filed_article_id points at a missing Article, clear it
         # and treat as a first save in this same invocation (no recursion).

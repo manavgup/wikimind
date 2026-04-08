@@ -15,13 +15,13 @@ session is always left in a clean state.
 
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 
 
@@ -172,7 +172,7 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
             conv_id = str(uuid.uuid4())
             title = (question or "")[:title_max]
             # SQLite stores datetimes as strings via SQLModel; reuse the raw value if present
-            created_at = created_at_raw or datetime.utcnow().isoformat()
+            created_at = created_at_raw or utcnow_naive().isoformat()
 
             await conn.exec_driver_sql(
                 "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) VALUES (?, ?, ?, ?, ?)",

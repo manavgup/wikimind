@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -10,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.qa_agent import QAAgent
@@ -186,8 +186,8 @@ async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> 
     conv = Conversation(
         id="conv-existing",
         title="prior question",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     db_session.add(conv)
     db_session.add(
@@ -227,7 +227,7 @@ async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> 
 
 async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_path) -> None:
     """_load_prior_turns returns at most qa.max_prior_turns_in_context, ordered by turn_index."""
-    conv = Conversation(id="conv-x", title="t", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+    conv = Conversation(id="conv-x", title="t", created_at=utcnow_naive(), updated_at=utcnow_naive())
     db_session.add(conv)
 
     for i in range(7):
@@ -276,8 +276,8 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
     conv = Conversation(
         id="c1",
         title="What is X?",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     db_session.add(conv)
     db_session.add(
@@ -315,8 +315,8 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     conv = Conversation(
         id="c2",
         title="What is Y?",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     db_session.add(conv)
     db_session.add(
@@ -378,14 +378,14 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
     conv_a = Conversation(
         id="conv-aaa",
         title="What is machine learning?",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     conv_b = Conversation(
         id="conv-bbb",
         title="What is machine learning?",  # same title!
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     db_session.add(conv_a)
     db_session.add(conv_b)

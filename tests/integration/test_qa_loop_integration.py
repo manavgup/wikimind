@@ -15,7 +15,6 @@ Article so retrieval has something to find, and runs the full
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -23,6 +22,7 @@ from unittest.mock import AsyncMock, patch
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
@@ -264,8 +264,8 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
             title="Fixture Source",
             file_path=str(fixture_path),
             summary="A fixture article for the loop closure test.",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utcnow_naive(),
+            updated_at=utcnow_naive(),
         )
     )
     await db_session.commit()

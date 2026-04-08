@@ -9,7 +9,6 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -17,6 +16,7 @@ import fitz
 import pytest
 from sqlmodel import select
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import Settings, get_settings
 from wikimind.engine import compiler as compiler_module
 from wikimind.engine.compiler import Compiler
@@ -408,7 +408,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
             title="seed",
             content_hash=digest,
             status=IngestStatus.COMPILED,
-            compiled_at=datetime.utcnow(),
+            compiled_at=utcnow_naive(),
             file_path=str(text_path),
         )
         db_session.add(existing)

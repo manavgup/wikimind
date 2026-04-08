@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.models import (
     Article,
@@ -331,7 +332,7 @@ async def test_query_service_history(db_session) -> None:
 
 async def test_query_service_list_conversations_orders_by_updated_at_desc(db_session) -> None:
     """list_conversations returns most-recently-updated first with turn_count populated."""
-    now = datetime.utcnow()
+    now = utcnow_naive()
 
     db_session.add(
         Conversation(
@@ -378,8 +379,8 @@ async def test_query_service_get_conversation_returns_ordered_turns(db_session) 
         Conversation(
             id="c1",
             title="t",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utcnow_naive(),
+            updated_at=utcnow_naive(),
         )
     )
     db_session.add(Query(id="q-late", question="late", answer="a", conversation_id="c1", turn_index=2))

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from wikimind import database as db_mod
+from wikimind._datetime import utcnow_naive
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.ws import (
     ConnectionManager,
@@ -279,7 +279,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
             question="What is the legacy question?",
             answer="Legacy answer.",
             confidence="high",
-            created_at=datetime.utcnow(),
+            created_at=utcnow_naive(),
         )
         session.add(legacy)
         await session.commit()
