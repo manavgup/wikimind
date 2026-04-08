@@ -77,6 +77,18 @@ class OllamaConfig(LLMProviderConfig):
     enabled: bool = False
 
 
+class MockConfig(LLMProviderConfig):
+    """Deterministic mock provider for CI and local e2e testing.
+
+    Never returns a real LLM call. Must be explicitly enabled and
+    must be set as the default provider to be selected. Disabled
+    by default so it can never silently intercept real traffic.
+    """
+
+    model: str = "mock-1"
+    enabled: bool = False
+
+
 class LLMConfig(BaseModel):
     """LLM configuration across providers."""
 
@@ -88,6 +100,7 @@ class LLMConfig(BaseModel):
     google: GoogleConfig = Field(default_factory=GoogleConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     ollama_base_url: str = "http://localhost:11434"
+    mock: MockConfig = Field(default_factory=MockConfig)
 
 
 class SyncConfig(BaseModel):

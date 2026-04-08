@@ -15,7 +15,7 @@ import openai
 import structlog
 
 from wikimind.config import get_api_key, get_settings
-from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider
+from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
 
 log = structlog.get_logger()
 
@@ -38,6 +38,9 @@ PRICING = {
     },
     Provider.OLLAMA: {
         "*": {"input": 0.0, "output": 0.0},  # Free — local
+    },
+    Provider.MOCK: {
+        "*": {"input": 0.0, "output": 0.0},  # Free — deterministic
     },
 }
 
@@ -168,6 +171,100 @@ class OllamaProvider:
         )
 
 
+class MockProvider:
+    """Deterministic mock provider for CI e2e testing.
+
+    Returns canned JSON keyed off the TaskType so callers that expect
+    CompilationResult / QueryResult shapes can parse the response
+    without a real LLM. Zero cost, zero network, fully deterministic.
+
+    Must be explicitly enabled via ``WIKIMIND_LLM__MOCK__ENABLED=true``
+    AND set as the default provider via ``WIKIMIND_LLM__DEFAULT_PROVIDER=mock``
+    to be selected — disabled by default so it cannot silently
+    intercept real traffic.
+    """
+
+    def __init__(self) -> None:
+        # No config needed; all responses are canned
+        pass
+
+    async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:
+        """Return a deterministic canned response matching the request's task type."""
+        start = time.monotonic()
+        content = self._response_for(request)
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.MOCK,
+            model_used=model,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            latency_ms=latency_ms,
+        )
+
+    @staticmethod
+    def _response_for(request: CompletionRequest) -> str:
+        """Return a canned response body matching the task's expected shape."""
+        if request.task_type == TaskType.COMPILE:
+            return json.dumps(_MOCK_COMPILE_RESPONSE)
+        if request.task_type == TaskType.QA:
+            return json.dumps(_MOCK_QA_RESPONSE)
+        if request.task_type == TaskType.LINT:
+            return json.dumps(_MOCK_LINT_RESPONSE)
+        # Unknown task type: return an empty JSON object so parse_json_response
+        # doesn't crash. Tests that need specific shapes should add a mock
+        # for their task type.
+        return "{}"
+
+
+# Canned responses used by MockProvider. Defined at module level so tests
+# can import and assert against them directly.
+_MOCK_COMPILE_RESPONSE: dict = {
+    "title": "Mock Article",
+    "summary": "A deterministic summary produced by the mock LLM provider for testing.",
+    "key_claims": [
+        {
+            "claim": "This article was produced by the mock LLM provider.",
+            "confidence": "sourced",
+            "quote": "mock provider",
+        }
+    ],
+    "concepts": ["testing", "mock"],
+    "backlink_suggestions": [],
+    "open_questions": ["What is real?"],
+    "article_body": (
+        "## Mock Article\n\n"
+        "This article was produced by the mock LLM provider for deterministic "
+        "e2e testing.\n\n"
+        "## Details\n\n"
+        "The mock provider returns canned responses regardless of input, "
+        "enabling CI to run the full Ask loop without a real LLM API."
+    ),
+}
+
+_MOCK_QA_RESPONSE: dict = {
+    "answer": (
+        "This is a mock answer from the WikiMind mock LLM provider. "
+        "Your question was received and processed deterministically "
+        "for testing purposes."
+    ),
+    "confidence": "high",
+    "sources": ["Mock Article"],
+    "related_articles": [],
+    "new_article_suggested": None,
+    "follow_up_questions": [],
+}
+
+_MOCK_LINT_RESPONSE: dict = {
+    "contradictions": [],
+    "stale_claims": [],
+    "orphan_articles": [],
+    "missing_pages": [],
+    "data_gaps": [],
+}
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -202,7 +299,7 @@ class LLMRouter:
         cfg = getattr(self.settings.llm, provider.value, None)
         if not cfg or not cfg.enabled:
             return False
-        if provider == Provider.OLLAMA:
+        if provider in (Provider.OLLAMA, Provider.MOCK):
             return True  # No API key needed
         return bool(get_api_key(provider.value))
 
@@ -213,6 +310,8 @@ class LLMRouter:
             return OpenAIProvider()
         elif provider == Provider.OLLAMA:
             return OllamaProvider(self.settings.llm.ollama_base_url)
+        elif provider == Provider.MOCK:
+            return MockProvider()
         else:
             raise ValueError(f"Provider {provider} not implemented yet")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -9,14 +10,25 @@ import pytest
 
 from wikimind.engine import llm_router as llm_router_mod
 from wikimind.engine.llm_router import (
+    _MOCK_COMPILE_RESPONSE,
+    _MOCK_LINT_RESPONSE,
+    _MOCK_QA_RESPONSE,
     AnthropicProvider,
     LLMRouter,
+    MockProvider,
     OllamaProvider,
     OpenAIProvider,
     _calc_cost,
     get_llm_router,
 )
-from wikimind.models import CompletionRequest, CompletionResponse, Provider, TaskType
+from wikimind.models import (
+    CompilationResult,
+    CompletionRequest,
+    CompletionResponse,
+    Provider,
+    QueryResult,
+    TaskType,
+)
 
 
 def _req(**kw) -> CompletionRequest:
@@ -281,3 +293,72 @@ def test_get_llm_router_singleton() -> None:
         r2 = get_llm_router()
     assert r1 is r2
     llm_router_mod._router = None
+
+
+class TestMockProvider:
+    """MockProvider returns canned JSON matching each task's Pydantic contract."""
+
+    @pytest.mark.asyncio
+    async def test_compile_response_parses_into_compilation_result(self) -> None:
+        provider = MockProvider()
+        request = CompletionRequest(
+            system="system",
+            messages=[{"role": "user", "content": "compile this source"}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.COMPILE,
+        )
+
+        response = await provider.complete(request, model="mock-1")
+
+        assert response.provider_used == Provider.MOCK
+        assert response.cost_usd == 0.0
+        assert response.input_tokens == 0
+        assert response.output_tokens == 0
+
+        data = json.loads(response.content)
+        assert data == _MOCK_COMPILE_RESPONSE
+        result = CompilationResult(**data)
+        assert result.title == "Mock Article"
+        assert len(result.key_claims) >= 1
+
+    @pytest.mark.asyncio
+    async def test_qa_response_parses_into_query_result(self) -> None:
+        provider = MockProvider()
+        request = CompletionRequest(
+            system="system",
+            messages=[{"role": "user", "content": "what is mocking?"}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.QA,
+        )
+
+        response = await provider.complete(request, model="mock-1")
+
+        assert response.provider_used == Provider.MOCK
+        data = json.loads(response.content)
+        assert data == _MOCK_QA_RESPONSE
+        result = QueryResult(**data)
+        assert result.confidence == "high"
+        assert "mock" in result.answer.lower()
+
+    @pytest.mark.asyncio
+    async def test_lint_response_is_valid_json(self) -> None:
+        provider = MockProvider()
+        request = CompletionRequest(
+            system="system",
+            messages=[{"role": "user", "content": "lint the wiki"}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.LINT,
+        )
+
+        response = await provider.complete(request, model="mock-1")
+
+        data = json.loads(response.content)
+        assert data == _MOCK_LINT_RESPONSE
+        assert "contradictions" in data
+        assert data["contradictions"] == []
