@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -21,6 +22,7 @@ from wikimind.api.routes.ws import (
     get_connection_manager,
 )
 from wikimind.config import get_settings
+from wikimind.database import close_db, get_db_path, init_db
 from wikimind.errors import WikiMindError
 from wikimind.middleware import logging_config
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
@@ -236,13 +238,11 @@ async def test_init_db_adds_conversation_id_and_turn_index_to_query(
     tmp_path, monkeypatch
 ) -> None:
     """The lightweight migration helper adds the new query columns on a fresh DB."""
-    import sqlite3
-
-    from wikimind.database import close_db, get_db_path, init_db
-
     # Point at a fresh tmp data dir
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
+    db_mod._engine = None
+    db_mod._session_factory = None
 
     await init_db()
 
