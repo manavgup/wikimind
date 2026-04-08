@@ -214,15 +214,20 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
 ) -> None:
     """The Karpathy loop closure test.
 
-    1. Seed a fixture Article into the wiki.
-    2. Conversation A: ask a question that retrieves the fixture article.
-       File back the conversation.
-    3. Conversation B (new): ask a different question that should retrieve
-       the article filed back from Conversation A.
-    4. Assert: Conversation B's retrieval finds the filed-back article.
+    1. Seed a fixture Article into the wiki so retrieval has something to find.
+    2. User A asks a question with file_back=True. The agent.answer() flow:
+       retrieves the fixture, generates an answer, and (because file_back=True
+       and confidence is high) calls _file_back_thread to file the conversation
+       back as a NEW wiki article.
+    3. Verify Conversation A's Query has filed_back=True and filed_article_id
+       populated, and that the filed-back .md file exists on disk.
+    4. Verify the filed-back article is retrievable by a future question
+       about the same topic — this is the actual loop closure proof.
 
     If this test ever fails, the loop is broken — that is the entire
-    point of WikiMind.
+    point of WikiMind. The test deliberately uses agent.answer(file_back=True)
+    rather than calling _file_back_thread directly, so it exercises the
+    production conditional that gates file-back on confidence.
     """
     # Build the agent with patched router and settings, with data_dir = tmp_path
     # so that _file_back_thread writes .md files to a path we control.
@@ -265,8 +270,8 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     )
     await db_session.commit()
 
-    # Mock the LLM router to return canned answers that cite by title.
-    # Two entries: one for Conversation A, one for Conversation B.
+    # Mock the LLM router to return a single canned answer for Conversation A.
+    # confidence must be "high" or "medium" so the file_back conditional fires.
     canned_responses = iter(
         [
             {
@@ -276,49 +281,31 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
                 "related_articles": [],
                 "follow_up_questions": [],
             },
-            {
-                "answer": "Per [[How does the Karpathy loop work?]], the loop compounds explorations.",
-                "confidence": "high",
-                "sources": ["How does the Karpathy loop work?"],
-                "related_articles": [],
-                "follow_up_questions": [],
-            },
         ]
     )
 
     agent.router.complete = AsyncMock(return_value="ignored — parse_json_response is stubbed")
     agent.router.parse_json_response = lambda r: next(canned_responses)
 
-    # Phase 1: Conversation A asks the question, file it back manually.
-    # answer() commits at the end, so the Query and Conversation are persisted.
-    _q_a, conv_a = await agent.answer(
-        QueryRequest(question="How does the Karpathy loop work?"),
+    # Phase 1: Conversation A asks with file_back=True, exercising the production
+    # conditional: if request.file_back and result.confidence in ("high", "medium").
+    # answer() commits internally — no manual commit needed.
+    q_a, _conv_a = await agent.answer(
+        QueryRequest(question="How does the Karpathy loop work?", file_back=True),
         db_session,
     )
 
-    # File back Conversation A. _file_back_thread stages but does NOT commit —
-    # call commit explicitly so the Article is visible to later queries.
-    article_a, was_update = await agent._file_back_thread(conv_a.id, db_session)
-    assert was_update is False
-    filed_article_id = article_a.id
-    await db_session.commit()
+    # The production conditional must have fired: filed_back and filed_article_id
+    # are set on the Query row. If these fail, the loop is broken at the gate.
+    assert q_a.filed_back is True
+    assert q_a.filed_article_id is not None
 
     # The filed-back article must now be in the Article table and on disk.
-    filed_article = await db_session.get(Article, filed_article_id)
+    filed_article = await db_session.get(Article, q_a.filed_article_id)
     assert filed_article is not None
     assert Path(filed_article.file_path).exists()
 
-    # Phase 2: Conversation B asks a related question.
-    # Retrieval is naive token-overlap; the question must share words with the
-    # filed-back article's content. The filed-back article's title is
-    # "How does the Karpathy loop work?" — a question about "Karpathy loop"
-    # shares the key tokens "karpathy" and "loop".
-    _q_b, _conv_b = await agent.answer(
-        QueryRequest(question="Tell me about the Karpathy loop"),
-        db_session,
-    )
-
-    # Phase 3: Verify the filed-back article is retrievable.
+    # Phase 3: Verify the filed-back article is retrievable by a future question.
     # Use the agent's own retrieval helper to confirm the filed-back article
     # would be found by a related future question.
     retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session)
