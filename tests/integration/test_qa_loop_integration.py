@@ -15,6 +15,8 @@ Article so retrieval has something to find, and runs the full
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -204,3 +206,125 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     assert "Q1: What is X?" in second_user_msg
     assert "A1: fake answer" in second_user_msg
     assert "Current question: How does it work?" in second_user_msg
+
+
+async def test_filed_back_conversation_is_retrievable_by_next_query(
+    db_session: AsyncSession,
+    tmp_path,
+) -> None:
+    """The Karpathy loop closure test.
+
+    1. Seed a fixture Article into the wiki.
+    2. Conversation A: ask a question that retrieves the fixture article.
+       File back the conversation.
+    3. Conversation B (new): ask a different question that should retrieve
+       the article filed back from Conversation A.
+    4. Assert: Conversation B's retrieval finds the filed-back article.
+
+    If this test ever fails, the loop is broken — that is the entire
+    point of WikiMind.
+    """
+    # Build the agent with patched router and settings, with data_dir = tmp_path
+    # so that _file_back_thread writes .md files to a path we control.
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(tmp_path),
+                qa=SimpleNamespace(
+                    max_prior_turns_in_context=5,
+                    prior_answer_truncate_chars=500,
+                    conversation_title_max_chars=120,
+                ),
+            ),
+        ),
+    ):
+        agent = QAAgent()
+
+    # Seed a fixture article on disk so retrieval has something real to find
+    wiki_dir = tmp_path / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    fixture_path = wiki_dir / "fixture-source.md"
+    fixture_path.write_text(
+        "# Fixture Source\n\nThe Karpathy loop is the core mechanism of WikiMind."
+        " It compounds explorations into the wiki.\n",
+        encoding="utf-8",
+    )
+    db_session.add(
+        Article(
+            id="art-fixture",
+            slug="fixture-source",
+            title="Fixture Source",
+            file_path=str(fixture_path),
+            summary="A fixture article for the loop closure test.",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+    )
+    await db_session.commit()
+
+    # Mock the LLM router to return canned answers that cite by title.
+    # Two entries: one for Conversation A, one for Conversation B.
+    canned_responses = iter(
+        [
+            {
+                "answer": "The Karpathy loop is documented in [[Fixture Source]]. It compounds explorations.",
+                "confidence": "high",
+                "sources": ["Fixture Source"],
+                "related_articles": [],
+                "follow_up_questions": [],
+            },
+            {
+                "answer": "Per [[How does the Karpathy loop work?]], the loop compounds explorations.",
+                "confidence": "high",
+                "sources": ["How does the Karpathy loop work?"],
+                "related_articles": [],
+                "follow_up_questions": [],
+            },
+        ]
+    )
+
+    agent.router.complete = AsyncMock(return_value="ignored — parse_json_response is stubbed")
+    agent.router.parse_json_response = lambda r: next(canned_responses)
+
+    # Phase 1: Conversation A asks the question, file it back manually.
+    # answer() commits at the end, so the Query and Conversation are persisted.
+    _q_a, conv_a = await agent.answer(
+        QueryRequest(question="How does the Karpathy loop work?"),
+        db_session,
+    )
+
+    # File back Conversation A. _file_back_thread stages but does NOT commit —
+    # call commit explicitly so the Article is visible to later queries.
+    article_a, was_update = await agent._file_back_thread(conv_a.id, db_session)
+    assert was_update is False
+    filed_article_id = article_a.id
+    await db_session.commit()
+
+    # The filed-back article must now be in the Article table and on disk.
+    filed_article = await db_session.get(Article, filed_article_id)
+    assert filed_article is not None
+    assert Path(filed_article.file_path).exists()
+
+    # Phase 2: Conversation B asks a related question.
+    # Retrieval is naive token-overlap; the question must share words with the
+    # filed-back article's content. The filed-back article's title is
+    # "How does the Karpathy loop work?" — a question about "Karpathy loop"
+    # shares the key tokens "karpathy" and "loop".
+    _q_b, _conv_b = await agent.answer(
+        QueryRequest(question="Tell me about the Karpathy loop"),
+        db_session,
+    )
+
+    # Phase 3: Verify the filed-back article is retrievable.
+    # Use the agent's own retrieval helper to confirm the filed-back article
+    # would be found by a related future question.
+    retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session)
+    retrieved_titles = {r["title"] for r in retrieved}
+
+    assert "How does the Karpathy loop work?" in retrieved_titles, (
+        f"LOOP CLOSURE FAILED: filed-back article was not found by a related "
+        f"future question. Retrieved: {retrieved_titles}"
+    )
