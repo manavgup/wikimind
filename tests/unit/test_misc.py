@@ -238,9 +238,7 @@ async def test_get_session_rolls_back_on_error(monkeypatch, tmp_path) -> None:
     await db_mod.close_db()
 
 
-async def test_init_db_adds_conversation_id_and_turn_index_to_query(
-    tmp_path, monkeypatch
-) -> None:
+async def test_init_db_adds_conversation_id_and_turn_index_to_query(tmp_path, monkeypatch) -> None:
     """The lightweight migration helper adds the new query columns on a fresh DB."""
     # Point at a fresh tmp data dir
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
@@ -303,9 +301,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
     # Idempotency: a third init_db should be a no-op (no duplicate Conversation rows)
     await init_db()
     async with factory() as session:
-        rows_result = await session.execute(
-            select(Conversation).where(Conversation.id == result.conversation_id)
-        )
+        rows_result = await session.execute(select(Conversation).where(Conversation.id == result.conversation_id))
         rows = list(rows_result.scalars().all())
         assert len(rows) == 1, "backfill is not idempotent — it duplicated the conversation row"
 

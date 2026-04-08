@@ -175,8 +175,7 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
             created_at = created_at_raw or datetime.utcnow().isoformat()
 
             await conn.exec_driver_sql(
-                "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) VALUES (?, ?, ?, ?, ?)",
                 (conv_id, title, created_at, created_at, filed_article_id),
             )
             await conn.exec_driver_sql(
