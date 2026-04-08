@@ -77,6 +77,7 @@ class Provider(StrEnum):
     OPENAI = "openai"
     GOOGLE = "google"
     OLLAMA = "ollama"
+    MOCK = "mock"
 
 
 class TaskType(StrEnum):
