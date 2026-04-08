@@ -151,6 +151,8 @@ def _to_query_response(query: Query, citations: list[CitationResponse]) -> Query
         filed_back=query.filed_back,
         filed_article_id=query.filed_article_id,
         created_at=query.created_at,
+        conversation_id=query.conversation_id,
+        turn_index=query.turn_index,
         citations=citations,
     )
 

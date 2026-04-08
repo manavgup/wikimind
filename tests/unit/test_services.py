@@ -393,6 +393,10 @@ async def test_query_service_get_conversation_returns_ordered_turns(db_session) 
 
     assert detail.conversation.id == "c1"
     assert [q.question for q in detail.queries] == ["early", "mid", "late"]
+    # Each projected QueryResponse must carry conversation_id + turn_index so the
+    # frontend can render "Q{turn_index + 1}" labels and group turns by conversation.
+    assert [q.conversation_id for q in detail.queries] == ["c1", "c1", "c1"]
+    assert [q.turn_index for q in detail.queries] == [0, 1, 2]
 
 
 async def test_query_service_get_conversation_not_found(db_session) -> None:

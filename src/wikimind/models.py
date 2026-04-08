@@ -443,6 +443,8 @@ class QueryResponse(BaseModel):
     filed_back: bool
     filed_article_id: str | None
     created_at: datetime
+    conversation_id: str | None = None
+    turn_index: int = 0
     citations: list[CitationResponse] = []
 
 

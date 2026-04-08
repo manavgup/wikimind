@@ -31,6 +31,7 @@ interface WebSocketStore {
   toasts: Toast[];
   setState: (state: WSConnectionState) => void;
   ingest: (event: WSEvent) => void;
+  pushToast: (input: { kind: Toast["kind"]; title: string; detail?: string }) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -87,6 +88,18 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
       }
 
       return next;
+    }),
+
+  pushToast: (input) =>
+    set((store) => {
+      const toast: Toast = {
+        id: makeId(),
+        kind: input.kind,
+        title: input.title,
+        detail: input.detail,
+        createdAt: Date.now(),
+      };
+      return { toasts: [toast, ...store.toasts].slice(0, MAX_TOASTS) };
     }),
 
   dismissToast: (id) =>

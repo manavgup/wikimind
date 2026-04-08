@@ -1178,6 +1178,15 @@ components:
           type: string
           format: date-time
           title: Created At
+        conversation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Conversation Id
+        turn_index:
+          type: integer
+          title: Turn Index
+          default: 0
         citations:
           items:
             $ref: '#/components/schemas/CitationResponse'
