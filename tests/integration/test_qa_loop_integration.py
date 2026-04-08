@@ -63,7 +63,18 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # time, mirroring the helper used by tests/unit/test_qa_agent.py.
     with (
         patch.object(qa_mod, "get_llm_router"),
-        patch.object(qa_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(tmp_path),
+                qa=SimpleNamespace(
+                    max_prior_turns_in_context=5,
+                    prior_answer_truncate_chars=500,
+                    conversation_title_max_chars=120,
+                ),
+            ),
+        ),
     ):
         agent = QAAgent()
 
@@ -95,7 +106,8 @@ async def test_ask_with_file_back_creates_article_end_to_end(
 
     # Real call — must not raise. Pre-fix this raised ValueError because
     # ConfidenceLevel("high") is not a member of the enum.
-    query = await agent.answer(request, db_session)
+    # answer() now returns a tuple of (Query, Conversation).
+    query, _ = await agent.answer(request, db_session)
 
     # Query row was persisted with the agent-confidence string preserved.
     assert query.id is not None
@@ -108,7 +120,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # The filed Article actually exists in the DB at the linked id.
     filed = await db_session.get(Article, query.filed_article_id)
     assert filed is not None
-    assert filed.title.startswith("Q: ")
+    assert filed.title == "Does wikimind answer questions from sources?"
     # Per Option 2: article-level confidence is left unset on filed-back
     # answers because Q&A confidence and Article confidence are different
     # concepts. The Query row carries the agent's confidence string instead.
