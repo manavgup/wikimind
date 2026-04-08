@@ -284,30 +284,6 @@ def test_compiler_service_singleton() -> None:
 # ----- QueryService -----
 
 
-async def test_query_service_ask(db_session) -> None:
-    """ask() returns AskResponse with both query and conversation."""
-    svc = QueryService()
-    fake_conv = Conversation(id="conv-1", title="q")
-    fake_query = Query(
-        question="q",
-        answer="a",
-        confidence="high",
-        source_article_ids=json.dumps([]),
-        related_article_ids=json.dumps([]),
-        conversation_id="conv-1",
-        turn_index=0,
-    )
-    db_session.add(fake_conv)
-    db_session.add(fake_query)
-    await db_session.commit()
-    svc._qa_agent = MagicMock()
-    svc._qa_agent.answer = AsyncMock(return_value=(fake_query, fake_conv))
-    resp = await svc.ask(QueryRequest(question="q"), db_session)
-    assert isinstance(resp, AskResponse)
-    assert resp.query.answer == "a"
-    assert resp.conversation.id == "conv-1"
-
-
 async def test_query_service_ask_returns_ask_response_with_conversation(db_session) -> None:
     """ask() now returns AskResponse with both query and conversation."""
     svc = QueryService()
@@ -451,6 +427,18 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
     assert result["article"]["id"] == "art-1"
     assert result["article"]["slug"] == "conv-fb"
     svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session)
+
+
+async def test_query_service_file_back_conversation_not_found(db_session) -> None:
+    """file_back_conversation propagates HTTPException 404 when the conversation id is unknown.
+
+    Uses the real (un-mocked) agent so the 404 path in _file_back_thread fires
+    naturally and we verify the service layer propagates it correctly.
+    """
+    svc = QueryService()
+    with pytest.raises(HTTPException) as exc_info:
+        await svc.file_back_conversation("does-not-exist", db_session)
+    assert exc_info.value.status_code == 404
 
 
 def test_query_service_singleton() -> None:
