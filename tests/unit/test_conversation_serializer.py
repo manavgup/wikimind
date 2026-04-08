@@ -104,13 +104,14 @@ def test_serializer_escapes_double_quotes_in_title():
     assert 'title: "What is \\"AI\\"?"' in md
 
 
-def test_serializer_falls_back_to_untitled_slug_when_title_is_special_chars():
-    """Title that slugifies to empty string falls back to 'untitled-conversation'."""
+def test_serializer_uses_conversation_id_as_slug():
+    """Slug is always the conversation's UUID id, regardless of the title content."""
     conv = _conv(title="!@#$%")
     queries = [_q("Q?", "A.", turn_index=0)]
     md = serialize_conversation_to_markdown(conv, queries)
 
-    assert "slug: untitled-conversation" in md
+    # Slug is the conversation id, not derived from the title.
+    assert "slug: conv-1" in md
 
 
 def test_serializer_handles_empty_queries_list():

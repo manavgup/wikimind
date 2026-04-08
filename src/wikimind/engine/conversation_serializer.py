@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import json
 
-from slugify import slugify
-
 from wikimind.models import Conversation, Query
 
 
@@ -31,7 +29,7 @@ def serialize_conversation_to_markdown(
     Returns:
         Markdown string with frontmatter and one section per turn.
     """
-    slug = slugify(conversation.title)[:80] or "untitled-conversation"
+    slug = conversation.id
     turn_count = len(queries)
 
     lines: list[str] = []

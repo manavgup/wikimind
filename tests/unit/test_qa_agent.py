@@ -294,6 +294,7 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
 
     agent = _agent(tmp_path)
     article, was_update = await agent._file_back_thread("c1", db_session)
+    await db_session.commit()  # single-commit pattern — test owns the commit
 
     assert was_update is False
     assert article.id is not None
@@ -332,6 +333,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
 
     agent = _agent(tmp_path)
     first_article, _ = await agent._file_back_thread("c2", db_session)
+    await db_session.commit()  # single-commit pattern — test owns the commit
     first_id = first_article.id
     first_path = first_article.file_path
 
@@ -349,6 +351,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     await db_session.commit()
 
     second_article, was_update = await agent._file_back_thread("c2", db_session)
+    await db_session.commit()  # single-commit pattern — test owns the commit
 
     assert was_update is True
     assert second_article.id == first_id  # same article
@@ -358,3 +361,73 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     content = Path(first_path).read_text()
     assert "Q1: What is Y?" in content
     assert "Q2: follow-up" in content
+
+
+async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_session, tmp_path, monkeypatch) -> None:
+    """Two conversations with identical titles must produce distinct Articles (distinct slugs).
+
+    Regression test for the slug-collision bug: previously the slug was derived
+    from slugify(title), so two conversations titled "What is X?" would produce
+    the same slug and the second file-back would crash on the unique constraint.
+    The fix uses conversation.id as the slug, which is guaranteed unique.
+    """
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    # Create two Conversations with IDENTICAL titles
+    conv_a = Conversation(
+        id="conv-aaa",
+        title="What is machine learning?",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    conv_b = Conversation(
+        id="conv-bbb",
+        title="What is machine learning?",  # same title!
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db_session.add(conv_a)
+    db_session.add(conv_b)
+    db_session.add(
+        Query(
+            id="q-a",
+            question="What is machine learning?",
+            answer="First answer",
+            conversation_id="conv-aaa",
+            turn_index=0,
+        )
+    )
+    db_session.add(
+        Query(
+            id="q-b",
+            question="What is machine learning?",
+            answer="Second answer",
+            conversation_id="conv-bbb",
+            turn_index=0,
+        )
+    )
+    await db_session.commit()
+
+    agent = _agent(tmp_path)
+
+    article_a, _ = await agent._file_back_thread("conv-aaa", db_session)
+    await db_session.commit()  # single-commit pattern — test owns the commit
+
+    article_b, _ = await agent._file_back_thread("conv-bbb", db_session)
+    await db_session.commit()
+
+    # Both articles exist with distinct slugs
+    assert article_a.slug == "conv-aaa"
+    assert article_b.slug == "conv-bbb"
+    assert article_a.slug != article_b.slug
+    assert article_a.id != article_b.id
+    assert article_a.file_path != article_b.file_path
+
+    # Both files exist on disk
+    assert Path(article_a.file_path).exists()
+    assert Path(article_b.file_path).exists()
+
+    # The first article's content mentions the first answer
+    content_a = Path(article_a.file_path).read_text()
+    assert "First answer" in content_a

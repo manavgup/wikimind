@@ -12,7 +12,6 @@ from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
-from slugify import slugify
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -189,22 +188,20 @@ class QAAgent:
         )
         session.add(query_record)
 
-        # File back if requested — flush first so _file_back_thread can see the new turn
+        # Touch the conversation's updated_at
+        conversation.updated_at = datetime.utcnow()
+        session.add(conversation)
+
+        # File back if requested — stage the changes and let the single
+        # commit below persist everything atomically (no double commit).
         if request.file_back and result.confidence in ("high", "medium"):
-            await session.flush()
+            await session.flush()  # make the new Query visible to file_back's SELECT
             article, _ = await self._file_back_thread(conversation.id, session)
             query_record.filed_back = True
             query_record.filed_article_id = article.id
-            # _file_back_thread already committed; touch updated_at and re-commit below
-            conversation.updated_at = datetime.utcnow()
-            session.add(conversation)
             session.add(query_record)
-            await session.commit()
-        else:
-            # Touch the conversation's updated_at
-            conversation.updated_at = datetime.utcnow()
-            session.add(conversation)
-            await session.commit()
+
+        await session.commit()
 
         await session.refresh(query_record)
         await session.refresh(conversation)
@@ -311,13 +308,17 @@ conversation context contradicts the wiki, prefer the wiki."""
     ) -> tuple[Article, bool]:
         """File a whole conversation back to the wiki as a single article.
 
-        If the conversation has not been filed back before, creates a new
-        Article. If it has, overwrites the existing Article's .md file in
-        place and returns was_update=True. The article id, slug, and
-        file_path stay stable across re-saves.
+        STAGES changes but does NOT commit — the caller owns the
+        commit so that file-back operations land atomically with any
+        other changes the caller has pending (e.g. the new Query row in
+        answer()).
 
-        See ADR-011 for the rationale on per-conversation (not per-turn)
-        file-back.
+        If the conversation has not been filed back before, creates a
+        new Article with slug = conversation.id (guaranteed unique).
+        If it has, overwrites the existing Article's .md file in place.
+        The article id, slug, and file_path stay stable across re-saves.
+
+        See ADR-011 for the rationale on per-conversation file-back.
 
         Args:
             conversation_id: The conversation to file back.
@@ -338,13 +339,26 @@ conversation context contradicts the wiki, prefer the wiki."""
         queries = list(result.scalars().all())
 
         markdown = serialize_conversation_to_markdown(conversation, queries)
+        now = datetime.utcnow()
 
-        if conversation.filed_article_id is None:
-            # First save — create a new Article
+        # Defensive: if filed_article_id points at a missing Article, clear it
+        # and treat as a first save in this same invocation (no recursion).
+        existing_article: Article | None = None
+        if conversation.filed_article_id is not None:
+            existing_article = await session.get(Article, conversation.filed_article_id)
+            if existing_article is None:
+                log.warning(
+                    "Conversation.filed_article_id pointed at missing Article — recreating",
+                    conversation_id=conversation_id,
+                )
+                conversation.filed_article_id = None
+
+        if existing_article is None:
+            # Create path
             wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
             wiki_dir.mkdir(parents=True, exist_ok=True)
 
-            slug = slugify(conversation.title)[:80] or "untitled-conversation"
+            slug = conversation.id  # UUID — guaranteed unique, no collision possible
             file_path = wiki_dir / f"{slug}.md"
             file_path.write_text(markdown, encoding="utf-8")
 
@@ -354,48 +368,33 @@ conversation context contradicts the wiki, prefer the wiki."""
                 file_path=str(file_path),
                 summary=(queries[0].answer[:200] if queries else None),
                 confidence=None,  # per #84 / Option 2 — Q&A confidence is on Query, not Article
+                created_at=now,
+                updated_at=now,
             )
             session.add(article)
-            await session.flush()  # populate article.id
+            await session.flush()  # populate article.id before the caller commits
 
             conversation.filed_article_id = article.id
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = now
             session.add(conversation)
-            await session.commit()
-            await session.refresh(article)
 
             log.info(
-                "Conversation filed back to wiki (created)",
+                "Conversation filed back to wiki (created, pending commit)",
                 conversation_id=conversation_id,
                 article_id=article.id,
             )
             return article, False
 
-        # Second-or-later save — update in place
-        existing_article: Article | None = await session.get(Article, conversation.filed_article_id)
-        if existing_article is None:
-            # Defensive: filed_article_id pointed at a missing row.
-            # Treat as first save by clearing the pointer and recursing.
-            log.warning(
-                "Conversation.filed_article_id pointed at missing Article — recreating",
-                conversation_id=conversation_id,
-            )
-            conversation.filed_article_id = None
-            await session.commit()
-            return await self._file_back_thread(conversation_id, session)
-
-        article = existing_article
-        Path(article.file_path).write_text(markdown, encoding="utf-8")
-        article.updated_at = datetime.utcnow()
-        conversation.updated_at = datetime.utcnow()
-        session.add(article)
+        # Update path: overwrite the existing Article's file in place
+        Path(existing_article.file_path).write_text(markdown, encoding="utf-8")
+        existing_article.updated_at = now
+        conversation.updated_at = now
+        session.add(existing_article)
         session.add(conversation)
-        await session.commit()
-        await session.refresh(article)
 
         log.info(
-            "Conversation filed back to wiki (updated)",
+            "Conversation filed back to wiki (updated, pending commit)",
             conversation_id=conversation_id,
-            article_id=article.id,
+            article_id=existing_article.id,
         )
-        return article, True
+        return existing_article, True
