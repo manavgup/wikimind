@@ -1,22 +1,32 @@
-"""Endpoints for asking questions against the wiki and filing answers back."""
+"""Endpoints for asking questions, browsing conversations, and filing answers back."""
 
 from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
-from wikimind.models import QueryRequest, QueryResponse
+from wikimind.models import (
+    AskResponse,
+    ConversationDetail,
+    ConversationSummary,
+    QueryRequest,
+)
 from wikimind.services.query import QueryService, get_query_service
 
 router = APIRouter()
 
 
-@router.post("", response_model=QueryResponse)
+@router.post("", response_model=AskResponse)
 async def ask(
     request: QueryRequest,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
 ):
-    """Ask a question against the wiki and receive an answer with citations."""
+    """Ask a question against the wiki and receive an answer with citations.
+
+    If request.conversation_id is None, a new conversation is created.
+    Otherwise the question is appended as a new turn in the existing
+    conversation.
+    """
     return await service.ask(request, session)
 
 
@@ -26,15 +36,35 @@ async def query_history(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
 ):
-    """List past queries."""
+    """List past queries (legacy endpoint — UI uses /conversations instead)."""
     return await service.query_history(session, limit=limit)
 
 
-@router.post("/{query_id}/file-back")
-async def file_back(
-    query_id: str,
+@router.get("/conversations", response_model=list[ConversationSummary])
+async def list_conversations(
+    limit: int = 50,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
 ):
-    """Save a past answer as a wiki article."""
-    return await service.file_back(query_id, session)
+    """List conversations ordered by most recently updated first."""
+    return await service.list_conversations(session, limit=limit)
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+async def get_conversation(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: QueryService = Depends(get_query_service),
+):
+    """Return a single conversation with all its turns."""
+    return await service.get_conversation(conversation_id, session)
+
+
+@router.post("/conversations/{conversation_id}/file-back")
+async def file_back_conversation(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: QueryService = Depends(get_query_service),
+):
+    """File the entire conversation back to the wiki as a single article."""
+    return await service.file_back_conversation(conversation_id, session)
