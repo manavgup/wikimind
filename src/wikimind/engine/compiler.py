@@ -6,7 +6,6 @@ This is the core value-creation step.
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
 import structlog
@@ -14,6 +13,7 @@ from slugify import slugify
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
@@ -256,7 +256,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         session.add(article)
 
         source.status = IngestStatus.COMPILED
-        source.compiled_at = datetime.utcnow()
+        source.compiled_at = utcnow_naive()
         session.add(source)
 
         await session.commit()
@@ -291,11 +291,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing.confidence = self._overall_confidence(result)
         existing.file_path = str(new_path)
         existing.concept_ids = f'["{chr(34).join(result.concepts)}"]'
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = utcnow_naive()
         session.add(existing)
 
         source.status = IngestStatus.COMPILED
-        source.compiled_at = datetime.utcnow()
+        source.compiled_at = utcnow_naive()
         session.add(source)
 
         await session.commit()
@@ -348,7 +348,7 @@ title: "{result.title}"
 slug: {slug}
 source_url: {source.source_url or ""}
 source_type: {source.source_type}
-compiled: {datetime.utcnow().isoformat()}
+compiled: {utcnow_naive().isoformat()}
 concepts: [{concepts_str}]
 confidence: {self._overall_confidence(result)}
 ---

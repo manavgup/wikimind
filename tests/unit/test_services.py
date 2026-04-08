@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.models import (
     Article,
+    AskResponse,
     Backlink,
+    Conversation,
     IngestStatus,
     Job,
     Query,
@@ -281,54 +285,161 @@ def test_compiler_service_singleton() -> None:
 # ----- QueryService -----
 
 
-async def test_query_service_ask(db_session) -> None:
+async def test_query_service_ask_returns_ask_response_with_conversation(db_session) -> None:
+    """ask() now returns AskResponse with both query and conversation."""
     svc = QueryService()
+    fake_conv = Conversation(id="conv-loop", title="What is the loop?")
     fake_query = Query(
-        question="q",
-        answer="a",
+        question="What is the loop?",
+        answer="some answer",
         confidence="high",
         source_article_ids=json.dumps([]),
         related_article_ids=json.dumps([]),
+        conversation_id="conv-loop",
+        turn_index=0,
     )
+    db_session.add(fake_conv)
     db_session.add(fake_query)
     await db_session.commit()
+
     svc._qa_agent = MagicMock()
-    svc._qa_agent.answer = AsyncMock(return_value=fake_query)
-    resp = await svc.ask(QueryRequest(question="q"), db_session)
-    assert resp.answer == "a"
+    svc._qa_agent.answer = AsyncMock(return_value=(fake_query, fake_conv))
+
+    request = QueryRequest(question="What is the loop?")
+    response = await svc.ask(request, db_session)
+
+    assert isinstance(response, AskResponse)
+    assert response.query.question == "What is the loop?"
+    assert response.conversation.title == "What is the loop?"
+    assert response.query.id is not None
 
 
 async def test_query_service_history(db_session) -> None:
     svc = QueryService()
     db_session.add(
-        Query(question="q", answer="a", confidence="high", source_article_ids="[]", related_article_ids="[]")
+        Query(
+            question="q",
+            answer="a",
+            confidence="high",
+            source_article_ids="[]",
+            related_article_ids="[]",
+        )
     )
     await db_session.commit()
     h = await svc.query_history(db_session)
     assert len(h) == 1
 
 
-async def test_query_service_file_back_missing(db_session) -> None:
-    svc = QueryService()
-    with pytest.raises(HTTPException):
-        await svc.file_back("nope", db_session)
+async def test_query_service_list_conversations_orders_by_updated_at_desc(db_session) -> None:
+    """list_conversations returns most-recently-updated first with turn_count populated."""
+    now = utcnow_naive()
 
-
-async def test_query_service_file_back_ok(db_session) -> None:
-    svc = QueryService()
-    q = Query(
-        question="q",
-        answer="a",
-        confidence="high",
-        source_article_ids=json.dumps([]),
-        related_article_ids=json.dumps([]),
+    db_session.add(
+        Conversation(
+            id="c1",
+            title="oldest",
+            created_at=now - timedelta(hours=3),
+            updated_at=now - timedelta(hours=3),
+        )
     )
-    db_session.add(q)
+    db_session.add(
+        Conversation(
+            id="c2",
+            title="newest",
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        )
+    )
+    db_session.add(
+        Conversation(
+            id="c3",
+            title="middle",
+            created_at=now - timedelta(hours=2),
+            updated_at=now - timedelta(hours=1),
+        )
+    )
+    db_session.add(Query(id="q1", question="q", answer="a", conversation_id="c1", turn_index=0))
+    db_session.add(Query(id="q2a", question="q", answer="a", conversation_id="c2", turn_index=0))
+    db_session.add(Query(id="q2b", question="q", answer="a", conversation_id="c2", turn_index=1))
+    db_session.add(Query(id="q3", question="q", answer="a", conversation_id="c3", turn_index=0))
     await db_session.commit()
+
+    service = QueryService()
+    summaries = await service.list_conversations(db_session, limit=10)
+
+    assert [s.id for s in summaries] == ["c2", "c3", "c1"]
+    assert summaries[0].turn_count == 2
+    assert summaries[1].turn_count == 1
+    assert summaries[2].turn_count == 1
+
+
+async def test_query_service_get_conversation_returns_ordered_turns(db_session) -> None:
+    """get_conversation returns the conversation plus its queries ordered by turn_index."""
+    db_session.add(
+        Conversation(
+            id="c1",
+            title="t",
+            created_at=utcnow_naive(),
+            updated_at=utcnow_naive(),
+        )
+    )
+    db_session.add(Query(id="q-late", question="late", answer="a", conversation_id="c1", turn_index=2))
+    db_session.add(Query(id="q-early", question="early", answer="a", conversation_id="c1", turn_index=0))
+    db_session.add(Query(id="q-mid", question="mid", answer="a", conversation_id="c1", turn_index=1))
+    await db_session.commit()
+
+    service = QueryService()
+    detail = await service.get_conversation("c1", db_session)
+
+    assert detail.conversation.id == "c1"
+    assert [q.question for q in detail.queries] == ["early", "mid", "late"]
+
+
+async def test_query_service_get_conversation_not_found(db_session) -> None:
+    """get_conversation raises 404 for unknown conversation_id."""
+    service = QueryService()
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_conversation("no-such-id", db_session)
+    assert exc_info.value.status_code == 404
+
+
+async def test_query_service_file_back_conversation(db_session, tmp_path, monkeypatch) -> None:
+    """file_back_conversation delegates to agent._file_back_thread and returns article metadata."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    conv = Conversation(id="conv-fb", title="File-back test")
+    db_session.add(conv)
+    await db_session.commit()
+
+    svc = QueryService()
+    fake_article = Article(
+        id="art-1",
+        slug="conv-fb",
+        title="File-back test",
+        file_path=str(tmp_path / "x.md"),
+    )
     svc._qa_agent = MagicMock()
-    svc._qa_agent._file_back = AsyncMock(return_value="art-1")
-    result = await svc.file_back(q.id, db_session)
-    assert result["filed"] is True
+    svc._qa_agent._file_back_thread = AsyncMock(return_value=(fake_article, False))
+
+    result = await svc.file_back_conversation("conv-fb", db_session)
+
+    assert result["was_update"] is False
+    assert result["article"]["id"] == "art-1"
+    assert result["article"]["slug"] == "conv-fb"
+    svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session)
+
+
+async def test_query_service_file_back_conversation_not_found(db_session) -> None:
+    """file_back_conversation propagates HTTPException 404 when the conversation id is unknown.
+
+    Uses the real (un-mocked) agent so the 404 path in _file_back_thread fires
+    naturally and we verify the service layer propagates it correctly.
+    """
+    svc = QueryService()
+    with pytest.raises(HTTPException) as exc_info:
+        await svc.file_back_conversation("does-not-exist", db_session)
+    assert exc_info.value.status_code == 404
 
 
 def test_query_service_singleton() -> None:

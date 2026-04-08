@@ -12,6 +12,8 @@ from enum import StrEnum
 from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
+from wikimind._datetime import utcnow_naive
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -101,7 +103,7 @@ class Source(SQLModel, table=True):
     author: str | None = None
     published_date: date | None = None
     status: IngestStatus = IngestStatus.PENDING
-    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    ingested_at: datetime = Field(default_factory=utcnow_naive)
     compiled_at: datetime | None = None
     token_count: int | None = None
     error_message: str | None = None
@@ -123,8 +125,8 @@ class Article(SQLModel, table=True):
     confidence: ConfidenceLevel | None = None
     linter_score: float | None = None
     summary: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
     source_ids: str | None = None  # JSON array of source IDs
     # Which LLM provider compiled this article (issue #67). Recompiling the
     # same source with the same provider replaces this article in place;
@@ -148,7 +150,7 @@ class Concept(SQLModel, table=True):
     parent_id: str | None = Field(default=None, foreign_key="concept.id")
     article_count: int = 0
     description: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class Backlink(SQLModel, table=True):
@@ -157,6 +159,22 @@ class Backlink(SQLModel, table=True):
     source_article_id: str = Field(foreign_key="article.id", primary_key=True)
     target_article_id: str = Field(foreign_key="article.id", primary_key=True)
     context: str | None = None  # Sentence where link appears
+
+
+class Conversation(SQLModel, table=True):
+    """A conversation thread of one or more Q&A turns.
+
+    Conversations group related Q&A turns that share LLM context. The
+    first turn's question becomes the conversation's title (truncated).
+    Filing a conversation back to the wiki is a per-conversation action,
+    not per-turn — see ADR-011.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    title: str
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+    filed_article_id: str | None = Field(default=None, foreign_key="article.id")
 
 
 class Query(SQLModel, table=True):
@@ -170,7 +188,13 @@ class Query(SQLModel, table=True):
     related_article_ids: str | None = None  # JSON array
     filed_back: bool = False
     filed_article_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    # Conversation grouping (ADR-011). Nullable in the schema because the
+    # repo's lightweight migration helper cannot add NOT NULL columns to
+    # existing tables, but ALWAYS populated by app code — every Query
+    # belongs to exactly one Conversation. Read it as "non-null in practice".
+    conversation_id: str | None = Field(default=None, foreign_key="conversation.id", index=True)
+    turn_index: int = 0  # 0 for first turn, 1 for second, etc.
 
 
 class Job(SQLModel, table=True):
@@ -182,7 +206,7 @@ class Job(SQLModel, table=True):
     source_id: str | None = None
     article_id: str | None = None
     priority: int = 5
-    queued_at: datetime = Field(default_factory=datetime.utcnow)
+    queued_at: datetime = Field(default_factory=utcnow_naive)
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error: str | None = None
@@ -201,7 +225,7 @@ class CostLog(SQLModel, table=True):
     cost_usd: float
     latency_ms: int
     job_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class SyncLog(SQLModel, table=True):
@@ -212,7 +236,7 @@ class SyncLog(SQLModel, table=True):
     articles_pushed: int = 0
     articles_pulled: int = 0
     conflicts: int = 0
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=utcnow_naive)
     completed_at: datetime | None = None
     error: str | None = None
 
@@ -321,6 +345,7 @@ class QueryRequest(BaseModel):
 
     question: str
     file_back: bool = False  # Auto-save answer to wiki
+    conversation_id: str | None = None  # None means start a new conversation
 
 
 class SourceResponse(BaseModel):
@@ -419,6 +444,36 @@ class QueryResponse(BaseModel):
     filed_article_id: str | None
     created_at: datetime
     citations: list[CitationResponse] = []
+
+
+class ConversationResponse(BaseModel):
+    """Conversation metadata exposed via API."""
+
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    filed_article_id: str | None = None
+
+
+class ConversationSummary(ConversationResponse):
+    """Conversation summary for the history sidebar — adds turn count."""
+
+    turn_count: int
+
+
+class ConversationDetail(BaseModel):
+    """Full conversation thread with all queries ordered by turn_index."""
+
+    conversation: ConversationResponse
+    queries: list[QueryResponse]
+
+
+class AskResponse(BaseModel):
+    """Response shape for POST /query — wraps both the new query and its parent conversation."""
+
+    query: QueryResponse
+    conversation: ConversationResponse
 
 
 class GraphNode(BaseModel):

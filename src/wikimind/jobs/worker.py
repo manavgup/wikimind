@@ -16,7 +16,6 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -26,6 +25,7 @@ from arq.connections import RedisSettings
 from sqlmodel import select
 
 import wikimind.ingest.service as _ingest_service
+from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import (
     emit_compilation_complete,
     emit_compilation_failed,
@@ -71,7 +71,7 @@ async def compile_source(ctx, source_id: str):
             job_type=JobType.COMPILE_SOURCE,
             status=JobStatus.RUNNING,
             source_id=source_id,
-            started_at=datetime.utcnow(),
+            started_at=utcnow_naive(),
         )
         session.add(job)
         await session.commit()
@@ -114,7 +114,7 @@ async def compile_source(ctx, source_id: str):
 
             # Update job
             job.status = JobStatus.COMPLETE
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow_naive()
             job.result_summary = f"Created article: {article.slug}"
             session.add(job)
             await session.commit()
@@ -132,7 +132,7 @@ async def compile_source(ctx, source_id: str):
             session.add(source)
 
             job.status = JobStatus.FAILED
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow_naive()
             job.error = str(e)
             session.add(job)
 
@@ -148,7 +148,7 @@ async def lint_wiki(ctx):
         job = Job(
             job_type=JobType.LINT_WIKI,
             status=JobStatus.RUNNING,
-            started_at=datetime.utcnow(),
+            started_at=utcnow_naive(),
         )
         session.add(job)
         await session.commit()
@@ -204,7 +204,7 @@ Return valid JSON only:
             meta_dir.mkdir(parents=True, exist_ok=True)
 
             health = {
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": utcnow_naive().isoformat(),
                 "total_articles": len(articles),
                 **lint_data,
             }
@@ -218,7 +218,7 @@ Return valid JSON only:
                 await emit_linter_alert("contradiction", articles_involved)
 
             job.status = JobStatus.COMPLETE
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow_naive()
             job.result_summary = (
                 f"Found {len(lint_data.get('contradictions', []))} contradictions, "
                 f"{len(lint_data.get('gap_suggestions', []))} gaps"
@@ -232,7 +232,7 @@ Return valid JSON only:
             log.error("lint_wiki failed", error=str(e))
             job.status = JobStatus.FAILED
             job.error = str(e)
-            job.completed_at = datetime.utcnow()
+            job.completed_at = utcnow_naive()
             session.add(job)
             await session.commit()
 

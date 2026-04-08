@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import sqlite3
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel import select
 
 from wikimind import database as db_mod
+from wikimind._datetime import utcnow_naive
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.ws import (
     ConnectionManager,
@@ -21,10 +25,12 @@ from wikimind.api.routes.ws import (
     get_connection_manager,
 )
 from wikimind.config import get_settings
+from wikimind.database import close_db, get_db_path, get_session_factory, init_db
 from wikimind.errors import WikiMindError
 from wikimind.middleware import logging_config
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import _sanitize_event_dict
+from wikimind.models import Conversation, Query
 
 # ----- ws ConnectionManager -----
 
@@ -230,3 +236,74 @@ async def test_get_session_rolls_back_on_error(monkeypatch, tmp_path) -> None:
     with pytest.raises(RuntimeError):
         await gen.athrow(RuntimeError("boom"))
     await db_mod.close_db()
+
+
+async def test_init_db_adds_conversation_id_and_turn_index_to_query(tmp_path, monkeypatch) -> None:
+    """The lightweight migration helper adds the new query columns on a fresh DB."""
+    # Point at a fresh tmp data dir
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    db_mod._engine = None
+    db_mod._session_factory = None
+
+    await init_db()
+
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(query)").fetchall()}
+    finally:
+        conn.close()
+
+    assert "conversation_id" in cols
+    assert "turn_index" in cols
+
+    await close_db()
+    get_settings.cache_clear()
+
+
+async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypatch):
+    """Legacy Query rows with NULL conversation_id get a Conversation row backfilled."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    db_mod._engine = None
+    db_mod._session_factory = None
+
+    await init_db()
+
+    # Insert a Query row directly without conversation_id (simulating a legacy row)
+    factory = get_session_factory()
+    async with factory() as session:
+        legacy = Query(
+            id=str(uuid.uuid4()),
+            question="What is the legacy question?",
+            answer="Legacy answer.",
+            confidence="high",
+            created_at=utcnow_naive(),
+        )
+        session.add(legacy)
+        await session.commit()
+        legacy_id = legacy.id
+
+    # Run init_db again — backfill should kick in
+    await init_db()
+
+    async with factory() as session:
+        result = await session.get(Query, legacy_id)
+        assert result is not None
+        assert result.conversation_id is not None
+        assert result.turn_index == 0
+
+        conv = await session.get(Conversation, result.conversation_id)
+        assert conv is not None
+        assert conv.title == "What is the legacy question?"
+
+    # Idempotency: a third init_db should be a no-op (no duplicate Conversation rows)
+    await init_db()
+    async with factory() as session:
+        rows_result = await session.execute(select(Conversation).where(Conversation.id == result.conversation_id))
+        rows = list(rows_result.scalars().all())
+        assert len(rows) == 1, "backfill is not idempotent — it duplicated the conversation row"
+
+    await close_db()
+    get_settings.cache_clear()

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlmodel import func, select
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_api_key, get_settings, set_api_key
 from wikimind.database import get_session_factory
 from wikimind.engine.llm_router import get_llm_router
@@ -90,7 +89,7 @@ async def test_llm_connection(provider: str):
 @router.get("/llm/cost")
 async def get_llm_cost():
     """Cost summary for current month."""
-    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+    start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
 
     async with get_session_factory()() as session:
         result = await session.execute(select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month))

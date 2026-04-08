@@ -353,7 +353,14 @@ paths:
       tags:
       - Query
       summary: Ask
-      description: Ask a question against the wiki and receive an answer with citations.
+      description: 'Ask a question against the wiki and receive an answer with citations.
+
+
+        If request.conversation_id is None, a new conversation is created.
+
+        Otherwise the question is appended as a new turn in the existing
+
+        conversation.'
       operationId: ask_query_post
       requestBody:
         content:
@@ -367,7 +374,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QueryResponse'
+                $ref: '#/components/schemas/AskResponse'
         '422':
           description: Validation Error
           content:
@@ -379,7 +386,7 @@ paths:
       tags:
       - Query
       summary: Query History
-      description: List past queries.
+      description: List past queries (legacy endpoint — UI uses /conversations instead).
       operationId: query_history_query_history_get
       parameters:
       - name: limit
@@ -401,20 +408,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/{query_id}/file-back:
-    post:
+  /query/conversations:
+    get:
       tags:
       - Query
-      summary: File Back
-      description: Save a past answer as a wiki article.
-      operationId: file_back_query__query_id__file_back_post
+      summary: List Conversations
+      description: List conversations ordered by most recently updated first.
+      operationId: list_conversations_query_conversations_get
       parameters:
-      - name: query_id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConversationSummary'
+                title: Response List Conversations Query Conversations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/{conversation_id}:
+    get:
+      tags:
+      - Query
+      summary: Get Conversation
+      description: Return a single conversation with all its turns.
+      operationId: get_conversation_query_conversations__conversation_id__get
+      parameters:
+      - name: conversation_id
         in: path
         required: true
         schema:
           type: string
-          title: Query Id
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/{conversation_id}/file-back:
+    post:
+      tags:
+      - Query
+      summary: File Back Conversation
+      description: File the entire conversation back to the wiki as a single article.
+      operationId: file_back_conversation_query_conversations__conversation_id__file_back_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Conversation Id
       responses:
         '200':
           description: Successful Response
@@ -799,6 +864,19 @@ components:
         provenance directly in search/listing views without fetching the full
 
         article content.'
+    AskResponse:
+      properties:
+        query:
+          $ref: '#/components/schemas/QueryResponse'
+        conversation:
+          $ref: '#/components/schemas/ConversationResponse'
+      type: object
+      required:
+      - query
+      - conversation
+      title: AskResponse
+      description: Response shape for POST /query — wraps both the new query and its
+        parent conversation.
     Body_ingest_pdf_ingest_pdf_post:
       properties:
         file:
@@ -848,6 +926,83 @@ components:
       - opinion
       title: ConfidenceLevel
       description: Confidence level for claims.
+    ConversationDetail:
+      properties:
+        conversation:
+          $ref: '#/components/schemas/ConversationResponse'
+        queries:
+          items:
+            $ref: '#/components/schemas/QueryResponse'
+          type: array
+          title: Queries
+      type: object
+      required:
+      - conversation
+      - queries
+      title: ConversationDetail
+      description: Full conversation thread with all queries ordered by turn_index.
+    ConversationResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          type: string
+          title: Title
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        filed_article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filed Article Id
+      type: object
+      required:
+      - id
+      - title
+      - created_at
+      - updated_at
+      title: ConversationResponse
+      description: Conversation metadata exposed via API.
+    ConversationSummary:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          type: string
+          title: Title
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        filed_article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filed Article Id
+        turn_count:
+          type: integer
+          title: Turn Count
+      type: object
+      required:
+      - id
+      - title
+      - created_at
+      - updated_at
+      - turn_count
+      title: ConversationSummary
+      description: Conversation summary for the history sidebar — adds turn count.
     GraphEdge:
       properties:
         source:
@@ -975,6 +1130,11 @@ components:
           type: boolean
           title: File Back
           default: false
+        conversation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Conversation Id
       type: object
       required:
       - question

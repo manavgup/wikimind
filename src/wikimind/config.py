@@ -113,6 +113,14 @@ class ServerConfig(BaseModel):
     port: int = 7842
 
 
+class QAConfig(BaseModel):
+    """Q&A agent configuration — controls multi-turn conversation behavior."""
+
+    max_prior_turns_in_context: int = 5
+    prior_answer_truncate_chars: int = 500
+    conversation_title_max_chars: int = 120
+
+
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
@@ -150,6 +158,7 @@ class Settings(BaseSettings):
     sync: SyncConfig = Field(default_factory=SyncConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
+    qa: QAConfig = Field(default_factory=QAConfig)
 
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None

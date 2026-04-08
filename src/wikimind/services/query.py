@@ -17,12 +17,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
+    AskResponse,
     CitationArticleRef,
     CitationResponse,
+    Conversation,
+    ConversationDetail,
+    ConversationResponse,
+    ConversationSummary,
     Query,
     QueryRequest,
     QueryResponse,
-    QueryResult,
     Source,
     SourceResponse,
 )
@@ -151,31 +155,43 @@ def _to_query_response(query: Query, citations: list[CitationResponse]) -> Query
     )
 
 
+def _to_conversation_response(conversation: Conversation) -> ConversationResponse:
+    """Project a Conversation row into the API response shape."""
+    return ConversationResponse(
+        id=conversation.id,
+        title=conversation.title,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        filed_article_id=conversation.filed_article_id,
+    )
+
+
 class QueryService:
     """Orchestrate wiki Q&A, query history, and answer file-back."""
 
     def __init__(self) -> None:
         self._qa_agent = QAAgent()
 
-    async def ask(self, request: QueryRequest, session: AsyncSession) -> QueryResponse:
+    async def ask(self, request: QueryRequest, session: AsyncSession) -> AskResponse:
         """Ask a question against the wiki and persist the result.
 
-        After the QA agent answers and persists the :class:`Query`
-        record, this method resolves each cited article title back to
-        its :class:`Article` row and then to the underlying
-        :class:`Source` records, returning a fully expanded
-        Answer → Article → Source citation chain.
+        Conversation-aware: passes request.conversation_id to the agent.
+        Returns both the new query (with full citation chain) and the
+        parent conversation.
 
         Args:
             request: The query request with question and options.
             session: Async database session.
 
         Returns:
-            :class:`QueryResponse` with answer text and resolved citations.
+            :class:`AskResponse` with the new query and its parent conversation.
         """
-        query = await self._qa_agent.answer(request, session)
+        query, conversation = await self._qa_agent.answer(request, session)
         citations = await _build_citations(query, session)
-        return _to_query_response(query, citations)
+        return AskResponse(
+            query=_to_query_response(query, citations),
+            conversation=_to_conversation_response(conversation),
+        )
 
     async def query_history(self, session: AsyncSession, limit: int = 50) -> list[Query]:
         """List past queries ordered by most recent first.
@@ -192,37 +208,114 @@ class QueryService:
         )
         return list(result.scalars().all())
 
-    async def file_back(self, query_id: str, session: AsyncSession) -> dict[str, object]:
-        """Promote a past Q&A answer into a wiki article.
+    async def list_conversations(
+        self,
+        session: AsyncSession,
+        limit: int = 50,
+    ) -> list[ConversationSummary]:
+        """List conversations ordered by most-recently-updated first.
+
+        Each summary includes turn_count for the sidebar UI.
 
         Args:
-            query_id: The query UUID to file back.
+            session: Async database session.
+            limit: Maximum number of results.
+
+        Returns:
+            List of :class:`ConversationSummary` ordered by updated_at descending.
+        """
+        result = await session.execute(
+            select(Conversation)
+            .order_by(Conversation.updated_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        conversations = list(result.scalars().all())
+
+        if not conversations:
+            return []
+
+        # Compute turn counts in one query
+        ids = [c.id for c in conversations]
+        count_rows = await session.execute(
+            select(Query.conversation_id, Query.id).where(Query.conversation_id.in_(ids))  # type: ignore[arg-type, union-attr]
+        )
+        counts: dict[str, int] = {}
+        for conv_id, _qid in count_rows.all():
+            counts[conv_id] = counts.get(conv_id, 0) + 1
+
+        return [
+            ConversationSummary(
+                id=c.id,
+                title=c.title,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+                filed_article_id=c.filed_article_id,
+                turn_count=counts.get(c.id, 0),
+            )
+            for c in conversations
+        ]
+
+    async def get_conversation(
+        self,
+        conversation_id: str,
+        session: AsyncSession,
+    ) -> ConversationDetail:
+        """Return a single conversation with all its queries ordered by turn_index.
+
+        Args:
+            conversation_id: The conversation UUID to retrieve.
             session: Async database session.
 
         Returns:
-            Dict confirming the file-back with the new article ID.
+            :class:`ConversationDetail` with conversation metadata and ordered queries.
 
         Raises:
-            HTTPException: If the query is not found.
+            HTTPException: 404 if the conversation is not found.
         """
-        query = await session.get(Query, query_id)
-        if not query:
-            raise HTTPException(status_code=404, detail="Query not found")
+        conversation = await session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
-        result = QueryResult(
-            answer=query.answer,
-            confidence=query.confidence or "medium",
-            sources=json.loads(query.source_article_ids or "[]"),
-            related_articles=json.loads(query.related_article_ids or "[]"),
+        result = await session.execute(
+            select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+        )
+        queries = list(result.scalars().all())
+
+        # Build full QueryResponse for each turn (with citations)
+        query_responses: list[QueryResponse] = []
+        for q in queries:
+            citations = await _build_citations(q, session)
+            query_responses.append(_to_query_response(q, citations))
+
+        return ConversationDetail(
+            conversation=_to_conversation_response(conversation),
+            queries=query_responses,
         )
 
-        article_id = await self._qa_agent._file_back(query.question, result, session)
-        query.filed_back = True
-        query.filed_article_id = article_id
-        session.add(query)
-        await session.commit()
+    async def file_back_conversation(
+        self,
+        conversation_id: str,
+        session: AsyncSession,
+    ) -> dict[str, object]:
+        """File a whole conversation back to the wiki.
 
-        return {"filed": True, "article_id": article_id}
+        Delegates to QAAgent._file_back_thread which handles create-vs-update
+        based on Conversation.filed_article_id. Does not commit — the FastAPI
+        session dependency (commit-on-success) persists the staged changes
+        when the route handler returns.
+
+        Args:
+            conversation_id: The conversation UUID to file back.
+            session: Async database session.
+
+        Returns:
+            Dict with article metadata (id, slug, title) and a was_update flag.
+        """
+        article, was_update = await self._qa_agent._file_back_thread(conversation_id, session)
+        return {
+            "article": {"id": article.id, "slug": article.slug, "title": article.title},
+            "was_update": was_update,
+        }
 
 
 _query_service: QueryService | None = None
