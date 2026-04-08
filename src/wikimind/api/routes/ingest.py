@@ -17,20 +17,25 @@ async def ingest_url(
     service: IngestService = Depends(get_ingest_service),
 ):
     """Ingest a web URL or YouTube video."""
-    return await service.ingest_url(request.url, session)
+    return await service.ingest_url(request.url, session, auto_compile=request.auto_compile)
 
 
 @router.post("/pdf", response_model=Source)
 async def ingest_pdf(
     file: UploadFile = File(...),
+    auto_compile: bool = True,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
 ):
-    """Upload and ingest a PDF."""
+    """Upload and ingest a PDF.
+
+    The ``auto_compile`` query parameter (default ``True``) controls whether the
+    source is enqueued for background compilation immediately after upload.
+    """
     if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
     contents = await file.read()
-    return await service.ingest_pdf(contents, file.filename, session)
+    return await service.ingest_pdf(contents, file.filename, session, auto_compile=auto_compile)
 
 
 @router.post("/text", response_model=Source)
@@ -40,7 +45,7 @@ async def ingest_text(
     service: IngestService = Depends(get_ingest_service),
 ):
     """Ingest raw text or a note."""
-    return await service.ingest_text(request.content, request.title, session)
+    return await service.ingest_text(request.content, request.title, session, auto_compile=request.auto_compile)
 
 
 @router.get("/sources")

@@ -29,12 +29,15 @@ class IngestService:
     def __init__(self) -> None:
         self._adapter = IngestAdapter()
 
-    async def ingest_url(self, url: str, session: AsyncSession) -> Source:
-        """Ingest a URL (web page or YouTube) and schedule compilation.
+    async def ingest_url(self, url: str, session: AsyncSession, *, auto_compile: bool = True) -> Source:
+        """Ingest a URL (web page or YouTube) and optionally schedule compilation.
 
         Args:
             url: The URL to ingest.
             session: Async database session.
+            auto_compile: When ``True`` (default), schedule background compilation
+                immediately after persisting the source. When ``False``, persist
+                only — the caller can compile later via the compile API.
 
         Returns:
             The persisted Source record.
@@ -47,37 +50,60 @@ class IngestService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        await self._schedule_compile(source)
+        if auto_compile:
+            await self._schedule_compile(source)
         return source
 
-    async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:
-        """Ingest a PDF file and schedule compilation.
+    async def ingest_pdf(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        session: AsyncSession,
+        *,
+        auto_compile: bool = True,
+    ) -> Source:
+        """Ingest a PDF file and optionally schedule compilation.
 
         Args:
             file_bytes: Raw PDF bytes.
             filename: Original filename.
             session: Async database session.
+            auto_compile: When ``True`` (default), schedule background compilation
+                immediately after persisting the source. When ``False``, persist
+                only.
 
         Returns:
             The persisted Source record.
         """
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
-        await self._schedule_compile(source)
+        if auto_compile:
+            await self._schedule_compile(source)
         return source
 
-    async def ingest_text(self, content: str, title: str | None, session: AsyncSession) -> Source:
-        """Ingest raw text content and schedule compilation.
+    async def ingest_text(
+        self,
+        content: str,
+        title: str | None,
+        session: AsyncSession,
+        *,
+        auto_compile: bool = True,
+    ) -> Source:
+        """Ingest raw text content and optionally schedule compilation.
 
         Args:
             content: The text content to ingest.
             title: Optional title for the source.
             session: Async database session.
+            auto_compile: When ``True`` (default), schedule background compilation
+                immediately after persisting the source. When ``False``, persist
+                only.
 
         Returns:
             The persisted Source record.
         """
         source = await self._adapter.ingest_text(content, title, session)
-        await self._schedule_compile(source)
+        if auto_compile:
+            await self._schedule_compile(source)
         return source
 
     @staticmethod
