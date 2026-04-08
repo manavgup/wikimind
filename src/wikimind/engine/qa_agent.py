@@ -17,6 +17,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
+from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
@@ -188,17 +189,23 @@ class QAAgent:
         )
         session.add(query_record)
 
-        # File back if requested
+        # File back if requested — flush first so _file_back_thread can see the new turn
         if request.file_back and result.confidence in ("high", "medium"):
-            article_id = await self._file_back(request.question, result, session)
+            await session.flush()
+            article, _ = await self._file_back_thread(conversation.id, session)
             query_record.filed_back = True
-            query_record.filed_article_id = article_id
+            query_record.filed_article_id = article.id
+            # _file_back_thread already committed; touch updated_at and re-commit below
+            conversation.updated_at = datetime.utcnow()
+            session.add(conversation)
+            session.add(query_record)
+            await session.commit()
+        else:
+            # Touch the conversation's updated_at
+            conversation.updated_at = datetime.utcnow()
+            session.add(conversation)
+            await session.commit()
 
-        # Touch the conversation's updated_at
-        conversation.updated_at = datetime.utcnow()
-        session.add(conversation)
-
-        await session.commit()
         await session.refresh(query_record)
         await session.refresh(conversation)
 
@@ -297,68 +304,98 @@ conversation context contradicts the wiki, prefer the wiki."""
                 related_articles=[],
             )
 
-    async def _file_back(
+    async def _file_back_thread(
         self,
-        question: str,
-        result: QueryResult,
+        conversation_id: str,
         session: AsyncSession,
-    ) -> str | None:
-        """Save Q&A answer as a new wiki article."""
-        wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
-        wiki_dir.mkdir(parents=True, exist_ok=True)
+    ) -> tuple[Article, bool]:
+        """File a whole conversation back to the wiki as a single article.
 
-        slug = slugify(question[:80])
-        file_path = wiki_dir / f"{slug}.md"
+        If the conversation has not been filed back before, creates a new
+        Article. If it has, overwrites the existing Article's .md file in
+        place and returns was_update=True. The article id, slug, and
+        file_path stay stable across re-saves.
 
-        sources_list = "\n".join([f"- [[{s}]]" for s in result.sources])
-        related_list = "\n".join([f"- [[{r}]]" for r in result.related_articles])
-        questions_list = "\n".join([f"- {q}" for q in result.follow_up_questions])
+        See ADR-011 for the rationale on per-conversation (not per-turn)
+        file-back.
 
-        content = f"""---
-title: "Q: {question}"
-slug: {slug}
-type: qa-answer
-confidence: {result.confidence}
-compiled: {datetime.utcnow().isoformat()}
----
+        Args:
+            conversation_id: The conversation to file back.
+            session: Async database session.
 
-## Question
+        Returns:
+            Tuple of (article, was_update). was_update is True when an
+            existing article was overwritten.
+        """
+        conversation = await session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
-{question}
-
-## Answer
-
-{result.answer}
-
-## Sources
-
-{sources_list}
-
-## Related
-
-{related_list}
-
-## Follow-up Questions
-
-{questions_list}
-"""
-
-        file_path.write_text(content, encoding="utf-8")
-
-        # Q&A answer confidence ("high"/"medium"/"low") is a different concept
-        # from Article.confidence (sourced/mixed/inferred/opinion), so we leave
-        # the article-level confidence unset on filed-back answers. The agent's
-        # confidence string is preserved on the originating Query row.
-        article = Article(
-            slug=slug,
-            title=f"Q: {question[:80]}",
-            file_path=str(file_path),
-            summary=result.answer[:200],
-            confidence=None,
+        # Load all turns ordered by turn_index
+        result = await session.execute(
+            select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
         )
+        queries = list(result.scalars().all())
+
+        markdown = serialize_conversation_to_markdown(conversation, queries)
+
+        if conversation.filed_article_id is None:
+            # First save — create a new Article
+            wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
+            wiki_dir.mkdir(parents=True, exist_ok=True)
+
+            slug = slugify(conversation.title)[:80] or "untitled-conversation"
+            file_path = wiki_dir / f"{slug}.md"
+            file_path.write_text(markdown, encoding="utf-8")
+
+            article = Article(
+                slug=slug,
+                title=conversation.title,
+                file_path=str(file_path),
+                summary=(queries[0].answer[:200] if queries else None),
+                confidence=None,  # per #84 / Option 2 — Q&A confidence is on Query, not Article
+            )
+            session.add(article)
+            await session.flush()  # populate article.id
+
+            conversation.filed_article_id = article.id
+            conversation.updated_at = datetime.utcnow()
+            session.add(conversation)
+            await session.commit()
+            await session.refresh(article)
+
+            log.info(
+                "Conversation filed back to wiki (created)",
+                conversation_id=conversation_id,
+                article_id=article.id,
+            )
+            return article, False
+
+        # Second-or-later save — update in place
+        existing_article: Article | None = await session.get(Article, conversation.filed_article_id)
+        if existing_article is None:
+            # Defensive: filed_article_id pointed at a missing row.
+            # Treat as first save by clearing the pointer and recursing.
+            log.warning(
+                "Conversation.filed_article_id pointed at missing Article — recreating",
+                conversation_id=conversation_id,
+            )
+            conversation.filed_article_id = None
+            await session.commit()
+            return await self._file_back_thread(conversation_id, session)
+
+        article = existing_article
+        Path(article.file_path).write_text(markdown, encoding="utf-8")
+        article.updated_at = datetime.utcnow()
+        conversation.updated_at = datetime.utcnow()
         session.add(article)
+        session.add(conversation)
         await session.commit()
         await session.refresh(article)
 
-        log.info("Answer filed back to wiki", slug=slug)
-        return article.id
+        log.info(
+            "Conversation filed back to wiki (updated)",
+            conversation_id=conversation_id,
+            article_id=article.id,
+        )
+        return article, True

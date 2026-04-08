@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
 
-from wikimind.config import QAConfig
+from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
@@ -118,19 +119,6 @@ async def test_query_llm_parse_error_returns_fallback(db_session, tmp_path) -> N
     assert res.confidence == "low"
 
 
-async def test_file_back_creates_article(db_session, tmp_path) -> None:
-    a = _agent(tmp_path)
-    result = QueryResult(
-        answer="ans",
-        confidence="sourced",
-        sources=["A"],
-        related_articles=["R"],
-        follow_up_questions=["Q1"],
-    )
-    article_id = await a._file_back("What is X?", result, db_session)
-    assert article_id is not None
-
-
 async def test_answer_no_context(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
     with patch.object(a, "_retrieve_context", AsyncMock(return_value=[])):
@@ -140,8 +128,7 @@ async def test_answer_no_context(db_session, tmp_path) -> None:
 
 async def test_answer_with_context_and_file_back(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
-    # Patch _file_back to bypass enum lookup (qa file_back maps result.confidence
-    # to ConfidenceLevel which doesn't include high/medium/low values).
+    fake_article = Article(id="art-1", slug="hi", title="hi", file_path="/fake/hi.md")
     with (
         patch.object(a, "_retrieve_context", AsyncMock(return_value=[{"title": "T", "content": "C"}])),
         patch.object(
@@ -149,7 +136,7 @@ async def test_answer_with_context_and_file_back(db_session, tmp_path) -> None:
             "_query_llm",
             AsyncMock(return_value=QueryResult(answer="A", confidence="high", sources=[], related_articles=[])),
         ),
-        patch.object(a, "_file_back", AsyncMock(return_value="art-1")),
+        patch.object(a, "_file_back_thread", AsyncMock(return_value=(fake_article, False))),
     ):
         q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
     assert q.filed_back is True
@@ -279,3 +266,95 @@ async def test_answer_raises_404_when_conversation_id_unknown(db_session, tmp_pa
         await a.answer(req, db_session)
 
     assert exc_info.value.status_code == 404
+
+
+async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_path, monkeypatch) -> None:
+    """First file-back creates a new Article and sets Conversation.filed_article_id."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    conv = Conversation(
+        id="c1",
+        title="What is X?",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db_session.add(conv)
+    db_session.add(
+        Query(
+            id="q1",
+            question="What is X?",
+            answer="X is Y.",
+            confidence="high",
+            conversation_id="c1",
+            turn_index=0,
+        )
+    )
+    await db_session.commit()
+
+    agent = _agent(tmp_path)
+    article, was_update = await agent._file_back_thread("c1", db_session)
+
+    assert was_update is False
+    assert article.id is not None
+
+    # Conversation.filed_article_id is now set
+    refreshed = await db_session.get(Conversation, "c1")
+    assert refreshed.filed_article_id == article.id
+
+    # The .md file exists on disk
+    assert Path(article.file_path).exists()
+
+
+async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_path, monkeypatch) -> None:
+    """Second file-back overwrites the existing Article in place and returns was_update=True."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    conv = Conversation(
+        id="c2",
+        title="What is Y?",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db_session.add(conv)
+    db_session.add(
+        Query(
+            id="q1",
+            question="What is Y?",
+            answer="Y is Z.",
+            confidence="high",
+            conversation_id="c2",
+            turn_index=0,
+        )
+    )
+    await db_session.commit()
+
+    agent = _agent(tmp_path)
+    first_article, _ = await agent._file_back_thread("c2", db_session)
+    first_id = first_article.id
+    first_path = first_article.file_path
+
+    # Add another turn to the conversation
+    db_session.add(
+        Query(
+            id="q2",
+            question="follow-up",
+            answer="more.",
+            confidence="high",
+            conversation_id="c2",
+            turn_index=1,
+        )
+    )
+    await db_session.commit()
+
+    second_article, was_update = await agent._file_back_thread("c2", db_session)
+
+    assert was_update is True
+    assert second_article.id == first_id  # same article
+    assert second_article.file_path == first_path  # same file path
+
+    # The file content now reflects both turns
+    content = Path(first_path).read_text()
+    assert "Q1: What is Y?" in content
+    assert "Q2: follow-up" in content
