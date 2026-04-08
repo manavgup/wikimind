@@ -25,11 +25,12 @@ repos:
 
   # ── Ruff (lint + format) ──────────────────────────────────────────────────
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.6
+    rev: v0.15.9
     hooks:
       - id: ruff
-        args: [--fix]
+        args: ["--config=pyproject.toml", "--fix"]
       - id: ruff-format
+        args: ["--config=pyproject.toml"]
 
   # ── Doc sync (local hooks) ────────────────────────────────────────────────
   - repo: local
