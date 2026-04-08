@@ -174,8 +174,13 @@ class WikiService:
         articles = list(result.scalars().all())
         return [await _build_article_summary(a, session) for a in articles]
 
-    async def get_article(self, slug: str, session: AsyncSession) -> ArticleResponse:
-        """Retrieve a full article by slug, including content, backlinks, and sources.
+    async def get_article(self, id_or_slug: str, session: AsyncSession) -> ArticleResponse:
+        """Retrieve a full article by ID or slug.
+
+        Tries the article's UUID first (resolved wikilinks travel by ID
+        via the ``[text](/wiki/<id>)`` markdown format). Falls back to
+        slug lookup for backward compatibility with external bookmarks
+        and the human-facing URL bar.
 
         The returned response embeds full :class:`SourceResponse` records
         for every raw source the article was compiled from. Sources that
@@ -183,17 +188,22 @@ class WikiService:
         are silently omitted.
 
         Args:
-            slug: The article URL slug.
+            id_or_slug: Either an ``Article.id`` UUID or an ``Article.slug``.
             session: Async database session.
 
         Returns:
             :class:`ArticleResponse` with content, backlink, and source data.
 
         Raises:
-            HTTPException: If the article is not found.
+            HTTPException: If no article matches either lookup.
         """
-        result = await session.execute(select(Article).where(Article.slug == slug))
+        # Try ID first
+        result = await session.execute(select(Article).where(Article.id == id_or_slug))
         article = result.scalar_one_or_none()
+        if article is None:
+            # Fall back to slug
+            result = await session.execute(select(Article).where(Article.slug == id_or_slug))
+            article = result.scalar_one_or_none()
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
 

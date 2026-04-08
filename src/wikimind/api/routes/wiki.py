@@ -23,14 +23,14 @@ async def list_articles(
     return await service.list_articles(session, concept=concept, confidence=confidence, limit=limit, offset=offset)
 
 
-@router.get("/articles/{slug}", response_model=ArticleResponse)
+@router.get("/articles/{id_or_slug}", response_model=ArticleResponse)
 async def get_article(
-    slug: str,
+    id_or_slug: str,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
 ):
-    """Get full article with content, backlinks, and source provenance."""
-    return await service.get_article(slug, session)
+    """Get full article by ID or slug, with content, backlinks, and source provenance."""
+    return await service.get_article(id_or_slug, session)
 
 
 @router.get("/graph", response_model=GraphResponse)
