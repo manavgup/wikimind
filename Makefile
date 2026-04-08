@@ -183,8 +183,16 @@ docker-build: ## Build the dev image used by docker-compose
 	docker compose build
 
 .PHONY: docker-up
-docker-up: ## Start gateway + worker + redis (dev stack)
-	docker compose up --build
+docker-up: ## Start the dev stack in the background (uses cached image)
+	docker compose up -d
+
+.PHONY: docker-up-build
+docker-up-build: ## Rebuild the image and start the dev stack in the background
+	docker compose up -d --build
+
+.PHONY: docker-logs
+docker-logs: ## Tail logs from all dev stack services
+	docker compose logs -f
 
 .PHONY: docker-down
 docker-down: ## Stop and remove the dev stack

@@ -155,7 +155,9 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | Target | Description |
 |--------|-------------|
 | `make docker-build` | Build the dev image used by docker-compose |
-| `make docker-up` | Start gateway + worker + redis (dev stack) |
+| `make docker-up` | Start the dev stack in the background (uses cached image) |
+| `make docker-up-build` | Rebuild the image and start the dev stack in the background |
+| `make docker-logs` | Tail logs from all dev stack services |
 | `make docker-down` | Stop and remove the dev stack |
 
 ### 🧪 TESTING
