@@ -194,6 +194,10 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     # Both LLM calls must have been captured
     assert len(captured_requests) == 2
 
+    # Q1's prompt must NOT include the conversation block (no prior turns)
+    first_user_msg = captured_requests[0].messages[0]["content"]
+    assert "Conversation so far:" not in first_user_msg
+
     # The second call's user message must contain the Q1+A1 conversation block
     second_user_msg = captured_requests[1].messages[0]["content"]
     assert "Conversation so far:" in second_user_msg
