@@ -224,6 +224,8 @@ Quality gates: `make verify` runs the full suite (ruff, format check, mypy, base
 - [x] Source provenance and citation chains
 
 **Phase 2 (Query Loop)** — In progress
+- [x] Conversational Q&A agent with thread file-back (ADR-011)
+- [x] React UI: Ask view with conversation threads
 - [ ] Semantic search (ChromaDB + embeddings)
 - [ ] Knowledge graph view
 - [ ] Wiki linter and health dashboard
