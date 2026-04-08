@@ -42,6 +42,14 @@ services:
       start_period: 10s
 
   worker:
+    # Share the same build context/target as `gateway` so `compose up --build`
+    # doesn't try to pull `wikimind-dev:latest` from a registry that doesn't
+    # exist. BuildKit dedupes identical layers across services, so this is
+    # free after gateway's build completes.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
     image: wikimind-dev:latest
     container_name: wikimind-worker
     command: python -m arq wikimind.jobs.worker.WorkerSettings
