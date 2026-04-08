@@ -18,7 +18,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
-from wikimind.models import Article, CompletionRequest, Conversation, Query, QueryRequest, QueryResult, TaskType
+from wikimind.models import (
+    Article,
+    CompletionRequest,
+    Conversation,
+    Query,
+    QueryRequest,
+    QueryResult,
+    TaskType,
+)
 
 log = structlog.get_logger()
 
