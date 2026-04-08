@@ -7,6 +7,7 @@ import {
   listConversations,
   fileBackConversation,
   type AskRequest,
+  type ConversationDetail,
 } from "../../api/query";
 import { useWebSocketStore } from "../../store/websocket";
 import { ConversationHistory } from "./ConversationHistory";
@@ -43,7 +44,17 @@ export function AskView() {
       if (!conversationId) {
         navigate(`/ask/${newId}`, { replace: true });
       }
-      queryClient.invalidateQueries({ queryKey: ["conversation", newId] });
+      // Eagerly merge the new turn into the cache so the UI updates
+      // instantly without an invalidation roundtrip. This masks the
+      // network delay between "answer ready" and "conversation refetched".
+      queryClient.setQueryData<ConversationDetail>(
+        ["conversation", newId],
+        (old) => ({
+          conversation: response.conversation,
+          queries: [...(old?.queries ?? []), response.query],
+        }),
+      );
+      // The sidebar list still needs a refresh for the updated turn count.
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (err: Error) => {
@@ -80,6 +91,11 @@ export function AskView() {
     if (conversationId) fileBack.mutate(conversationId);
   };
 
+  // Optimistic UI: while the ask mutation is in flight, show the user's
+  // question in a "pending" turn card so they get immediate visual feedback
+  // instead of staring at a frozen UI for 5-30 seconds.
+  const pendingQuestion = ask.isPending ? (ask.variables?.question ?? null) : null;
+
   return (
     <div className="flex h-full">
       <aside className="w-64 border-r border-slate-200 overflow-y-auto">
@@ -92,7 +108,8 @@ export function AskView() {
         <div className="flex-1 overflow-y-auto p-6">
           <ConversationThread
             detail={conversationDetail.data}
-            isLoading={conversationDetail.isLoading || ask.isPending}
+            isLoading={conversationDetail.isLoading}
+            pendingQuestion={pendingQuestion}
             onSave={handleSave}
             isSaving={fileBack.isPending}
           />
