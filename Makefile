@@ -143,7 +143,11 @@ docstyle: ## Run pydocstyle docstring checks
 	$(BIN)/pydocstyle src/wikimind
 
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle test desktop-verify ## Run all checks (lint + format + mypy + pyright + docstyle + tests + desktop)
+verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify ## Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop)
+
+.PHONY: coverage-check
+coverage-check: ## Run tests and fail if coverage is under 80%
+	$(BIN)/pytest --cov=wikimind --cov-report=term-missing --cov-fail-under=80
 
 .PHONY: frontend-install
 frontend-install: ## Install frontend dependencies
