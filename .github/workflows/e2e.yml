@@ -1,0 +1,180 @@
+# ===============================================================
+# 🎭  Playwright e2e — Ask loop
+# ===============================================================
+#
+#   - runs the React + Vite frontend against the real FastAPI backend
+#   - uses the deterministic mock LLM provider (no API keys, no Redis)
+#   - seeds the wiki with one fixture article before the test
+#   - executes on every push / PR to *main* that touches backend or frontend
+# ---------------------------------------------------------------
+
+name: Playwright e2e
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/wikimind/**"
+      - "apps/web/**"
+      - "pyproject.toml"
+      - ".github/workflows/e2e.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "src/wikimind/**"
+      - "apps/web/**"
+      - "pyproject.toml"
+      - ".github/workflows/e2e.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Playwright Ask loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_LLM__MOCK__ENABLED: "true"
+      WIKIMIND_LLM__DEFAULT_PROVIDER: "mock"
+      WIKIMIND_DATA_DIR: "/tmp/wikimind-e2e"
+
+    steps:
+      # -----------------------------------------------------------
+      # 0️⃣  Checkout
+      # -----------------------------------------------------------
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1️⃣  Set up Python
+      # -----------------------------------------------------------
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # -----------------------------------------------------------
+      # 2️⃣  Install Python dependencies
+      # -----------------------------------------------------------
+      - name: 📦  Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # -----------------------------------------------------------
+      # 3️⃣  Set up Node
+      # -----------------------------------------------------------
+      - name: ⚙️  Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # -----------------------------------------------------------
+      # 4️⃣  Install frontend dependencies
+      # -----------------------------------------------------------
+      - name: 📦  Install frontend dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      # -----------------------------------------------------------
+      # 5️⃣  Install Playwright browsers (+ apt deps for chromium)
+      # -----------------------------------------------------------
+      - name: 🎭  Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      # -----------------------------------------------------------
+      # 6️⃣  Start backend in the background
+      # -----------------------------------------------------------
+      - name: 🚀  Start backend
+        run: |
+          python -m uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 &
+          echo "Waiting for backend to become ready..."
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:7842/docs > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ Backend failed to start within 30s"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      # -----------------------------------------------------------
+      # 7️⃣  Seed the wiki with a fixture article
+      # -----------------------------------------------------------
+      #
+      # The ingest endpoint triggers an in-process async compile (there
+      # is no Redis worker in CI), so the article does not exist until
+      # the compile finishes. With the mock provider this takes ~100ms,
+      # but we poll for up to 30s to absorb cold-start jitter.
+      # -----------------------------------------------------------
+      - name: 🌱  Seed wiki with fixture article
+        run: |
+          curl -sf -X POST http://127.0.0.1:7842/ingest/text \
+            -H "Content-Type: application/json" \
+            -d '{"content":"WikiMind is a personal LLM-powered knowledge OS that ingests sources, compiles them into wiki articles, and answers questions against the wiki. It closes the Karpathy loop by filing conversations back into the wiki as new articles.","title":"WikiMind Overview","auto_compile":true}'
+          echo ""
+          echo "Waiting for in-process compile to complete..."
+          for i in {1..30}; do
+            count=$(curl -sf http://127.0.0.1:7842/wiki/articles | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+            if [ "$count" -gt 0 ]; then
+              echo "Wiki seeded with ${count} article(s) after ${i}s"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ No article appeared in the wiki within 30s of ingest"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      # -----------------------------------------------------------
+      # 8️⃣  Run Playwright (webServer auto-launches the Vite dev server)
+      # -----------------------------------------------------------
+      - name: 🎯  Run Playwright e2e
+        working-directory: apps/web
+        env:
+          CI: "true"
+        run: npm run e2e
+
+      # -----------------------------------------------------------
+      # 9️⃣  Upload Playwright HTML report on failure
+      # -----------------------------------------------------------
+      - name: 📤  Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # -----------------------------------------------------------
+      # 🔟  Upload Playwright test-results (traces / screenshots)
+      # -----------------------------------------------------------
+      - name: 📤  Upload Playwright test-results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
