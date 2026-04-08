@@ -29,11 +29,19 @@ WORKDIR /app
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
-# Install dev dependencies first so layer caches on source-only edits.
+# Install the dev extras (tests + lint) but NOT the `search` extras by
+# default — the `chromadb` and `sentence-transformers` deps in `[search]`
+# pull PyTorch and the HuggingFace transformers stack (~4.7GB) and nothing
+# in `src/wikimind/` actually imports them yet. A test fixture in
+# `tests/conftest.py` uses `pytest.importorskip("chromadb")` so tests
+# skip cleanly when the extras aren't present. Keeping `[search]` out of
+# the default dev image drops it from ~6.3GB to ~1.6GB; rebuild with
+# `--build-arg EXTRAS=dev,search` if you need the search stack.
+ARG EXTRAS=dev
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --upgrade pip \
-    && pip install -e ".[dev,search]"
+    && pip install -e ".[${EXTRAS}]"
 
 COPY . .
 
