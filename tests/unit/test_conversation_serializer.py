@@ -91,3 +91,35 @@ def test_serializer_byte_identical_for_same_input():
     b = serialize_conversation_to_markdown(conv, queries)
 
     assert a == b
+
+
+def test_serializer_escapes_double_quotes_in_title():
+    """Title containing double quotes must produce valid YAML frontmatter."""
+    conv = _conv(title='What is "AI"?')
+    queries = [_q("Q?", "A.", turn_index=0)]
+    md = serialize_conversation_to_markdown(conv, queries)
+
+    # The title line should have escaped double quotes inside the outer quotes
+    # so the YAML is parseable.
+    assert 'title: "What is \\"AI\\"?"' in md
+
+
+def test_serializer_falls_back_to_untitled_slug_when_title_is_special_chars():
+    """Title that slugifies to empty string falls back to 'untitled-conversation'."""
+    conv = _conv(title="!@#$%")
+    queries = [_q("Q?", "A.", turn_index=0)]
+    md = serialize_conversation_to_markdown(conv, queries)
+
+    assert "slug: untitled-conversation" in md
+
+
+def test_serializer_handles_empty_queries_list():
+    """A conversation with zero turns produces valid markdown (frontmatter + H1, no turn sections)."""
+    conv = _conv()
+    md = serialize_conversation_to_markdown(conv, [])
+
+    assert md.startswith("---\n")
+    assert "turn_count: 0" in md
+    assert "# What is X?" in md
+    # No Q-headers
+    assert "## Q1:" not in md

@@ -31,12 +31,13 @@ def serialize_conversation_to_markdown(
     Returns:
         Markdown string with frontmatter and one section per turn.
     """
-    slug = slugify(conversation.title or "untitled-conversation")[:80]
+    slug = slugify(conversation.title)[:80] or "untitled-conversation"
     turn_count = len(queries)
 
     lines: list[str] = []
     lines.append("---")
-    lines.append(f'title: "{conversation.title}"')
+    escaped_title = conversation.title.replace('"', '\\"')
+    lines.append(f'title: "{escaped_title}"')
     lines.append(f"slug: {slug}")
     lines.append("type: qa-conversation")
     lines.append(f"created: {conversation.created_at.isoformat()}")
