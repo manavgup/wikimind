@@ -18,6 +18,7 @@ considered, and the consequences.
 | [008](adr-008-pydantic-basesettings.md) | Pydantic BaseSettings for configuration | Accepted |
 | [009](adr-009-decoupled-ingest-compilation.md) | Decoupled ingest and compilation | Accepted |
 | [010](adr-010-llm-provider-auto-enable.md) | Auto-enable LLM providers when their API key is detected | Accepted |
+| [011](adr-011-conversational-qa-thread-model.md) | Conversational Q&A thread model | Accepted |
 
 ## ADR Format
 
