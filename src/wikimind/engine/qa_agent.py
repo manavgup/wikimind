@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
-from wikimind.models import Article, CompletionRequest, ConfidenceLevel, Query, QueryRequest, QueryResult, TaskType
+from wikimind.models import Article, CompletionRequest, Query, QueryRequest, QueryResult, TaskType
 
 log = structlog.get_logger()
 
@@ -227,12 +227,16 @@ compiled: {datetime.utcnow().isoformat()}
 
         file_path.write_text(content, encoding="utf-8")
 
+        # Q&A answer confidence ("high"/"medium"/"low") is a different concept
+        # from Article.confidence (sourced/mixed/inferred/opinion), so we leave
+        # the article-level confidence unset on filed-back answers. The agent's
+        # confidence string is preserved on the originating Query row.
         article = Article(
             slug=slug,
             title=f"Q: {question[:80]}",
             file_path=str(file_path),
             summary=result.answer[:200],
-            confidence=ConfidenceLevel(result.confidence) if result.confidence else None,
+            confidence=None,
         )
         session.add(article)
         await session.commit()
