@@ -153,6 +153,77 @@ async def test_answer_with_context_no_file_back(db_session, tmp_path) -> None:
     assert q.filed_back is False
 
 
+async def test_answer_creates_new_conversation_when_id_missing(db_session, tmp_path) -> None:
+    """answer() with no conversation_id creates a new Conversation and returns turn 0."""
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(tmp_path),
+                qa=QAConfig(),
+            ),
+        ),
+    ):
+        agent = QAAgent()
+
+    with (
+        patch.object(agent, "_retrieve_context", AsyncMock(return_value=[])),
+    ):
+        req = QueryRequest(question="What is the meaning of life?")
+        query, conversation = await agent.answer(req, db_session)
+
+    assert isinstance(conversation, Conversation)
+    assert conversation.title == "What is the meaning of life?"
+    assert query.conversation_id == conversation.id
+    assert query.turn_index == 0
+
+
+async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> None:
+    """answer() with a conversation_id appends a new turn with the next turn_index."""
+    conv = Conversation(
+        id="conv-existing",
+        title="prior question",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db_session.add(conv)
+    db_session.add(
+        Query(
+            id="q-prior",
+            question="prior question",
+            answer="prior answer",
+            conversation_id="conv-existing",
+            turn_index=0,
+        )
+    )
+    await db_session.commit()
+
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(tmp_path),
+                qa=QAConfig(),
+            ),
+        ),
+    ):
+        agent = QAAgent()
+
+    with (
+        patch.object(agent, "_retrieve_context", AsyncMock(return_value=[])),
+    ):
+        req = QueryRequest(question="follow-up question", conversation_id="conv-existing")
+        query, conversation = await agent.answer(req, db_session)
+
+    assert conversation.id == "conv-existing"
+    assert query.conversation_id == "conv-existing"
+    assert query.turn_index == 1
+
+
 async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_path) -> None:
     """_load_prior_turns returns at most qa.max_prior_turns_in_context, ordered by turn_index."""
     conv = Conversation(id="conv-x", title="t", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
