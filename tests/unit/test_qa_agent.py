@@ -6,6 +6,9 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import HTTPException
+
 from wikimind.config import QAConfig
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.qa_agent import QAAgent
@@ -23,7 +26,18 @@ from wikimind.models import (
 def _agent(tmp_path) -> QAAgent:
     with (
         patch.object(qa_mod, "get_llm_router"),
-        patch.object(qa_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(tmp_path),
+                qa=SimpleNamespace(
+                    max_prior_turns_in_context=5,
+                    prior_answer_truncate_chars=500,
+                    conversation_title_max_chars=120,
+                ),
+            ),
+        ),
     ):
         return QAAgent()
 
@@ -82,7 +96,7 @@ async def test_query_llm_success(db_session, tmp_path) -> None:
         "related_articles": [],
         "follow_up_questions": [],
     }
-    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], db_session)
+    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session)
     assert res.answer == "yes"
     assert res.confidence == "high"
 
@@ -100,7 +114,7 @@ async def test_query_llm_parse_error_returns_fallback(db_session, tmp_path) -> N
     )
     a.router.complete = AsyncMock(return_value=fake_resp)
     a.router.parse_json_response = lambda r: (_ for _ in ()).throw(ValueError("bad"))
-    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], db_session)
+    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session)
     assert res.confidence == "low"
 
 
@@ -120,7 +134,7 @@ async def test_file_back_creates_article(db_session, tmp_path) -> None:
 async def test_answer_no_context(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
     with patch.object(a, "_retrieve_context", AsyncMock(return_value=[])):
-        q = await a.answer(QueryRequest(question="hello"), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hello"), db_session)
     assert q.confidence == "low"
 
 
@@ -137,7 +151,7 @@ async def test_answer_with_context_and_file_back(db_session, tmp_path) -> None:
         ),
         patch.object(a, "_file_back", AsyncMock(return_value="art-1")),
     ):
-        q = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
     assert q.filed_back is True
     assert q.filed_article_id == "art-1"
 
@@ -149,7 +163,7 @@ async def test_answer_with_context_no_file_back(db_session, tmp_path) -> None:
         patch.object(a, "_retrieve_context", AsyncMock(return_value=[{"title": "T", "content": "C"}])),
         patch.object(a, "_query_llm", AsyncMock(return_value=qr)),
     ):
-        q = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
     assert q.filed_back is False
 
 
@@ -254,3 +268,14 @@ async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_p
 
     assert len(prior) == 5
     assert [q.turn_index for q in prior] == [2, 3, 4, 5, 6]
+
+
+async def test_answer_raises_404_when_conversation_id_unknown(db_session, tmp_path) -> None:
+    """answer() raises HTTPException 404 when given a conversation_id that doesn't exist."""
+    a = _agent(tmp_path)
+    req = QueryRequest(question="follow-up", conversation_id="conv-does-not-exist")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await a.answer(req, db_session)
+
+    assert exc_info.value.status_code == 404
