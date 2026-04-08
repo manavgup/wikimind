@@ -9,6 +9,15 @@ interface Props {
   query: QueryRecord;
 }
 
+/**
+ * Renders one Q+A turn in a conversation thread.
+ *
+ * IMPORTANT: Callers must key this component by `query.id` (e.g.
+ * `<TurnCard key={q.id} query={q} />`) so React remounts on a
+ * different turn. The `expanded` state is only initialized at
+ * mount — swapping the `query` prop on a live instance would
+ * leak stale expand/collapse state.
+ */
 export function TurnCard({ query }: Props) {
   const sources = useMemo(() => parseSources(query.source_article_ids), [query.source_article_ids]);
   const isLong = query.answer.length > COLLAPSE_THRESHOLD_CHARS;
@@ -41,16 +50,16 @@ export function TurnCard({ query }: Props) {
 
       {sources.length > 0 && (
         // Source pills are rendered as non-clickable <span>s until wikilink
-        // resolution lands (tracked by manavgup/wikimind#95). When the
-        // backend stores resolved article IDs on Query instead of raw
-        // titles, these can be upgraded to <Link to={`/wiki/${id}`}>.
+        // resolution lands (tracked by manavgup/wikimind#95). Once sources
+        // can be reliably resolved to a target article, these can be
+        // upgraded to clickable links in a follow-up.
         <footer className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
             Sources:
           </span>
-          {sources.map((s) => (
+          {sources.map((s, i) => (
             <span
-              key={s}
+              key={`${s}-${i}`}
               title="Source article — not yet clickable (tracked by #95)"
               className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
             >
@@ -80,6 +89,14 @@ function parseSources(raw: string | null): string[] {
 }
 
 function truncateOnParagraphBoundary(text: string, max: number): string {
+  // TODO: This is markdown-unsafe in the fallback paths — slicing
+  // raw markdown can land inside a fenced code block, an open link
+  // `[text](url)`, or mid-heading, producing malformed output. For
+  // long single-paragraph answers with no `\n\n` in the first half
+  // this can render oddly. The "Show more" button always reveals
+  // the full, well-formed answer, so this is a visual quirk not a
+  // correctness bug. A proper fix (e.g. ast-aware truncation or
+  // fence-balancing) can land in a follow-up.
   if (text.length <= max) return text;
   // Find the last \n\n before max
   const slice = text.slice(0, max);
@@ -87,10 +104,14 @@ function truncateOnParagraphBoundary(text: string, max: number): string {
   if (lastBreak > max * 0.5) {
     return slice.slice(0, lastBreak) + "\n\n…";
   }
-  // Fall back to nearest sentence end
-  const lastDot = slice.lastIndexOf(". ");
-  if (lastDot > max * 0.5) {
-    return slice.slice(0, lastDot + 1) + " …";
+  // Fall back to nearest sentence end (. ? !)
+  const sentenceEnd = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf("! "),
+  );
+  if (sentenceEnd > max * 0.5) {
+    return slice.slice(0, sentenceEnd + 1) + " …";
   }
   return slice + "…";
 }
