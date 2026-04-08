@@ -12,8 +12,33 @@ See ADR-011.
 from __future__ import annotations
 
 import json
+import re
 
 from wikimind.models import Conversation, Query
+
+# Match a line that starts with 1-4 # characters followed by a space.
+# Capped at H4 because downshifting H5/H6 by 2 levels would yield H7/H8
+# which doesn't render in HTML — those rare cases are left alone.
+_HEADING_RE = re.compile(r"^(#{1,4}) ", flags=re.MULTILINE)
+
+
+def _downshift_answer_headings(answer: str) -> str:
+    """Downshift markdown headings in an answer body by 2 levels.
+
+    The serialized conversation places each answer underneath a `## Q{n}:`
+    turn header. The LLM's own answer body often starts with its own H1
+    (a restatement of the question), which produces a triple-titled
+    document where the same title appears 3 times in a row at the top.
+
+    Downshifting all of the answer's headings by 2 levels (H1→H3, H2→H4,
+    H3→H5, H4→H6) makes them nest correctly under the Q-turn header
+    instead of competing with the article-level H1. The hierarchy is
+    preserved, no content is removed.
+
+    H5 and H6 in the answer are left alone because downshifting them
+    further would yield non-renderable H7/H8.
+    """
+    return _HEADING_RE.sub(lambda m: "##" + m.group(1) + " ", answer)
 
 
 def serialize_conversation_to_markdown(
@@ -50,7 +75,7 @@ def serialize_conversation_to_markdown(
         turn_number = query.turn_index + 1  # 1-indexed in the document
         lines.append(f"## Q{turn_number}: {query.question}")
         lines.append("")
-        lines.append(query.answer)
+        lines.append(_downshift_answer_headings(query.answer))
         lines.append("")
 
         # Sources block — omitted if no sources
