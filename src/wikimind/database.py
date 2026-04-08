@@ -104,11 +104,20 @@ async def _migrate_added_columns(engine) -> None:
     Currently tracks:
         - source.content_hash (issue #67) + index
         - article.provider    (issue #67)
+        - query.conversation_id (ADR-011)
+        - query.turn_index    (ADR-011)
     """
     additions: list[tuple[str, str, str]] = [
         # (table, column, ALTER fragment)
         ("source", "content_hash", "ALTER TABLE source ADD COLUMN content_hash TEXT"),
         ("article", "provider", "ALTER TABLE article ADD COLUMN provider TEXT"),
+        # ADR-011 — conversation grouping for Q&A turns
+        (
+            "query",
+            "conversation_id",
+            "ALTER TABLE query ADD COLUMN conversation_id TEXT REFERENCES conversation(id)",
+        ),
+        ("query", "turn_index", "ALTER TABLE query ADD COLUMN turn_index INTEGER NOT NULL DEFAULT 0"),
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)

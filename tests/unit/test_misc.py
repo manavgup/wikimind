@@ -230,3 +230,31 @@ async def test_get_session_rolls_back_on_error(monkeypatch, tmp_path) -> None:
     with pytest.raises(RuntimeError):
         await gen.athrow(RuntimeError("boom"))
     await db_mod.close_db()
+
+
+async def test_init_db_adds_conversation_id_and_turn_index_to_query(
+    tmp_path, monkeypatch
+) -> None:
+    """The lightweight migration helper adds the new query columns on a fresh DB."""
+    import sqlite3
+
+    from wikimind.database import close_db, get_db_path, init_db
+
+    # Point at a fresh tmp data dir
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    await init_db()
+
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(query)").fetchall()}
+    finally:
+        conn.close()
+
+    assert "conversation_id" in cols
+    assert "turn_index" in cols
+
+    await close_db()
+    get_settings.cache_clear()
