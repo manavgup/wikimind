@@ -16,7 +16,6 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
@@ -239,19 +238,20 @@ Return valid JSON only:
 
 
 # ---------------------------------------------------------------------------
-# Redis settings — only used when REDIS_URL is set (production ARQ worker)
+# Redis settings — only used when a Redis URL is configured (production ARQ)
 # ---------------------------------------------------------------------------
 
 
 def get_redis_settings() -> RedisSettings:
-    """Return ARQ RedisSettings from the REDIS_URL environment variable.
+    """Return ARQ RedisSettings from ``Settings.redis_url``.
 
-    Only called when running the ARQ worker process in production.
-    Falls back to localhost:6379 so the WorkerSettings class can still
-    be imported without error, but the worker will fail to start without
-    a reachable Redis instance.
+    Reads through ``get_settings()`` so the URL honours the project's
+    standard env var precedence (``WIKIMIND_REDIS_URL`` then raw
+    ``REDIS_URL``). Falls back to ``localhost:6379`` when unset so the
+    ``WorkerSettings`` class can still be imported without error, but the
+    worker will fail to start without a reachable Redis instance.
     """
-    redis_url = os.environ.get("REDIS_URL")
+    redis_url = get_settings().redis_url
     if redis_url:
         return RedisSettings.from_dsn(redis_url)
     return RedisSettings(host="localhost", port=6379)

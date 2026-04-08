@@ -1,0 +1,86 @@
+# Local development stack for WikiMind.
+#
+# Services
+#   gateway  — FastAPI app (uvicorn --reload), code mounted from host
+#   redis    — broker/result store for ARQ background jobs
+#   worker   — ARQ worker consuming the same code mount as the gateway
+#
+# Bring up:   make docker-up
+# Build:      make docker-build
+# Tear down:  docker compose down -v
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: wikimind-dev:latest
+    container_name: wikimind-gateway
+    command: uvicorn wikimind.main:app --host 0.0.0.0 --port 7842 --reload
+    environment:
+      WIKIMIND_DATA_DIR: /data
+      WIKIMIND_SERVER__HOST: 0.0.0.0
+      WIKIMIND_SERVER__PORT: "7842"
+      WIKIMIND_REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "7842:7842"
+    volumes:
+      - .:/app
+      - wikimind-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    # Share the same build context/target as `gateway` so `compose up --build`
+    # doesn't try to pull `wikimind-dev:latest` from a registry that doesn't
+    # exist. BuildKit dedupes identical layers across services, so this is
+    # free after gateway's build completes.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: wikimind-dev:latest
+    container_name: wikimind-worker
+    command: python -m arq wikimind.jobs.worker.WorkerSettings
+    environment:
+      WIKIMIND_DATA_DIR: /data
+      WIKIMIND_REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/app
+      - wikimind-data:/data
+    depends_on:
+      gateway:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: wikimind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - wikimind-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  wikimind-data:
+  wikimind-redis:

@@ -1,0 +1,82 @@
+# ============================================================================
+# .dockerignore — exclude files from the Docker build context
+# ============================================================================
+# The Dockerfile's dev and prod stages only need pyproject.toml, README.md,
+# and src/ for `pip install`. Everything else is either not needed in the
+# image, or volume-mounted back in at runtime by docker-compose.yml
+# (`volumes: .:/app`), so excluding it here just speeds up context transfer
+# without affecting the dev loop. Without this file, the build context is
+# ~2.67GB (.venv alone is ~1.9GB); with it, it's a few MB.
+
+# ----------------------------------------------------------------------------
+# Python virtual environments (the image installs its own)
+# ----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+
+# ----------------------------------------------------------------------------
+# Python bytecode and tool caches
+# ----------------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+*.egg-info/
+build/
+dist/
+htmlcov/
+.coverage
+coverage.xml
+
+# ----------------------------------------------------------------------------
+# Node / frontend (not needed inside the Python image)
+# ----------------------------------------------------------------------------
+node_modules/
+apps/*/node_modules/
+apps/*/dist/
+
+# ----------------------------------------------------------------------------
+# Git metadata
+# ----------------------------------------------------------------------------
+.git/
+.gitattributes
+
+# ----------------------------------------------------------------------------
+# Local state and secrets — MUST NOT leak into images
+# ----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+.wikimind/
+*.log
+*.db
+*.db-journal
+
+# ----------------------------------------------------------------------------
+# IDE / editor
+# ----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----------------------------------------------------------------------------
+# CI / dev tooling (not needed at runtime)
+# ----------------------------------------------------------------------------
+.github/
+.claude/
+.pre-commit-config.yaml
+
+# ----------------------------------------------------------------------------
+# Docker itself (don't ship build-time files into the image)
+# ----------------------------------------------------------------------------
+Dockerfile
+docker-compose.yml
+.dockerignore

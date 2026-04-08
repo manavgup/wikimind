@@ -136,6 +136,16 @@ class Settings(BaseSettings):
     data_dir: str = str(DEFAULT_DATA_DIR)
     gateway_port: int = 7842
 
+    # Redis URL for the ARQ job queue. When unset, BackgroundCompiler runs
+    # compilations in-process (single-user dev mode) and the ARQ worker
+    # falls back to localhost (which will fail to connect unless a local
+    # Redis is actually running).
+    #
+    # Read from WIKIMIND_REDIS_URL via env_prefix. Falls back to the raw
+    # REDIS_URL env var in `_fallback_redis_url` below — same dual-read
+    # pattern used for API keys, for CI/CD and ADR-002 compatibility.
+    redis_url: str | None = None
+
     llm: LLMConfig = Field(default_factory=LLMConfig)
     sync: SyncConfig = Field(default_factory=SyncConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
@@ -200,6 +210,25 @@ class Settings(BaseSettings):
                     provider=provider_name,
                     hint=f"set {raw_env} in your environment or .env file",
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _fallback_redis_url(self) -> Settings:
+        """Fall back to the unprefixed REDIS_URL env var when the prefixed form is unset.
+
+        Matches the dual-read pattern used for API keys — lets CI/CD pipelines
+        and production deployments that set the unprefixed ``REDIS_URL``
+        (documented in ADR-002) keep working while docker-compose and .env
+        files that use ``WIKIMIND_REDIS_URL`` (matching every other WikiMind
+        env var) also work out of the box. Precedence: prefixed wins over raw.
+
+        Empty string is treated as unset so that ``WIKIMIND_REDIS_URL=`` in a
+        compose file or .env falls through cleanly to the raw env var (and
+        then to ``None``) instead of being stored as a zero-length URL the
+        worker would later fail to parse.
+        """
+        if not self.redis_url:
+            self.redis_url = os.environ.get("REDIS_URL") or None
         return self
 
     @property

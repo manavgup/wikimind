@@ -162,3 +162,39 @@ class TestKeyringBackendMissing:
         status = s.get_security_status()
         assert status["openai_api_key"] is False
         assert status["anthropic_api_key"] is False
+
+
+class TestRedisUrlConfig:
+    """Verify redis_url reads WIKIMIND_REDIS_URL first, falls back to REDIS_URL.
+
+    Neither the autouse `_clean_env` fixture (which only clears `WIKIMIND_*`
+    and `*_API_KEY`) nor the hermetic session fixture touches `REDIS_URL`,
+    so each test clears the raw form explicitly to avoid CI env leakage.
+    """
+
+    def test_redis_url_default_none(self, monkeypatch):
+        """No env vars → None (dev mode, in-process compilation)."""
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        s = Settings()
+        assert s.redis_url is None
+
+    def test_redis_url_from_prefixed_env(self, monkeypatch):
+        """WIKIMIND_REDIS_URL is read via the standard env_prefix path."""
+        monkeypatch.delenv("REDIS_URL", raising=False)
+        monkeypatch.setenv("WIKIMIND_REDIS_URL", "redis://compose:6379/0")
+        s = Settings()
+        assert s.redis_url == "redis://compose:6379/0"
+
+    def test_redis_url_from_raw_env(self, monkeypatch):
+        """REDIS_URL (unprefixed) is read as a fallback — CI/CD + ADR-002."""
+        monkeypatch.delenv("WIKIMIND_REDIS_URL", raising=False)
+        monkeypatch.setenv("REDIS_URL", "redis://ci:6379/1")
+        s = Settings()
+        assert s.redis_url == "redis://ci:6379/1"
+
+    def test_redis_url_prefixed_wins_over_raw(self, monkeypatch):
+        """When both are set, the prefixed form wins (explicit > fallback)."""
+        monkeypatch.setenv("WIKIMIND_REDIS_URL", "redis://prefixed:6379/0")
+        monkeypatch.setenv("REDIS_URL", "redis://raw:6379/0")
+        s = Settings()
+        assert s.redis_url == "redis://prefixed:6379/0"

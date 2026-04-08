@@ -1,0 +1,256 @@
+# ===============================================================
+# 🐳  Docker Build, Scan & Publish
+# ===============================================================
+#
+# Covers four failure modes for the container side of the project:
+#
+#   Tier 1 — PR build verification
+#     Every PR that touches the Docker files rebuilds the `dev`
+#     image so broken Dockerfiles / unresolvable deps / base-image
+#     surprises fail the PR instead of the next `make docker-up`.
+#
+#   Tier 2 — Weekly base-image refresh
+#     Every Monday at 09:00 UTC, rebuild from scratch with
+#     `--no-cache --pull` so we catch bit-rot in python:3.11-slim
+#     (CVEs, apt index changes, upstream yanks) before anyone feels
+#     it locally.
+#
+#   Tier 3 — CVE scan (Trivy)
+#     Every build runs Trivy on the resulting image and fails the
+#     job on CRITICAL or HIGH CVEs that have a fix available.
+#     `ignore-unfixed: true` avoids noisy failures on upstream bugs
+#     we cannot act on.
+#
+#   Tier 4 — Publish to GHCR on merge
+#     On push to main, build the `prod` target multi-arch
+#     (linux/amd64, linux/arm64) and push to
+#     ghcr.io/<owner>/<repo> with :latest and :sha-<short> tags.
+#     Uses GITHUB_TOKEN — no extra secrets needed for GHCR.
+# ---------------------------------------------------------------
+
+name: Docker
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "src/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - ".github/workflows/docker.yml"
+  schedule:
+    # Weekly rebuild against the latest base image — catches bit-rot.
+    - cron: "0 9 * * MON"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write        # GHCR push on merge
+  security-events: write # Trivy SARIF upload (optional, future)
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------
+  # Tier 1 — build dev + prod targets on every PR / push to main
+  # Splits the CVE scan into its own job (below) so Trivy shows up
+  # as a separate top-level check in the GitHub PR UI instead of
+  # being hidden inside a "build + scan" umbrella step.
+  # ---------------------------------------------------------------
+  build:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: build (dev + prod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # -----------------------------------------------------------
+      # Build the dev image. `cache-to` writes the GHA cache so the
+      # parallel `scan` job below (which also builds dev) gets an
+      # instant cache hit instead of a full cold build.
+      # -----------------------------------------------------------
+      - name: 🏗️   Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          push: false
+          cache-from: type=gha,scope=dev
+          cache-to: type=gha,scope=dev,mode=max
+
+      # -----------------------------------------------------------
+      # Verify the prod target also builds. The PR job doesn't push
+      # it — this is just a smoke check so merge-to-main is never
+      # the first time we discover a broken prod stage.
+      # -----------------------------------------------------------
+      - name: 🏗️   Build prod image (verification only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prod
+          push: false
+          cache-from: type=gha,scope=prod
+          cache-to: type=gha,scope=prod,mode=max
+
+  # ---------------------------------------------------------------
+  # Tier 3 — Trivy CVE scan, separate top-level check
+  # Rebuilds the dev target from GHA cache (near-instant after the
+  # `build` job has populated the cache) and scans the local image.
+  # ---------------------------------------------------------------
+  scan:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: CVE scan (Trivy)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Rebuild dev from the GHA cache populated by `build`. With
+      # cache-from only (no cache-to), every layer is a cache hit and
+      # the build step takes ~20-30s just to load the final image into
+      # the runner's Docker daemon for Trivy to scan.
+      - name: 🏗️   Load dev image from cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          push: false
+          load: true
+          tags: wikimind-dev:ci
+          cache-from: type=gha,scope=dev
+
+      - name: 🔒  Scan for CVEs (Trivy)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: wikimind-dev:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  # ---------------------------------------------------------------
+  # Tier 2 — weekly rebuild from scratch against the latest base
+  # Runs only on the Monday cron; detects bit-rot that layer cache
+  # hides from the day-to-day build.
+  # ---------------------------------------------------------------
+  weekly-refresh:
+    if: github.event_name == 'schedule'
+    name: weekly rebuild (no cache)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏗️   Rebuild dev image against latest base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          push: false
+          load: true
+          tags: wikimind-dev:weekly
+          no-cache: true
+          pull: true
+
+      - name: 🔒  Scan weekly image for CVEs
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: wikimind-dev:weekly
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  # ---------------------------------------------------------------
+  # Tier 4 — publish the prod image to GHCR on merge to main
+  # Multi-arch (linux/amd64, linux/arm64) so deploy targets match
+  # both cloud x86 hosts and Apple Silicon dev machines.
+  # ---------------------------------------------------------------
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: publish prod image to GHCR
+    needs: [build, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # QEMU is required for cross-compiling linux/arm64 from the
+      # ubuntu-latest runner (which is linux/amd64).
+      - name: 🪄  Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑  Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️   Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🚀  Build & push prod image (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=prod
+          cache-to: type=gha,scope=prod,mode=max
