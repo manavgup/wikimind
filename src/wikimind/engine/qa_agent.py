@@ -54,6 +54,39 @@ class QAAgent:
         self.router = get_llm_router()
         self.settings = get_settings()
 
+    async def _load_prior_turns(
+        self,
+        conversation_id: str,
+        up_to_turn_index: int,
+        session: AsyncSession,
+    ) -> list[Query]:
+        """Load up to qa.max_prior_turns_in_context turns from a conversation.
+
+        Returns the most recent N prior turns (where N = the configured cap),
+        ordered ascending by turn_index so they can be formatted into the
+        prompt in conversational order.
+
+        Args:
+            conversation_id: The conversation to load turns from.
+            up_to_turn_index: Only return turns whose turn_index is strictly
+                less than this value (i.e. turns BEFORE the one being asked).
+            session: Async database session.
+
+        Returns:
+            List of Query rows ordered by turn_index ascending.
+        """
+        cap = self.settings.qa.max_prior_turns_in_context
+        result = await session.execute(
+            select(Query)
+            .where(Query.conversation_id == conversation_id)
+            .where(Query.turn_index < up_to_turn_index)
+            .order_by(Query.turn_index.desc())  # type: ignore[attr-defined]
+            .limit(cap)
+        )
+        rows = list(result.scalars().all())
+        rows.sort(key=lambda q: q.turn_index)  # back to ascending for prompt order
+        return rows
+
     async def answer(
         self,
         request: QueryRequest,

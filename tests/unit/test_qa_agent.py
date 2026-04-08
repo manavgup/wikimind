@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from wikimind.config import QAConfig
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
     CompletionResponse,
+    Conversation,
     Provider,
+    Query,
     QueryRequest,
     QueryResult,
 )
@@ -147,3 +151,35 @@ async def test_answer_with_context_no_file_back(db_session, tmp_path) -> None:
     ):
         q = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
     assert q.filed_back is False
+
+
+async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_path) -> None:
+    """_load_prior_turns returns at most qa.max_prior_turns_in_context, ordered by turn_index."""
+    conv = Conversation(id="conv-x", title="t", created_at=datetime.utcnow(), updated_at=datetime.utcnow())
+    db_session.add(conv)
+
+    for i in range(7):
+        db_session.add(
+            Query(
+                id=f"q-{i}",
+                question=f"q{i}",
+                answer=f"a{i}",
+                conversation_id="conv-x",
+                turn_index=i,
+            )
+        )
+    await db_session.commit()
+
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(data_dir=str(tmp_path), qa=QAConfig(max_prior_turns_in_context=5)),
+        ),
+    ):
+        agent = QAAgent()
+        prior = await agent._load_prior_turns("conv-x", up_to_turn_index=7, session=db_session)
+
+    assert len(prior) == 5
+    assert [q.turn_index for q in prior] == [2, 3, 4, 5, 6]
