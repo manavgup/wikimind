@@ -68,32 +68,30 @@ env:
 
 jobs:
   # ---------------------------------------------------------------
-  # Tier 1 + Tier 3 — build dev image, run CVE scan
-  # Runs on every PR and every push to main.
+  # Tier 1 — build dev + prod targets on every PR / push to main
+  # Splits the CVE scan into its own job (below) so Trivy shows up
+  # as a separate top-level check in the GitHub PR UI instead of
+  # being hidden inside a "build + scan" umbrella step.
   # ---------------------------------------------------------------
-  build-and-scan:
+  build:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    name: build + scan (dev)
+    name: build (dev + prod)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      # -----------------------------------------------------------
-      # 0️⃣  Checkout
-      # -----------------------------------------------------------
       - name: ⬇️  Checkout code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      # -----------------------------------------------------------
-      # 1️⃣  Set up Buildx (BuildKit with GHA cache backend)
-      # -----------------------------------------------------------
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # -----------------------------------------------------------
-      # 2️⃣  Build the dev image (cached, loaded into the runner)
+      # Build the dev image. `cache-to` writes the GHA cache so the
+      # parallel `scan` job below (which also builds dev) gets an
+      # instant cache hit instead of a full cold build.
       # -----------------------------------------------------------
       - name: 🏗️   Build dev image
         uses: docker/build-push-action@v6
@@ -101,18 +99,15 @@ jobs:
           context: .
           target: dev
           push: false
-          load: true
-          tags: wikimind-dev:ci
           cache-from: type=gha,scope=dev
           cache-to: type=gha,scope=dev,mode=max
 
       # -----------------------------------------------------------
-      # 3️⃣  Smoke-check: also verify the prod target still builds.
-      # The PR job doesn't push it; this is just a cheap build-only
-      # verification so merge-to-main is never the first time we
-      # discover the prod stage is broken.
+      # Verify the prod target also builds. The PR job doesn't push
+      # it — this is just a smoke check so merge-to-main is never
+      # the first time we discover a broken prod stage.
       # -----------------------------------------------------------
-      - name: 🏗️   Build prod image (verification only, no push)
+      - name: 🏗️   Build prod image (verification only)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -121,9 +116,41 @@ jobs:
           cache-from: type=gha,scope=prod
           cache-to: type=gha,scope=prod,mode=max
 
-      # -----------------------------------------------------------
-      # 4️⃣  Scan the dev image for known CVEs
-      # -----------------------------------------------------------
+  # ---------------------------------------------------------------
+  # Tier 3 — Trivy CVE scan, separate top-level check
+  # Rebuilds the dev target from GHA cache (near-instant after the
+  # `build` job has populated the cache) and scans the local image.
+  # ---------------------------------------------------------------
+  scan:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: CVE scan (Trivy)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Rebuild dev from the GHA cache populated by `build`. With
+      # cache-from only (no cache-to), every layer is a cache hit and
+      # the build step takes ~20-30s just to load the final image into
+      # the runner's Docker daemon for Trivy to scan.
+      - name: 🏗️   Load dev image from cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          push: false
+          load: true
+          tags: wikimind-dev:ci
+          cache-from: type=gha,scope=dev
+
       - name: 🔒  Scan for CVEs (Trivy)
         uses: aquasecurity/trivy-action@v0.35.0
         with:
@@ -181,7 +208,7 @@ jobs:
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: publish prod image to GHCR
-    needs: build-and-scan
+    needs: [build, scan]
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
