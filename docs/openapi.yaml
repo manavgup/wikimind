@@ -35,14 +35,27 @@ paths:
       tags:
       - Ingest
       summary: Ingest Pdf
-      description: Upload and ingest a PDF.
+      description: 'Upload and ingest a PDF.
+
+
+        The ``auto_compile`` query parameter (default ``True``) controls whether the
+
+        source is enqueued for background compilation immediately after upload.'
       operationId: ingest_pdf_ingest_pdf_post
+      parameters:
+      - name: auto_compile
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Auto Compile
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Body_ingest_pdf_ingest_pdf_post'
-        required: true
       responses:
         '200':
           description: Successful Response

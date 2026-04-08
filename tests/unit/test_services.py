@@ -70,6 +70,121 @@ async def test_ingest_service_pdf_and_text(db_session) -> None:
         await svc.ingest_text("c", "t", db_session)
 
 
+# ----- IngestService: auto_compile=False short-circuits scheduling (issue #81) -----
+
+
+async def test_ingest_service_url_auto_compile_false_skips_schedule(db_session) -> None:
+    """auto_compile=False must NOT enqueue a compile job for URL ingest."""
+    svc = IngestService()
+    src = Source(source_type=SourceType.URL, source_url="http://x", id="src-url")
+    svc._adapter = MagicMock()
+    svc._adapter.ingest_url = AsyncMock(return_value=src)
+    with patch("wikimind.services.ingest.get_background_compiler") as gbc:
+        schedule_compile = AsyncMock(return_value="job-1")
+        gbc.return_value.schedule_compile = schedule_compile
+        result = await svc.ingest_url("http://x", db_session, auto_compile=False)
+    assert result is src
+    schedule_compile.assert_not_awaited()
+
+
+async def test_ingest_service_pdf_auto_compile_false_skips_schedule(db_session) -> None:
+    """auto_compile=False must NOT enqueue a compile job for PDF ingest."""
+    svc = IngestService()
+    src = Source(source_type=SourceType.PDF, id="src-pdf")
+    svc._adapter = MagicMock()
+    svc._adapter.ingest_pdf = AsyncMock(return_value=src)
+    with patch("wikimind.services.ingest.get_background_compiler") as gbc:
+        schedule_compile = AsyncMock(return_value="job-2")
+        gbc.return_value.schedule_compile = schedule_compile
+        result = await svc.ingest_pdf(b"x", "f.pdf", db_session, auto_compile=False)
+    assert result is src
+    schedule_compile.assert_not_awaited()
+
+
+async def test_ingest_service_text_auto_compile_false_skips_schedule(db_session) -> None:
+    """auto_compile=False must NOT enqueue a compile job for text ingest."""
+    svc = IngestService()
+    src = Source(source_type=SourceType.TEXT, id="src-text")
+    svc._adapter = MagicMock()
+    svc._adapter.ingest_text = AsyncMock(return_value=src)
+    with patch("wikimind.services.ingest.get_background_compiler") as gbc:
+        schedule_compile = AsyncMock(return_value="job-3")
+        gbc.return_value.schedule_compile = schedule_compile
+        result = await svc.ingest_text("hello", "t", db_session, auto_compile=False)
+    assert result is src
+    schedule_compile.assert_not_awaited()
+
+
+async def test_ingest_service_text_auto_compile_default_schedules(db_session) -> None:
+    """Default behavior (auto_compile omitted) must still schedule a compile."""
+    svc = IngestService()
+    src = Source(source_type=SourceType.TEXT, id="src-default")
+    svc._adapter = MagicMock()
+    svc._adapter.ingest_text = AsyncMock(return_value=src)
+    with patch("wikimind.services.ingest.get_background_compiler") as gbc:
+        schedule_compile = AsyncMock(return_value="job-4")
+        gbc.return_value.schedule_compile = schedule_compile
+        await svc.ingest_text("hello", "t", db_session)
+    schedule_compile.assert_awaited_once_with("src-default")
+
+
+async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> None:
+    """End-to-end: POST /ingest/text with auto_compile=False must not schedule."""
+    fake_src = Source(source_type=SourceType.TEXT, id="route-text", title="x")
+    svc = get_ingest_service()
+    with (
+        patch.object(svc, "_adapter") as adapter,
+        patch("wikimind.services.ingest.get_background_compiler") as gbc,
+    ):
+        adapter.ingest_text = AsyncMock(return_value=fake_src)
+        schedule_compile = AsyncMock(return_value="job-r1")
+        gbc.return_value.schedule_compile = schedule_compile
+        resp = await client.post(
+            "/ingest/text",
+            json={"content": "hello", "title": "x", "auto_compile": False},
+        )
+    assert resp.status_code == 200
+    schedule_compile.assert_not_awaited()
+
+
+async def test_ingest_route_url_auto_compile_false_skips_schedule(client) -> None:
+    """End-to-end: POST /ingest/url with auto_compile=False must not schedule."""
+    fake_src = Source(source_type=SourceType.URL, id="route-url", source_url="http://x")
+    svc = get_ingest_service()
+    with (
+        patch.object(svc, "_adapter") as adapter,
+        patch("wikimind.services.ingest.get_background_compiler") as gbc,
+    ):
+        adapter.ingest_url = AsyncMock(return_value=fake_src)
+        schedule_compile = AsyncMock(return_value="job-r2")
+        gbc.return_value.schedule_compile = schedule_compile
+        resp = await client.post(
+            "/ingest/url",
+            json={"url": "http://x", "auto_compile": False},
+        )
+    assert resp.status_code == 200
+    schedule_compile.assert_not_awaited()
+
+
+async def test_ingest_route_pdf_auto_compile_false_skips_schedule(client) -> None:
+    """End-to-end: POST /ingest/pdf?auto_compile=false must not schedule."""
+    fake_src = Source(source_type=SourceType.PDF, id="route-pdf", title="f")
+    svc = get_ingest_service()
+    with (
+        patch.object(svc, "_adapter") as adapter,
+        patch("wikimind.services.ingest.get_background_compiler") as gbc,
+    ):
+        adapter.ingest_pdf = AsyncMock(return_value=fake_src)
+        schedule_compile = AsyncMock(return_value="job-r3")
+        gbc.return_value.schedule_compile = schedule_compile
+        resp = await client.post(
+            "/ingest/pdf?auto_compile=false",
+            files={"file": ("doc.pdf", b"%PDF-1.4...", "application/pdf")},
+        )
+    assert resp.status_code == 200
+    schedule_compile.assert_not_awaited()
+
+
 async def test_ingest_service_list_sources(db_session) -> None:
     svc = IngestService()
     db_session.add(Source(source_type=SourceType.TEXT, title="t", status=IngestStatus.PENDING))
