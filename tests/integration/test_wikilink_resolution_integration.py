@@ -78,9 +78,7 @@ async def test_wikilink_resolution_end_to_end(
     article = await compiler.save_article(result, source, db_session)
 
     # 3. Backlink row exists
-    bl_result = await db_session.execute(
-        select(Backlink).where(Backlink.source_article_id == article.id)
-    )
+    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
     backlinks = list(bl_result.scalars().all())
     assert len(backlinks) == 1
     assert backlinks[0].target_article_id == target.id
