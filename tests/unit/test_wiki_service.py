@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from wikimind.models import Article, Source, SourceType
+from wikimind.models import Article, Backlink, BacklinkEntry, Source, SourceType
 from wikimind.services.wiki import WikiService
 
 
@@ -161,3 +161,85 @@ class TestArticleProvenance:
         result = await service.get_article("legacy-bookmark", db_session)
 
         assert result.slug == "legacy-bookmark"
+
+
+@pytest.mark.asyncio
+class TestBacklinkEntries:
+    async def test_get_article_returns_backlink_entries_with_title_and_slug(self, db_session, tmp_path):
+        """backlinks_in and backlinks_out are BacklinkEntry objects with id, title, slug."""
+        # Create three articles: A links to B, C links to B
+        fp_a = tmp_path / "article-a.md"
+        fp_a.write_text("# Article A", encoding="utf-8")
+        fp_b = tmp_path / "article-b.md"
+        fp_b.write_text("# Article B", encoding="utf-8")
+        fp_c = tmp_path / "article-c.md"
+        fp_c.write_text("# Article C", encoding="utf-8")
+
+        article_a = Article(slug="article-a", title="Article A", file_path=str(fp_a))
+        article_b = Article(slug="article-b", title="Article B", file_path=str(fp_b))
+        article_c = Article(slug="article-c", title="Article C", file_path=str(fp_c))
+        db_session.add_all([article_a, article_b, article_c])
+        await db_session.flush()
+
+        # A -> B and C -> B
+        bl_ab = Backlink(source_article_id=article_a.id, target_article_id=article_b.id)
+        bl_cb = Backlink(source_article_id=article_c.id, target_article_id=article_b.id)
+        # B -> A
+        bl_ba = Backlink(source_article_id=article_b.id, target_article_id=article_a.id)
+        db_session.add_all([bl_ab, bl_cb, bl_ba])
+        await db_session.commit()
+
+        service = WikiService()
+        response = await service.get_article(article_b.id, db_session)
+
+        # backlinks_in: A and C link to B
+        assert len(response.backlinks_in) == 2
+        in_ids = {bl.id for bl in response.backlinks_in}
+        assert in_ids == {article_a.id, article_c.id}
+        for bl in response.backlinks_in:
+            assert isinstance(bl, BacklinkEntry)
+            assert bl.title in ("Article A", "Article C")
+            assert bl.slug in ("article-a", "article-c")
+
+        # backlinks_out: B links to A
+        assert len(response.backlinks_out) == 1
+        assert response.backlinks_out[0].id == article_a.id
+        assert response.backlinks_out[0].title == "Article A"
+        assert response.backlinks_out[0].slug == "article-a"
+
+    async def test_get_article_skips_deleted_backlink_targets(self, db_session, tmp_path):
+        """Backlinks referencing a deleted article are silently dropped."""
+        fp = tmp_path / "survivor.md"
+        fp.write_text("# Survivor", encoding="utf-8")
+
+        article = Article(slug="survivor", title="Survivor", file_path=str(fp))
+        db_session.add(article)
+        await db_session.flush()
+
+        # Insert a backlink whose source article does not exist.
+        # The JOIN will naturally exclude it because there's no matching Article row.
+        ghost_id = "00000000-0000-0000-0000-000000000000"
+        bl = Backlink(source_article_id=ghost_id, target_article_id=article.id)
+        db_session.add(bl)
+        await db_session.commit()
+
+        service = WikiService()
+        response = await service.get_article(article.id, db_session)
+
+        # The ghost backlink is dropped because the JOIN excludes missing articles
+        assert response.backlinks_in == []
+
+    async def test_get_article_empty_backlinks(self, db_session, tmp_path):
+        """An article with no backlinks returns empty BacklinkEntry lists."""
+        fp = tmp_path / "lonely.md"
+        fp.write_text("# Lonely", encoding="utf-8")
+
+        article = Article(slug="lonely", title="Lonely", file_path=str(fp))
+        db_session.add(article)
+        await db_session.commit()
+
+        service = WikiService()
+        response = await service.get_article(article.id, db_session)
+
+        assert response.backlinks_in == []
+        assert response.backlinks_out == []

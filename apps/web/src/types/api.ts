@@ -51,10 +51,16 @@ export interface Article {
   updated_at: string;
 }
 
+export interface BacklinkEntry {
+  id: string;
+  title: string;
+  slug: string;
+}
+
 export interface ArticleResponse extends Article {
   content: string;
-  backlinks_in: string[];
-  backlinks_out: string[];
+  backlinks_in: BacklinkEntry[];
+  backlinks_out: BacklinkEntry[];
   concepts: string[];
 }
 

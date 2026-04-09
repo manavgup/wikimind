@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { ArticleResponse } from "../../types/api";
+import type { ArticleResponse, BacklinkEntry } from "../../types/api";
 
 interface BacklinkPanelProps {
   article: ArticleResponse | null;
@@ -45,7 +45,7 @@ export function BacklinkPanel({ article }: BacklinkPanelProps) {
 
 interface SectionProps {
   title: string;
-  links: string[];
+  links: BacklinkEntry[];
   emptyText: string;
 }
 
@@ -60,12 +60,12 @@ function Section({ title, links, emptyText }: SectionProps) {
       ) : (
         <ul className="space-y-1">
           {links.map((link) => (
-            <li key={link}>
+            <li key={link.id}>
               <Link
-                to={`/wiki/${encodeURIComponent(link)}`}
+                to={`/wiki/${encodeURIComponent(link.slug)}`}
                 className="block truncate rounded px-2 py-1 text-sm text-brand-700 hover:bg-brand-50"
               >
-                {link}
+                {link.title}
               </Link>
             </li>
           ))}
