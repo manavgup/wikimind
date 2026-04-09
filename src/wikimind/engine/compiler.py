@@ -10,14 +10,20 @@ from pathlib import Path
 
 import structlog
 from slugify import slugify
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.wikilink_resolver import (
+    ResolvedBacklink,
+    resolve_backlink_candidates,
+)
 from wikimind.models import (
     Article,
+    Backlink,
     CompilationResult,
     CompletionRequest,
     ConfidenceLevel,
@@ -241,7 +247,10 @@ Compile this into a wiki article following the JSON schema exactly."""
     ) -> Article:
         """Create a brand-new article (no existing same-provider article)."""
         slug = self._generate_unique_slug(result.title)
-        file_path = self._write_article_file(result, source, slug)
+
+        resolved, unresolved = await resolve_backlink_candidates(result.backlink_suggestions, session)
+
+        file_path = self._write_article_file(result, source, slug, resolved, unresolved)
 
         article = Article(
             slug=slug,
@@ -262,7 +271,16 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.commit()
         await session.refresh(article)
 
-        log.info("Article saved", slug=slug, title=result.title, provider=provider)
+        await self._persist_backlinks(article.id, resolved, session)
+
+        log.info(
+            "Article saved",
+            slug=slug,
+            title=result.title,
+            provider=provider,
+            resolved_backlinks=len(resolved),
+            unresolved_backlinks=len(unresolved),
+        )
         return article
 
     async def _replace_article_in_place(
@@ -284,7 +302,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         old_path = Path(existing.file_path)
         old_path.unlink(missing_ok=True)
 
-        new_path = self._write_article_file(result, source, existing.slug)
+        resolved, unresolved = await resolve_backlink_candidates(
+            result.backlink_suggestions, session, exclude_article_id=existing.id
+        )
+
+        new_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
 
         existing.title = result.title
         existing.summary = result.summary
@@ -298,16 +320,54 @@ Compile this into a wiki article following the JSON schema exactly."""
         source.compiled_at = utcnow_naive()
         session.add(source)
 
+        # Clear stale Backlink rows from the previous compile (source side only)
+        old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == existing.id))
+        for row in old_bl.scalars().all():
+            await session.delete(row)
+
         await session.commit()
         await session.refresh(existing)
+
+        await self._persist_backlinks(existing.id, resolved, session)
 
         log.info(
             "Article replaced in place",
             slug=existing.slug,
             title=result.title,
             provider=existing.provider,
+            resolved_backlinks=len(resolved),
+            unresolved_backlinks=len(unresolved),
         )
         return existing
+
+    async def _persist_backlinks(
+        self,
+        source_article_id: str,
+        resolved: list[ResolvedBacklink],
+        session: AsyncSession,
+    ) -> None:
+        """Insert one Backlink row per resolved candidate.
+
+        The composite primary key ``(source_article_id, target_article_id)``
+        on :class:`Backlink` rejects duplicates automatically. We catch
+        IntegrityError per-row so one duplicate does not abort the batch.
+        """
+        for rb in resolved:
+            bl = Backlink(
+                source_article_id=source_article_id,
+                target_article_id=rb.target_id,
+                context=rb.candidate_text,
+            )
+            session.add(bl)
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                log.debug(
+                    "Skipped duplicate backlink",
+                    source=source_article_id,
+                    target=rb.target_id,
+                )
 
     def _generate_unique_slug(self, title: str) -> str:
         base = slugify(title, max_length=80)
@@ -318,8 +378,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         result: CompilationResult,
         source: Source,
         slug: str,
+        resolved: list[ResolvedBacklink],
+        unresolved: list[str],
     ) -> Path:
-        """Write .md file to wiki directory."""
+        """Write .md file to wiki directory.
+
+        The "Related" section emits standard markdown links for resolved
+        wikilinks (``[Text](/wiki/<article_id>)``) and Obsidian-style
+        brackets only for unresolved candidates (``[[Text]]``). The
+        frontend's ArticleReader distinguishes the two at render time:
+        resolved become React Router links, unresolved become dimmed spans.
+        """
         wiki_dir = Path(self.settings.data_dir) / "wiki"
 
         # Determine subdirectory from first concept
@@ -329,8 +398,14 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         file_path = concept_dir / f"{slug}.md"
 
-        # Build backlinks section
-        backlinks = "\n".join([f"- [[{b}]]" for b in result.backlink_suggestions])
+        # Build backlinks section — resolved become real markdown links,
+        # unresolved remain as [[Title]] brackets for the frontend to style.
+        related_lines: list[str] = []
+        for rb in resolved:
+            related_lines.append(f"- [{rb.candidate_text}](/wiki/{rb.target_id})")
+        for text in unresolved:
+            related_lines.append(f"- [[{text}]]")
+        backlinks = "\n".join(related_lines)
 
         # Build claims section
         claims = "\n".join(

@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from sqlmodel import select
+
+from wikimind._datetime import utcnow_naive
 from wikimind.engine import compiler as compiler_mod
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
+    Article,
+    Backlink,
     CompilationResult,
     CompiledClaim,
     CompletionResponse,
@@ -199,7 +205,7 @@ def test_write_article_file(tmp_path) -> None:
     ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
-    path = c._write_article_file(_result(), src, "test-slug")
+    path = c._write_article_file(_result(), src, "test-slug", [], [])
     assert path.exists()
     text = path.read_text()
     assert "Test Article" in text
@@ -222,7 +228,7 @@ def test_write_article_file_no_concepts(tmp_path) -> None:
         article_body="x",
     )
     src = Source(source_type=SourceType.TEXT, title=None)
-    path = c._write_article_file(r, src, "no-concept")
+    path = c._write_article_file(r, src, "no-concept", [], [])
     assert path.exists()
     assert "general" in str(path)
 
@@ -241,3 +247,131 @@ async def test_save_article(db_session, tmp_path) -> None:
     assert article.slug
     assert Path(article.file_path).exists()
     assert src.status == IngestStatus.COMPILED
+
+
+# ---------------------------------------------------------------------------
+# Resolution-aware save path (Task 4)
+# ---------------------------------------------------------------------------
+
+
+def _result_with_backlinks(
+    title: str,
+    backlink_suggestions: list[str] | None = None,
+) -> CompilationResult:
+    return CompilationResult(
+        title=title,
+        summary="A two-sentence summary. For testing.",
+        key_claims=[
+            CompiledClaim(claim="test claim", confidence=ConfidenceLevel.SOURCED),
+        ],
+        concepts=["test-concept"],
+        backlink_suggestions=backlink_suggestions or [],
+        open_questions=["test question?"],
+        article_body="## Body\n\nTest body content sufficient length.",
+    )
+
+
+async def _make_source(session) -> Source:
+    source = Source(
+        id=str(uuid.uuid4()),
+        source_type=SourceType.TEXT,
+        title="Test Source",
+        status=IngestStatus.PROCESSING,
+        ingested_at=utcnow_naive(),
+    )
+    session.add(source)
+    await session.commit()
+    await session.refresh(source)
+    return source
+
+
+def _compiler_for(tmp_path: Path) -> Compiler:
+    with (
+        patch.object(compiler_mod, "get_llm_router"),
+        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+    ):
+        return Compiler()
+
+
+async def test_save_creates_backlink_rows_for_resolved_candidates(db_session, tmp_path) -> None:
+    # Seed an existing article that a future candidate will resolve to.
+    target = Article(
+        id=str(uuid.uuid4()),
+        slug="existing-article",
+        title="Existing Article",
+        file_path=str(tmp_path / "existing.md"),
+        confidence=ConfidenceLevel.SOURCED,
+    )
+    db_session.add(target)
+    await db_session.commit()
+
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result_with_backlinks(
+        "New Article",
+        backlink_suggestions=["Existing Article", "Nonexistent Topic"],
+    )
+    article = await compiler.save_article(result, source, db_session)
+
+    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.scalars().all())
+    assert len(backlinks) == 1
+    assert backlinks[0].target_article_id == target.id
+    assert backlinks[0].context == "Existing Article"
+
+
+async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session, tmp_path) -> None:
+    target = Article(
+        id=str(uuid.uuid4()),
+        slug="existing-article",
+        title="Existing Article",
+        file_path=str(tmp_path / "existing.md"),
+        confidence=ConfidenceLevel.SOURCED,
+    )
+    db_session.add(target)
+    await db_session.commit()
+
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result_with_backlinks(
+        "New Article",
+        backlink_suggestions=["Existing Article", "Nonexistent Topic"],
+    )
+    article = await compiler.save_article(result, source, db_session)
+
+    content = Path(article.file_path).read_text()
+    assert f"[Existing Article](/wiki/{target.id})" in content
+    assert "[[Nonexistent Topic]]" in content
+    assert "- [[Existing Article]]" not in content
+
+
+async def test_save_handles_duplicate_candidates_without_integrity_error(db_session, tmp_path) -> None:
+    """Two candidates resolving to the same target → one Backlink row, no IntegrityError."""
+    target = Article(
+        id=str(uuid.uuid4()),
+        slug="react",
+        title="React",
+        file_path=str(tmp_path / "react.md"),
+        confidence=ConfidenceLevel.SOURCED,
+    )
+    db_session.add(target)
+    await db_session.commit()
+
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result_with_backlinks("New Article", backlink_suggestions=["React", "react"])
+    article = await compiler.save_article(result, source, db_session)
+
+    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.scalars().all())
+    assert len(backlinks) == 1
+
+
+async def test_save_skips_backlinks_when_no_candidates(db_session, tmp_path) -> None:
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result_with_backlinks("Solo Article", backlink_suggestions=[])
+    article = await compiler.save_article(result, source, db_session)
+
+    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
+    assert list(bl_result.scalars().all()) == []
