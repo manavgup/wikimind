@@ -13,6 +13,7 @@ exception — including connection errors — triggers a rollback so the
 session is always left in a clean state.
 """
 
+import json
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -93,6 +94,7 @@ async def init_db():
         await conn.run_sync(SQLModel.metadata.create_all)
     await _migrate_added_columns(engine)
     await _backfill_conversation_for_legacy_queries(engine)
+    await _repair_malformed_json_arrays(engine)
 
 
 async def _migrate_added_columns(engine) -> None:
@@ -182,6 +184,61 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
                 "UPDATE query SET conversation_id = ?, turn_index = 0 WHERE id = ?",
                 (conv_id, query_id),
             )
+
+
+def _repair_json_array(raw: str) -> str | None:
+    """Attempt to repair a malformed JSON array string.
+
+    The old serialiser produced strings like ``["a"b"c"]`` (missing commas).
+    This function strips the outer ``[]``, splits on ``"``, filters empties,
+    and re-serialises with :func:`json.dumps`.
+
+    Returns the repaired JSON string, or ``None`` if *raw* is already valid.
+    """
+    try:
+        json.loads(raw)
+        return None  # already valid
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    inner = raw.strip()
+    if inner.startswith("["):
+        inner = inner[1:]
+    if inner.endswith("]"):
+        inner = inner[:-1]
+
+    items = [part for part in inner.split('"') if part.strip()]
+    return json.dumps(items)
+
+
+async def _repair_malformed_json_arrays(engine) -> None:
+    """Fix ``concept_ids`` and ``source_ids`` rows containing malformed JSON.
+
+    Idempotent: rows that already contain valid JSON are left untouched.
+    See issue #112.
+    """
+    async with engine.begin() as conn:
+
+        def _select_articles(sync_conn):
+            return sync_conn.exec_driver_sql(
+                "SELECT id, concept_ids, source_ids FROM article"
+                " WHERE concept_ids IS NOT NULL OR source_ids IS NOT NULL"
+            ).fetchall()
+
+        rows = await conn.run_sync(_select_articles)
+
+        for row in rows:
+            article_id, concept_ids, source_ids = row
+            repaired_concepts = _repair_json_array(concept_ids) if concept_ids else None
+            repaired_sources = _repair_json_array(source_ids) if source_ids else None
+
+            if repaired_concepts is not None or repaired_sources is not None:
+                new_concepts = repaired_concepts if repaired_concepts is not None else concept_ids
+                new_sources = repaired_sources if repaired_sources is not None else source_ids
+                await conn.exec_driver_sql(
+                    "UPDATE article SET concept_ids = ?, source_ids = ? WHERE id = ?",
+                    (new_concepts, new_sources, article_id),
+                )
 
 
 async def close_db():
