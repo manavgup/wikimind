@@ -271,7 +271,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.commit()
         await session.refresh(article)
 
-        await self._persist_backlinks(article.id, resolved, session)
+        await self._persist_resolved_backlinks(article.id, resolved, session)
 
         log.info(
             "Article saved",
@@ -328,7 +328,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.commit()
         await session.refresh(existing)
 
-        await self._persist_backlinks(existing.id, resolved, session)
+        await self._persist_resolved_backlinks(existing.id, resolved, session)
 
         log.info(
             "Article replaced in place",
@@ -340,17 +340,29 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
         return existing
 
-    async def _persist_backlinks(
+    async def _persist_resolved_backlinks(
         self,
         source_article_id: str,
         resolved: list[ResolvedBacklink],
         session: AsyncSession,
     ) -> None:
-        """Insert one Backlink row per resolved candidate.
+        """Insert one :class:`Backlink` row per resolved candidate.
 
         The composite primary key ``(source_article_id, target_article_id)``
         on :class:`Backlink` rejects duplicates automatically. We catch
-        IntegrityError per-row so one duplicate does not abort the batch.
+        :class:`IntegrityError` per-row so one duplicate does not abort the
+        batch. In normal use the resolver upstream already dedupes candidates
+        by ``target_id`` (see :mod:`wikimind.engine.wikilink_resolver`), so
+        this except branch is cold — it exists as a defense against contract
+        drift between the resolver and this writer.
+
+        Committed per-row AFTER the parent article has already been committed
+        by the caller. This means the ``Article`` row and its backlinks are
+        NOT transactionally coupled: if the process dies mid-loop, the
+        article exists in the DB with a partially-populated backlink set.
+        The next re-compile (which clears stale rows and re-inserts) will
+        heal the state. The markdown file on disk is the other record of
+        the resolved links and is written before any DB work.
         """
         for rb in resolved:
             bl = Backlink(

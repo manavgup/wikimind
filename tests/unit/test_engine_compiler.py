@@ -345,8 +345,16 @@ async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session
     assert "- [[Existing Article]]" not in content
 
 
-async def test_save_handles_duplicate_candidates_without_integrity_error(db_session, tmp_path) -> None:
-    """Two candidates resolving to the same target → one Backlink row, no IntegrityError."""
+async def test_save_dedupes_candidates_resolving_to_same_target(db_session, tmp_path) -> None:
+    """Two candidates resolving to the same target → one Backlink row.
+
+    The resolver dedupes by ``target_id`` upstream, so both ``"React"`` and
+    ``"react"`` collapse into a single :class:`ResolvedBacklink` before
+    ``_persist_resolved_backlinks`` ever runs. This test pins the end-to-end
+    behavior: the composite PK + per-row ``IntegrityError`` catch is a
+    defensive belt over the resolver's suspenders, and this test verifies
+    they work together (not that the catch branch is exercised — it isn't).
+    """
     target = Article(
         id=str(uuid.uuid4()),
         slug="react",
