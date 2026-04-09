@@ -86,14 +86,157 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
+def _split_by_paragraphs(
+    text: str,
+    doc_id: str,
+    heading_path: list[str],
+    max_chunk_tokens: int,
+    start_index: int,
+) -> list[DocumentChunk]:
+    """Split text on paragraph boundaries (double newlines).
+
+    If any resulting paragraph still exceeds *max_chunk_tokens*, it is
+    further split using :func:`_split_by_token_window`.
+
+    Args:
+        text: The text to split.
+        doc_id: Document ID for the chunks.
+        heading_path: Heading path to assign to each chunk.
+        max_chunk_tokens: Maximum tokens per chunk.
+        start_index: Starting chunk_index for numbering.
+
+    Returns:
+        A list of :class:`DocumentChunk` instances, each within the token limit.
+    """
+    paragraphs = re.split(r"\n\n+", text)
+    chunks: list[DocumentChunk] = []
+    current_parts: list[str] = []
+    chunk_index = start_index
+
+    for para in paragraphs:
+        candidate = "\n\n".join([*current_parts, para]).strip()
+        if estimate_tokens(candidate) > max_chunk_tokens and current_parts:
+            # Flush accumulated paragraphs
+            content = "\n\n".join(current_parts).strip()
+            if estimate_tokens(content) > max_chunk_tokens:
+                sub = _split_by_token_window(content, doc_id, heading_path, max_chunk_tokens, chunk_index)
+                chunks.extend(sub)
+                chunk_index += len(sub)
+            else:
+                chunks.append(
+                    DocumentChunk(
+                        document_id=doc_id,
+                        content=content,
+                        heading_path=list(heading_path),
+                        token_count=estimate_tokens(content),
+                        chunk_index=chunk_index,
+                    )
+                )
+                chunk_index += 1
+            current_parts = [para]
+        else:
+            current_parts.append(para)
+
+    # Flush remaining
+    if current_parts:
+        content = "\n\n".join(current_parts).strip()
+        if content:
+            if estimate_tokens(content) > max_chunk_tokens:
+                sub = _split_by_token_window(content, doc_id, heading_path, max_chunk_tokens, chunk_index)
+                chunks.extend(sub)
+            else:
+                chunks.append(
+                    DocumentChunk(
+                        document_id=doc_id,
+                        content=content,
+                        heading_path=list(heading_path),
+                        token_count=estimate_tokens(content),
+                        chunk_index=chunk_index,
+                    )
+                )
+
+    return chunks
+
+
+def _split_by_token_window(
+    text: str,
+    doc_id: str,
+    heading_path: list[str],
+    max_chunk_tokens: int,
+    start_index: int,
+) -> list[DocumentChunk]:
+    """Split text into fixed token-sized windows on the nearest whitespace.
+
+    This is the last-resort fallback when neither heading-based nor
+    paragraph-based splitting produces chunks within the token limit.
+
+    Args:
+        text: The text to split.
+        doc_id: Document ID for the chunks.
+        heading_path: Heading path to assign to each chunk.
+        max_chunk_tokens: Maximum tokens per chunk.
+        start_index: Starting chunk_index for numbering.
+
+    Returns:
+        A list of :class:`DocumentChunk` instances, each within the token limit.
+    """
+    # Convert token limit to an approximate character budget.
+    max_chars = max_chunk_tokens * 4
+    chunks: list[DocumentChunk] = []
+    chunk_index = start_index
+    pos = 0
+
+    while pos < len(text):
+        end = min(pos + max_chars, len(text))
+        if end < len(text):
+            # Walk back to nearest whitespace so we don't split mid-word.
+            split_at = text.rfind(" ", pos, end)
+            if split_at <= pos:
+                # No whitespace found — hard split at max_chars.
+                split_at = end
+            end = split_at
+
+        content = text[pos:end].strip()
+        if content:
+            chunks.append(
+                DocumentChunk(
+                    document_id=doc_id,
+                    content=content,
+                    heading_path=list(heading_path),
+                    token_count=estimate_tokens(content),
+                    chunk_index=chunk_index,
+                )
+            )
+            chunk_index += 1
+        pos = end
+        # Skip whitespace at the split point to avoid leading spaces in next chunk.
+        while pos < len(text) and text[pos] == " ":
+            pos += 1
+
+    return chunks
+
+
 def chunk_text(text: str, doc_id: str, max_chunk_tokens: int = 4000) -> list[DocumentChunk]:
-    """Split text into semantic chunks preserving heading structure."""
+    """Split text into semantic chunks preserving heading structure.
+
+    Strategy (in order of preference):
+
+    1. **Heading-based** — split on markdown headings (``# ``, ``## ``, ``### ``).
+    2. **Paragraph-based** — if any heading-based chunk exceeds
+       *max_chunk_tokens*, split it further on paragraph boundaries
+       (double newlines).
+    3. **Token-window** — if a single paragraph still exceeds the limit,
+       hard-split on the nearest whitespace at *max_chunk_tokens* boundaries.
+
+    This ensures no chunk ever exceeds the token limit regardless of input
+    format (e.g. PDF-extracted text with no markdown headings).
+    """
     chunks: list[DocumentChunk] = []
     current_headings: list[str] = []
 
     # Split on headings
     sections = re.split(r"(#{1,3} .+)", text)
-    current_content = []
+    current_content: list[str] = []
     chunk_index = 0
 
     for section in sections:
@@ -134,10 +277,8 @@ def chunk_text(text: str, doc_id: str, max_chunk_tokens: int = 4000) -> list[Doc
             )
         )
 
-    return (
-        chunks
-        if chunks
-        else [
+    if not chunks:
+        chunks = [
             DocumentChunk(
                 document_id=doc_id,
                 content=text,
@@ -146,7 +287,25 @@ def chunk_text(text: str, doc_id: str, max_chunk_tokens: int = 4000) -> list[Doc
                 chunk_index=0,
             )
         ]
-    )
+
+    # --- Token-aware fallback: re-split oversized chunks ---
+    needs_resplit = any(c.token_count > max_chunk_tokens for c in chunks)
+    if not needs_resplit:
+        return chunks
+
+    result: list[DocumentChunk] = []
+    idx = 0
+    for chunk in chunks:
+        if chunk.token_count > max_chunk_tokens:
+            sub = _split_by_paragraphs(chunk.content, doc_id, chunk.heading_path, max_chunk_tokens, idx)
+            result.extend(sub)
+            idx += len(sub)
+        else:
+            chunk.chunk_index = idx
+            result.append(chunk)
+            idx += 1
+
+    return result
 
 
 # ---------------------------------------------------------------------------
