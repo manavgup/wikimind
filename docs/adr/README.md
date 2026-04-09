@@ -20,6 +20,7 @@ considered, and the consequences.
 | [010](adr-010-llm-provider-auto-enable.md) | Auto-enable LLM providers when their API key is detected | Accepted |
 | [011](adr-011-conversational-qa-thread-model.md) | Conversational Q&A thread model | Accepted |
 | [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Proposed |
+| [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph visualization | Proposed |
 
 ## ADR Format
 
