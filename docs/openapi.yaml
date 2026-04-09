@@ -743,13 +743,13 @@ components:
           default: []
         backlinks_in:
           items:
-            type: string
+            $ref: '#/components/schemas/BacklinkEntry'
           type: array
           title: Backlinks In
           default: []
         backlinks_out:
           items:
-            type: string
+            $ref: '#/components/schemas/BacklinkEntry'
           type: array
           title: Backlinks Out
           default: []
@@ -878,6 +878,24 @@ components:
       title: AskResponse
       description: Response shape for POST /query — wraps both the new query and its
         parent conversation.
+    BacklinkEntry:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          type: string
+          title: Title
+        slug:
+          type: string
+          title: Slug
+      type: object
+      required:
+      - id
+      - title
+      - slug
+      title: BacklinkEntry
+      description: A backlink entry with human-readable metadata for the frontend.
     Body_ingest_pdf_ingest_pdf_post:
       properties:
         file:

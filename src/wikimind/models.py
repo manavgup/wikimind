@@ -377,6 +377,14 @@ class ArticleSourceSummary(BaseModel):
     title: str | None
 
 
+class BacklinkEntry(BaseModel):
+    """A backlink entry with human-readable metadata for the frontend."""
+
+    id: str
+    title: str
+    slug: str
+
+
 class ArticleResponse(BaseModel):
     """Full article response with content, backlinks, and source provenance."""
 
@@ -387,8 +395,8 @@ class ArticleResponse(BaseModel):
     confidence: ConfidenceLevel | None
     linter_score: float | None
     concepts: list[str] = []
-    backlinks_in: list[str] = []
-    backlinks_out: list[str] = []
+    backlinks_in: list[BacklinkEntry] = []
+    backlinks_out: list[BacklinkEntry] = []
     content: str  # Full .md content
     sources: list[SourceResponse] = []
     created_at: datetime

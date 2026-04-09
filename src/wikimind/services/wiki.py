@@ -21,6 +21,7 @@ from wikimind.models import (
     ArticleSourceSummary,
     ArticleSummaryResponse,
     Backlink,
+    BacklinkEntry,
     Concept,
     GraphEdge,
     GraphNode,
@@ -207,8 +208,21 @@ class WikiService:
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
 
-        bl_in = await session.execute(select(Backlink).where(Backlink.target_article_id == article.id))
-        bl_out = await session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
+        # Resolve incoming backlinks (articles that link TO this one)
+        bl_in_result = await session.execute(
+            select(Backlink.source_article_id, Article.title, Article.slug)
+            .join(Article, Article.id == Backlink.source_article_id)  # type: ignore[arg-type]
+            .where(Backlink.target_article_id == article.id)
+        )
+        backlinks_in = [BacklinkEntry(id=row[0], title=row[1], slug=row[2]) for row in bl_in_result.all()]
+
+        # Resolve outgoing backlinks (articles this one links TO)
+        bl_out_result = await session.execute(
+            select(Backlink.target_article_id, Article.title, Article.slug)
+            .join(Article, Article.id == Backlink.target_article_id)  # type: ignore[arg-type]
+            .where(Backlink.source_article_id == article.id)
+        )
+        backlinks_out = [BacklinkEntry(id=row[0], title=row[1], slug=row[2]) for row in bl_out_result.all()]
 
         source_ids = _parse_source_ids(article.source_ids)
         sources = await _fetch_sources(session, source_ids)
@@ -221,8 +235,8 @@ class WikiService:
             confidence=article.confidence,
             linter_score=article.linter_score,
             concepts=[],
-            backlinks_in=[b.source_article_id for b in bl_in.scalars().all()],
-            backlinks_out=[b.target_article_id for b in bl_out.scalars().all()],
+            backlinks_in=backlinks_in,
+            backlinks_out=backlinks_out,
             content=_read_article_content(article.file_path),
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
