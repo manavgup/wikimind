@@ -125,6 +125,11 @@ async def compile_source(ctx, source_id: str):
 
             log.info("compile_source complete", source_id=source_id, slug=article.slug)
 
+            # Sweep existing articles — a newly compiled article may resolve
+            # brackets that were previously unresolvable. Fast (no LLM),
+            # idempotent, and safe to fire on every compile.
+            await sweep_wikilinks(ctx)
+
         except Exception as e:
             log.error("compile_source failed", source_id=source_id, error=str(e))
 
