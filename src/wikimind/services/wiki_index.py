@@ -70,18 +70,23 @@ async def regenerate_index_md(session: AsyncSession) -> Path:
     uncategorized: list[Article] = []
 
     for article in articles:
-        concept_ids: list[str] = []
+        raw_ids: list[str] = []
         if article.concept_ids:
             with contextlib.suppress(json.JSONDecodeError, TypeError):
-                concept_ids = json.loads(article.concept_ids)
+                parsed = json.loads(article.concept_ids)
+                if isinstance(parsed, list):
+                    raw_ids = [str(v) for v in parsed if v]
 
-        # Filter to concept IDs that actually resolve to a known concept
-        resolved = [cid for cid in concept_ids if cid in concept_map]
-        if resolved:
-            for cid in resolved:
-                concept_articles[concept_map[cid]].append(article)
-        else:
+        if not raw_ids:
             uncategorized.append(article)
+            continue
+
+        # The compiler stores concept *names* (not UUIDs) in concept_ids.
+        # Try the Concept table first (UUID → name); fall back to using
+        # the raw value directly as the heading (which is a name already).
+        for raw_id in raw_ids:
+            name = concept_map.get(raw_id, raw_id)
+            concept_articles[name].append(article)
 
     # Build the markdown content
     lines: list[str] = [_INDEX_HEADER]

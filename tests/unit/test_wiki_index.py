@@ -112,14 +112,14 @@ class TestRegenerateIndexMd:
         assert "- [[random-note]]" in content
 
     @pytest.mark.anyio
-    async def test_unresolved_concept_ids_go_to_uncategorized(self, db_session: AsyncSession) -> None:
-        """Articles whose concept_ids don't match any Concept go to Uncategorized."""
+    async def test_unresolved_concept_ids_used_as_raw_headings(self, db_session: AsyncSession) -> None:
+        """Concept names that don't match Concept table rows are used directly as headings."""
         a1 = Article(
             slug="orphan-article",
             title="Orphan Article",
             file_path="/wiki/orphan.md",
-            concept_ids=json.dumps(["nonexistent-id"]),
-            summary="This concept ID does not exist.",
+            concept_ids=json.dumps(["Machine Learning"]),
+            summary="This concept name is used directly.",
         )
         db_session.add(a1)
         await db_session.commit()
@@ -127,8 +127,9 @@ class TestRegenerateIndexMd:
         path = await regenerate_index_md(db_session)
         content = path.read_text(encoding="utf-8")
 
-        assert "## Uncategorized" in content
+        assert "## Machine Learning" in content
         assert "- [[orphan-article]]" in content
+        assert "## Uncategorized" not in content
 
     @pytest.mark.anyio
     async def test_entry_format(self, db_session: AsyncSession) -> None:
