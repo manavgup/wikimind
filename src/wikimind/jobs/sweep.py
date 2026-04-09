@@ -27,9 +27,9 @@ from wikimind.models import Article, Backlink, Job, JobStatus, JobType
 
 log = structlog.get_logger()
 
-# Matches [[Title]] but NOT inside an already-resolved markdown link
-# like [Title](/wiki/id). The negative lookbehind rejects a leading `[`
-# so `[[Title]]` matches but `[Title](/wiki/...)` does not.
+# Matches [[Title]] — the double-bracket syntax for unresolved wikilinks.
+# Resolved links use single-bracket markdown syntax [Title](/wiki/id),
+# which this pattern does not match because it requires `[[` to open.
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
