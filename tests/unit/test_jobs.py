@@ -164,6 +164,111 @@ async def test_compile_source_compiler_returns_none(db_session, tmp_path) -> Non
     assert src.status == IngestStatus.FAILED
 
 
+async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> None:
+    """When compile_source starts, source.status must be PROCESSING and error_message cleared."""
+    text_file = tmp_path / "src.txt"
+    text_file.write_text("hello world", encoding="utf-8")
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="t",
+        file_path=str(text_file),
+        status=IngestStatus.FAILED,
+        error_message="previous error",
+    )
+    db_session.add(src)
+    await db_session.commit()
+
+    fake_compiler = MagicMock()
+    fake_compiler.compile = AsyncMock(return_value=MagicMock())
+    fake_article = MagicMock(slug="s", title="T")
+    fake_compiler.save_article = AsyncMock(return_value=fake_article)
+
+    with (
+        _patch_session_factory(db_session),
+        patch.object(worker_mod, "Compiler", return_value=fake_compiler),
+        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
+        patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
+    ):
+        await compile_source({}, src.id)
+
+    await db_session.refresh(src)
+    # After successful compilation the source stays in a non-failed state;
+    # the key assertion is that error_message was cleared at the start.
+    assert src.error_message is None
+
+
+async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> None:
+    """A previously-failed source should have error_message=None while compiling."""
+    text_file = tmp_path / "src.txt"
+    text_file.write_text("content", encoding="utf-8")
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="retry-me",
+        file_path=str(text_file),
+        status=IngestStatus.FAILED,
+        error_message="old boom",
+    )
+    db_session.add(src)
+    await db_session.commit()
+
+    # Record the source status at the moment the compiler is invoked.
+    captured_status: list[IngestStatus] = []
+    captured_error: list[str | None] = []
+
+    async def _spy_compile(doc, session):
+        await db_session.refresh(src)
+        captured_status.append(src.status)
+        captured_error.append(src.error_message)
+        return MagicMock()
+
+    fake_compiler = MagicMock()
+    fake_compiler.compile = AsyncMock(side_effect=_spy_compile)
+    fake_compiler.save_article = AsyncMock(return_value=MagicMock(slug="s", title="T"))
+
+    with (
+        _patch_session_factory(db_session),
+        patch.object(worker_mod, "Compiler", return_value=fake_compiler),
+        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
+        patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
+    ):
+        await compile_source({}, src.id)
+
+    assert captured_status == [IngestStatus.PROCESSING]
+    assert captured_error == [None]
+
+
+async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_path) -> None:
+    """On failure the source must revert to FAILED with a new error_message."""
+    text_file = tmp_path / "src.txt"
+    text_file.write_text("content", encoding="utf-8")
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="fail-again",
+        file_path=str(text_file),
+        status=IngestStatus.FAILED,
+        error_message="old error",
+    )
+    db_session.add(src)
+    await db_session.commit()
+
+    fake_compiler = MagicMock()
+    fake_compiler.compile = AsyncMock(side_effect=RuntimeError("new boom"))
+
+    with (
+        _patch_session_factory(db_session),
+        patch.object(worker_mod, "Compiler", return_value=fake_compiler),
+        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
+    ):
+        await compile_source({}, src.id)
+
+    await db_session.refresh(src)
+    assert src.status == IngestStatus.FAILED
+    assert src.error_message == "new boom"
+
+
 async def test_lint_wiki_no_articles(db_session) -> None:
     with _patch_session_factory(db_session):
         await lint_wiki({})

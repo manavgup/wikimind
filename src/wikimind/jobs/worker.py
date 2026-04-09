@@ -67,6 +67,12 @@ async def compile_source(ctx, source_id: str):
             log.error("Source not found", source_id=source_id)
             return
 
+        # Reset source status so the frontend shows a spinner instead of
+        # the stale error from a previous failed attempt (issue #111).
+        source.status = IngestStatus.PROCESSING
+        source.error_message = None
+        session.add(source)
+
         # Create job record
         job = Job(
             job_type=JobType.COMPILE_SOURCE,
