@@ -11,7 +11,7 @@ The linter is the **third core operation of the Karpathy LLM Wiki Pattern** (gis
 
 WikiMind has ingest and query shipped (the Ask vertical slice closed the Karpathy loop in PR #85/#92/#93). It does **not** yet have a real linter. What it does have is a **stub**: `src/wikimind/jobs/worker.py::lint_wiki` is a single LLM call that dumps the first 50 articles into one prompt, asks for contradictions + orphans + gaps + coverage scores in one pass, and writes the result to `wiki/_meta/health.json` as an opaque blob. There is an ARQ cron wired to run it weekly (`cron_jobs = [cron(lint_wiki, weekday=0, hour=2, minute=0)]`), a `POST /jobs/lint` trigger, a `GET /wiki/health` route that reads the JSON file, a `Job` table entry for each run, a WebSocket `emit_linter_alert` event, and an empty `apps/web/src/components/health/` directory earmarked for the UI. None of this produces structured, queryable, per-finding data; none of it is independently testable check-by-check; and the single-prompt design does not scale past the 50-article cap that already exists in code.
 
-This spec replaces the stub with a real, structured, check-per-function linter backed by two new tables (`LintReport`, `LintFinding`), while preserving the existing API surface (`POST /jobs/lint`, `GET /wiki/health`) as a thin compatibility shim on top of the new model so the frontend health dashboard can be built on structured data instead of an opaque JSON blob.
+This spec replaces the stub with a real, structured, check-per-function linter backed by a `LintReport` row plus **one table per finding kind** (`ContradictionFinding`, `OrphanFinding`, …), while preserving the existing API surface (`POST /jobs/lint`, `GET /wiki/health`) as a thin compatibility shim on top of the new model so the frontend health dashboard can be built on structured data instead of an opaque JSON blob. See § Data model for why per-kind tables over a single `raw_json` blob.
 
 ## Current state — what the linter can build on
 
@@ -29,7 +29,7 @@ The linter is not starting from zero. The relevant infrastructure already exists
 | Empty frontend placeholder | `apps/web/src/components/health/` | Target directory for the health view components. Nothing to migrate — the directory is genuinely empty. |
 | Stub `lint_wiki` ARQ function + `POST /jobs/lint` + `GET /wiki/health` + weekly cron | `src/wikimind/jobs/worker.py`, `src/wikimind/api/routes/jobs.py`, `src/wikimind/api/routes/wiki.py` | Gets replaced internally. External API surface is preserved as a compatibility shim. See § Migration from the stub. |
 
-**What does not yet exist**: structured per-finding storage, per-check function decomposition, a real `LintReport` / `LintFinding` data model, a dedicated health view, dismiss semantics, or any unit tests on the linter path.
+**What does not yet exist**: structured per-finding storage, per-check function decomposition, a real `LintReport` + per-kind finding data model, a dedicated health view, dismiss semantics, or any unit tests on the linter path.
 
 ## Goals — v1 scope
 
@@ -37,7 +37,7 @@ The linter v1 must:
 
 1. **Detect contradictions** between `key_claims` of different articles that share at least one concept. Contradiction detection is the single highest-value check — it is the one thing no amount of structural analysis can do without an LLM, and it is the one thing a non-linted wiki silently gets wrong.
 2. **Detect orphan articles** — articles with zero inbound backlinks AND zero outbound backlinks. **This check depends on #95 (wikilinks unresolved) being merged first.** Until #95 lands, the `Backlink` table is empty and every article looks orphaned, so the check is useless. Call this out in the plan and ship the linter without it if #95 is delayed.
-3. **Produce a structured health report** — a `LintReport` row plus N `LintFinding` rows, queryable from SQL, renderable as JSON for the UI. Not an opaque blob.
+3. **Produce a structured health report** — a `LintReport` row plus N rows across the per-kind finding tables (`ContradictionFinding`, `OrphanFinding`), queryable from SQL, renderable as JSON for the UI. Not an opaque blob.
 4. **Persist reports so the user can see history** — every lint run creates a new `LintReport` row. Old reports are retained (no auto-delete in v1).
 5. **Run on demand via a manual trigger**, and on the existing weekly cron. The cron already exists; reshape what it does, keep the schedule.
 6. **Emit a WebSocket completion event** so the health dashboard re-fetches without polling. The existing `emit_linter_alert` event bus is reusable.
@@ -81,7 +81,8 @@ engine/linter/runner.py::run_lint(session)
     ├─► create LintReport(status="in_progress")
     ├─► detect_contradictions(session) → list[ContradictionFinding]
     ├─► detect_orphans(session) → list[OrphanFinding]    # no-op if Backlink table empty
-    ├─► persist all findings as LintFinding rows, FK'd to the report
+    ├─► persist contradictions to ContradictionFinding, orphans to OrphanFinding
+    │     (each row FK'd to the report via report_id)
     ├─► update LintReport(status="complete", counts populated)
     └─► emit_linter_alert event over WebSocket
 ```
@@ -104,7 +105,7 @@ async def detect_contradictions(
 1. Load all `Concept` rows. For each concept, load all `Article` rows whose `concept_ids` JSON array contains that concept's id.
 2. Within each concept bucket, enumerate article pairs (up to a cap — see § Settings). Call the LLM once per pair with the two articles' `key_claims` (parsed from the `Article` body or a pre-stored structured field — see § Open decision on input shape).
 3. The LLM returns a JSON list of contradictions, each with `description`, `article_a_claim`, `article_b_claim`, `confidence` (high|medium|low). Non-contradictions return an empty list.
-4. Persist each returned contradiction as one `ContradictionFinding` (in-memory Pydantic model; `run_lint` converts them to `LintFinding` rows).
+4. Return each parsed contradiction as one `ContradictionFinding` instance. Because `ContradictionFinding` is a SQLModel table (see § Data model), `run_lint` persists the returned objects directly — no intermediate conversion step.
 5. Cap: `settings.linter.max_contradiction_pairs_per_concept` (default 10). If a concept bucket has more pairs than the cap, sample — do not scan all.
 6. Cap: `settings.linter.max_concepts_per_run` (default 25). If the wiki has more concepts than the cap, process the N most-recently-updated concepts first. This keeps a single lint pass bounded at roughly `25 × 10 = 250` LLM calls in the worst case. With caching by `(article_a.id, article_b.id, article_a.updated_at, article_b.updated_at)` across runs (see § Caching), steady-state cost is much lower.
 
@@ -169,7 +170,11 @@ This spec recommends Option 1 because it is explicit in configuration and surfac
 
 ### Data model
 
-Two new tables. Both use the existing `utcnow_naive` datetime helper from `src/wikimind/_datetime.py` (the project's replacement for `datetime.utcnow()` — see PRs #60-#64).
+One `LintReport` table plus **one table per finding kind** (`ContradictionFinding`, `OrphanFinding`). All use the existing `utcnow_naive` datetime helper from `src/wikimind/_datetime.py` (the project's replacement for `datetime.utcnow()` — see PRs #60-#64).
+
+**Why per-kind tables instead of a single `LintFinding` with a `raw_json` blob?** The driving requirement is analytics. Questions like "which concepts produced the most contradictions last quarter", "what is the mean LLM confidence for dismissed vs undismissed contradictions", or "how long do orphans stay orphaned on average" are trivial SQL on typed columns and painful on a JSON blob. A single table with `raw_json` is smaller and avoids a new table per check kind, but every future analytics query has to parse JSON in application code. Per-kind tables pay a one-time design cost (one new table when adding a check) for permanent queryability. See § Alternatives for the discarded single-table design, and § Open decisions #9 for the decision record.
+
+A non-table base class `_LintFindingBase` holds fields common to every kind (id, report FK, severity, description, lifecycle fields, content hash). Concrete subclasses add kind-specific columns and set `table=True`. SQLModel supports this pattern natively.
 
 ```python
 # src/wikimind/models.py
@@ -183,11 +188,15 @@ class LintSeverity(StrEnum):
 
 
 class LintFindingKind(StrEnum):
-    """Kind of lint finding — maps 1:1 to a detection function."""
+    """Kind of lint finding — maps 1:1 to a detection function AND a table.
+
+    Used as the content_hash prefix (so dismiss state is keyed by kind + content)
+    and as the discriminator field in the frontend API response union.
+    """
 
     CONTRADICTION = "contradiction"
     ORPHAN = "orphan"
-    # Future: MISSING_PAGE, STALE_CLAIM, DATA_GAP
+    # Future: MISSING_PAGE, STALE_CLAIM, DATA_GAP — each adds its own table + enum entry.
 
 
 class LintReportStatus(StrEnum):
@@ -199,7 +208,7 @@ class LintReportStatus(StrEnum):
 
 
 class LintReport(SQLModel, table=True):
-    """One run of the linter. All findings from a run FK back to this row."""
+    """One run of the linter. All findings from a run FK back to this row via report_id."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     generated_at: datetime = Field(default_factory=utcnow_naive, index=True)
@@ -214,58 +223,64 @@ class LintReport(SQLModel, table=True):
     job_id: str | None = Field(default=None, foreign_key="job.id", index=True)
 
 
-class LintFinding(SQLModel, table=True):
-    """One finding from one lint run."""
+class _LintFindingBase(SQLModel):
+    """Fields shared across every per-kind finding table. NOT a table itself."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     report_id: str = Field(foreign_key="lintreport.id", index=True)
-    kind: LintFindingKind
     severity: LintSeverity = LintSeverity.WARN
-    # The primary article involved in the finding.
-    article_id: str | None = Field(default=None, foreign_key="article.id", index=True)
-    # For contradictions, the "other" article. Null for orphans.
-    related_article_id: str | None = Field(default=None, foreign_key="article.id")
     # Human-readable short description shown in the UI.
     description: str
-    # Structured data specific to the finding kind, as a JSON string.
-    # For contradictions: {"article_a_claim": "...", "article_b_claim": "...", "llm_confidence": "high"}
-    # For orphans: {}
-    # The JSON shape is documented in the typed Pydantic models in engine/linter/findings.py;
-    # the raw string storage is a compromise to avoid a separate table per finding kind.
-    raw_json: str = "{}"
     created_at: datetime = Field(default_factory=utcnow_naive)
     # Dismiss state is per-finding. Dismissed findings stay in the DB but are
     # filtered out of default queries. See § Dismiss semantics for what "dismissed"
     # means across runs (it is NOT just "hidden in this report").
     dismissed: bool = False
     dismissed_at: datetime | None = None
-    # Content hash — a stable hash of (kind, article_id, related_article_id, description)
-    # used for cross-run dedup of dismissed findings. See § Dismiss semantics.
+    # Content hash — stable sha256 of (kind, article ids, description) used for
+    # cross-run dedup of dismissed findings. Indexed for O(log n) suppression lookup.
+    # See § Dismiss semantics.
     content_hash: str = Field(index=True)
-```
 
-**Schema additions via the lightweight migration helper:** both tables are new, so `SQLModel.metadata.create_all()` in `init_db()` creates them on startup with no migration-helper changes. Matches the `Conversation` table approach from the Ask slice.
 
-### Typed in-memory finding models
+class ContradictionFinding(_LintFindingBase, table=True):
+    """A contradiction between key claims of two articles that share a concept."""
 
-In `src/wikimind/engine/linter/findings.py`, the Pydantic models returned by each check function. These are the authoritative typed shape; `raw_json` storage on `LintFinding` is a compromise for storage density, but in code the linter always operates on these typed models.
+    kind: LintFindingKind = Field(default=LintFindingKind.CONTRADICTION)
 
-```python
-class ContradictionFinding(BaseModel):
-    kind: Literal[LintFindingKind.CONTRADICTION] = LintFindingKind.CONTRADICTION
-    article_a_id: str
-    article_b_id: str
-    description: str
+    # Both articles involved. Required (unlike the old nullable related_article_id).
+    article_a_id: str = Field(foreign_key="article.id", index=True)
+    article_b_id: str = Field(foreign_key="article.id", index=True)
+
+    # Typed analytics fields — the whole point of per-kind storage.
     article_a_claim: str
     article_b_claim: str
-    llm_confidence: str  # "high" | "medium" | "low" (LLM's self-assessment)
+    llm_confidence: str  # "high" | "medium" | "low" — LLM self-assessment
+
+    # Which shared concept produced this pair. Enables
+    # "which concepts produce the most contradictions" queries trivially.
+    shared_concept_id: str | None = Field(
+        default=None, foreign_key="concept.id", index=True
+    )
 
 
-class OrphanFinding(BaseModel):
-    kind: Literal[LintFindingKind.ORPHAN] = LintFindingKind.ORPHAN
-    article_id: str
-    article_title: str  # for display — denormalized for convenience
+class OrphanFinding(_LintFindingBase, table=True):
+    """An article with zero inbound AND zero outbound backlinks."""
+
+    kind: LintFindingKind = Field(default=LintFindingKind.ORPHAN)
+
+    article_id: str = Field(foreign_key="article.id", index=True)
+    # Denormalized for display convenience — keeps the frontend from needing a
+    # second fetch just to show the title. Also lets "orphans by title prefix"
+    # analytics queries stay in one table.
+    article_title: str
 ```
+
+**Schema additions via the lightweight migration helper:** all tables are new, so `SQLModel.metadata.create_all()` in `init_db()` creates them on startup with no migration-helper changes. Matches the `Conversation` table approach from the Ask slice. Each new check kind in the future follows the same pattern: add a subclass of `_LintFindingBase` with `table=True`, add an entry to `LintFindingKind`, add the corresponding SELECT in the service layer (see § Service layer). No migrations to existing tables.
+
+**Check functions return SQLModel instances directly.** Because `ContradictionFinding` and `OrphanFinding` are SQLModel tables (which are Pydantic `BaseModel` subclasses under the hood), the check functions in `engine/linter/contradictions.py` / `engine/linter/orphans.py` return lists of these instances and the runner persists them via `session.add_all(...)`. There is no separate layer of in-memory Pydantic models — the table class is the contract.
+
+**Query shape for "all findings in a report":** the service layer runs one SELECT per kind and composes the result into a `LintReportDetail` object. This is N small SELECTs (where N is the number of finding kinds, currently 2) instead of one UNION — SQLite handles both equally well and the composed object is directly what the frontend needs.
 
 ### Settings (no magic numbers)
 
@@ -299,7 +314,7 @@ All defaults are conservative and tunable in `.env` via `WIKIMIND_LINTER__*` pre
 
 ### Caching
 
-To keep steady-state cost under control, the linter caches per-pair contradiction results keyed by `(article_a.id, article_b.id, article_a.updated_at, article_b.updated_at)`. A new helper table (or a column on `LintFinding` — implementation decision) stores these cache entries. When a run encounters a pair with unchanged `updated_at` on both sides and a cache hit, it reuses the previous finding state instead of re-calling the LLM.
+To keep steady-state cost under control, the linter caches per-pair contradiction results keyed by `(article_a.id, article_b.id, article_a.updated_at, article_b.updated_at)`. A new helper table stores these cache entries. When a run encounters a pair with unchanged `updated_at` on both sides and a cache hit, it reuses the previous finding state instead of re-calling the LLM.
 
 The exact cache storage is deferred to the plan step. The conceptual guarantee is: **a lint run over a wiki where nothing has changed since the last run is zero-LLM-cost**. This matters because the weekly cron will run on mostly-static wikis most weeks.
 
@@ -324,11 +339,13 @@ GET /lint/reports/{report_id}
     returns: LintReportDetail
     query params: ?include_dismissed=false
 
-POST /lint/findings/{finding_id}/dismiss
-    returns: { dismissed: true, finding_id: str }
-    side effect: sets dismissed=true, dismissed_at=now, and records the content_hash
-                 in a Dismiss table (see § Dismiss semantics) so future runs suppress
-                 equivalent findings automatically.
+POST /lint/findings/{kind}/{finding_id}/dismiss
+    path params: kind ∈ {"contradiction", "orphan"} — tells the handler which per-kind
+                 table to update. Required because finding_id alone does not carry kind.
+    returns: { dismissed: true, kind: str, finding_id: str }
+    side effect: sets dismissed=true, dismissed_at=now on the per-kind row, and records
+                 the content_hash in the DismissedFinding table (see § Dismiss semantics)
+                 so future runs suppress equivalent findings automatically.
 ```
 
 **Compatibility shim endpoints** (preserved because they already exist and have one in-tree caller each):
@@ -357,13 +374,28 @@ class LinterService:
     async def list_reports(self, session: AsyncSession, limit: int = 20) -> list[LintReport]: ...
     async def get_report(self, session: AsyncSession, report_id: str, *, include_dismissed: bool = False) -> LintReportDetail: ...
     async def get_latest(self, session: AsyncSession) -> LintReportDetail: ...
-    async def dismiss_finding(self, session: AsyncSession, finding_id: str) -> LintFinding: ...
+    # Dismissal needs the kind discriminator because the finding_id alone does not
+    # tell us which per-kind table to look in.
+    async def dismiss_finding(
+        self, session: AsyncSession, kind: LintFindingKind, finding_id: str
+    ) -> ContradictionFinding | OrphanFinding: ...
 
 
 def get_linter_service() -> LinterService: ...   # DI provider
 ```
 
-The service is thin — it persists/loads rows. All check logic lives in `engine/linter/`.
+The service is thin — it persists/loads rows. All check logic lives in `engine/linter/`. `get_report` composes a `LintReportDetail` by running one SELECT per per-kind finding table (currently `ContradictionFinding` and `OrphanFinding`) and returning them in a structured object:
+
+```python
+class LintReportDetail(BaseModel):
+    """API response shape for a single report."""
+
+    report: LintReport
+    contradictions: list[ContradictionFinding]
+    orphans: list[OrphanFinding]
+```
+
+Adding a new check kind in the future means: add a new `list[NewKindFinding]` field here, and add one more SELECT in `get_report`.
 
 ### Engine layer
 
@@ -397,14 +429,50 @@ The placeholder directory is empty today. Six new components:
 
 ```typescript
 export interface LintReport { ... }
-export interface LintFinding { ... }
-export interface LintReportDetail { report: LintReport; findings: LintFinding[] }
+
+// Shared fields across every finding kind — mirrors _LintFindingBase on the backend.
+interface LintFindingCommon {
+  id: string;
+  report_id: string;
+  severity: "info" | "warn" | "error";
+  description: string;
+  created_at: string;
+  dismissed: boolean;
+  dismissed_at: string | null;
+  content_hash: string;
+}
+
+export interface LintContradictionFinding extends LintFindingCommon {
+  kind: "contradiction";
+  article_a_id: string;
+  article_b_id: string;
+  article_a_claim: string;
+  article_b_claim: string;
+  llm_confidence: "high" | "medium" | "low";
+  shared_concept_id: string | null;
+}
+
+export interface LintOrphanFinding extends LintFindingCommon {
+  kind: "orphan";
+  article_id: string;
+  article_title: string;
+}
+
+export type LintFinding = LintContradictionFinding | LintOrphanFinding;
+
+// The backend returns pre-grouped lists so the UI does not have to filter.
+export interface LintReportDetail {
+  report: LintReport;
+  contradictions: LintContradictionFinding[];
+  orphans: LintOrphanFinding[];
+}
 
 export async function runLint(): Promise<{ report_id: string; status: string }>;
 export async function getLatestReport(): Promise<LintReportDetail>;
 export async function getReport(id: string): Promise<LintReportDetail>;
 export async function listReports(limit?: number): Promise<LintReport[]>;
-export async function dismissFinding(id: string): Promise<{ dismissed: boolean }>;
+// Dismiss needs the kind discriminator so the backend knows which per-kind table to update.
+export async function dismissFinding(kind: LintFinding["kind"], id: string): Promise<{ dismissed: boolean }>;
 ```
 
 **Routing** in `App.tsx`: add `<Route path="/health" element={<HealthView />} />`. **Nav link** in `Layout.tsx`: add "Health" between "Wiki" and any future right-side items, in the same style as the existing Inbox / Ask / Wiki links.
@@ -415,22 +483,23 @@ export async function dismissFinding(id: string): Promise<{ dismissed: boolean }
 
 A dismissed finding must stay dismissed across runs, otherwise the user plays whack-a-mole with the same contradiction every Monday morning. The design:
 
-1. When a finding is dismissed, compute `content_hash = sha256(kind | article_id | related_article_id | description)`. Store the hash in a new `DismissedFinding` table (or as a `LintFinding.content_hash` column with a dedicated query).
+1. When a finding is dismissed, compute `content_hash = sha256(kind | article_ids | description)` where `article_ids` is the finding's kind-specific article identifiers (e.g. `article_a_id | article_b_id` for contradictions, `article_id` for orphans). Store the hash in a dedicated `DismissedFinding` table (see below).
 2. When a new lint run produces a finding, compute the same hash. If a dismissed entry with that hash exists, mark the new finding as `dismissed=true` at write time (and `dismissed_at` = now).
-3. The `LintFinding.content_hash` column is indexed so the suppression lookup is O(log n).
+3. The `content_hash` column is indexed on every per-kind finding table so the suppression lookup is O(log n).
 
-**Recommended table approach** (cleaner than a column+dedicated query):
+The `DismissedFinding` table is a **separate** SQLModel table — it is deliberately not a column on the per-kind finding tables because dismiss state needs to survive even if the original finding row is eventually garbage-collected:
 
 ```python
 class DismissedFinding(SQLModel, table=True):
     """Cross-run dismiss record — keyed by content hash."""
 
     content_hash: str = Field(primary_key=True)
+    kind: LintFindingKind  # denormalized for analytics ("how many contradictions dismissed this month?")
     dismissed_at: datetime = Field(default_factory=utcnow_naive)
     reason: str | None = None  # optional user note, v1 leaves null
 ```
 
-This is cleaner because dismiss state survives even if the original `LintFinding` row is eventually garbage-collected.
+The `kind` column is not strictly necessary (it can be parsed out of the hash input) but denormalizing it makes dismiss-state analytics a simple `GROUP BY kind` and is consistent with the analytics-friendly motivation for per-kind finding tables in the first place.
 
 ### Hermetic testing
 
@@ -470,7 +539,7 @@ The existing stub in `jobs/worker.py::lint_wiki` is rewritten rather than delete
 | **Store findings as markdown in `wiki/_meta/health.md`** | Can't be queried, can't be paginated, can't be dismissed on a per-finding basis. The current stub already stores as JSON and that is already too opaque. |
 | **One mega-prompt that asks the LLM to do all checks at once** (what the stub does) | Current behavior. Rejected because (a) it caps at 50 articles or token budget explodes, (b) it produces unstructured output, (c) it can't be incrementally cached, (d) each check can't be unit-tested in isolation, (e) adding a check requires rewriting the prompt. |
 | **Auto-fix mode** (linter rewrites articles) | Blast radius too large for a v1. The user must be in the loop. Read-only v1 is the safe default. |
-| **Per-check table** (one table per finding kind instead of `LintFinding.raw_json`) | Cleaner on paper; adds 2-N migrations every time a new check is added; the query shape for "give me all findings for this report" gets ugly with UNIONs. The `raw_json` compromise is pragmatic. |
+| **Single `LintFinding` table with a `raw_json` blob for kind-specific fields** | Smaller (one table, no new migration per check). Rejected because every future analytics query ("mean LLM confidence on dismissed contradictions", "orphans-by-title-prefix") would have to parse JSON in application code. Per-kind tables move those queries into straight SQL. The one-table-per-kind cost is a single new table each time a check is added, paid once; the JSON-parse cost would be paid on every analytics read forever. See § Data model and § Open decisions #9. |
 | **Make the compiler emit contradictions at compile time** | Compiler only sees one source; it cannot compare across articles. Contradiction detection is fundamentally a cross-article operation, which is what lint is for. |
 
 ## Consequences
@@ -493,7 +562,7 @@ The existing stub in `jobs/worker.py::lint_wiki` is rewritten rather than delete
 
 - **Combinatorial explosion.** A wiki with 100 articles all tagged "AI" would be `100 * 99 / 2 = 4950` pairs in one concept. Mitigated by `max_contradiction_pairs_per_concept=10` cap, but aggressive sampling means some real contradictions will be missed. The cap is tunable in Settings.
 - **Cost runaway.** A lint pass over a 100-article wiki could realistically be 20-50 LLM calls on the first run, much less on subsequent runs thanks to the pair cache. Mitigated by `max_cost_per_run_usd` budget, `respect_monthly_budget` flag, and pair caching. See § Open decisions for the budget-enforcement question.
-- **False positives eroding trust.** If the first run produces 15 contradictions and 12 of them are the LLM being confused by wording differences, the user dismisses them all and stops looking. Mitigated by showing confidence, letting users dismiss once (sticky), and by the `raw_json` storing the full LLM output so the user can evaluate each finding in context. First-run experience is the critical UX moment for this feature.
+- **False positives eroding trust.** If the first run produces 15 contradictions and 12 of them are the LLM being confused by wording differences, the user dismisses them all and stops looking. Mitigated by showing confidence, letting users dismiss once (sticky), and by persisting `article_a_claim` / `article_b_claim` / `llm_confidence` as explicit `ContradictionFinding` columns so the user can evaluate each finding against the exact quoted claims in context. First-run experience is the critical UX moment for this feature.
 - **Dismiss-table unbounded growth.** Every dismissed finding leaves a row in `DismissedFinding` forever. Low risk in practice (users dismiss dozens, not millions) but worth noting. Garbage collection deferred.
 - **The weekly cron runs against whatever provider is default at 2am Monday.** No provider pinning. A mid-week provider swap means the next lint run uses the new provider silently. Acceptable for v1; users who care can trigger manually after a provider swap.
 
@@ -517,7 +586,7 @@ These should be answered in spec review, not decided autonomously:
 
 8. **Retention.** Keep lint reports forever? Or auto-delete after N days? **Recommendation: keep forever in v1. Addition later as `linter.report_retention_days` config if the table grows unwieldy (it won't at a weekly cadence).**
 
-9. **`LintFinding.raw_json` shape evolution.** The `raw_json` column is a compromise. Is a per-finding-kind table worth the cost later? **Recommendation: revisit only if a new check kind needs fields incompatible with the current contract. Not in v1 scope.**
+9. **Finding-storage shape: single table with `raw_json` blob vs. one table per kind.** **RESOLVED (user, 2026-04-08): per-kind tables.** Rationale: analytics. The whole point of structured lint storage is to enable queries like "which concepts produce the most contradictions" or "mean LLM confidence on dismissed findings" — questions that are trivial SQL on typed columns and painful against a `raw_json` blob. The per-kind cost is one new table per check (paid once), whereas the JSON-parse cost of the single-table approach would be paid on every analytics read forever. v1 ships with `ContradictionFinding` and `OrphanFinding` tables. Future check kinds follow the same pattern (new subclass of `_LintFindingBase`, new enum entry, new SELECT in `LinterService.get_report`). The full rewritten data model is in § Data model, and the rejected alternative is recorded in § Alternatives considered.
 
 ## Related issues
 
