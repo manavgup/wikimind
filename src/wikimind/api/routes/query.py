@@ -1,6 +1,7 @@
 """Endpoints for asking questions, browsing conversations, and filing answers back."""
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
@@ -58,6 +59,16 @@ async def get_conversation(
 ):
     """Return a single conversation with all its turns."""
     return await service.get_conversation(conversation_id, session)
+
+
+@router.get("/conversations/{conversation_id}/export")
+async def export_conversation(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: QueryService = Depends(get_query_service),
+) -> Response:
+    """Export a conversation as standalone markdown. Pure read, no DB writes."""
+    return await service.export_conversation(conversation_id, session)
 
 
 @router.post("/conversations/{conversation_id}/file-back")

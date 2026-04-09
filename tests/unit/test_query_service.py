@@ -1,12 +1,15 @@
-"""Tests for the QueryService citation chain resolution."""
+"""Tests for the QueryService citation chain resolution and conversation export."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 
-from wikimind.models import Article, Query, Source, SourceType
-from wikimind.services.query import _build_citations
+from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
+from wikimind.models import Article, Conversation, Query, Source, SourceType
+from wikimind.services.query import QueryService, _build_citations, _sanitize_filename
 
 
 async def _seed(db_session, tmp_path: Path) -> tuple[Query, Article, Source]:
@@ -104,3 +107,132 @@ class TestQueryCitations:
         assert len(citations) == 1
         assert citations[0].article.title == article.title
         assert citations[0].sources == []
+
+
+async def _seed_conversation(db_session) -> tuple[Conversation, list[Query]]:
+    """Persist a Conversation with two Q&A turns for export tests."""
+    conv = Conversation(
+        id="conv-export-1",
+        title="Export Test Conversation",
+        created_at=datetime(2026, 4, 8, 12, 0, 0),
+        updated_at=datetime(2026, 4, 8, 12, 5, 0),
+    )
+    db_session.add(conv)
+    await db_session.flush()
+
+    q1 = Query(
+        id="q-export-1",
+        question="What is X?",
+        answer="X is a thing.",
+        confidence="high",
+        source_article_ids=json.dumps(["Article One"]),
+        related_article_ids=json.dumps([]),
+        conversation_id="conv-export-1",
+        turn_index=0,
+        created_at=datetime(2026, 4, 8, 12, 0, 0),
+    )
+    q2 = Query(
+        id="q-export-2",
+        question="How does X work?",
+        answer="X works by Y.",
+        confidence="medium",
+        source_article_ids=json.dumps([]),
+        related_article_ids=json.dumps([]),
+        conversation_id="conv-export-1",
+        turn_index=1,
+        created_at=datetime(2026, 4, 8, 12, 1, 0),
+    )
+    db_session.add_all([q1, q2])
+    await db_session.commit()
+    return conv, [q1, q2]
+
+
+@pytest.mark.asyncio
+class TestExportConversation:
+    async def test_export_returns_markdown_content(self, db_session):
+        """Export returns a Response with text/markdown content type."""
+        await _seed_conversation(db_session)
+        service = QueryService()
+
+        response = await service.export_conversation("conv-export-1", db_session)
+
+        assert response.media_type == "text/markdown"
+        body = response.body.decode()
+        assert "# Export Test Conversation" in body
+        assert "## Q1: What is X?" in body
+        assert "## Q2: How does X work?" in body
+
+    async def test_export_has_content_disposition_header(self, db_session):
+        """Export response includes a Content-Disposition header for download."""
+        await _seed_conversation(db_session)
+        service = QueryService()
+
+        response = await service.export_conversation("conv-export-1", db_session)
+
+        assert "content-disposition" in response.headers
+        assert "attachment" in response.headers["content-disposition"]
+        assert ".md" in response.headers["content-disposition"]
+
+    async def test_export_is_read_only(self, db_session):
+        """Export does not modify the conversation or query rows."""
+        conv, queries = await _seed_conversation(db_session)
+        service = QueryService()
+
+        # Capture state before export
+        conv_before_title = conv.title
+        conv_before_filed = conv.filed_article_id
+        q_before_filed = [q.filed_back for q in queries]
+
+        await service.export_conversation("conv-export-1", db_session)
+
+        # Refresh from DB to check no writes happened
+        await db_session.refresh(conv)
+        for q in queries:
+            await db_session.refresh(q)
+
+        assert conv.title == conv_before_title
+        assert conv.filed_article_id == conv_before_filed
+        assert [q.filed_back for q in queries] == q_before_filed
+
+    async def test_export_404_for_nonexistent_conversation(self, db_session):
+        """Export raises 404 for a conversation that doesn't exist."""
+        service = QueryService()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.export_conversation("nonexistent-id", db_session)
+
+        assert exc_info.value.status_code == 404
+
+    async def test_export_matches_serializer_output(self, db_session):
+        """Exported markdown is byte-identical to calling the serializer directly."""
+        conv, queries = await _seed_conversation(db_session)
+        service = QueryService()
+
+        response = await service.export_conversation("conv-export-1", db_session)
+        exported = response.body.decode()
+
+        expected = serialize_conversation_to_markdown(conv, queries)
+        assert exported == expected
+
+
+class TestSanitizeFilename:
+    def test_basic_title(self):
+        assert _sanitize_filename("Hello World") == "Hello World"
+
+    def test_special_characters_replaced(self):
+        assert _sanitize_filename('What is "AI"?') == "What is -AI"
+
+    def test_collapses_multiple_hyphens(self):
+        assert _sanitize_filename("a!!!b") == "a-b"
+
+    def test_strips_leading_trailing_hyphens(self):
+        assert _sanitize_filename("!!!Hello!!!") == "Hello"
+
+    def test_empty_title_returns_fallback(self):
+        assert _sanitize_filename("") == "conversation"
+
+    def test_all_special_returns_fallback(self):
+        assert _sanitize_filename("!@#$%") == "conversation"
+
+    def test_preserves_hyphens_and_underscores(self):
+        assert _sanitize_filename("my-conversation_v2") == "my-conversation_v2"

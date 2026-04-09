@@ -1,6 +1,6 @@
 // Endpoints in src/wikimind/api/routes/query.py.
 
-import { apiFetch } from "./client";
+import { apiFetch, getBaseUrl } from "./client";
 
 // ----- Types -----
 
@@ -71,4 +71,10 @@ export function getConversation(id: string): Promise<ConversationDetail> {
 
 export function fileBackConversation(id: string): Promise<FileBackResponse> {
   return apiFetch<FileBackResponse>(`/query/conversations/${id}/file-back`, { method: "POST" });
+}
+
+export async function exportConversation(id: string): Promise<string> {
+  const res = await fetch(`${getBaseUrl()}/query/conversations/${id}/export`);
+  if (!res.ok) throw new Error("Export failed");
+  return res.text();
 }
