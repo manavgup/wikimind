@@ -243,20 +243,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{slug}:
+  /wiki/articles/{id_or_slug}:
     get:
       tags:
       - Wiki
       summary: Get Article
-      description: Get full article with content, backlinks, and source provenance.
-      operationId: get_article_wiki_articles__slug__get
+      description: Get full article by ID or slug, with content, backlinks, and source
+        provenance.
+      operationId: get_article_wiki_articles__id_or_slug__get
       parameters:
-      - name: slug
+      - name: id_or_slug
         in: path
         required: true
         schema:
           type: string
-          title: Slug
+          title: Id Or Slug
       responses:
         '200':
           description: Successful Response

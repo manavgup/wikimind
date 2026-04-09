@@ -124,3 +124,40 @@ class TestArticleProvenance:
         response = await service.get_article("no-source-article", db_session)
 
         assert response.sources == []
+
+    async def test_get_article_by_id_returns_article(self, db_session, tmp_path):
+        """Fetching an article by its UUID id returns it."""
+        file_path = tmp_path / "my-article.md"
+        file_path.write_text("# My Article", encoding="utf-8")
+        article = Article(
+            slug="my-article",
+            title="My Article",
+            file_path=str(file_path),
+        )
+        db_session.add(article)
+        await db_session.commit()
+        await db_session.refresh(article)
+
+        service = WikiService()
+        result = await service.get_article(article.id, db_session)
+
+        assert result.id == article.id
+        assert result.slug == "my-article"
+
+    async def test_get_article_by_slug_still_works(self, db_session, tmp_path):
+        """Backward compat: slug lookup continues to work after the ID-first rewrite."""
+        file_path = tmp_path / "legacy.md"
+        file_path.write_text("# Legacy Bookmark", encoding="utf-8")
+        article = Article(
+            slug="legacy-bookmark",
+            title="Legacy Bookmark",
+            file_path=str(file_path),
+        )
+        db_session.add(article)
+        await db_session.commit()
+        await db_session.refresh(article)
+
+        service = WikiService()
+        result = await service.get_article("legacy-bookmark", db_session)
+
+        assert result.slug == "legacy-bookmark"
