@@ -34,6 +34,7 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.activity_log import append_log_entry
+from wikimind.services.wiki_index import regenerate_index_md
 
 log = structlog.get_logger()
 
@@ -283,6 +284,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         except Exception:
             log.warning("activity log write failed", op="compile", article_id=article.id)
 
+        try:
+            await regenerate_index_md(session)
+        except Exception:
+            log.warning("index.md regeneration failed", article_id=article.id)
+
         log.info(
             "Article saved",
             slug=slug,
@@ -348,6 +354,11 @@ Compile this into a wiki article following the JSON schema exactly."""
             )
         except Exception:
             log.warning("activity log write failed", op="compile", article_id=existing.id)
+
+        try:
+            await regenerate_index_md(session)
+        except Exception:
+            log.warning("index.md regeneration failed", article_id=existing.id)
 
         log.info(
             "Article replaced in place",
