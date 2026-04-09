@@ -61,7 +61,11 @@ async def get_conversation(
     return await service.get_conversation(conversation_id, session)
 
 
-@router.get("/conversations/{conversation_id}/export")
+@router.get(
+    "/conversations/{conversation_id}/export",
+    response_class=Response,
+    responses={200: {"content": {"text/markdown": {"schema": {"type": "string"}}}}},
+)
 async def export_conversation(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),

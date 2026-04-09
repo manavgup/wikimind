@@ -102,8 +102,14 @@ export function AskView() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download =
-        (conversationDetail.data?.conversation.title ?? "conversation") + ".md";
+      const rawTitle =
+        conversationDetail.data?.conversation.title ?? "conversation";
+      const safeName = rawTitle
+        .replace(/[^a-zA-Z0-9_ -]/g, "")
+        .replace(/ +/g, " ")
+        .trim()
+        || "conversation";
+      a.download = safeName + ".md";
       document.body.appendChild(a);
       a.click();
       a.remove();
