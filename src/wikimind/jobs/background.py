@@ -20,7 +20,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from wikimind.config import get_settings
-from wikimind.jobs.worker import compile_source, lint_wiki
+from wikimind.jobs.worker import compile_source, lint_wiki, sweep_wikilinks
 
 log = structlog.get_logger()
 
@@ -71,6 +71,22 @@ class BackgroundCompiler:
         log.info("lint scheduled", mode="arq" if self.is_prod else "in-process")
         return job_id
 
+    async def schedule_sweep(self) -> str:
+        """Schedule a wikilink resolution sweep job.
+
+        Returns:
+            A placeholder job ID string.
+        """
+        job_id = str(uuid.uuid4())
+
+        if self.is_prod:
+            await self._enqueue_arq("sweep_wikilinks")
+        else:
+            asyncio.create_task(self._run_sweep_in_process())  # noqa: RUF006
+
+        log.info("sweep scheduled", mode="arq" if self.is_prod else "in-process")
+        return job_id
+
     async def _enqueue_arq(self, func_name: str, *args: object) -> None:
         """Enqueue a job via ARQ Redis pool."""
         settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
@@ -95,6 +111,14 @@ class BackgroundCompiler:
             await lint_wiki({})
         except Exception:
             log.exception("in-process lint failed")
+
+    @staticmethod
+    async def _run_sweep_in_process() -> None:
+        """Run sweep_wikilinks directly in the current event loop."""
+        try:
+            await sweep_wikilinks({})
+        except Exception:
+            log.exception("in-process sweep failed")
 
 
 _background_compiler: BackgroundCompiler | None = None

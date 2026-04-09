@@ -36,6 +36,7 @@ from wikimind.config import get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.compiler import Compiler
 from wikimind.engine.llm_router import get_llm_router
+from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
     Article,
     CompletionRequest,
@@ -265,13 +266,14 @@ def get_redis_settings() -> RedisSettings:
 class WorkerSettings:
     """ARQ worker configuration for production (requires Redis)."""
 
-    functions: ClassVar[list] = [compile_source, lint_wiki]
+    functions: ClassVar[list] = [compile_source, lint_wiki, sweep_wikilinks]
     redis_settings = get_redis_settings()
     max_jobs = 4
     job_timeout = 300  # 5 min max per job
     keep_result = 3600  # Keep results for 1 hour
 
-    # Weekly linter
+    # Weekly linter + daily wikilink sweep
     cron_jobs: ClassVar[list] = [
-        cron(lint_wiki, weekday=0, hour=2, minute=0)  # Monday 2am
+        cron(lint_wiki, weekday=0, hour=2, minute=0),  # Monday 2am
+        cron(sweep_wikilinks, hour=3, minute=0),  # Daily 3am
     ]

@@ -55,6 +55,7 @@ class JobType(StrEnum):
 
     COMPILE_SOURCE = "compile_source"
     LINT_WIKI = "lint_wiki"
+    SWEEP_WIKILINKS = "sweep_wikilinks"
     REINDEX = "reindex"
     EMBED_CHUNKS = "embed_chunks"
     SYNC_PUSH = "sync_push"
