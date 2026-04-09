@@ -153,7 +153,7 @@ async def sweep_wikilinks(ctx) -> None:
 
             updated_count = 0
             for article in articles:
-                changed = await _sweep_single_article(article, session)
+                changed = await _sweep_single_article(article, session)  # type: ignore[arg-type]
                 if changed:
                     updated_count += 1
 
