@@ -19,6 +19,7 @@ from wikimind.config import get_settings
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import Source
+from wikimind.services.activity_log import append_log_entry
 
 log = structlog.get_logger()
 
@@ -50,6 +51,8 @@ class IngestService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+        self._log_ingest(source)
+
         if auto_compile:
             await self._schedule_compile(source)
         return source
@@ -76,6 +79,8 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
+        self._log_ingest(source)
+
         if auto_compile:
             await self._schedule_compile(source)
         return source
@@ -102,9 +107,23 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_text(content, title, session)
+        self._log_ingest(source)
+
         if auto_compile:
             await self._schedule_compile(source)
         return source
+
+    @staticmethod
+    def _log_ingest(source: Source) -> None:
+        """Write an ingest entry to the activity log, swallowing failures."""
+        try:
+            append_log_entry(
+                "ingest",
+                source.title or "untitled",
+                extra={"source_type": source.source_type, "source_url": source.source_url},
+            )
+        except Exception:
+            log.warning("activity log write failed", op="ingest", source_id=source.id)
 
     @staticmethod
     async def _schedule_compile(source: Source) -> None:

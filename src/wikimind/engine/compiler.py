@@ -33,6 +33,7 @@ from wikimind.models import (
     Source,
     TaskType,
 )
+from wikimind.services.activity_log import append_log_entry
 
 log = structlog.get_logger()
 
@@ -273,6 +274,15 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         await self._persist_resolved_backlinks(article.id, resolved, session)
 
+        try:
+            append_log_entry(
+                "compile",
+                article.title,
+                extra={"source_id": source.id, "article_slug": article.slug},
+            )
+        except Exception:
+            log.warning("activity log write failed", op="compile", article_id=article.id)
+
         log.info(
             "Article saved",
             slug=slug,
@@ -329,6 +339,15 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.refresh(existing)
 
         await self._persist_resolved_backlinks(existing.id, resolved, session)
+
+        try:
+            append_log_entry(
+                "compile",
+                existing.title,
+                extra={"source_id": source.id, "article_slug": existing.slug},
+            )
+        except Exception:
+            log.warning("activity log write failed", op="compile", article_id=existing.id)
 
         log.info(
             "Article replaced in place",
