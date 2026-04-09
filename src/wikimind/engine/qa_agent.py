@@ -27,6 +27,7 @@ from wikimind.models import (
     QueryResult,
     TaskType,
 )
+from wikimind.services.activity_log import append_log_entry
 
 log = structlog.get_logger()
 
@@ -194,14 +195,27 @@ class QAAgent:
 
         # File back if requested — stage the changes and let the single
         # commit below persist everything atomically (no double commit).
+        filed_article: Article | None = None
         if request.file_back and result.confidence in ("high", "medium"):
             await session.flush()  # make the new Query visible to file_back's SELECT
             article, _ = await self._file_back_thread(conversation.id, session)
             query_record.filed_back = True
             query_record.filed_article_id = article.id
+            filed_article = article
             session.add(query_record)
 
         await session.commit()
+
+        try:
+            append_log_entry("query", request.question[:120])
+            if filed_article is not None:
+                append_log_entry(
+                    "filed",
+                    filed_article.title,
+                    extra={"conversation_id": conversation.id},
+                )
+        except Exception:
+            log.warning("activity log write failed", op="query")
 
         await session.refresh(query_record)
         await session.refresh(conversation)
