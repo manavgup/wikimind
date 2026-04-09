@@ -36,9 +36,7 @@ async def _make_article(
 @pytest.mark.asyncio
 async def test_exact_match_resolves(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["Machine Learning"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning"], db_session)
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert resolved[0].candidate_text == "Machine Learning"
@@ -49,9 +47,7 @@ async def test_exact_match_resolves(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_case_insensitive_exact_match_resolves(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["machine learning"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["machine learning"], db_session)
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert unresolved == []
@@ -61,9 +57,7 @@ async def test_case_insensitive_exact_match_resolves(db_session: AsyncSession) -
 async def test_normalized_match_resolves(db_session: AsyncSession) -> None:
     """Stage 2: candidate differs from title by punctuation only."""
     existing = await _make_article(db_session, "Karpathy's Wiki Pattern")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["Karpathys Wiki Pattern"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["Karpathys Wiki Pattern"], db_session)
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert unresolved == []
@@ -72,9 +66,7 @@ async def test_normalized_match_resolves(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_underscore_to_space_resolves_via_normalizer(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning Ops")
-    resolved, _unresolved = await resolve_backlink_candidates(
-        ["machine_learning_ops"], db_session
-    )
+    resolved, _unresolved = await resolve_backlink_candidates(["machine_learning_ops"], db_session)
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
 
@@ -82,20 +74,16 @@ async def test_underscore_to_space_resolves_via_normalizer(db_session: AsyncSess
 @pytest.mark.asyncio
 async def test_no_match_stays_unresolved(db_session: AsyncSession) -> None:
     await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["Quantum Computing"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["Quantum Computing"], db_session)
     assert resolved == []
     assert unresolved == ["Quantum Computing"]
 
 
 @pytest.mark.asyncio
 async def test_similar_but_distinct_does_not_match(db_session: AsyncSession) -> None:
-    """"Machine Learning Ops" must NOT match "Machine Learning" — no fuzzy."""
+    """Reject 'Machine Learning Ops' as a match for 'Machine Learning' — no fuzzy."""
     await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["Machine Learning Ops"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning Ops"], db_session)
     assert resolved == []
     assert unresolved == ["Machine Learning Ops"]
 
@@ -104,9 +92,7 @@ async def test_similar_but_distinct_does_not_match(db_session: AsyncSession) -> 
 async def test_mixed_resolved_and_unresolved(db_session: AsyncSession) -> None:
     await _make_article(db_session, "React")
     await _make_article(db_session, "TypeScript")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["React", "Redux", "TypeScript", "Zustand"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["React", "Redux", "TypeScript", "Zustand"], db_session)
     assert len(resolved) == 2
     assert sorted(unresolved) == ["Redux", "Zustand"]
     resolved_titles = sorted(r.target_title for r in resolved)
@@ -117,9 +103,7 @@ async def test_mixed_resolved_and_unresolved(db_session: AsyncSession) -> None:
 async def test_duplicate_candidates_deduped_in_resolved(db_session: AsyncSession) -> None:
     """Two candidates resolving to the same target produce ONE ResolvedBacklink."""
     await _make_article(db_session, "React")
-    resolved, unresolved = await resolve_backlink_candidates(
-        ["React", "react"], db_session
-    )
+    resolved, unresolved = await resolve_backlink_candidates(["React", "react"], db_session)
     assert len(resolved) == 1
     assert unresolved == []
 
