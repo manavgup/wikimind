@@ -16,26 +16,28 @@ const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
 // Match a YAML frontmatter block at the very start of the document.
 const FRONTMATTER_REGEX = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Pre-process the markdown to:
 //   1. Strip the YAML frontmatter block emitted by the compiler (it leaks into
 //      the visible article body otherwise — react-markdown doesn't parse YAML).
-//   2. Convert [[wikilinks]] into a token react-markdown passes through.
-//      We use an HTML <a> tag with a data-wikilink attribute so the custom
-//      anchor renderer below can intercept it and emit a React Router <Link>.
+//   2. Convert any remaining [[wikilinks]] (which are by definition unresolved —
+//      the compiler rewrites resolved ones into standard [text](/wiki/<id>)
+//      markdown links at save time) into a dimmed <span> so the reader can see
+//      the reference exists but knows there's no article to click through to.
 function preprocessMarkdown(content: string): string {
   return content
     .replace(FRONTMATTER_REGEX, "")
     .replace(WIKILINK_REGEX, (_, target: string) => {
-      const safe = target.trim();
-      return `<a data-wikilink="${slugify(safe)}" href="#">${safe}</a>`;
+      const safe = escapeHtml(target.trim());
+      return `<span class="wikilink-unresolved" title="Article not yet in wiki">${safe}</span>`;
     });
 }
 
@@ -74,14 +76,11 @@ export function ArticleReader({ article }: ArticleReaderProps) {
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw]}
           components={{
-            a: ({ node: _node, href, children, ...props }) => {
-              const wikilink = (props as { "data-wikilink"?: string })[
-                "data-wikilink"
-              ];
-              if (wikilink) {
+            a: ({ node: _node, href, children }) => {
+              if (href && href.startsWith("/wiki/")) {
                 return (
                   <Link
-                    to={`/wiki/${encodeURIComponent(wikilink)}`}
+                    to={href}
                     className="text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-900"
                   >
                     {children}

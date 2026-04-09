@@ -19,3 +19,10 @@ body {
     Arial,
     sans-serif;
 }
+
+.wikilink-unresolved {
+  color: rgb(148 163 184); /* slate-400 */
+  text-decoration: underline dotted rgb(148 163 184);
+  text-underline-offset: 2px;
+  cursor: help;
+}

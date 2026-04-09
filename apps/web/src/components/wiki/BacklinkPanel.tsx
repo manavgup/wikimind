@@ -5,14 +5,6 @@ interface BacklinkPanelProps {
   article: ArticleResponse | null;
 }
 
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
-}
-
 export function BacklinkPanel({ article }: BacklinkPanelProps) {
   if (!article) {
     return (
@@ -70,7 +62,7 @@ function Section({ title, links, emptyText }: SectionProps) {
           {links.map((link) => (
             <li key={link}>
               <Link
-                to={`/wiki/${encodeURIComponent(slugify(link))}`}
+                to={`/wiki/${encodeURIComponent(link)}`}
                 className="block truncate rounded px-2 py-1 text-sm text-brand-700 hover:bg-brand-50"
               >
                 {link}
