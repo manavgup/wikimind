@@ -38,10 +38,6 @@ def append_log_entry(op: str, title: str, extra: dict | None = None) -> None:
     wiki_dir.mkdir(parents=True, exist_ok=True)
     log_path = wiki_dir / "log.md"
 
-    # Create the file with a header if it doesn't exist yet.
-    if not log_path.exists():
-        log_path.write_text(_LOG_HEADER, encoding="utf-8")
-
     datestamp = utcnow_naive().strftime("%Y-%m-%d")
     lines = [f"## [{datestamp}] {op} | {title}\n"]
     if extra:
@@ -49,5 +45,11 @@ def append_log_entry(op: str, title: str, extra: dict | None = None) -> None:
             lines.append(f"- {key}: {value}\n")
     lines.append("\n")
 
+    # Open in append mode and write the header atomically if the file is
+    # new.  Using fh.tell() == 0 inside the same open avoids the TOCTOU
+    # race between exists() and write_text() that could truncate a
+    # concurrent writer's header.
     with log_path.open("a", encoding="utf-8") as fh:
+        if fh.tell() == 0:
+            fh.write(_LOG_HEADER)
         fh.writelines(lines)

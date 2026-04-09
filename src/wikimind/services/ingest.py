@@ -51,14 +51,7 @@ class IngestService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        try:
-            append_log_entry(
-                "ingest",
-                source.title or "untitled",
-                extra={"source_type": source.source_type, "source_url": source.source_url},
-            )
-        except Exception:
-            log.warning("activity log write failed", op="ingest", source_id=source.id)
+        self._log_ingest(source)
 
         if auto_compile:
             await self._schedule_compile(source)
@@ -86,15 +79,7 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
-
-        try:
-            append_log_entry(
-                "ingest",
-                source.title or "untitled",
-                extra={"source_type": source.source_type, "source_url": source.source_url},
-            )
-        except Exception:
-            log.warning("activity log write failed", op="ingest", source_id=source.id)
+        self._log_ingest(source)
 
         if auto_compile:
             await self._schedule_compile(source)
@@ -122,7 +107,15 @@ class IngestService:
             The persisted Source record.
         """
         source = await self._adapter.ingest_text(content, title, session)
+        self._log_ingest(source)
 
+        if auto_compile:
+            await self._schedule_compile(source)
+        return source
+
+    @staticmethod
+    def _log_ingest(source: Source) -> None:
+        """Write an ingest entry to the activity log, swallowing failures."""
         try:
             append_log_entry(
                 "ingest",
@@ -131,10 +124,6 @@ class IngestService:
             )
         except Exception:
             log.warning("activity log write failed", op="ingest", source_id=source.id)
-
-        if auto_compile:
-            await self._schedule_compile(source)
-        return source
 
     @staticmethod
     async def _schedule_compile(source: Source) -> None:
