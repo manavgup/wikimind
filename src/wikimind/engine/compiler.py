@@ -6,6 +6,7 @@ This is the core value-creation step.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import structlog
@@ -260,8 +261,8 @@ Compile this into a wiki article following the JSON schema exactly."""
             file_path=str(file_path),
             confidence=self._overall_confidence(result),
             summary=result.summary,
-            source_ids=f'["{source.id}"]',
-            concept_ids=f'["{chr(34).join(result.concepts)}"]',
+            source_ids=json.dumps([source.id]),
+            concept_ids=json.dumps(result.concepts),
             provider=provider,
         )
         session.add(article)
@@ -328,7 +329,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing.summary = result.summary
         existing.confidence = self._overall_confidence(result)
         existing.file_path = str(new_path)
-        existing.concept_ids = f'["{chr(34).join(result.concepts)}"]'
+        existing.concept_ids = json.dumps(result.concepts)
         existing.updated_at = utcnow_naive()
         session.add(existing)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -247,6 +248,41 @@ async def test_save_article(db_session, tmp_path) -> None:
     assert article.slug
     assert Path(article.file_path).exists()
     assert src.status == IngestStatus.COMPILED
+
+
+async def test_save_article_stores_valid_json_in_concept_ids(db_session, tmp_path) -> None:
+    """concept_ids and source_ids must be valid JSON arrays (issue #112)."""
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    concepts = ["data deduplication", "data management", "storage optimization"]
+    result = _result(concepts=concepts)
+    article = await compiler.save_article(result, source, db_session)
+
+    parsed_concepts = json.loads(article.concept_ids)
+    assert parsed_concepts == concepts
+
+    parsed_sources = json.loads(article.source_ids)
+    assert parsed_sources == [source.id]
+
+
+async def test_replace_article_stores_valid_json_in_concept_ids(db_session, tmp_path) -> None:
+    """Replacing an article in place also produces valid JSON (issue #112)."""
+    compiler = _compiler_for(tmp_path)
+    compiler._last_provider_used = Provider.ANTHROPIC
+    source = await _make_source(db_session)
+
+    # First save
+    result1 = _result(concepts=["alpha"])
+    article = await compiler.save_article(result1, source, db_session)
+
+    # Replace in place — same source & provider
+    concepts2 = ["beta", "gamma", "delta"]
+    result2 = _result(concepts=concepts2)
+    replaced = await compiler.save_article(result2, source, db_session)
+
+    assert replaced.id == article.id
+    parsed = json.loads(replaced.concept_ids)
+    assert parsed == concepts2
 
 
 # ---------------------------------------------------------------------------
