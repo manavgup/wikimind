@@ -28,9 +28,6 @@ export function GraphDetailPanel({ node, edges, allNodes, onClose }: GraphDetail
   }
   const neighbors = allNodes.filter((n) => connectedIds.has(n.id));
 
-  // Use the node label as slug (lowercase, spaces to hyphens)
-  const slug = node.label.toLowerCase().replace(/\s+/g, "-");
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
@@ -62,7 +59,7 @@ export function GraphDetailPanel({ node, edges, allNodes, onClose }: GraphDetail
 
       <button
         type="button"
-        onClick={() => navigate(`/wiki/${encodeURIComponent(slug)}`)}
+        onClick={() => navigate(`/wiki/${encodeURIComponent(node.id)}`)}
         className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 transition"
       >
         Open article
@@ -76,7 +73,7 @@ export function GraphDetailPanel({ node, edges, allNodes, onClose }: GraphDetail
               <li key={n.id}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/wiki/${encodeURIComponent(n.label.toLowerCase().replace(/\s+/g, "-"))}`)}
+                  onClick={() => navigate(`/wiki/${encodeURIComponent(n.id)}`)}
                   className="w-full truncate rounded px-2 py-1 text-left text-xs text-brand-600 hover:bg-slate-50"
                 >
                   {n.label}
