@@ -21,6 +21,7 @@ considered, and the consequences.
 | [011](adr-011-conversational-qa-thread-model.md) | Conversational Q&A thread model | Accepted |
 | [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Proposed |
 | [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph visualization | Proposed |
+| [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
 
 ## ADR Format
 
