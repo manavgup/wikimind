@@ -38,14 +38,12 @@ log = structlog.get_logger()
 
 
 # ---------------------------------------------------------------------------
-# Optional Docling integration (issue #57)
+# Docling integration (issue #57)
 #
-# Docling is a structured PDF parser that preserves heading hierarchy, tables,
-# multi-column layouts, and OCR'd text. It is opt-in via the ``parse-advanced``
-# extras group because it pulls in ~500MB of ML models on first use. When
-# docling is not installed the PDF adapter falls back to ``fitz`` plain-text
-# extraction (the previous behaviour), so the test suite and lightweight
-# installs continue to work without modification.
+# Docling is a structured document parser that preserves heading hierarchy,
+# tables, multi-column layouts, and OCR'd text. It is a core dependency
+# (installed by default). The PDF adapter falls back to ``fitz`` plain-text
+# extraction only if the import fails (e.g. in a stripped-down CI image).
 # ---------------------------------------------------------------------------
 
 try:
@@ -76,7 +74,7 @@ def _get_docling_converter() -> Any:
     global _docling_converter
     if _docling_converter is None:
         if _DocumentConverter is None:  # pragma: no cover - guarded by caller
-            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[parse-advanced]'")
+            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[dev]'")
         _docling_converter = _DocumentConverter()
     return _docling_converter
 
@@ -769,12 +767,83 @@ class IngestService:
         self.youtube_adapter = YouTubeAdapter()
 
     async def ingest_url(self, url: str, session: AsyncSession) -> Source:
-        """Ingest a URL, routing to the appropriate adapter."""
+        """Ingest a URL, routing to the appropriate adapter.
+
+        Routing order:
+        1. YouTube URLs -> YouTubeAdapter
+        2. PDF URLs (path ends with ``.pdf`` or Content-Type is
+           ``application/pdf``) -> download bytes, delegate to PDFAdapter
+        3. Everything else -> URLAdapter (trafilatura HTML extraction)
+        """
         if "youtube.com" in url or "youtu.be" in url:
             source, _doc = await self.youtube_adapter.ingest(url, session)
-        else:
-            source, _doc = await self.url_adapter.ingest(url, session)
+            return source
 
+        if self._looks_like_pdf_url(url):
+            return await self._ingest_pdf_url(url, session)
+
+        return await self._ingest_html_url_with_pdf_fallback(url, session)
+
+    # ------------------------------------------------------------------
+    # Private helpers for PDF-URL routing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _looks_like_pdf_url(url: str) -> bool:
+        """Return ``True`` if the URL path ends with ``.pdf`` (case-insensitive).
+
+        Query parameters and fragments are stripped before checking.
+        """
+        path = urlparse(url).path
+        return path.lower().endswith(".pdf")
+
+    async def _ingest_pdf_url(self, url: str, session: AsyncSession) -> Source:
+        """Download a PDF from *url* and delegate to :class:`PDFAdapter`."""
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            response = await client.get(
+                url,
+                headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"},
+            )
+            response.raise_for_status()
+
+        filename = Path(urlparse(url).path).name or "download.pdf"
+        source, _doc = await self.pdf_adapter.ingest(response.content, filename, session)
+        source.source_url = url
+        session.add(source)
+        await session.commit()
+        return source
+
+    async def _ingest_html_url_with_pdf_fallback(self, url: str, session: AsyncSession) -> Source:
+        """Fetch a URL; if the response is a PDF, fall back to the PDF adapter.
+
+        Some PDF URLs lack a ``.pdf`` extension (e.g. behind a CDN or
+        download gateway). We detect ``application/pdf`` in the
+        ``Content-Type`` header and re-route accordingly.
+        """
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            response = await client.get(
+                url,
+                headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"},
+            )
+            response.raise_for_status()
+
+        content_type = response.headers.get("content-type", "")
+        if "application/pdf" in content_type:
+            filename = Path(urlparse(url).path).name or "download.pdf"
+            if not filename.lower().endswith(".pdf"):
+                filename += ".pdf"
+            source, _doc = await self.pdf_adapter.ingest(response.content, filename, session)
+            source.source_url = url
+            session.add(source)
+            await session.commit()
+            return source
+
+        # Normal HTML path — delegate to the URL adapter which does its
+        # own fetch. We cannot easily reuse the response we already have
+        # because URLAdapter.ingest() encapsulates the full fetch+extract
+        # pipeline. The overhead of a second fetch is acceptable for the
+        # non-PDF case.
+        source, _doc = await self.url_adapter.ingest(url, session)
         return source
 
     async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:

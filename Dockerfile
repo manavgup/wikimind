@@ -16,7 +16,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # System libraries required by pymupdf, sqlite, healthchecks, and keyring.
+# The upgrade step patches OS-level CVEs (e.g. openssl) so the Trivy scan
+# passes even when the base image ships with a known vulnerability.
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
