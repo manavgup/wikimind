@@ -48,6 +48,7 @@ from wikimind.models import (
     Source,
     TaskType,
 )
+from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 
 log = structlog.get_logger()
 
@@ -132,6 +133,21 @@ async def compile_source(ctx, source_id: str):
             await emit_compilation_complete(article.slug, article.title)
 
             log.info("compile_source complete", source_id=source_id, slug=article.slug)
+
+            # Embed article chunks for semantic search (non-blocking)
+            if _SEARCH_AVAILABLE:
+                try:
+                    embedding_service = get_embedding_service()
+                    if embedding_service is not None:
+                        content = Path(article.file_path).read_text(encoding="utf-8")
+                        embedding_service.embed_article(article.id, article.title, content)
+                        log.info("Article embedded", article_id=article.id)
+                except Exception as embed_err:
+                    log.warning(
+                        "Embedding failed (non-fatal)",
+                        article_id=article.id,
+                        error=str(embed_err),
+                    )
 
             # Sweep existing articles — a newly compiled article may resolve
             # brackets that were previously unresolvable. Fast (no LLM),
