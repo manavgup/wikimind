@@ -62,22 +62,15 @@ export function TurnCard({ query }: Props) {
             Sources:
           </span>
           {sources.map((title, i) => {
-            const slug = slugByTitle.get(title);
-            return slug ? (
+            const slug = slugByTitle.get(title) || slugifyTitle(title);
+            return (
               <Link
                 key={`${title}-${i}`}
-                to={`/wiki/${slug}`}
+                to={`/wiki/${encodeURIComponent(slug)}`}
                 className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 hover:underline"
               >
                 {title}
               </Link>
-            ) : (
-              <span
-                key={`${title}-${i}`}
-                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-              >
-                {title}
-              </span>
             );
           })}
         </footer>
@@ -89,22 +82,15 @@ export function TurnCard({ query }: Props) {
             Related:
           </span>
           {relatedArticles.map((title, i) => {
-            const slug = slugByTitle.get(title);
-            return slug ? (
+            const slug = slugByTitle.get(title) || slugifyTitle(title);
+            return (
               <Link
                 key={`related-${title}-${i}`}
-                to={`/wiki/${slug}`}
+                to={`/wiki/${encodeURIComponent(slug)}`}
                 className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 hover:underline"
               >
                 {title}
               </Link>
-            ) : (
-              <span
-                key={`related-${title}-${i}`}
-                className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-              >
-                {title}
-              </span>
             );
           })}
         </footer>
@@ -127,6 +113,18 @@ function buildSlugMap(citations?: CitationResponse[]): Map<string, string> {
     map.set(c.article.title, c.article.slug);
   }
   return map;
+}
+
+/**
+ * Derive a slug from an article title — matches the backend's slugify logic.
+ * Used as a fallback when citations don't resolve (e.g. title mismatch).
+ */
+function slugifyTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function parseSources(raw: string | null): string[] {

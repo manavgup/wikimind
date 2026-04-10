@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import {
   askQuestion,
   askQuestionStream,
@@ -25,8 +25,8 @@ export function AskView() {
 
   // Streaming state
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [streamingAnswer, setStreamingAnswer] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [hasReceivedChunk, setHasReceivedChunk] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Load the current conversation's full thread (only if we have an id)
@@ -93,19 +93,19 @@ export function AskView() {
 
     setPendingError(null);
     setPendingQuestion(question);
-    setStreamingAnswer(null);
     setIsStreaming(true);
+    setHasReceivedChunk(false);
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      let accumulated = "";
       for await (const event of askQuestionStream(req, controller.signal)) {
         switch (event.type) {
           case "chunk":
-            accumulated += event.text;
-            setStreamingAnswer(accumulated);
+            // The QA agent returns structured JSON, so we don't render
+            // partial tokens — just track that the stream is active.
+            if (!hasReceivedChunk) setHasReceivedChunk(true);
             break;
           case "done": {
             const response = event.response;
@@ -121,25 +121,25 @@ export function AskView() {
               }),
             );
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            // Also refetch the conversation detail to get full citations
+            queryClient.invalidateQueries({ queryKey: ["conversation", newId] });
             setPendingQuestion(null);
-            setStreamingAnswer(null);
             break;
           }
           case "error":
             setPendingError(event.message);
             setPendingQuestion(null);
-            setStreamingAnswer(null);
             break;
         }
       }
     } catch (err) {
       // If the stream fails to connect, fall back to non-streaming endpoint
       if (controller.signal.aborted) return;
-      setStreamingAnswer(null);
       setPendingError(null);
       askFallback.mutate(req);
     } finally {
       setIsStreaming(false);
+      setHasReceivedChunk(false);
       abortRef.current = null;
     }
   }, [conversationId, navigate, queryClient, askFallback]);
@@ -197,7 +197,7 @@ export function AskView() {
             detail={conversationDetail.data}
             isLoading={conversationDetail.isLoading}
             pendingQuestion={pendingQuestion}
-            streamingAnswer={streamingAnswer}
+            isStreaming={hasReceivedChunk}
             onSave={handleSave}
             isSaving={fileBack.isPending}
             onExport={handleExport}
