@@ -38,14 +38,12 @@ log = structlog.get_logger()
 
 
 # ---------------------------------------------------------------------------
-# Optional Docling integration (issue #57)
+# Docling integration (issue #57)
 #
-# Docling is a structured PDF parser that preserves heading hierarchy, tables,
-# multi-column layouts, and OCR'd text. It is opt-in via the ``parse-advanced``
-# extras group because it pulls in ~500MB of ML models on first use. When
-# docling is not installed the PDF adapter falls back to ``fitz`` plain-text
-# extraction (the previous behaviour), so the test suite and lightweight
-# installs continue to work without modification.
+# Docling is a structured document parser that preserves heading hierarchy,
+# tables, multi-column layouts, and OCR'd text. It is a core dependency
+# (installed by default). The PDF adapter falls back to ``fitz`` plain-text
+# extraction only if the import fails (e.g. in a stripped-down CI image).
 # ---------------------------------------------------------------------------
 
 try:
@@ -76,7 +74,7 @@ def _get_docling_converter() -> Any:
     global _docling_converter
     if _docling_converter is None:
         if _DocumentConverter is None:  # pragma: no cover - guarded by caller
-            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[parse-advanced]'")
+            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[dev]'")
         _docling_converter = _DocumentConverter()
     return _docling_converter
 
