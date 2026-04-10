@@ -6,6 +6,7 @@ interface Props {
   detail: ConversationDetail | undefined;
   isLoading: boolean;
   pendingQuestion: string | null;
+  isStreaming: boolean;
   onSave: () => void;
   isSaving: boolean;
   onExport: () => void;
@@ -16,6 +17,7 @@ export function ConversationThread({
   detail,
   isLoading,
   pendingQuestion,
+  isStreaming,
   onSave,
   isSaving,
   onExport,
@@ -25,7 +27,7 @@ export function ConversationThread({
   if (!detail && !pendingQuestion) {
     return (
       <div className="text-slate-400">
-        {isLoading ? "Loading…" : "Ask a question to start a new conversation."}
+        {isLoading ? "Loading..." : "Ask a question to start a new conversation."}
       </div>
     );
   }
@@ -42,6 +44,7 @@ export function ConversationThread({
         <PendingTurnCard
           turnNumber={queries.length + 1}
           question={pendingQuestion}
+          isStreaming={isStreaming}
         />
       )}
       {queries.length > 0 && !pendingQuestion && (
@@ -57,7 +60,7 @@ export function ConversationThread({
             disabled={isExporting}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {isExporting ? "Exporting…" : "Export markdown"}
+            {isExporting ? "Exporting..." : "Export markdown"}
           </button>
         </div>
       )}
@@ -67,16 +70,19 @@ export function ConversationThread({
 
 /**
  * Visual placeholder shown while an ask mutation is in flight.
- * Renders the user's question immediately so they get feedback that
- * their submission landed, with a pulsing "Thinking…" affordance
- * where the real answer will appear.
+ *
+ * The QA agent returns structured JSON, so streaming raw tokens would
+ * show garbage. Instead we show a "Thinking..." indicator until the
+ * `done` SSE event arrives with the fully parsed answer.
  */
 function PendingTurnCard({
   turnNumber,
   question,
+  isStreaming,
 }: {
   turnNumber: number;
   question: string;
+  isStreaming: boolean;
 }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
@@ -93,7 +99,7 @@ function PendingTurnCard({
           className="h-2 w-2 animate-pulse rounded-full bg-blue-500"
           aria-hidden
         />
-        <span>Thinking…</span>
+        <span>{isStreaming ? "Generating answer..." : "Thinking..."}</span>
       </div>
     </article>
   );

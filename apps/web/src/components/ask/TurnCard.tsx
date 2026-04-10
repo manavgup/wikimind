@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { QueryRecord } from "../../api/query";
+import type { CitationResponse, QueryRecord } from "../../api/query";
 
 const COLLAPSE_THRESHOLD_CHARS = 800;
 
@@ -20,10 +21,17 @@ interface Props {
  */
 export function TurnCard({ query }: Props) {
   const sources = useMemo(() => parseSources(query.source_article_ids), [query.source_article_ids]);
+  const slugByTitle = useMemo(() => buildSlugMap(query.citations), [query.citations]);
+  const relatedArticles = useMemo(
+    () => parseSources(query.related_article_ids),
+    [query.related_article_ids],
+  );
   const isLong = query.answer.length > COLLAPSE_THRESHOLD_CHARS;
   const [expanded, setExpanded] = useState(!isLong);
 
-  const displayed = expanded ? query.answer : truncateOnParagraphBoundary(query.answer, COLLAPSE_THRESHOLD_CHARS);
+  const displayed = expanded
+    ? query.answer
+    : truncateOnParagraphBoundary(query.answer, COLLAPSE_THRESHOLD_CHARS);
 
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -49,23 +57,42 @@ export function TurnCard({ query }: Props) {
       )}
 
       {sources.length > 0 && (
-        // Source pills are rendered as non-clickable <span>s until wikilink
-        // resolution lands (tracked by manavgup/wikimind#95). Once sources
-        // can be reliably resolved to a target article, these can be
-        // upgraded to clickable links in a follow-up.
         <footer className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
             Sources:
           </span>
-          {sources.map((s, i) => (
-            <span
-              key={`${s}-${i}`}
-              title="Source article — not yet clickable (tracked by #95)"
-              className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-            >
-              {s}
-            </span>
-          ))}
+          {sources.map((title, i) => {
+            const slug = slugByTitle.get(title) || slugifyTitle(title);
+            return (
+              <Link
+                key={`${title}-${i}`}
+                to={`/wiki/${encodeURIComponent(slug)}`}
+                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 hover:underline"
+              >
+                {title}
+              </Link>
+            );
+          })}
+        </footer>
+      )}
+
+      {relatedArticles.length > 0 && (
+        <footer className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            Related:
+          </span>
+          {relatedArticles.map((title, i) => {
+            const slug = slugByTitle.get(title) || slugifyTitle(title);
+            return (
+              <Link
+                key={`related-${title}-${i}`}
+                to={`/wiki/${encodeURIComponent(slug)}`}
+                className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 hover:underline"
+              >
+                {title}
+              </Link>
+            );
+          })}
         </footer>
       )}
 
@@ -76,6 +103,28 @@ export function TurnCard({ query }: Props) {
       )}
     </article>
   );
+}
+
+/** Build a title -> slug lookup from the citations array. */
+function buildSlugMap(citations?: CitationResponse[]): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!citations) return map;
+  for (const c of citations) {
+    map.set(c.article.title, c.article.slug);
+  }
+  return map;
+}
+
+/**
+ * Derive a slug from an article title — matches the backend's slugify logic.
+ * Used as a fallback when citations don't resolve (e.g. title mismatch).
+ */
+function slugifyTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function parseSources(raw: string | null): string[] {
