@@ -131,23 +131,8 @@ export function GraphView() {
     return { nodes: filteredNodes, edges: filteredEdges };
   }, [graphQuery.data, filters]);
 
-  if (graphQuery.isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
-        <Spinner size={16} /> Loading graph...
-      </div>
-    );
-  }
-
-  if (graphQuery.isError) {
-    return (
-      <div className="m-8 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-        Failed to load graph data.
-      </div>
-    );
-  }
-
   const totalNodeCount = graphQuery.data?.nodes.length ?? 0;
+  const isReady = !graphQuery.isLoading && !graphQuery.isError && size.width > 0 && size.height > 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -156,9 +141,17 @@ export function GraphView() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Canvas area */}
+        {/* Canvas area — always mounted so the ref is attached for ResizeObserver */}
         <div ref={containerRef} className="flex-1 bg-slate-50">
-          {size.width > 0 && size.height > 0 && (
+          {graphQuery.isLoading ? (
+            <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
+              <Spinner size={16} /> Loading graph...
+            </div>
+          ) : graphQuery.isError ? (
+            <div className="m-8 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              Failed to load graph data.
+            </div>
+          ) : isReady ? (
             <GraphCanvas
               nodes={filteredData.nodes}
               edges={filteredData.edges}
@@ -166,7 +159,7 @@ export function GraphView() {
               height={size.height}
               onNodeClick={handleNodeClick}
             />
-          )}
+          ) : null}
         </div>
 
         {/* Right sidebar */}
