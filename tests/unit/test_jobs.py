@@ -216,7 +216,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
     captured_status: list[IngestStatus] = []
     captured_error: list[str | None] = []
 
-    async def _spy_compile(doc, session):
+    async def _spy_compile(doc, session, **kwargs):
         await db_session.refresh(src)
         captured_status.append(src.status)
         captured_error.append(src.error_message)

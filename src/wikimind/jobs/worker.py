@@ -109,8 +109,11 @@ async def compile_source(ctx, source_id: str):
 
             await emit_job_progress(job.id, 50, "Compiling with LLM...")
 
+            async def _on_chunk_progress(pct: int, message: str) -> None:
+                await emit_job_progress(job.id, pct, message)
+
             compiler = Compiler()
-            result = await compiler.compile(doc, session)  # type: ignore[arg-type]
+            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)  # type: ignore[arg-type]
 
             if not result:
                 raise ValueError("Compiler returned no result")
