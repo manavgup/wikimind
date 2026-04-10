@@ -8,12 +8,15 @@ from.
 """
 
 import json
+import re
 
 import structlog
 from fastapi import HTTPException
+from fastapi.responses import Response
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
@@ -318,6 +321,67 @@ class QueryService:
             "article": {"id": article.id, "slug": article.slug, "title": article.title},
             "was_update": was_update,
         }
+
+    async def export_conversation(
+        self,
+        conversation_id: str,
+        session: AsyncSession,
+    ) -> Response:
+        """Export conversation as markdown. Read-only, no DB writes.
+
+        Fetches the conversation and its queries, serializes them using the
+        same serializer as file-back, and returns the markdown as a
+        downloadable response.
+
+        Args:
+            conversation_id: The conversation UUID to export.
+            session: Async database session.
+
+        Returns:
+            :class:`Response` with ``text/markdown`` content and a
+            ``Content-Disposition`` header for download.
+
+        Raises:
+            HTTPException: 404 if the conversation is not found.
+        """
+        conversation = await session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        result = await session.execute(
+            select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+        )
+        queries = list(result.scalars().all())
+
+        markdown = serialize_conversation_to_markdown(conversation, queries)
+
+        filename = _sanitize_filename(conversation.title) + ".md"
+        return Response(
+            content=markdown,
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+
+_FILENAME_UNSAFE_RE = re.compile(r"[^a-zA-Z0-9_\- ]")
+
+
+def _sanitize_filename(title: str) -> str:
+    """Sanitize a conversation title for use as a download filename.
+
+    Replaces non-alphanumeric characters (except hyphens, underscores, and
+    spaces) with hyphens, collapses runs of hyphens, and strips leading/
+    trailing hyphens.
+
+    Args:
+        title: Raw conversation title.
+
+    Returns:
+        A filesystem-safe filename (without extension).
+    """
+    sanitized = _FILENAME_UNSAFE_RE.sub("-", title)
+    sanitized = re.sub(r"-{2,}", "-", sanitized)
+    return sanitized.strip("- ") or "conversation"
 
 
 _query_service: QueryService | None = None

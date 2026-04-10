@@ -467,6 +467,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/{conversation_id}/export:
+    get:
+      tags:
+      - Query
+      summary: Export Conversation
+      description: Export a conversation as standalone markdown. Pure read, no DB
+        writes.
+      operationId: export_conversation_query_conversations__conversation_id__export_get
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/markdown:
+              schema:
+                type: string
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query/conversations/{conversation_id}/file-back:
     post:
       tags:

@@ -6,6 +6,7 @@ import {
   getConversation,
   listConversations,
   fileBackConversation,
+  exportConversation,
   type AskRequest,
   type ConversationDetail,
 } from "../../api/query";
@@ -91,6 +92,39 @@ export function AskView() {
     if (conversationId) fileBack.mutate(conversationId);
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+  const handleExport = async () => {
+    if (!conversationId) return;
+    setIsExporting(true);
+    try {
+      const markdown = await exportConversation(conversationId);
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const rawTitle =
+        conversationDetail.data?.conversation.title ?? "conversation";
+      const safeName = rawTitle
+        .replace(/[^a-zA-Z0-9_ -]/g, "")
+        .replace(/ +/g, " ")
+        .trim()
+        || "conversation";
+      a.download = safeName + ".md";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      pushToast({
+        kind: "error",
+        title: "Failed to export conversation",
+        detail: "Could not download the markdown file.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Optimistic UI: while the ask mutation is in flight, show the user's
   // question in a "pending" turn card so they get immediate visual feedback
   // instead of staring at a frozen UI for 5-30 seconds.
@@ -112,6 +146,8 @@ export function AskView() {
             pendingQuestion={pendingQuestion}
             onSave={handleSave}
             isSaving={fileBack.isPending}
+            onExport={handleExport}
+            isExporting={isExporting}
           />
           {pendingError && (
             <div className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">

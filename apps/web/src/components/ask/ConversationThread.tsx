@@ -8,6 +8,8 @@ interface Props {
   pendingQuestion: string | null;
   onSave: () => void;
   isSaving: boolean;
+  onExport: () => void;
+  isExporting: boolean;
 }
 
 export function ConversationThread({
@@ -16,6 +18,8 @@ export function ConversationThread({
   pendingQuestion,
   onSave,
   isSaving,
+  onExport,
+  isExporting,
 }: Props) {
   // Empty state: no existing conversation AND nothing in flight
   if (!detail && !pendingQuestion) {
@@ -41,12 +45,20 @@ export function ConversationThread({
         />
       )}
       {queries.length > 0 && !pendingQuestion && (
-        <div className="pt-4">
+        <div className="flex gap-2 pt-4">
           <SaveThreadButton
             isFiledBack={isFiledBack}
             isSaving={isSaving}
             onClick={onSave}
           />
+          <button
+            type="button"
+            onClick={onExport}
+            disabled={isExporting}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {isExporting ? "Exporting…" : "Export markdown"}
+          </button>
         </div>
       )}
     </div>
