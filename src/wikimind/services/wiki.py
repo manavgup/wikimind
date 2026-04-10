@@ -4,6 +4,11 @@ Centralizes all article retrieval, full-text search, concept taxonomy,
 and health report generation so route handlers stay thin. Article and
 search responses are enriched with source provenance so callers can
 trace each compiled article back to its raw ingested sources.
+
+When the ``[search]`` optional extras are installed (chromadb,
+sentence-transformers), full-text search is enhanced with semantic
+vector similarity and results are merged via configurable hybrid
+scoring. Otherwise the service falls back to keyword-only search.
 """
 
 import json
@@ -29,6 +34,7 @@ from wikimind.models import (
     Source,
     SourceResponse,
 )
+from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 
 log = structlog.get_logger()
 
@@ -154,6 +160,46 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         created_at=article.created_at,
         updated_at=article.updated_at,
     )
+
+
+KEYWORD_WEIGHT = 0.4
+SEMANTIC_WEIGHT = 0.6
+
+
+def _merge_hybrid_scores(
+    keyword_scores: dict[str, float],
+    semantic_results: list,
+) -> dict[str, float]:
+    """Merge keyword and semantic scores into a single ranked score map.
+
+    Each article receives a combined score:
+        ``KEYWORD_WEIGHT * keyword_score + SEMANTIC_WEIGHT * best_semantic_score``
+
+    Semantic results may contain multiple chunks per article; only the
+    highest-scoring chunk per article is used.
+
+    Args:
+        keyword_scores: Mapping of article_id to normalised keyword score [0, 1].
+        semantic_results: List of :class:`SemanticSearchResult` from ChromaDB.
+
+    Returns:
+        Mapping of article_id to combined hybrid score.
+    """
+    # Best semantic score per article
+    semantic_by_article: dict[str, float] = {}
+    for sr in semantic_results:
+        current = semantic_by_article.get(sr.article_id, 0.0)
+        if sr.score > current:
+            semantic_by_article[sr.article_id] = sr.score
+
+    all_ids = set(keyword_scores) | set(semantic_by_article)
+    merged: dict[str, float] = {}
+    for aid in all_ids:
+        kw = keyword_scores.get(aid, 0.0)
+        sem = semantic_by_article.get(aid, 0.0)
+        merged[aid] = KEYWORD_WEIGHT * kw + SEMANTIC_WEIGHT * sem
+
+    return merged
 
 
 class WikiService:
@@ -311,7 +357,11 @@ class WikiService:
         session: AsyncSession,
         limit: int = 20,
     ) -> list[ArticleSummaryResponse]:
-        """Full-text search across wiki article titles and content.
+        """Hybrid search across wiki article titles and content.
+
+        When semantic search extras are installed, combines keyword
+        substring matching (weight 0.4) with ChromaDB vector similarity
+        (weight 0.6). Falls back to keyword-only search otherwise.
 
         Returned summaries embed lightweight source descriptors so users
         can see at a glance which raw source(s) each matched article was
@@ -326,21 +376,73 @@ class WikiService:
             Matching articles as :class:`ArticleSummaryResponse` records,
             ordered by relevance score.
         """
+        keyword_scores = self._keyword_search(q, session)
+        keyword_scores_map = await keyword_scores
+
+        if _SEARCH_AVAILABLE:
+            embedding_service = get_embedding_service()
+            if embedding_service is not None:
+                try:
+                    semantic_results = embedding_service.search(q, limit=limit)
+                    merged = _merge_hybrid_scores(keyword_scores_map, semantic_results)
+                except Exception:
+                    log.warning("Semantic search failed, falling back to keyword-only")
+                    merged = keyword_scores_map
+            else:
+                merged = keyword_scores_map
+        else:
+            merged = keyword_scores_map
+
+        # Sort by combined score descending
+        ranked_ids = sorted(merged, key=merged.get, reverse=True)[:limit]  # type: ignore[arg-type]
+
+        # Fetch article objects in ranked order
+        if not ranked_ids:
+            return []
+
+        result = await session.execute(select(Article).where(Article.id.in_(ranked_ids)))  # type: ignore[attr-defined]
+        articles_by_id = {a.id: a for a in result.scalars().all()}
+        ordered = [articles_by_id[aid] for aid in ranked_ids if aid in articles_by_id]
+
+        return [await _build_article_summary(a, session) for a in ordered]
+
+    async def _keyword_search(
+        self,
+        q: str,
+        session: AsyncSession,
+    ) -> dict[str, float]:
+        """Run keyword substring matching and return normalised scores by article id.
+
+        Scores are normalised to [0, 1] so they can be combined with
+        semantic similarity scores in the hybrid merge.
+
+        Args:
+            q: Search query string.
+            session: Async database session.
+
+        Returns:
+            Mapping of article_id to normalised keyword score.
+        """
         result = await session.execute(select(Article))
         all_articles = result.scalars().all()
 
         q_lower = q.lower()
-        scored: list[tuple[int, Article]] = []
+        raw_scores: dict[str, int] = {}
         for article in all_articles:
             content = _read_article_content(article.file_path)
             if q_lower in article.title.lower() or q_lower in content.lower():
                 score = 10 if q_lower in article.title.lower() else 0
                 score += content.lower().count(q_lower)
-                scored.append((score, article))
+                raw_scores[article.id] = score
 
-        scored.sort(key=lambda item: item[0], reverse=True)
-        top = [article for _, article in scored[:limit]]
-        return [await _build_article_summary(a, session) for a in top]
+        if not raw_scores:
+            return {}
+
+        max_score = max(raw_scores.values())
+        if max_score == 0:
+            return {aid: 0.0 for aid in raw_scores}
+
+        return {aid: s / max_score for aid, s in raw_scores.items()}
 
     async def get_concepts(
         self,
