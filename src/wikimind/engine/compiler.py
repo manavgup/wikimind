@@ -36,6 +36,11 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.activity_log import append_log_entry
+from wikimind.services.taxonomy import (
+    maybe_trigger_taxonomy_rebuild,
+    update_article_counts,
+    upsert_concepts,
+)
 from wikimind.services.wiki_index import regenerate_index_md
 
 log = structlog.get_logger()
@@ -287,6 +292,13 @@ Compile this into a wiki article following the JSON schema exactly."""
         await self._persist_resolved_backlinks(article.id, resolved, session)
 
         try:
+            await upsert_concepts(result.concepts, session)
+            await update_article_counts(session)
+            await maybe_trigger_taxonomy_rebuild(session)
+        except Exception:
+            log.warning("taxonomy upsert failed", article_id=article.id)
+
+        try:
             append_log_entry(
                 "compile",
                 article.title,
@@ -326,6 +338,8 @@ Compile this into a wiki article following the JSON schema exactly."""
         on this run — `existing.file_path` is updated to track the new
         location.
         """
+        old_concept_ids = existing.concept_ids  # Capture before overwrite
+
         old_path = Path(existing.file_path)
         old_path.unlink(missing_ok=True)
 
@@ -356,6 +370,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         await session.refresh(existing)
 
         await self._persist_resolved_backlinks(existing.id, resolved, session)
+
+        try:
+            await upsert_concepts(result.concepts, session)
+            await update_article_counts(session)
+            await maybe_trigger_taxonomy_rebuild(session)
+        except Exception:
+            log.warning(
+                "taxonomy upsert failed",
+                article_id=existing.id,
+                old_concept_ids=old_concept_ids,
+            )
 
         try:
             append_log_entry(

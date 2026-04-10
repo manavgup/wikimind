@@ -33,6 +33,22 @@ from wikimind.models import (
 log = structlog.get_logger()
 
 
+def _first_concept(concept_ids_json: str | None) -> str | None:
+    """Extract the first concept name from a JSON-encoded concept_ids field.
+
+    Used to assign ``GraphNode.concept_cluster`` — the primary concept
+    that colors the node in the knowledge graph (ADR-012).
+
+    Args:
+        concept_ids_json: Raw JSON string from ``Article.concept_ids``.
+
+    Returns:
+        The first concept name, or ``None`` if the field is empty/malformed.
+    """
+    items = _parse_source_ids(concept_ids_json)
+    return items[0] if items else None
+
+
 def _read_article_content(file_path: str) -> str:
     """Read article markdown content from disk.
 
@@ -227,6 +243,8 @@ class WikiService:
         source_ids = _parse_source_ids(article.source_ids)
         sources = await _fetch_sources(session, source_ids)
 
+        concepts = _parse_source_ids(article.concept_ids)
+
         return ArticleResponse(
             id=article.id,
             slug=article.slug,
@@ -234,7 +252,7 @@ class WikiService:
             summary=article.summary,
             confidence=article.confidence,
             linter_score=article.linter_score,
-            concepts=[],
+            concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
             content=_read_article_content(article.file_path),
@@ -269,7 +287,7 @@ class WikiService:
             GraphNode(
                 id=a.id,
                 label=a.title,
-                concept_cluster=None,
+                concept_cluster=_first_concept(a.concept_ids),
                 connection_count=connection_counts.get(a.id, 0),
                 confidence=a.confidence,
             )
@@ -324,16 +342,24 @@ class WikiService:
         top = [article for _, article in scored[:limit]]
         return [await _build_article_summary(a, session) for a in top]
 
-    async def get_concepts(self, session: AsyncSession) -> list[Concept]:
-        """Retrieve the full concept taxonomy tree.
+    async def get_concepts(
+        self,
+        session: AsyncSession,
+        include_empty: bool = True,
+    ) -> list[Concept]:
+        """Retrieve the concept taxonomy tree.
 
         Args:
             session: Async database session.
+            include_empty: If False, exclude concepts with article_count == 0.
 
         Returns:
             List of Concept records.
         """
-        result = await session.execute(select(Concept))
+        query = select(Concept)
+        if not include_empty:
+            query = query.where(Concept.article_count > 0)
+        result = await session.execute(query)
         return list(result.scalars().all())
 
     async def get_health(self, session: AsyncSession) -> dict:

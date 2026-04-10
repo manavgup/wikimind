@@ -18,6 +18,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+from slugify import slugify
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
@@ -95,6 +96,7 @@ async def init_db():
     await _migrate_added_columns(engine)
     await _backfill_conversation_for_legacy_queries(engine)
     await _repair_malformed_json_arrays(engine)
+    await _backfill_concepts_from_articles(engine)
 
 
 async def _migrate_added_columns(engine) -> None:
@@ -239,6 +241,117 @@ async def _repair_malformed_json_arrays(engine) -> None:
                     "UPDATE article SET concept_ids = ?, source_ids = ? WHERE id = ?",
                     (new_concepts, new_sources, article_id),
                 )
+
+
+def _parse_concept_names_from_json(raw: str) -> list[str]:
+    """Parse and normalize concept names from a JSON array string.
+
+    Returns a list of slugified concept names, filtering out empty values.
+    """
+    try:
+        names = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(names, list):
+        return []
+    result = []
+    for name in names:
+        if not name:
+            continue
+        normalized = slugify(str(name))
+        if normalized:
+            result.append(normalized)
+    return result
+
+
+def _collect_concept_names(
+    rows: list,
+) -> tuple[dict[str, str], list[list[str]]]:
+    """Collect normalized concept names from article rows.
+
+    Returns a tuple of (all_names mapping, per-article normalized lists).
+    """
+    all_names: dict[str, str] = {}  # normalized -> first raw name seen
+    article_concepts: list[list[str]] = []
+    for row in rows:
+        _article_id, concept_ids_raw = row
+        normalized_names = _parse_concept_names_from_json(concept_ids_raw)
+        article_concepts.append(normalized_names)
+        for name in normalized_names:
+            if name not in all_names:
+                # Store the original raw value for the description
+                try:
+                    raw_list = json.loads(concept_ids_raw)
+                    raw_match = next(
+                        (str(n) for n in raw_list if slugify(str(n)) == name),
+                        name,
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    raw_match = name
+                all_names[name] = raw_match
+    return all_names, article_concepts
+
+
+async def _backfill_concepts_from_articles(engine) -> None:
+    """Create missing Concept rows from articles' concept_ids and recalculate counts.
+
+    Scans all articles, parses each ``concept_ids`` JSON array, and
+    upserts a Concept row for each normalized name that does not already
+    exist. Then recalculates ``article_count`` for every Concept.
+
+    Idempotent: re-running finds all concepts already present and is a
+    no-op for the insert path; the count recalculation is always safe.
+    """
+    async with engine.begin() as conn:
+
+        def _select_articles(sync_conn):
+            return sync_conn.exec_driver_sql(
+                "SELECT id, concept_ids FROM article WHERE concept_ids IS NOT NULL"
+            ).fetchall()
+
+        rows = await conn.run_sync(_select_articles)
+        all_names, article_concepts = _collect_concept_names(rows)
+
+        if not all_names:
+            return
+
+        def _select_existing_concepts(sync_conn):
+            return sync_conn.exec_driver_sql("SELECT name FROM concept").fetchall()
+
+        existing_rows = await conn.run_sync(_select_existing_concepts)
+        existing_names = {row[0] for row in existing_rows}
+
+        for normalized, raw_name in all_names.items():
+            if normalized not in existing_names:
+                concept_id = str(uuid.uuid4())
+                await conn.exec_driver_sql(
+                    "INSERT INTO concept (id, name, description, article_count, created_at) VALUES (?, ?, ?, 0, ?)",
+                    (
+                        concept_id,
+                        normalized,
+                        raw_name,
+                        utcnow_naive().isoformat(),
+                    ),
+                )
+
+        # Recalculate article counts
+        counts: dict[str, int] = {}
+        for names in article_concepts:
+            for name in names:
+                counts[name] = counts.get(name, 0) + 1
+
+        for normalized, count in counts.items():
+            await conn.exec_driver_sql(
+                "UPDATE concept SET article_count = ? WHERE name = ?",
+                (count, normalized),
+            )
+
+        unreferenced = (existing_names | set(all_names.keys())) - set(counts.keys())
+        for name in unreferenced:
+            await conn.exec_driver_sql(
+                "UPDATE concept SET article_count = 0 WHERE name = ?",
+                (name,),
+            )
 
 
 async def close_db():
