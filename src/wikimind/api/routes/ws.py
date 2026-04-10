@@ -106,6 +106,25 @@ async def emit_job_progress(job_id: str, pct: int, message: str = ""):
     )
 
 
+async def emit_source_progress(source_id: str, message: str) -> None:
+    """Broadcast a human-readable status message for a source.
+
+    The message is the progress — e.g. ``"Compiling chunk 3/10..."``.
+    No percentages, no phase enums, no weight math.
+
+    Args:
+        source_id: The source being processed.
+        message: What the pipeline is doing right now.
+    """
+    await manager.broadcast(
+        {
+            "event": "source.progress",
+            "source_id": source_id,
+            "message": message,
+        }
+    )
+
+
 async def emit_compilation_complete(article_slug: str, article_title: str):
     """Emit compilation complete event."""
     await manager.broadcast(

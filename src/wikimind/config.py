@@ -173,6 +173,11 @@ class Settings(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
 
+    # PDF extraction: number of pages per Docling batch (issue #117).
+    # Smaller values give more frequent progress updates at the cost of
+    # slightly higher overhead from repeated converter calls.
+    docling_batch_pages: int = 10
+
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None

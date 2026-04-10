@@ -114,7 +114,7 @@ async def test_compile_source_no_file_path(db_session, tmp_path) -> None:
     await db_session.commit()
     with (
         _patch_session_factory(db_session),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
         await compile_source({}, src.id)
@@ -137,7 +137,7 @@ async def test_compile_source_success(db_session, tmp_path) -> None:
     with (
         _patch_session_factory(db_session),
         patch.object(worker_mod, "Compiler", return_value=fake_compiler),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
     ):
         await compile_source({}, src.id)
@@ -156,7 +156,7 @@ async def test_compile_source_compiler_returns_none(db_session, tmp_path) -> Non
     with (
         _patch_session_factory(db_session),
         patch.object(worker_mod, "Compiler", return_value=fake_compiler),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
         await compile_source({}, src.id)
@@ -186,7 +186,7 @@ async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> 
     with (
         _patch_session_factory(db_session),
         patch.object(worker_mod, "Compiler", return_value=fake_compiler),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
         patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
     ):
@@ -216,7 +216,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
     captured_status: list[IngestStatus] = []
     captured_error: list[str | None] = []
 
-    async def _spy_compile(doc, session):
+    async def _spy_compile(doc, session, **kwargs):
         await db_session.refresh(src)
         captured_status.append(src.status)
         captured_error.append(src.error_message)
@@ -229,7 +229,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
     with (
         _patch_session_factory(db_session),
         patch.object(worker_mod, "Compiler", return_value=fake_compiler),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
         patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
     ):
@@ -259,7 +259,7 @@ async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_pa
     with (
         _patch_session_factory(db_session),
         patch.object(worker_mod, "Compiler", return_value=fake_compiler),
-        patch.object(worker_mod, "emit_job_progress", AsyncMock()),
+        patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
         await compile_source({}, src.id)

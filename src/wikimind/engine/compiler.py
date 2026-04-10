@@ -7,6 +7,7 @@ This is the core value-creation step.
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import structlog
@@ -89,13 +90,14 @@ class Compiler:
         self,
         doc: NormalizedDocument,
         session: AsyncSession,
+        progress_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> CompilationResult | None:
         """Compile a normalized document into a wiki article."""
         log.info("Compiling document", title=doc.title, tokens=doc.estimated_tokens)
 
         # For large documents, compile in chunks and merge
         if doc.estimated_tokens > 80_000:
-            return await self._compile_chunked(doc, session)
+            return await self._compile_chunked(doc, session, progress_callback)
 
         request = CompletionRequest(
             system=COMPILER_SYSTEM_PROMPT,
@@ -137,12 +139,20 @@ class Compiler:
 
 Compile this into a wiki article following the JSON schema exactly."""
 
-    async def _compile_chunked(self, doc: NormalizedDocument, session: AsyncSession) -> CompilationResult | None:
+    async def _compile_chunked(
+        self,
+        doc: NormalizedDocument,
+        session: AsyncSession,
+        progress_callback: Callable[[str], Awaitable[None]] | None = None,
+    ) -> CompilationResult | None:
         """Compile large documents in chunks and merge results."""
-        log.info("Chunked compilation", chunks=len(doc.chunks))
+        total_chunks = min(len(doc.chunks), 10)
+        log.info("Chunked compilation", chunks=total_chunks)
         chunk_results = []
 
         for i, chunk in enumerate(doc.chunks[:10]):  # Max 10 chunks
+            if progress_callback:
+                await progress_callback(f"Compiling chunk {i + 1}/{total_chunks}...")
             chunk_doc = NormalizedDocument(
                 raw_source_id=doc.raw_source_id,
                 clean_text=chunk.content,

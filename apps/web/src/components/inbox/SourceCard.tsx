@@ -5,7 +5,6 @@ import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
 import { useWebSocketStore } from "../../store/websocket";
-import { JobProgressBar } from "./JobProgressBar";
 
 interface SourceCardProps {
   source: Source;
@@ -22,7 +21,7 @@ const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
 
 const STATUS_LABEL: Record<IngestStatus, string> = {
   pending: "Pending",
-  processing: "Compiling",
+  processing: "Processing",
   compiled: "Done",
   failed: "Failed",
 };
@@ -52,16 +51,9 @@ function formatTimestamp(iso: string): string {
 }
 
 export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
-  // The compile job for this source is most-recently broadcast under its source_id.
-  // Job IDs differ from source IDs, so we display the most-recent in-flight job's
-  // progress only when this card is in `processing`.
-  const latestJob = useWebSocketStore((s) => {
-    const entries = Object.values(s.jobs);
-    if (entries.length === 0) return null;
-    return entries.sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
-  });
-
-  const showProgress = source.status === "processing" && latestJob !== null;
+  const statusMessage = useWebSocketStore(
+    (s) => s.sourceStatus[source.id] ?? null,
+  );
 
   const titleText = useMemo(() => {
     if (source.title && source.title.trim().length > 0) return source.title;
@@ -104,10 +96,8 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
         </div>
       </div>
 
-      {showProgress && latestJob ? (
-        <div className="mt-3">
-          <JobProgressBar pct={latestJob.pct} message={latestJob.message} />
-        </div>
+      {source.status === "processing" && statusMessage ? (
+        <p className="mt-2 text-xs text-slate-500">{statusMessage}</p>
       ) : null}
 
       {source.status === "failed" ? (

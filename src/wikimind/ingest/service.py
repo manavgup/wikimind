@@ -17,6 +17,7 @@ File lineage convention (see issue #59):
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from pathlib import Path
@@ -31,6 +32,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
+from wikimind.api.routes.ws import emit_source_progress
 from wikimind.config import get_settings
 from wikimind.models import DocumentChunk, IngestStatus, NormalizedDocument, Source, SourceType
 
@@ -537,9 +539,10 @@ class PDFAdapter:
 
         # Extract text — prefer Docling for structured output (markdown with
         # heading hierarchy, table-aware), fall back to fitz plain text when
-        # docling is not installed.
+        # docling is not installed.  The batched path offloads each Docling
+        # call to a thread and emits extraction progress via WebSocket.
         if _DOCLING_AVAILABLE:
-            clean_text, page_count = self._extract_via_docling(raw_pdf_path)
+            clean_text, page_count = await self._extract_via_docling_batched(raw_pdf_path, source.id)
         else:
             clean_text, page_count = self._extract_via_fitz(file_bytes)
 
@@ -611,6 +614,60 @@ class PDFAdapter:
         pages = getattr(result.document, "pages", None)
         page_count = len(pages) if pages is not None else 0
         return markdown, page_count
+
+    async def _extract_via_docling_batched(self, raw_pdf_path: Path, source_id: str) -> tuple[str, int]:
+        """Extract markdown from a PDF in page-range batches with progress.
+
+        Uses ``fitz`` to read the total page count instantly, then converts
+        in batches of ``settings.docling_batch_pages`` pages via
+        ``asyncio.to_thread`` so the event loop is never blocked. Between
+        batches an ``extraction.progress`` WebSocket event is emitted.
+
+        For small PDFs where the total page count is at or below the batch
+        size this collapses to a single batch (functionally identical to the
+        unbatched path, but still non-blocking).
+
+        Args:
+            raw_pdf_path: Path to the saved raw PDF on disk.
+            source_id: Source ID used as the key for progress events.
+
+        Returns:
+            A tuple of ``(markdown_text, total_pages)``.
+        """
+        # Get total page count instantly via fitz (always available).
+        doc = fitz.open(str(raw_pdf_path))
+        total_pages = doc.page_count
+        doc.close()
+
+        settings = get_settings()
+        batch_size = settings.docling_batch_pages
+
+        await emit_source_progress(source_id, f"Extracting PDF ({total_pages} pages)...")
+
+        # Warm up the converter off the event loop — the first call to
+        # _get_docling_converter() triggers ~500 MB of model downloads
+        # and weight loading, which must not block the async event loop.
+        converter = await asyncio.to_thread(_get_docling_converter)
+        markdown_parts: list[str] = []
+
+        for start in range(1, total_pages + 1, batch_size):
+            end = min(start + batch_size - 1, total_pages)
+
+            def _convert_batch(
+                _conv: Any = converter,
+                _path: str = str(raw_pdf_path),
+                _start: int = start,
+                _end: int = end,
+            ) -> str:
+                result = _conv.convert(_path, page_range=(_start, _end))
+                return result.document.export_to_markdown()
+
+            batch_md = await asyncio.to_thread(_convert_batch)
+            markdown_parts.append(batch_md)
+            await emit_source_progress(source_id, f"Extracting pages {end}/{total_pages}...")
+
+        markdown = "\n\n".join(markdown_parts)
+        return markdown, total_pages
 
 
 # ---------------------------------------------------------------------------

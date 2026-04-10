@@ -4,12 +4,16 @@ The adapter prefers docling when available and falls back to fitz plain-text
 extraction otherwise (see issue #57). Both branches must produce a valid
 ``NormalizedDocument`` and honour the dual-file lineage convention from
 issue #59 (raw ``.pdf`` + cleaned ``.txt`` on disk).
+
+Issue #117 adds batched extraction with page-range and WebSocket progress
+emission. Those tests verify that the converter is called with page_range
+per batch and that ``emit_source_progress`` fires between batches.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import fitz
 import pytest
@@ -173,7 +177,7 @@ class TestPDFAdapterDoclingPath:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """When ``_DOCLING_AVAILABLE`` is True the docling branch is taken."""
+        """When ``_DOCLING_AVAILABLE`` is True the batched docling branch is taken."""
         monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", True)
 
         markdown = "# Slide deck\n\n## Section one\n\nA structured body.\n"
@@ -190,15 +194,18 @@ class TestPDFAdapterDoclingPath:
             lambda: fake_converter,
         )
 
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
+
         pdf_bytes = _build_pdf_bytes(["ignored — docling reads the file path"])
         adapter = PDFAdapter()
 
         source, doc = await adapter.ingest(pdf_bytes, "deck.pdf", db_session)
 
-        # The converter must have been invoked against the saved raw .pdf,
-        # not against the in-memory bytes.
+        # The converter must have been invoked against the saved raw .pdf
+        # with a page_range kwarg (batched path).
         raw_pdf_path = isolated_data_dir / "raw" / f"{source.id}.pdf"
-        fake_converter.convert.assert_called_once_with(str(raw_pdf_path))
+        fake_converter.convert.assert_called_once_with(str(raw_pdf_path), page_range=(1, 1))
 
         assert doc.clean_text == markdown
         assert "# Slide deck" in doc.clean_text
@@ -226,3 +233,140 @@ class TestDoclingDetectionFlag:
 
         with pytest.raises(RuntimeError, match="Docling is not installed"):
             ingest_service._get_docling_converter()
+
+
+# ---------------------------------------------------------------------------
+# Batched Docling extraction with progress (issue #117)
+# ---------------------------------------------------------------------------
+
+
+def _make_fake_converter(markdown_per_call: list[str]) -> MagicMock:
+    """Build a mock Docling converter that returns successive markdown strings.
+
+    Each call to ``converter.convert(...)`` pops the next string from the
+    list and wraps it in the expected result object shape.
+    """
+    call_iter = iter(markdown_per_call)
+    converter = MagicMock()
+
+    def _side_effect(*args, **kwargs):
+        md = next(call_iter)
+        fake_doc = MagicMock()
+        fake_doc.export_to_markdown.return_value = md
+        fake_result = MagicMock()
+        fake_result.document = fake_doc
+        return fake_result
+
+    converter.convert.side_effect = _side_effect
+    return converter
+
+
+class TestBatchedDoclingExtraction:
+    """Tests for ``_extract_via_docling_batched`` (issue #117)."""
+
+    async def test_single_batch_small_pdf(
+        self,
+        isolated_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A PDF with fewer pages than batch_size converts in one call."""
+        # Create a 3-page PDF
+        pdf_bytes = _build_pdf_bytes(["p1", "p2", "p3"])
+        raw_pdf = isolated_data_dir / "raw" / "small.pdf"
+        raw_pdf.write_bytes(pdf_bytes)
+
+        fake_converter = _make_fake_converter(["# Batch1\n\nAll three pages."])
+        monkeypatch.setattr(ingest_service, "_get_docling_converter", lambda: fake_converter)
+
+        fake_settings = Settings(data_dir=str(isolated_data_dir), docling_batch_pages=10)
+        monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
+
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
+
+        adapter = PDFAdapter()
+        markdown, page_count = await adapter._extract_via_docling_batched(raw_pdf, "src-123")
+
+        assert page_count == 3
+        assert "# Batch1" in markdown
+        # Single batch: converter called once with page_range=(1, 3)
+        fake_converter.convert.assert_called_once_with(str(raw_pdf), page_range=(1, 3))
+        # Progress: initial message + one batch message
+        assert mock_emit.await_count == 2
+        assert mock_emit.call_args_list[0] == call("src-123", "Extracting PDF (3 pages)...")
+        assert mock_emit.call_args_list[1] == call("src-123", "Extracting pages 3/3...")
+
+    async def test_multiple_batches(
+        self,
+        isolated_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A PDF with more pages than batch_size is split into batches."""
+        # Create a 5-page PDF with batch_size=2 => 3 batches: (1,2), (3,4), (5,5)
+        pdf_bytes = _build_pdf_bytes(["p1", "p2", "p3", "p4", "p5"])
+        raw_pdf = isolated_data_dir / "raw" / "multi.pdf"
+        raw_pdf.write_bytes(pdf_bytes)
+
+        fake_converter = _make_fake_converter(
+            [
+                "# Batch 1\n",
+                "# Batch 2\n",
+                "# Batch 3\n",
+            ]
+        )
+        monkeypatch.setattr(ingest_service, "_get_docling_converter", lambda: fake_converter)
+
+        fake_settings = Settings(data_dir=str(isolated_data_dir), docling_batch_pages=2)
+        monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
+
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
+
+        adapter = PDFAdapter()
+        markdown, page_count = await adapter._extract_via_docling_batched(raw_pdf, "src-456")
+
+        assert page_count == 5
+        assert "# Batch 1" in markdown
+        assert "# Batch 2" in markdown
+        assert "# Batch 3" in markdown
+
+        # Converter called 3 times with correct page ranges
+        assert fake_converter.convert.call_count == 3
+        calls = fake_converter.convert.call_args_list
+        assert calls[0] == call(str(raw_pdf), page_range=(1, 2))
+        assert calls[1] == call(str(raw_pdf), page_range=(3, 4))
+        assert calls[2] == call(str(raw_pdf), page_range=(5, 5))
+
+        # Progress: initial message + 3 batch messages
+        assert mock_emit.await_count == 4
+        assert mock_emit.call_args_list[0] == call("src-456", "Extracting PDF (5 pages)...")
+        assert mock_emit.call_args_list[1] == call("src-456", "Extracting pages 2/5...")
+        assert mock_emit.call_args_list[2] == call("src-456", "Extracting pages 4/5...")
+        assert mock_emit.call_args_list[3] == call("src-456", "Extracting pages 5/5...")
+
+    async def test_ingest_uses_batched_when_docling_available(
+        self,
+        db_session,
+        isolated_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """``ingest()`` calls the batched method when docling is available."""
+        monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", True)
+
+        markdown = "# Batched output\n\nStructured body.\n"
+        fake_converter = _make_fake_converter([markdown])
+        monkeypatch.setattr(ingest_service, "_get_docling_converter", lambda: fake_converter)
+
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
+
+        pdf_bytes = _build_pdf_bytes(["single page"])
+        adapter = PDFAdapter()
+
+        source, doc = await adapter.ingest(pdf_bytes, "batched.pdf", db_session)
+
+        assert isinstance(source, Source)
+        assert isinstance(doc, NormalizedDocument)
+        assert "# Batched output" in doc.clean_text
+        # The emit function was called (progress was emitted)
+        assert mock_emit.await_count >= 2  # at least start + completion
