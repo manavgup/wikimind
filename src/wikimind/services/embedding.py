@@ -146,6 +146,13 @@ class EmbeddingService:
         self._min_score = settings.embedding.min_similarity_score
         self._model: Any = None
 
+        log.info(
+            "ChromaDB initialized",
+            path=str(chroma_path),
+            chunks=self._collection.count(),
+            model=self._model_name,
+        )
+
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
