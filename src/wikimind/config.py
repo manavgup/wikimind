@@ -141,6 +141,15 @@ class TaxonomyConfig(BaseModel):
     max_hierarchy_depth: int = 3
 
 
+class EmbeddingConfig(BaseModel):
+    """Embedding and semantic search configuration."""
+
+    model_name: str = "all-MiniLM-L6-v2"
+    chunk_size_tokens: int = 500
+    chunk_overlap_tokens: int = 50
+    min_similarity_score: float = 0.65
+
+
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
@@ -180,6 +189,7 @@ class Settings(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
     # PDF extraction: number of pages per Docling batch (issue #117).
     # Smaller values give more frequent progress updates at the cost of
