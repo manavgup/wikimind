@@ -3,6 +3,7 @@ import { Layout } from "./components/shared/Layout";
 import { InboxView } from "./components/inbox/InboxView";
 import { WikiExplorerView } from "./components/wiki/WikiExplorerView";
 import { AskView } from "./components/ask/AskView";
+import { GraphView } from "./components/graph/GraphView";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
         <Route path="/ask/:conversationId" element={<AskView />} />
         <Route path="/wiki" element={<WikiExplorerView />} />
         <Route path="/wiki/:slug" element={<WikiExplorerView />} />
+        <Route path="/graph" element={<GraphView />} />
         <Route path="*" element={<Navigate to="/inbox" replace />} />
       </Routes>
     </Layout>

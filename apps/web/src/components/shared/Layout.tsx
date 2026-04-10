@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: "/inbox", label: "Inbox", icon: "📥" },
   { to: "/ask", label: "Ask", icon: "💬" },
   { to: "/wiki", label: "Wiki", icon: "📚" },
+  { to: "/graph", label: "Graph", icon: "🕸️" },
 ];
 
 export function Layout({ children }: LayoutProps) {

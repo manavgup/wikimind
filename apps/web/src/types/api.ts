@@ -95,6 +95,25 @@ export interface TriggerCompileResponse {
   status: string;
 }
 
+export interface GraphNode {
+  id: string;
+  label: string;
+  concept_cluster: string | null;
+  connection_count: number;
+  confidence: ConfidenceLevel | null;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  context: string | null;
+}
+
+export interface GraphResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 // WebSocket event shapes (see src/wikimind/api/routes/ws.py)
 export type WSEvent =
   | { event: "connected"; message?: string }
