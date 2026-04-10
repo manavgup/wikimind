@@ -106,9 +106,12 @@ export function GraphView() {
       // Orphan filter
       if (!filters.showOrphans && !connectedIds.has(n.id)) return false;
 
-      // Concept filter
+      // Concept filter — normalize concept_cluster to match Concept.name
+      // (slugified). Some older articles store raw names with spaces.
       if (filters.selectedConcepts.size > 0) {
-        if (!n.concept_cluster || !filters.selectedConcepts.has(n.concept_cluster)) {
+        const normalized = n.concept_cluster
+          ?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+        if (!normalized || !filters.selectedConcepts.has(normalized)) {
           return false;
         }
       }
