@@ -330,6 +330,33 @@ paths:
       summary: Get Concepts
       description: Concept taxonomy tree.
       operationId: get_concepts_wiki_concepts_get
+      parameters:
+      - name: include_empty
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Include Empty
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/concepts/rebuild:
+    post:
+      tags:
+      - Wiki
+      summary: Rebuild Concepts
+      description: Trigger LLM-powered taxonomy hierarchy rebuild.
+      operationId: rebuild_concepts_wiki_concepts_rebuild_post
       responses:
         '200':
           description: Successful Response

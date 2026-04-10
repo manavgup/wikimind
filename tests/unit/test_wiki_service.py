@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from wikimind.models import Article, Backlink, BacklinkEntry, Source, SourceType
+from wikimind.models import Article, Backlink, BacklinkEntry, Concept, Source, SourceType
 from wikimind.services.wiki import WikiService
 
 
@@ -243,3 +243,99 @@ class TestBacklinkEntries:
 
         assert response.backlinks_in == []
         assert response.backlinks_out == []
+
+
+@pytest.mark.asyncio
+class TestConceptPopulation:
+    async def test_get_article_populates_concepts_from_concept_ids(self, db_session, tmp_path):
+        """ArticleResponse.concepts is populated from Article.concept_ids JSON."""
+        fp = tmp_path / "ml-article.md"
+        fp.write_text("# ML Article", encoding="utf-8")
+
+        article = Article(
+            slug="ml-article",
+            title="ML Article",
+            file_path=str(fp),
+            concept_ids=json.dumps(["Machine Learning", "Deep Learning"]),
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        service = WikiService()
+        response = await service.get_article(article.id, db_session)
+
+        assert response.concepts == ["Machine Learning", "Deep Learning"]
+
+    async def test_get_article_returns_empty_concepts_when_none(self, db_session, tmp_path):
+        """ArticleResponse.concepts is [] when concept_ids is None."""
+        fp = tmp_path / "no-concepts.md"
+        fp.write_text("# No Concepts", encoding="utf-8")
+
+        article = Article(
+            slug="no-concepts",
+            title="No Concepts",
+            file_path=str(fp),
+            concept_ids=None,
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        service = WikiService()
+        response = await service.get_article(article.id, db_session)
+
+        assert response.concepts == []
+
+    async def test_graph_populates_concept_cluster(self, db_session, tmp_path):
+        """GraphNode.concept_cluster is the first concept from concept_ids."""
+        fp = tmp_path / "graph-article.md"
+        fp.write_text("# Graph Article", encoding="utf-8")
+
+        article = Article(
+            slug="graph-article",
+            title="Graph Article",
+            file_path=str(fp),
+            concept_ids=json.dumps(["AI", "Machine Learning"]),
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        service = WikiService()
+        graph = await service.get_graph(db_session)
+
+        assert len(graph.nodes) == 1
+        assert graph.nodes[0].concept_cluster == "AI"
+
+    async def test_graph_concept_cluster_none_when_no_concepts(self, db_session, tmp_path):
+        """GraphNode.concept_cluster is None when concept_ids is empty or None."""
+        fp = tmp_path / "plain-article.md"
+        fp.write_text("# Plain", encoding="utf-8")
+
+        article = Article(
+            slug="plain-article",
+            title="Plain Article",
+            file_path=str(fp),
+            concept_ids=None,
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        service = WikiService()
+        graph = await service.get_graph(db_session)
+
+        assert len(graph.nodes) == 1
+        assert graph.nodes[0].concept_cluster is None
+
+    async def test_get_concepts_include_empty_false_filters(self, db_session):
+        """get_concepts with include_empty=False excludes zero-count concepts."""
+        populated = Concept(name="populated", article_count=3)
+        empty = Concept(name="empty", article_count=0)
+        db_session.add_all([populated, empty])
+        await db_session.commit()
+
+        service = WikiService()
+        all_concepts = await service.get_concepts(db_session, include_empty=True)
+        assert len(all_concepts) == 2
+
+        non_empty = await service.get_concepts(db_session, include_empty=False)
+        assert len(non_empty) == 1
+        assert non_empty[0].name == "populated"

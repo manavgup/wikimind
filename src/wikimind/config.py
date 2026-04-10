@@ -134,6 +134,13 @@ class QAConfig(BaseModel):
     conversation_title_max_chars: int = 120
 
 
+class TaxonomyConfig(BaseModel):
+    """Concept taxonomy configuration."""
+
+    rebuild_threshold: int = 5
+    max_hierarchy_depth: int = 3
+
+
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
@@ -172,6 +179,7 @@ class Settings(BaseSettings):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
+    taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
 
     # PDF extraction: number of pages per Docling batch (issue #117).
     # Smaller values give more frequent progress updates at the cost of

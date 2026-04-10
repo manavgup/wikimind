@@ -19,6 +19,7 @@ from wikimind.models import (
     CompilationResult,
     CompiledClaim,
     CompletionResponse,
+    Concept,
     ConfidenceLevel,
     DocumentChunk,
     IngestStatus,
@@ -419,3 +420,54 @@ async def test_save_skips_backlinks_when_no_candidates(db_session, tmp_path) -> 
 
     bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
     assert list(bl_result.scalars().all()) == []
+
+
+# ---------------------------------------------------------------------------
+# Taxonomy upsert during save_article
+# ---------------------------------------------------------------------------
+
+
+async def test_save_article_creates_concept_rows(db_session, tmp_path) -> None:
+    """save_article creates Concept rows for each concept in the result."""
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result(concepts=["Machine Learning", "Deep Learning"])
+    await compiler.save_article(result, source, db_session)
+
+    concept_result = await db_session.execute(select(Concept))
+    concepts = {c.name for c in concept_result.scalars().all()}
+    assert "machine-learning" in concepts
+    assert "deep-learning" in concepts
+
+
+async def test_save_article_updates_concept_article_counts(db_session, tmp_path) -> None:
+    """Article counts are updated after save."""
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+    result = _result(concepts=["ML"])
+    await compiler.save_article(result, source, db_session)
+
+    concept_result = await db_session.execute(select(Concept).where(Concept.name == "ml"))
+    concept = concept_result.scalar_one()
+    assert concept.article_count == 1
+
+
+async def test_replace_article_upserts_new_concepts(db_session, tmp_path) -> None:
+    """Replacing an article in place also upserts concepts from the new result."""
+    compiler = _compiler_for(tmp_path)
+    compiler._last_provider_used = Provider.ANTHROPIC
+    source = await _make_source(db_session)
+
+    # First save with concept "alpha"
+    result1 = _result(concepts=["alpha"])
+    await compiler.save_article(result1, source, db_session)
+
+    # Replace with new concepts
+    result2 = _result(concepts=["beta", "gamma"])
+    await compiler.save_article(result2, source, db_session)
+
+    concept_result = await db_session.execute(select(Concept))
+    names = {c.name for c in concept_result.scalars().all()}
+    assert "alpha" in names
+    assert "beta" in names
+    assert "gamma" in names

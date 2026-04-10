@@ -1,11 +1,15 @@
 """Endpoints for browsing wiki articles, knowledge graph, and search."""
 
+import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
 from wikimind.models import ArticleResponse, ArticleSummaryResponse, GraphResponse
+from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, get_wiki_service
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -55,11 +59,21 @@ async def search(
 
 @router.get("/concepts")
 async def get_concepts(
+    include_empty: bool = True,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
 ):
     """Concept taxonomy tree."""
-    return await service.get_concepts(session)
+    return await service.get_concepts(session, include_empty=include_empty)
+
+
+@router.post("/concepts/rebuild")
+async def rebuild_concepts(
+    session: AsyncSession = Depends(get_session),
+):
+    """Trigger LLM-powered taxonomy hierarchy rebuild."""
+    await rebuild_taxonomy(session)
+    return {"status": "ok"}
 
 
 @router.get("/health")
