@@ -39,5 +39,8 @@ Thumbs.db
 # ~/.wikimind/ is outside repo, but just in case:
 *.db
 
+# Git worktrees (parallel development)
+.worktrees/
+
 # Serena MCP tool — auto-generated per-worktree config + cache + memories
 .serena/
