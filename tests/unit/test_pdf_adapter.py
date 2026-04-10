@@ -291,12 +291,10 @@ class TestBatchedDoclingExtraction:
         assert "# Batch1" in markdown
         # Single batch: converter called once with page_range=(1, 3)
         fake_converter.convert.assert_called_once_with(str(raw_pdf), page_range=(1, 3))
-        # Progress: 0% start + 100% after batch + 100% completion
-        assert mock_emit.await_count == 3
-        # First call is extraction phase at 0%
-        assert mock_emit.call_args_list[0] == call("src-123", "extraction", 0, "Extracting 3 pages...")
-        # Last call is extraction phase complete
-        assert mock_emit.call_args_list[-1] == call("src-123", "extraction", 100, "Extraction complete")
+        # Progress: initial message + one batch message
+        assert mock_emit.await_count == 2
+        assert mock_emit.call_args_list[0] == call("src-123", "Extracting PDF (3 pages)...")
+        assert mock_emit.call_args_list[1] == call("src-123", "Extracting pages 3/3...")
 
     async def test_multiple_batches(
         self,
@@ -339,15 +337,12 @@ class TestBatchedDoclingExtraction:
         assert calls[1] == call(str(raw_pdf), page_range=(3, 4))
         assert calls[2] == call(str(raw_pdf), page_range=(5, 5))
 
-        # Progress: 0% start + 3 batch completions + final = 5
-        assert mock_emit.await_count == 5
-        # Check intermediate progress (phase-local percentages)
-        # After batch 1: 2/5 = 40%
-        assert mock_emit.call_args_list[1] == call("src-456", "extraction", 40, "Extracting pages 1-2 of 5")
-        # After batch 2: 4/5 = 80%
-        assert mock_emit.call_args_list[2] == call("src-456", "extraction", 80, "Extracting pages 3-4 of 5")
-        # After batch 3: 5/5 = 100%
-        assert mock_emit.call_args_list[3] == call("src-456", "extraction", 100, "Extracting pages 5-5 of 5")
+        # Progress: initial message + 3 batch messages
+        assert mock_emit.await_count == 4
+        assert mock_emit.call_args_list[0] == call("src-456", "Extracting PDF (5 pages)...")
+        assert mock_emit.call_args_list[1] == call("src-456", "Extracting pages 2/5...")
+        assert mock_emit.call_args_list[2] == call("src-456", "Extracting pages 4/5...")
+        assert mock_emit.call_args_list[3] == call("src-456", "Extracting pages 5/5...")
 
     async def test_ingest_uses_batched_when_docling_available(
         self,

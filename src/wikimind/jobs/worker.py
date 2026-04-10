@@ -83,7 +83,7 @@ async def compile_source(ctx, source_id: str):
         session.add(job)
         await session.commit()
 
-        await emit_source_progress(source_id, "compilation", 0, "Reading source...")
+        await emit_source_progress(source_id, "Reading source...")
 
         try:
             # Every adapter writes a cleaned .txt and stores its path on the
@@ -95,7 +95,7 @@ async def compile_source(ctx, source_id: str):
             text_path = Path(source.file_path)
             content = text_path.read_text(encoding="utf-8")
 
-            await emit_source_progress(source_id, "compilation", 5, "Normalizing content...")
+            await emit_source_progress(source_id, "Normalizing content...")
 
             doc = NormalizedDocument(
                 raw_source_id=source.id,
@@ -107,10 +107,10 @@ async def compile_source(ctx, source_id: str):
                 chunks=_ingest_service.chunk_text(content, source.id),
             )
 
-            await emit_source_progress(source_id, "compilation", 10, "Compiling with LLM...")
+            await emit_source_progress(source_id, "Compiling with LLM...")
 
-            async def _on_chunk_progress(pct: int, message: str) -> None:
-                await emit_source_progress(source_id, "compilation", pct, message)
+            async def _on_chunk_progress(message: str) -> None:
+                await emit_source_progress(source_id, message)
 
             compiler = Compiler()
             result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)  # type: ignore[arg-type]
@@ -118,7 +118,7 @@ async def compile_source(ctx, source_id: str):
             if not result:
                 raise ValueError("Compiler returned no result")
 
-            await emit_source_progress(source_id, "saving", 0, "Saving article...")
+            await emit_source_progress(source_id, "Saving article...")
 
             article = await compiler.save_article(result, source, session)  # type: ignore[arg-type]
 
@@ -129,7 +129,6 @@ async def compile_source(ctx, source_id: str):
             session.add(job)
             await session.commit()
 
-            await emit_source_progress(source_id, "done", 100, "Done")
             await emit_compilation_complete(article.slug, article.title)
 
             log.info("compile_source complete", source_id=source_id, slug=article.slug)

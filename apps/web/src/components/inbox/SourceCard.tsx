@@ -5,7 +5,6 @@ import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
 import { useWebSocketStore } from "../../store/websocket";
-import { JobProgressBar } from "./JobProgressBar";
 
 interface SourceCardProps {
   source: Source;
@@ -52,14 +51,9 @@ function formatTimestamp(iso: string): string {
 }
 
 export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
-  // Unified source-level progress keyed by source_id — covers extraction,
-  // compilation, and saving in a single 0-100 bar.
-  const progress = useWebSocketStore(
-    (s) => s.sourceProgress[source.id] ?? null,
+  const statusMessage = useWebSocketStore(
+    (s) => s.sourceStatus[source.id] ?? null,
   );
-
-  const showProgress =
-    source.status === "processing" && progress !== null && progress.pct < 100;
 
   const titleText = useMemo(() => {
     if (source.title && source.title.trim().length > 0) return source.title;
@@ -102,10 +96,8 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
         </div>
       </div>
 
-      {showProgress && progress ? (
-        <div className="mt-3">
-          <JobProgressBar pct={progress.pct} message={progress.message} />
-        </div>
+      {source.status === "processing" && statusMessage ? (
+        <p className="mt-2 text-xs text-slate-500">{statusMessage}</p>
       ) : null}
 
       {source.status === "failed" ? (

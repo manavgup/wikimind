@@ -642,14 +642,13 @@ class PDFAdapter:
         settings = get_settings()
         batch_size = settings.docling_batch_pages
 
-        await emit_source_progress(source_id, "extraction", 0, f"Extracting {total_pages} pages...")
+        await emit_source_progress(source_id, f"Extracting PDF ({total_pages} pages)...")
 
         # Warm up the converter off the event loop — the first call to
         # _get_docling_converter() triggers ~500 MB of model downloads
         # and weight loading, which must not block the async event loop.
         converter = await asyncio.to_thread(_get_docling_converter)
         markdown_parts: list[str] = []
-        pages_done = 0
 
         for start in range(1, total_pages + 1, batch_size):
             end = min(start + batch_size - 1, total_pages)
@@ -665,15 +664,9 @@ class PDFAdapter:
 
             batch_md = await asyncio.to_thread(_convert_batch)
             markdown_parts.append(batch_md)
-
-            pages_done = end
-            pct = int((pages_done / total_pages) * 100)
-            await emit_source_progress(
-                source_id, "extraction", pct, f"Extracting pages {start}-{end} of {total_pages}"
-            )
+            await emit_source_progress(source_id, f"Extracting pages {end}/{total_pages}...")
 
         markdown = "\n\n".join(markdown_parts)
-        await emit_source_progress(source_id, "extraction", 100, "Extraction complete")
         return markdown, total_pages
 
 

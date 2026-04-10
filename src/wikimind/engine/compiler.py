@@ -90,7 +90,7 @@ class Compiler:
         self,
         doc: NormalizedDocument,
         session: AsyncSession,
-        progress_callback: Callable[[int, str], Awaitable[None]] | None = None,
+        progress_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> CompilationResult | None:
         """Compile a normalized document into a wiki article."""
         log.info("Compiling document", title=doc.title, tokens=doc.estimated_tokens)
@@ -143,7 +143,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         self,
         doc: NormalizedDocument,
         session: AsyncSession,
-        progress_callback: Callable[[int, str], Awaitable[None]] | None = None,
+        progress_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> CompilationResult | None:
         """Compile large documents in chunks and merge results."""
         total_chunks = min(len(doc.chunks), 10)
@@ -152,10 +152,7 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         for i, chunk in enumerate(doc.chunks[:10]):  # Max 10 chunks
             if progress_callback:
-                # Report 0-100% within the compilation phase; the caller
-                # (worker → emit_source_progress) maps this to the overall bar.
-                pct = int((i / total_chunks) * 100)
-                await progress_callback(pct, f"Compiling chunk {i + 1} of {total_chunks}...")
+                await progress_callback(f"Compiling chunk {i + 1}/{total_chunks}...")
             chunk_doc = NormalizedDocument(
                 raw_source_id=doc.raw_source_id,
                 clean_text=chunk.content,

@@ -101,7 +101,7 @@ export type WSEvent =
   | { event: "keepalive" }
   | { event: "pong" }
   | { event: "job.progress"; job_id: string; pct: number; message?: string }
-  | { event: "source.progress"; source_id: string; pct: number; message?: string }
+  | { event: "source.progress"; source_id: string; message: string }
   | { event: "compilation.complete"; article_slug: string; article_title: string }
   | { event: "compilation.failed"; source_id: string; error: string }
   | { event: "sync.complete"; pushed: number; pulled: number; conflicts?: number }
