@@ -24,6 +24,7 @@ from wikimind.models import (
     Article,
     CompletionRequest,
     Conversation,
+    CostLog,
     Query,
     QueryRequest,
     QueryResult,
@@ -387,6 +388,21 @@ conversation context contradicts the wiki, prefer the wiki."""
             yield chunk_text
 
         full_text = "".join(full_text_parts)
+
+        # Log cost from the completed stream
+        if stream_session.result is not None:
+            resp = stream_session.result
+            cost_entry = CostLog(
+                provider=resp.provider_used,
+                model=resp.model_used,
+                task_type=TaskType.QA,
+                input_tokens=resp.input_tokens,
+                output_tokens=resp.output_tokens,
+                cost_usd=resp.cost_usd,
+                latency_ms=resp.latency_ms,
+            )
+            session.add(cost_entry)
+            await session.commit()
 
         # Parse the accumulated JSON
         try:
