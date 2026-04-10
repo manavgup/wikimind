@@ -10,6 +10,19 @@ export interface AskRequest {
   file_back?: boolean; // deprecated; ignored by new conversation-aware backend
 }
 
+export interface SourceResponse {
+  id: string;
+  source_type: string;
+  title: string | null;
+  source_url: string | null;
+  ingested_at: string;
+}
+
+export interface CitationResponse {
+  article: { slug: string; title: string };
+  sources: SourceResponse[];
+}
+
 export interface QueryRecord {
   id: string;
   question: string;
@@ -22,6 +35,7 @@ export interface QueryRecord {
   created_at: string;
   conversation_id: string | null;
   turn_index: number;
+  citations?: CitationResponse[];
 }
 
 export interface Conversation {
@@ -77,4 +91,113 @@ export async function exportConversation(id: string): Promise<string> {
   const res = await fetch(`${getBaseUrl()}/query/conversations/${id}/export`);
   if (!res.ok) throw new Error("Export failed");
   return res.text();
+}
+
+// ----- SSE Streaming -----
+
+export type StreamEvent =
+  | { type: "chunk"; text: string }
+  | { type: "done"; response: AskResponse }
+  | { type: "error"; code: string; message: string };
+
+/**
+ * POST to /query/stream and yield parsed SSE events.
+ *
+ * Uses native fetch + ReadableStream (not EventSource, which only supports GET).
+ * The caller iterates with `for await (const event of askQuestionStream(req))`.
+ */
+export async function* askQuestionStream(
+  req: AskRequest,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  const res = await fetch(`${getBaseUrl()}/query/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(req),
+    signal,
+  });
+
+  if (!res.ok) {
+    let detail = `Stream request failed: ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // ignore parse failures
+    }
+    throw new Error(detail);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("Response body is not readable");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE messages are separated by double newlines
+      const messages = buffer.split("\n\n");
+      // Keep the last (possibly incomplete) chunk in the buffer
+      buffer = messages.pop() ?? "";
+
+      for (const msg of messages) {
+        const event = parseSSEMessage(msg);
+        if (event) yield event;
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.trim()) {
+      const event = parseSSEMessage(buffer);
+      if (event) yield event;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function parseSSEMessage(raw: string): StreamEvent | null {
+  let eventType = "";
+  let data = "";
+
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("event: ")) {
+      eventType = line.slice(7).trim();
+    } else if (line.startsWith("data: ")) {
+      data = line.slice(6);
+    } else if (line.startsWith("data:")) {
+      data = line.slice(5);
+    }
+  }
+
+  if (!eventType || !data) return null;
+
+  try {
+    const parsed = JSON.parse(data);
+    switch (eventType) {
+      case "chunk":
+        return { type: "chunk", text: parsed.text ?? "" };
+      case "done":
+        return { type: "done", response: parsed as AskResponse };
+      case "error":
+        return {
+          type: "error",
+          code: parsed.code ?? "unknown",
+          message: parsed.message ?? "Unknown streaming error",
+        };
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
 }
