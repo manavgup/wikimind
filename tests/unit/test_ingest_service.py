@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,6 +15,9 @@ from wikimind.ingest.service import (
     TextAdapter,
     URLAdapter,
     YouTubeAdapter,
+    _extract_pdf_metadata,
+    _first_markdown_heading,
+    _parse_pdf_date,
     chunk_text,
     estimate_tokens,
 )
@@ -78,12 +82,19 @@ async def test_url_adapter_no_content_raises(db_session) -> None:
 async def test_pdf_adapter_fitz_path(db_session, tmp_path) -> None:
     fake_page = MagicMock()
     fake_page.get_text = MagicMock(return_value="page text")
-    fake_doc = MagicMock()
-    fake_doc.__iter__ = lambda self: iter([fake_page, fake_page])
-    fake_doc.close = MagicMock()
+
+    # fitz.open is called twice: once for metadata, once for text extraction.
+    fake_meta_doc = MagicMock()
+    fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
+    fake_meta_doc.close = MagicMock()
+
+    fake_text_doc = MagicMock()
+    fake_text_doc.__iter__ = lambda self: iter([fake_page, fake_page])
+    fake_text_doc.close = MagicMock()
+
     with (
         patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
-        patch.object(ingest_mod.fitz, "open", return_value=fake_doc),
+        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
         source, doc = await adapter.ingest(b"%PDF-1.4...", "test.pdf", db_session)
@@ -340,3 +351,166 @@ def test_get_docling_converter_unavailable() -> None:
         ingest_mod._docling_converter = None
         with pytest.raises(RuntimeError):
             ingest_mod._get_docling_converter()
+
+
+# ---------------------------------------------------------------------------
+# PDF metadata extraction tests (issue #124)
+# ---------------------------------------------------------------------------
+
+
+def test_extract_pdf_metadata_with_title() -> None:
+    """Fitz metadata with a real title populates the result."""
+    fake_doc = MagicMock()
+    fake_doc.metadata = {
+        "title": "Attention Is All You Need",
+        "author": "Vaswani et al.",
+        "creationDate": "D:20170612120000",
+    }
+    fake_doc.close = MagicMock()
+    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+        meta = _extract_pdf_metadata(b"fake-pdf-bytes")
+    assert meta.title == "Attention Is All You Need"
+    assert meta.author == "Vaswani et al."
+    assert meta.published_date is not None
+    assert meta.published_date.year == 2017
+    assert meta.published_date.month == 6
+    assert meta.published_date.day == 12
+
+
+def test_extract_pdf_metadata_empty_title() -> None:
+    """Empty or whitespace-only title returns None."""
+    fake_doc = MagicMock()
+    fake_doc.metadata = {"title": "  ", "author": "", "creationDate": ""}
+    fake_doc.close = MagicMock()
+    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+        meta = _extract_pdf_metadata(b"fake-pdf-bytes")
+    assert meta.title is None
+    assert meta.author is None
+    assert meta.published_date is None
+
+
+def test_extract_pdf_metadata_no_metadata_dict() -> None:
+    """PDF with no metadata dict at all doesn't crash."""
+    fake_doc = MagicMock()
+    fake_doc.metadata = None
+    fake_doc.close = MagicMock()
+    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+        meta = _extract_pdf_metadata(b"fake-pdf-bytes")
+    assert meta.title is None
+    assert meta.author is None
+    assert meta.published_date is None
+
+
+def test_parse_pdf_date_valid() -> None:
+    assert _parse_pdf_date("D:20230115093000") == date(2023, 1, 15)
+
+
+def test_parse_pdf_date_no_prefix() -> None:
+    assert _parse_pdf_date("20230115") == date(2023, 1, 15)
+
+
+def test_parse_pdf_date_too_short() -> None:
+    assert _parse_pdf_date("D:2023") is None
+
+
+def test_parse_pdf_date_garbage() -> None:
+    assert _parse_pdf_date("not-a-date") is None
+
+
+def test_parse_pdf_date_none() -> None:
+    assert _parse_pdf_date(None) is None
+
+
+def test_parse_pdf_date_empty() -> None:
+    assert _parse_pdf_date("") is None
+
+
+def test_first_markdown_heading_found() -> None:
+    text = "Some intro text\n\n# My Great Title\n\nBody content here."
+    assert _first_markdown_heading(text) == "My Great Title"
+
+
+def test_first_markdown_heading_first_line() -> None:
+    text = "# First Heading\n\n## Sub heading\n\nContent."
+    assert _first_markdown_heading(text) == "First Heading"
+
+
+def test_first_markdown_heading_none() -> None:
+    text = "No headings at all.\n\nJust plain text."
+    assert _first_markdown_heading(text) is None
+
+
+def test_first_markdown_heading_skips_h2() -> None:
+    """Only top-level (h1) headings should be returned."""
+    text = "## Sub Heading\n\n### Another\n\nContent."
+    assert _first_markdown_heading(text) is None
+
+
+async def test_pdf_adapter_metadata_title(db_session) -> None:
+    """PDF with metadata title uses it instead of filename."""
+    fake_meta_doc = MagicMock()
+    fake_meta_doc.metadata = {
+        "title": "Attention Is All You Need",
+        "author": "Vaswani et al.",
+        "creationDate": "D:20170612120000",
+    }
+    fake_meta_doc.close = MagicMock()
+
+    fake_page = MagicMock()
+    fake_page.get_text = MagicMock(return_value="page text")
+    fake_text_doc = MagicMock()
+    fake_text_doc.__iter__ = lambda self: iter([fake_page])
+    fake_text_doc.close = MagicMock()
+
+    with (
+        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+    ):
+        adapter = PDFAdapter()
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
+    assert source.title == "Attention Is All You Need"
+    assert source.author == "Vaswani et al."
+    assert source.published_date is not None
+    assert source.published_date.year == 2017
+
+
+async def test_pdf_adapter_heading_fallback(db_session) -> None:
+    """When PDF has no metadata title, falls back to first markdown heading."""
+    fake_meta_doc = MagicMock()
+    fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
+    fake_meta_doc.close = MagicMock()
+
+    fake_page = MagicMock()
+    fake_page.get_text = MagicMock(return_value="# A Great Paper\n\nContent here.")
+    fake_text_doc = MagicMock()
+    fake_text_doc.__iter__ = lambda self: iter([fake_page])
+    fake_text_doc.close = MagicMock()
+
+    with (
+        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+    ):
+        adapter = PDFAdapter()
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
+    assert source.title == "A Great Paper"
+
+
+async def test_pdf_adapter_filename_fallback(db_session) -> None:
+    """When no metadata title and no heading, falls back to filename."""
+    fake_meta_doc = MagicMock()
+    fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
+    fake_meta_doc.close = MagicMock()
+
+    fake_page = MagicMock()
+    fake_page.get_text = MagicMock(return_value="Plain text with no headings.")
+    fake_text_doc = MagicMock()
+    fake_text_doc.__iter__ = lambda self: iter([fake_page])
+    fake_text_doc.close = MagicMock()
+
+    with (
+        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+    ):
+        adapter = PDFAdapter()
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "report.pdf", db_session)
+    assert source.title == "report"

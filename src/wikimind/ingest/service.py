@@ -20,8 +20,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
+from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
 
 import fitz
@@ -468,6 +469,62 @@ class URLAdapter:
 
 
 # ---------------------------------------------------------------------------
+# PDF metadata helpers
+# ---------------------------------------------------------------------------
+
+
+class _PdfMetadata(NamedTuple):
+    """Metadata extracted from a PDF's info dictionary via fitz."""
+
+    title: str | None
+    author: str | None
+    published_date: date | None
+
+
+def _extract_pdf_metadata(file_bytes: bytes) -> _PdfMetadata:
+    """Read title, author, and creation date from a PDF's info dictionary.
+
+    Uses :mod:`fitz` (pymupdf) which reads the metadata dict instantly without
+    any ML processing.  Returns ``None`` for any field that is missing or empty.
+    """
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    meta = doc.metadata or {}
+    doc.close()
+
+    title = (meta.get("title") or "").strip() or None
+    author = (meta.get("author") or "").strip() or None
+    published_date = _parse_pdf_date(meta.get("creationDate"))
+
+    return _PdfMetadata(title=title, author=author, published_date=published_date)
+
+
+def _parse_pdf_date(raw: str | None) -> date | None:
+    """Parse a PDF date string (``D:YYYYMMDDHHmmSS...``) into a date.
+
+    Returns ``None`` if the string is missing, empty, or unparseable.
+    """
+    if not raw:
+        return None
+    # Strip the ``D:`` prefix that PDF date strings use.
+    cleaned = raw.strip()
+    if cleaned.startswith("D:"):
+        cleaned = cleaned[2:]
+    # We only need YYYYMMDD — ignore time/timezone suffixes.
+    if len(cleaned) < 8:
+        return None
+    try:
+        return date(int(cleaned[:4]), int(cleaned[4:6]), int(cleaned[6:8]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _first_markdown_heading(text: str) -> str | None:
+    """Return the text of the first top-level markdown heading, or ``None``."""
+    match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+# ---------------------------------------------------------------------------
 # PDF Adapter
 # ---------------------------------------------------------------------------
 
@@ -516,10 +573,17 @@ class PDFAdapter:
             log.info("Source dedup hit (PDF)", source_id=existing.id, hash=content_hash[:16])
             return existing, reconstruct_normalized_doc(existing)
 
+        # Extract metadata (title, author, date) from the PDF info dictionary.
+        # This is an instant fitz dict lookup — no ML processing.
+        pdf_meta = _extract_pdf_metadata(file_bytes)
+        fallback_title = filename.replace(".pdf", "")
+
         # Create source record
         source = Source(
             source_type=SourceType.PDF,
-            title=filename.replace(".pdf", ""),
+            title=pdf_meta.title or fallback_title,
+            author=pdf_meta.author,
+            published_date=pdf_meta.published_date,
             status=IngestStatus.PROCESSING,
             content_hash=content_hash,
         )
@@ -545,6 +609,13 @@ class PDFAdapter:
             clean_text, page_count = await self._extract_via_docling_batched(raw_pdf_path, source.id)
         else:
             clean_text, page_count = self._extract_via_fitz(file_bytes)
+
+        # If the title is still the filename fallback (no PDF metadata title),
+        # try extracting the first markdown heading from the converted text.
+        if source.title == fallback_title:
+            heading = _first_markdown_heading(clean_text)
+            if heading:
+                source.title = heading
 
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(clean_text, encoding="utf-8")
