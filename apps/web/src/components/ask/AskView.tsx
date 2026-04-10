@@ -98,15 +98,11 @@ export function AskView() {
     abortRef.current = controller;
 
     try {
-      console.log("[Ask] Starting SSE stream to /query/stream");
-      let chunkCount = 0;
       for await (const event of askQuestionStream(req, controller.signal)) {
         switch (event.type) {
           case "chunk":
-            chunkCount++;
             break;
           case "done": {
-            console.log(`[Ask] Stream complete — ${chunkCount} chunks received`);
             const response = event.response;
             const newId = response.conversation.id;
             if (!conversationId) {
@@ -125,14 +121,12 @@ export function AskView() {
             break;
           }
           case "error":
-            console.error("[Ask] Stream error event:", event.message);
             setPendingError(event.message);
             setPendingQuestion(null);
             break;
         }
       }
     } catch (err) {
-      console.warn("[Ask] Stream failed, falling back to POST /query", err);
       if (controller.signal.aborted) return;
       setPendingError(null);
       askFallback.mutate(req);
