@@ -52,6 +52,11 @@ function formatTimestamp(iso: string): string {
 }
 
 export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
+  // Extraction progress is keyed by source_id — show it when available.
+  const extractionProgress = useWebSocketStore(
+    (s) => s.extractions[source.id] ?? null,
+  );
+
   // The compile job for this source is most-recently broadcast under its source_id.
   // Job IDs differ from source IDs, so we display the most-recent in-flight job's
   // progress only when this card is in `processing`.
@@ -61,7 +66,12 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
     return entries.sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
   });
 
-  const showProgress = source.status === "processing" && latestJob !== null;
+  const showExtractionProgress =
+    source.status === "processing" &&
+    extractionProgress !== null &&
+    extractionProgress.pct < 100;
+  const showProgress =
+    source.status === "processing" && !showExtractionProgress && latestJob !== null;
 
   const titleText = useMemo(() => {
     if (source.title && source.title.trim().length > 0) return source.title;
@@ -103,6 +113,15 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
           {formatTimestamp(source.ingested_at)}
         </div>
       </div>
+
+      {showExtractionProgress && extractionProgress ? (
+        <div className="mt-3">
+          <JobProgressBar
+            pct={extractionProgress.pct}
+            message={extractionProgress.message || "Extracting PDF..."}
+          />
+        </div>
+      ) : null}
 
       {showProgress && latestJob ? (
         <div className="mt-3">

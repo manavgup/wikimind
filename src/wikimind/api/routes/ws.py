@@ -106,6 +106,24 @@ async def emit_job_progress(job_id: str, pct: int, message: str = ""):
     )
 
 
+async def emit_extraction_progress(source_id: str, pct: int, message: str = "") -> None:
+    """Emit PDF extraction progress event to all clients.
+
+    Args:
+        source_id: The source being extracted.
+        pct: Percentage complete (0-100).
+        message: Optional human-readable status message.
+    """
+    await manager.broadcast(
+        {
+            "event": "extraction.progress",
+            "source_id": source_id,
+            "pct": pct,
+            "message": message,
+        }
+    )
+
+
 async def emit_compilation_complete(article_slug: str, article_title: str):
     """Emit compilation complete event."""
     await manager.broadcast(

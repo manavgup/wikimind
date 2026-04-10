@@ -16,6 +16,13 @@ export interface JobProgress {
   updatedAt: number;
 }
 
+export interface ExtractionProgress {
+  sourceId: string;
+  pct: number;
+  message: string;
+  updatedAt: number;
+}
+
 export interface Toast {
   id: string;
   kind: "success" | "error" | "info";
@@ -28,6 +35,7 @@ interface WebSocketStore {
   state: WSConnectionState;
   lastEvent: WSEvent | null;
   jobs: Record<string, JobProgress>;
+  extractions: Record<string, ExtractionProgress>;
   toasts: Toast[];
   setState: (state: WSConnectionState) => void;
   ingest: (event: WSEvent) => void;
@@ -45,6 +53,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
   state: "idle",
   lastEvent: null,
   jobs: {},
+  extractions: {},
   toasts: [],
 
   setState: (state) => set({ state }),
@@ -58,6 +67,18 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
           ...store.jobs,
           [event.job_id]: {
             jobId: event.job_id,
+            pct: event.pct,
+            message: event.message ?? "",
+            updatedAt: Date.now(),
+          },
+        };
+      }
+
+      if (event.event === "extraction.progress") {
+        next.extractions = {
+          ...store.extractions,
+          [event.source_id]: {
+            sourceId: event.source_id,
             pct: event.pct,
             message: event.message ?? "",
             updatedAt: Date.now(),
