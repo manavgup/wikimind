@@ -14,6 +14,10 @@ function useContainerSize() {
     const el = containerRef.current;
     if (!el) return;
 
+    // Measure immediately so the first render has dimensions
+    const rect = el.getBoundingClientRect();
+    setSize({ width: rect.width, height: rect.height });
+
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setSize({
