@@ -1,10 +1,15 @@
 """Endpoints for asking questions, browsing conversations, and filing answers back."""
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
+
+import structlog
 from fastapi import APIRouter, Depends
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.database import get_session
+from wikimind.database import get_session, get_session_factory
 from wikimind.models import (
     AskResponse,
     ConversationDetail,
@@ -12,6 +17,8 @@ from wikimind.models import (
     QueryRequest,
 )
 from wikimind.services.query import QueryService, get_query_service
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -29,6 +36,42 @@ async def ask(
     conversation.
     """
     return await service.ask(request, session)
+
+
+@router.post("/stream")
+async def ask_stream(
+    request: QueryRequest,
+    service: QueryService = Depends(get_query_service),
+) -> StreamingResponse:
+    """Stream an answer token-by-token via Server-Sent Events.
+
+    Returns SSE events: ``chunk`` (text deltas), ``done`` (final AskResponse),
+    or ``error``. The Query row is persisted only after the stream completes
+    successfully. Client disconnect aborts without persisting.
+    """
+
+    async def _event_generator() -> AsyncIterator[str]:
+        async with get_session_factory()() as session:
+            try:
+                async for event in service.ask_stream(request, session):  # type: ignore[arg-type]
+                    yield event
+            except asyncio.CancelledError:
+                log.info("SSE client disconnected, aborting stream")
+                await session.rollback()
+            except Exception as e:
+                log.error("SSE stream error", error=str(e))
+                error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
+                yield f"event: error\ndata: {error_payload}\n\n"
+                await session.rollback()
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/history")

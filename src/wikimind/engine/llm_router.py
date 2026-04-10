@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 
 import anthropic
 import ollama
@@ -49,6 +51,26 @@ def _calc_cost(provider: Provider, model: str, input_tokens: int, output_tokens:
     provider_pricing = PRICING.get(provider, {})
     model_pricing = provider_pricing.get(model) or provider_pricing.get("*", {"input": 0, "output": 0})
     return (input_tokens * model_pricing["input"] + output_tokens * model_pricing["output"]) / 1_000_000
+
+
+# ---------------------------------------------------------------------------
+# StreamSession — wraps a streaming LLM response
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class StreamSession:
+    """Wraps a streaming LLM response. Async-iterate for text chunks.
+
+    After iteration completes, ``result`` is populated with token counts
+    and cost information from the provider.
+    """
+
+    _chunks: AsyncIterator[str]
+    result: CompletionResponse | None = field(default=None, init=True)
+
+    def __aiter__(self) -> AsyncIterator[str]:  # noqa: D105
+        return self._chunks
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +116,40 @@ class AnthropicProvider:
             latency_ms=latency_ms,
         )
 
+    async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
+        """Stream a completion request using Anthropic."""
+        messages = [{"role": m["role"], "content": m["content"]} for m in request.messages]
+        start = time.monotonic()
+
+        async def _generate() -> AsyncIterator[str]:
+            async with self.client.messages.stream(
+                model=model,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                system=request.system,
+                messages=messages,  # type: ignore[arg-type]
+            ) as stream_ctx:
+                async for text in stream_ctx.text_stream:
+                    yield text
+
+                final = await stream_ctx.get_final_message()
+                latency_ms = int((time.monotonic() - start) * 1000)
+                input_tokens = final.usage.input_tokens
+                output_tokens = final.usage.output_tokens
+                full_text = "".join(getattr(block, "text", "") for block in final.content)
+                session.result = CompletionResponse(
+                    content=full_text,
+                    provider_used=Provider.ANTHROPIC,
+                    model_used=model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_usd=_calc_cost(Provider.ANTHROPIC, model, input_tokens, output_tokens),
+                    latency_ms=latency_ms,
+                )
+
+        session = StreamSession(_chunks=_generate())
+        return session
+
 
 class OpenAIProvider:
     """OpenAI LLM provider."""
@@ -137,6 +193,53 @@ class OpenAIProvider:
             latency_ms=latency_ms,
         )
 
+    async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
+        """Stream a completion request using OpenAI."""
+        messages: list[dict[str, str]] = [{"role": "system", "content": request.system}]
+        messages.extend(request.messages)
+        start = time.monotonic()
+
+        kwargs: dict[str, object] = dict(
+            model=model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        if request.response_format == "json":
+            kwargs["response_format"] = {"type": "json_object"}
+
+        async def _generate() -> AsyncIterator[str]:
+            full_text_parts: list[str] = []
+            input_tokens = 0
+            output_tokens = 0
+            response_stream = await self.client.chat.completions.create(
+                **kwargs  # type: ignore[call-overload]
+            )
+            async for chunk in response_stream:  # type: ignore[union-attr]
+                if chunk.usage:
+                    input_tokens = chunk.usage.prompt_tokens or 0
+                    output_tokens = chunk.usage.completion_tokens or 0
+                if chunk.choices and chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
+                    full_text_parts.append(text)
+                    yield text
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+            session.result = CompletionResponse(
+                content="".join(full_text_parts),
+                provider_used=Provider.OPENAI,
+                model_used=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=_calc_cost(Provider.OPENAI, model, input_tokens, output_tokens),
+                latency_ms=latency_ms,
+            )
+
+        session = StreamSession(_chunks=_generate())
+        return session
+
 
 class OllamaProvider:
     """Ollama local LLM provider."""
@@ -170,6 +273,40 @@ class OllamaProvider:
             latency_ms=latency_ms,
         )
 
+    async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
+        """Stream a completion request using Ollama."""
+        messages: list[dict[str, str]] = [{"role": "system", "content": request.system}]
+        messages.extend(request.messages)
+        start = time.monotonic()
+
+        async def _generate() -> AsyncIterator[str]:
+            full_text_parts: list[str] = []
+            response_stream = await self.client.chat(
+                model=model,
+                messages=messages,
+                options={"temperature": request.temperature},
+                stream=True,
+            )
+            async for chunk in response_stream:  # type: ignore[union-attr]
+                text = chunk["message"]["content"]
+                if text:
+                    full_text_parts.append(text)
+                    yield text
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+            session.result = CompletionResponse(
+                content="".join(full_text_parts),
+                provider_used=Provider.OLLAMA,
+                model_used=model,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                latency_ms=latency_ms,
+            )
+
+        session = StreamSession(_chunks=_generate())
+        return session
+
 
 class MockProvider:
     """Deterministic mock provider for CI e2e testing.
@@ -202,6 +339,30 @@ class MockProvider:
             cost_usd=0.0,
             latency_ms=latency_ms,
         )
+
+    async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
+        """Stream a deterministic canned response in small chunks."""
+        content = self._response_for(request)
+        start = time.monotonic()
+        chunk_size = 20
+
+        async def _generate() -> AsyncIterator[str]:
+            for i in range(0, len(content), chunk_size):
+                yield content[i : i + chunk_size]
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+            session.result = CompletionResponse(
+                content=content,
+                provider_used=Provider.MOCK,
+                model_used=model,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                latency_ms=latency_ms,
+            )
+
+        session = StreamSession(_chunks=_generate())
+        return session
 
     @staticmethod
     def _response_for(request: CompletionRequest) -> str:
@@ -362,6 +523,54 @@ class LLMRouter:
 
             except Exception as e:
                 log.warning("LLM provider failed", provider=provider, error=str(e))
+                last_error = e
+                if not self.settings.llm.fallback_enabled:
+                    raise
+
+        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
+
+    async def stream_complete(
+        self,
+        request: CompletionRequest,
+    ) -> StreamSession:
+        """Create a streaming LLM completion with provider fallback.
+
+        Fallback happens during stream creation only. Once tokens begin
+        flowing, no mid-stream provider switch occurs -- errors surface
+        as exceptions from the async iterator.
+
+        Args:
+            request: The completion request.
+
+        Returns:
+            A :class:`StreamSession` that yields text chunks.
+
+        Raises:
+            RuntimeError: When all providers fail during stream creation.
+        """
+        provider_order = self._get_provider_order(request.preferred_provider)
+
+        last_error = None
+        for provider in provider_order:
+            if not self._is_provider_available(provider):
+                continue
+
+            model = self._get_model(provider)
+            try:
+                log.info(
+                    "LLM stream call",
+                    provider=provider,
+                    model=model,
+                    task=request.task_type,
+                )
+                instance = await self._get_provider_instance(provider)
+                return await instance.stream(request, model)
+            except Exception as e:
+                log.warning(
+                    "LLM stream provider failed",
+                    provider=provider,
+                    error=str(e),
+                )
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
                     raise
