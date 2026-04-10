@@ -22,7 +22,7 @@ const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
 
 const STATUS_LABEL: Record<IngestStatus, string> = {
   pending: "Pending",
-  processing: "Compiling",
+  processing: "Processing",
   compiled: "Done",
   failed: "Failed",
 };
@@ -52,26 +52,14 @@ function formatTimestamp(iso: string): string {
 }
 
 export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
-  // Extraction progress is keyed by source_id — show it when available.
-  const extractionProgress = useWebSocketStore(
-    (s) => s.extractions[source.id] ?? null,
+  // Unified source-level progress keyed by source_id — covers extraction,
+  // compilation, and saving in a single 0-100 bar.
+  const progress = useWebSocketStore(
+    (s) => s.sourceProgress[source.id] ?? null,
   );
 
-  // The compile job for this source is most-recently broadcast under its source_id.
-  // Job IDs differ from source IDs, so we display the most-recent in-flight job's
-  // progress only when this card is in `processing`.
-  const latestJob = useWebSocketStore((s) => {
-    const entries = Object.values(s.jobs);
-    if (entries.length === 0) return null;
-    return entries.sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
-  });
-
-  const showExtractionProgress =
-    source.status === "processing" &&
-    extractionProgress !== null &&
-    extractionProgress.pct < 100;
   const showProgress =
-    source.status === "processing" && !showExtractionProgress && latestJob !== null;
+    source.status === "processing" && progress !== null && progress.pct < 100;
 
   const titleText = useMemo(() => {
     if (source.title && source.title.trim().length > 0) return source.title;
@@ -114,18 +102,9 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
         </div>
       </div>
 
-      {showExtractionProgress && extractionProgress ? (
+      {showProgress && progress ? (
         <div className="mt-3">
-          <JobProgressBar
-            pct={extractionProgress.pct}
-            message={extractionProgress.message || "Extracting PDF..."}
-          />
-        </div>
-      ) : null}
-
-      {showProgress && latestJob ? (
-        <div className="mt-3">
-          <JobProgressBar pct={latestJob.pct} message={latestJob.message} />
+          <JobProgressBar pct={progress.pct} message={progress.message} />
         </div>
       ) : null}
 

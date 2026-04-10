@@ -1,6 +1,6 @@
 // Zustand store for the WikiMind WebSocket connection.
 //
-// Tracks connection state, the latest job-progress percentages keyed by job_id,
+// Tracks connection state, unified source-level progress keyed by source_id,
 // and a small list of recent toasts derived from broadcast events.
 // `useWebSocket` (in hooks/) is responsible for the actual socket lifecycle.
 
@@ -9,15 +9,15 @@ import type { WSEvent } from "../types/api";
 
 export type WSConnectionState = "idle" | "connecting" | "open" | "closed";
 
-export interface JobProgress {
-  jobId: string;
+export interface SourceProgress {
+  sourceId: string;
   pct: number;
   message: string;
   updatedAt: number;
 }
 
-export interface ExtractionProgress {
-  sourceId: string;
+export interface JobProgress {
+  jobId: string;
   pct: number;
   message: string;
   updatedAt: number;
@@ -35,7 +35,7 @@ interface WebSocketStore {
   state: WSConnectionState;
   lastEvent: WSEvent | null;
   jobs: Record<string, JobProgress>;
-  extractions: Record<string, ExtractionProgress>;
+  sourceProgress: Record<string, SourceProgress>;
   toasts: Toast[];
   setState: (state: WSConnectionState) => void;
   ingest: (event: WSEvent) => void;
@@ -53,7 +53,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
   state: "idle",
   lastEvent: null,
   jobs: {},
-  extractions: {},
+  sourceProgress: {},
   toasts: [],
 
   setState: (state) => set({ state }),
@@ -74,9 +74,9 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
         };
       }
 
-      if (event.event === "extraction.progress") {
-        next.extractions = {
-          ...store.extractions,
+      if (event.event === "source.progress") {
+        next.sourceProgress = {
+          ...store.sourceProgress,
           [event.source_id]: {
             sourceId: event.source_id,
             pct: event.pct,

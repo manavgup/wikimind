@@ -7,7 +7,7 @@ issue #59 (raw ``.pdf`` + cleaned ``.txt`` on disk).
 
 Issue #117 adds batched extraction with page-range and WebSocket progress
 emission. Those tests verify that the converter is called with page_range
-per batch and that ``emit_extraction_progress`` fires between batches.
+per batch and that ``emit_source_progress`` fires between batches.
 """
 
 from __future__ import annotations
@@ -195,7 +195,7 @@ class TestPDFAdapterDoclingPath:
         )
 
         mock_emit = AsyncMock()
-        monkeypatch.setattr(ingest_service, "emit_extraction_progress", mock_emit)
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
 
         pdf_bytes = _build_pdf_bytes(["ignored — docling reads the file path"])
         adapter = PDFAdapter()
@@ -282,7 +282,7 @@ class TestBatchedDoclingExtraction:
         monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
 
         mock_emit = AsyncMock()
-        monkeypatch.setattr(ingest_service, "emit_extraction_progress", mock_emit)
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
 
         adapter = PDFAdapter()
         markdown, page_count = await adapter._extract_via_docling_batched(raw_pdf, "src-123")
@@ -293,10 +293,10 @@ class TestBatchedDoclingExtraction:
         fake_converter.convert.assert_called_once_with(str(raw_pdf), page_range=(1, 3))
         # Progress: 0% start + 100% after batch + 100% completion
         assert mock_emit.await_count == 3
-        # First call is 0%
-        assert mock_emit.call_args_list[0] == call("src-123", 0, "Extracting 3 pages...")
-        # Last call is 100% completion
-        assert mock_emit.call_args_list[-1] == call("src-123", 100, "Extraction complete")
+        # First call is extraction phase at 0%
+        assert mock_emit.call_args_list[0] == call("src-123", "extraction", 0, "Extracting 3 pages...")
+        # Last call is extraction phase complete
+        assert mock_emit.call_args_list[-1] == call("src-123", "extraction", 100, "Extraction complete")
 
     async def test_multiple_batches(
         self,
@@ -322,7 +322,7 @@ class TestBatchedDoclingExtraction:
         monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
 
         mock_emit = AsyncMock()
-        monkeypatch.setattr(ingest_service, "emit_extraction_progress", mock_emit)
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
 
         adapter = PDFAdapter()
         markdown, page_count = await adapter._extract_via_docling_batched(raw_pdf, "src-456")
@@ -339,15 +339,15 @@ class TestBatchedDoclingExtraction:
         assert calls[1] == call(str(raw_pdf), page_range=(3, 4))
         assert calls[2] == call(str(raw_pdf), page_range=(5, 5))
 
-        # Progress: 0% start + 3 batch completions + 100% final = 5
+        # Progress: 0% start + 3 batch completions + final = 5
         assert mock_emit.await_count == 5
-        # Check intermediate progress percentages
+        # Check intermediate progress (phase-local percentages)
         # After batch 1: 2/5 = 40%
-        assert mock_emit.call_args_list[1] == call("src-456", 40, "Extracted pages 1-2 of 5")
+        assert mock_emit.call_args_list[1] == call("src-456", "extraction", 40, "Extracting pages 1-2 of 5")
         # After batch 2: 4/5 = 80%
-        assert mock_emit.call_args_list[2] == call("src-456", 80, "Extracted pages 3-4 of 5")
+        assert mock_emit.call_args_list[2] == call("src-456", "extraction", 80, "Extracting pages 3-4 of 5")
         # After batch 3: 5/5 = 100%
-        assert mock_emit.call_args_list[3] == call("src-456", 100, "Extracted pages 5-5 of 5")
+        assert mock_emit.call_args_list[3] == call("src-456", "extraction", 100, "Extracting pages 5-5 of 5")
 
     async def test_ingest_uses_batched_when_docling_available(
         self,
@@ -363,7 +363,7 @@ class TestBatchedDoclingExtraction:
         monkeypatch.setattr(ingest_service, "_get_docling_converter", lambda: fake_converter)
 
         mock_emit = AsyncMock()
-        monkeypatch.setattr(ingest_service, "emit_extraction_progress", mock_emit)
+        monkeypatch.setattr(ingest_service, "emit_source_progress", mock_emit)
 
         pdf_bytes = _build_pdf_bytes(["single page"])
         adapter = PDFAdapter()

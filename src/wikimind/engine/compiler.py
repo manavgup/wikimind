@@ -152,8 +152,9 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         for i, chunk in enumerate(doc.chunks[:10]):  # Max 10 chunks
             if progress_callback:
-                # Interpolate between 50% and 80% (the compilation phase range)
-                pct = 50 + int((i / total_chunks) * 30)
+                # Report 0-100% within the compilation phase; the caller
+                # (worker → emit_source_progress) maps this to the overall bar.
+                pct = int((i / total_chunks) * 100)
                 await progress_callback(pct, f"Compiling chunk {i + 1} of {total_chunks}...")
             chunk_doc = NormalizedDocument(
                 raw_source_id=doc.raw_source_id,

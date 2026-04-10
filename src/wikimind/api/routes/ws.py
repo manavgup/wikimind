@@ -106,19 +106,44 @@ async def emit_job_progress(job_id: str, pct: int, message: str = ""):
     )
 
 
-async def emit_extraction_progress(source_id: str, pct: int, message: str = "") -> None:
-    """Emit PDF extraction progress event to all clients.
+# Phase weights for the unified source progress bar.  Each phase reports
+# its own 0-100 local progress; the helper below maps it to the overall
+# 0-100 scale.  Weights must sum to 1.0.
+_PHASE_WEIGHTS: dict[str, tuple[float, float]] = {
+    #              (start, width)
+    "extraction": (0.0, 0.30),    # 0-30%
+    "compilation": (0.30, 0.50),  # 30-80%
+    "saving": (0.80, 0.15),       # 80-95%
+    "done": (0.95, 0.05),         # 95-100%
+}
+
+
+async def emit_source_progress(
+    source_id: str,
+    phase: str,
+    phase_pct: int,
+    message: str = "",
+) -> None:
+    """Emit unified source-level progress to all clients.
+
+    Each caller reports its own 0-100 local progress within its phase.
+    This helper maps ``(phase, phase_pct)`` to the overall 0-100 scale
+    using the weights defined in ``_PHASE_WEIGHTS``.
 
     Args:
-        source_id: The source being extracted.
-        pct: Percentage complete (0-100).
-        message: Optional human-readable status message.
+        source_id: The source being processed.
+        phase: Pipeline phase (extraction, compilation, saving, done).
+        phase_pct: Progress within the phase (0-100).
+        message: Human-readable status message.
     """
+    start, width = _PHASE_WEIGHTS.get(phase, (0.0, 1.0))
+    overall = int((start + width * (min(phase_pct, 100) / 100)) * 100)
     await manager.broadcast(
         {
-            "event": "extraction.progress",
+            "event": "source.progress",
             "source_id": source_id,
-            "pct": pct,
+            "pct": min(overall, 100),
+            "phase": phase,
             "message": message,
         }
     )

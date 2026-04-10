@@ -32,7 +32,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from wikimind.api.routes.ws import emit_extraction_progress
+from wikimind.api.routes.ws import emit_source_progress
 from wikimind.config import get_settings
 from wikimind.models import DocumentChunk, IngestStatus, NormalizedDocument, Source, SourceType
 
@@ -642,7 +642,7 @@ class PDFAdapter:
         settings = get_settings()
         batch_size = settings.docling_batch_pages
 
-        await emit_extraction_progress(source_id, 0, f"Extracting {total_pages} pages...")
+        await emit_source_progress(source_id, "extraction", 0, f"Extracting {total_pages} pages...")
 
         # Warm up the converter off the event loop — the first call to
         # _get_docling_converter() triggers ~500 MB of model downloads
@@ -667,11 +667,13 @@ class PDFAdapter:
             markdown_parts.append(batch_md)
 
             pages_done = end
-            pct = int(pages_done / total_pages * 100)
-            await emit_extraction_progress(source_id, pct, f"Extracted pages {start}-{end} of {total_pages}")
+            pct = int((pages_done / total_pages) * 100)
+            await emit_source_progress(
+                source_id, "extraction", pct, f"Extracting pages {start}-{end} of {total_pages}"
+            )
 
         markdown = "\n\n".join(markdown_parts)
-        await emit_extraction_progress(source_id, 100, "Extraction complete")
+        await emit_source_progress(source_id, "extraction", 100, "Extraction complete")
         return markdown, total_pages
 
 
