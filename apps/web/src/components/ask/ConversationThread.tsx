@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ConversationDetail } from "../../api/query";
 import { TurnCard } from "./TurnCard";
 import { SaveThreadButton } from "./SaveThreadButton";
@@ -6,6 +8,7 @@ interface Props {
   detail: ConversationDetail | undefined;
   isLoading: boolean;
   pendingQuestion: string | null;
+  streamingAnswer: string | null;
   onSave: () => void;
   isSaving: boolean;
   onExport: () => void;
@@ -16,6 +19,7 @@ export function ConversationThread({
   detail,
   isLoading,
   pendingQuestion,
+  streamingAnswer,
   onSave,
   isSaving,
   onExport,
@@ -25,7 +29,7 @@ export function ConversationThread({
   if (!detail && !pendingQuestion) {
     return (
       <div className="text-slate-400">
-        {isLoading ? "Loading…" : "Ask a question to start a new conversation."}
+        {isLoading ? "Loading..." : "Ask a question to start a new conversation."}
       </div>
     );
   }
@@ -42,6 +46,7 @@ export function ConversationThread({
         <PendingTurnCard
           turnNumber={queries.length + 1}
           question={pendingQuestion}
+          streamingAnswer={streamingAnswer}
         />
       )}
       {queries.length > 0 && !pendingQuestion && (
@@ -57,7 +62,7 @@ export function ConversationThread({
             disabled={isExporting}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {isExporting ? "Exporting…" : "Export markdown"}
+            {isExporting ? "Exporting..." : "Export markdown"}
           </button>
         </div>
       )}
@@ -67,16 +72,18 @@ export function ConversationThread({
 
 /**
  * Visual placeholder shown while an ask mutation is in flight.
- * Renders the user's question immediately so they get feedback that
- * their submission landed, with a pulsing "Thinking…" affordance
- * where the real answer will appear.
+ * When streamingAnswer is null, shows a "Thinking..." indicator.
+ * When streamingAnswer has content, renders the partial markdown answer
+ * progressively as tokens arrive from the SSE stream.
  */
 function PendingTurnCard({
   turnNumber,
   question,
+  streamingAnswer,
 }: {
   turnNumber: number;
   question: string;
+  streamingAnswer: string | null;
 }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm">
@@ -88,13 +95,25 @@ function PendingTurnCard({
           {question}
         </h3>
       </header>
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <div
-          className="h-2 w-2 animate-pulse rounded-full bg-blue-500"
-          aria-hidden
-        />
-        <span>Thinking…</span>
-      </div>
+      {streamingAnswer ? (
+        <div className="prose prose-sm max-w-none text-slate-700">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {streamingAnswer}
+          </ReactMarkdown>
+          <span
+            className="ml-1 inline-block h-3 w-1.5 animate-pulse bg-blue-500"
+            aria-label="Streaming"
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div
+            className="h-2 w-2 animate-pulse rounded-full bg-blue-500"
+            aria-hidden
+          />
+          <span>Thinking...</span>
+        </div>
+      )}
     </article>
   );
 }

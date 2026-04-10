@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   askQuestion,
+  askQuestionStream,
   getConversation,
   listConversations,
   fileBackConversation,
@@ -22,6 +23,12 @@ export function AskView() {
   const pushToast = useWebSocketStore((s) => s.pushToast);
   const [pendingError, setPendingError] = useState<string | null>(null);
 
+  // Streaming state
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [streamingAnswer, setStreamingAnswer] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   // Load the current conversation's full thread (only if we have an id)
   const conversationDetail = useQuery({
     queryKey: ["conversation", conversationId],
@@ -35,19 +42,16 @@ export function AskView() {
     queryFn: () => listConversations(50),
   });
 
-  // Ask mutation — appends a turn to the current conversation, or starts a new one
-  const ask = useMutation({
+  // Non-streaming fallback mutation (used when streaming fails to connect)
+  const askFallback = useMutation({
     mutationFn: (req: AskRequest) => askQuestion(req),
     onSuccess: (response) => {
       setPendingError(null);
+      setPendingQuestion(null);
       const newId = response.conversation.id;
-      // If we were on /ask (no id), navigate to /ask/:newId
       if (!conversationId) {
         navigate(`/ask/${newId}`, { replace: true });
       }
-      // Eagerly merge the new turn into the cache so the UI updates
-      // instantly without an invalidation roundtrip. This masks the
-      // network delay between "answer ready" and "conversation refetched".
       queryClient.setQueryData<ConversationDetail>(
         ["conversation", newId],
         (old) => ({
@@ -55,10 +59,10 @@ export function AskView() {
           queries: [...(old?.queries ?? []), response.query],
         }),
       );
-      // The sidebar list still needs a refresh for the updated turn count.
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (err: Error) => {
+      setPendingQuestion(null);
       setPendingError(err.message || "Failed to ask question");
     },
   });
@@ -84,9 +88,61 @@ export function AskView() {
     },
   });
 
-  const handleSubmit = (question: string) => {
-    ask.mutate({ question, conversation_id: conversationId });
-  };
+  const handleSubmit = useCallback(async (question: string) => {
+    const req: AskRequest = { question, conversation_id: conversationId };
+
+    setPendingError(null);
+    setPendingQuestion(question);
+    setStreamingAnswer(null);
+    setIsStreaming(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      let accumulated = "";
+      for await (const event of askQuestionStream(req, controller.signal)) {
+        switch (event.type) {
+          case "chunk":
+            accumulated += event.text;
+            setStreamingAnswer(accumulated);
+            break;
+          case "done": {
+            const response = event.response;
+            const newId = response.conversation.id;
+            if (!conversationId) {
+              navigate(`/ask/${newId}`, { replace: true });
+            }
+            queryClient.setQueryData<ConversationDetail>(
+              ["conversation", newId],
+              (old) => ({
+                conversation: response.conversation,
+                queries: [...(old?.queries ?? []), response.query],
+              }),
+            );
+            queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            setPendingQuestion(null);
+            setStreamingAnswer(null);
+            break;
+          }
+          case "error":
+            setPendingError(event.message);
+            setPendingQuestion(null);
+            setStreamingAnswer(null);
+            break;
+        }
+      }
+    } catch (err) {
+      // If the stream fails to connect, fall back to non-streaming endpoint
+      if (controller.signal.aborted) return;
+      setStreamingAnswer(null);
+      setPendingError(null);
+      askFallback.mutate(req);
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  }, [conversationId, navigate, queryClient, askFallback]);
 
   const handleSave = () => {
     if (conversationId) fileBack.mutate(conversationId);
@@ -125,10 +181,7 @@ export function AskView() {
     }
   };
 
-  // Optimistic UI: while the ask mutation is in flight, show the user's
-  // question in a "pending" turn card so they get immediate visual feedback
-  // instead of staring at a frozen UI for 5-30 seconds.
-  const pendingQuestion = ask.isPending ? (ask.variables?.question ?? null) : null;
+  const isBusy = isStreaming || askFallback.isPending;
 
   return (
     <div className="flex h-full">
@@ -144,6 +197,7 @@ export function AskView() {
             detail={conversationDetail.data}
             isLoading={conversationDetail.isLoading}
             pendingQuestion={pendingQuestion}
+            streamingAnswer={streamingAnswer}
             onSave={handleSave}
             isSaving={fileBack.isPending}
             onExport={handleExport}
@@ -156,7 +210,7 @@ export function AskView() {
           )}
         </div>
         <div className="border-t border-slate-200 p-4">
-          <QueryInput onSubmit={handleSubmit} disabled={ask.isPending} />
+          <QueryInput onSubmit={handleSubmit} disabled={isBusy} />
         </div>
       </main>
     </div>
