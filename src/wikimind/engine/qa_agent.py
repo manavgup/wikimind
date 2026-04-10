@@ -7,6 +7,8 @@ Every answer can be filed back to make the wiki smarter.
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
@@ -55,6 +57,18 @@ Output schema:
   "follow_up_questions": ["Question 1", "Question 2"]
 }
 """
+
+
+@dataclass
+class _PreparedContext:
+    """Bundle of data prepared before an LLM call (shared by answer and answer_stream)."""
+
+    conversation: Conversation
+    next_turn_index: int
+    prior_turns: list[Query]
+    wiki_context: list[dict]
+    completion_request: CompletionRequest | None  # None when wiki_context is empty
+    no_context_result: QueryResult | None  # non-None when wiki_context is empty
 
 
 class QAAgent:
@@ -128,6 +142,181 @@ class QAAgent:
         last = result.scalars().first()
         return (last.turn_index + 1) if last is not None else 0
 
+    async def _prepare_context(
+        self,
+        request: QueryRequest,
+        session: AsyncSession,
+    ) -> _PreparedContext:
+        """Prepare everything needed before the LLM call.
+
+        Resolves the conversation, loads prior turns, retrieves wiki context,
+        and builds the CompletionRequest. Shared by ``answer()`` and
+        ``answer_stream()``.
+
+        Args:
+            request: The query request.
+            session: Async database session.
+
+        Returns:
+            A :class:`_PreparedContext` with all data needed for the LLM call.
+        """
+        log.info("Q&A query", question=request.question[:100])
+
+        conversation = await self._get_or_create_conversation(request, session)
+
+        prior_turns: list[Query] = []
+        if request.conversation_id is not None:
+            next_turn_index = await self._next_turn_index(conversation.id, session)
+            prior_turns = await self._load_prior_turns(
+                conversation.id, up_to_turn_index=next_turn_index, session=session
+            )
+        else:
+            next_turn_index = 0
+
+        wiki_context = await self._retrieve_context(request.question, session)
+
+        if not wiki_context:
+            return _PreparedContext(
+                conversation=conversation,
+                next_turn_index=next_turn_index,
+                prior_turns=prior_turns,
+                wiki_context=wiki_context,
+                completion_request=None,
+                no_context_result=QueryResult(
+                    answer=(
+                        "No relevant articles found in your wiki for this question."
+                        " Consider ingesting sources on this topic."
+                    ),
+                    confidence="low",
+                    sources=[],
+                    related_articles=[],
+                    follow_up_questions=[f"What sources cover {request.question}?"],
+                ),
+            )
+
+        completion_request = self._build_completion_request(request.question, wiki_context, prior_turns)
+        return _PreparedContext(
+            conversation=conversation,
+            next_turn_index=next_turn_index,
+            prior_turns=prior_turns,
+            wiki_context=wiki_context,
+            completion_request=completion_request,
+            no_context_result=None,
+        )
+
+    def _build_completion_request(
+        self,
+        question: str,
+        context: list[dict],
+        prior_turns: list[Query],
+    ) -> CompletionRequest:
+        """Build the CompletionRequest for the LLM call.
+
+        Extracted from ``_query_llm`` so it can be reused by streaming.
+
+        Args:
+            question: The user's question.
+            context: Wiki articles retrieved as context.
+            prior_turns: Prior conversation turns.
+
+        Returns:
+            A :class:`CompletionRequest` ready to send to the router.
+        """
+        context_text = "\n\n---\n\n".join([f"## {c['title']}\n\n{c['content']}" for c in context])
+
+        conv_block = ""
+        if prior_turns:
+            truncate_chars = self.settings.qa.prior_answer_truncate_chars
+            conv_lines: list[str] = ["", "---", "", "Conversation so far:"]
+            for prior in prior_turns:
+                turn_n = prior.turn_index + 1
+                truncated = prior.answer[:truncate_chars]
+                conv_lines.append(f"Q{turn_n}: {prior.question}")
+                conv_lines.append(f"A{turn_n}: {truncated}")
+            conv_block = "\n".join(conv_lines)
+
+        user_message = f"""Wiki context:
+
+{context_text}{conv_block}
+
+---
+
+Current question: {question}
+
+Answer based on the wiki context above. Use the conversation history
+to disambiguate references like "it" or "that approach". If the
+conversation context contradicts the wiki, prefer the wiki."""
+
+        return CompletionRequest(
+            system=QA_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.QA,
+        )
+
+    async def _persist_query(
+        self,
+        request: QueryRequest,
+        result: QueryResult,
+        ctx: _PreparedContext,
+        session: AsyncSession,
+    ) -> tuple[Query, Conversation]:
+        """Persist the Query row and handle file-back.
+
+        Shared by ``answer()`` and the ``answer_stream()`` completion path.
+
+        Args:
+            request: Original query request.
+            result: Parsed QA result from the LLM.
+            ctx: Prepared context from ``_prepare_context()``.
+            session: Async database session.
+
+        Returns:
+            Tuple of (the new Query row, the parent Conversation).
+        """
+        query_record = Query(
+            question=request.question,
+            answer=result.answer,
+            confidence=result.confidence,
+            source_article_ids=json.dumps(result.sources),
+            related_article_ids=json.dumps(result.related_articles),
+            conversation_id=ctx.conversation.id,
+            turn_index=ctx.next_turn_index,
+        )
+        session.add(query_record)
+
+        ctx.conversation.updated_at = utcnow_naive()
+        session.add(ctx.conversation)
+
+        filed_article: Article | None = None
+        if request.file_back and result.confidence in ("high", "medium"):
+            await session.flush()
+            article, _ = await self._file_back_thread(ctx.conversation.id, session)
+            query_record.filed_back = True
+            query_record.filed_article_id = article.id
+            filed_article = article
+            session.add(query_record)
+
+        await session.commit()
+
+        try:
+            append_log_entry("query", request.question[:120])
+            if filed_article is not None:
+                append_log_entry(
+                    "filed",
+                    filed_article.title,
+                    extra={"conversation_id": ctx.conversation.id},
+                )
+        except Exception:
+            log.warning("activity log write failed", op="query")
+
+        await session.refresh(query_record)
+        await session.refresh(ctx.conversation)
+
+        return query_record, ctx.conversation
+
     async def answer(
         self,
         request: QueryRequest,
@@ -147,80 +336,77 @@ class QAAgent:
         Returns:
             Tuple of (the new Query row, the parent Conversation).
         """
-        log.info("Q&A query", question=request.question[:100])
+        ctx = await self._prepare_context(request, session)
 
-        # Resolve or create the conversation
-        conversation = await self._get_or_create_conversation(request, session)
-
-        # Load prior turns BEFORE persisting the new one (so the new turn
-        # doesn't appear in its own context)
-        prior_turns: list[Query] = []
-        if request.conversation_id is not None:
-            next_turn_index = await self._next_turn_index(conversation.id, session)
-            prior_turns = await self._load_prior_turns(
-                conversation.id, up_to_turn_index=next_turn_index, session=session
-            )
+        if ctx.no_context_result is not None:
+            result = ctx.no_context_result
         else:
-            next_turn_index = 0
+            result = await self._query_llm(request.question, ctx.wiki_context, ctx.prior_turns, session)
 
-        # Retrieve wiki context (unchanged from prior implementation)
-        context = await self._retrieve_context(request.question, session)
+        return await self._persist_query(request, result, ctx, session)
 
-        if not context:
+    async def answer_stream(
+        self,
+        request: QueryRequest,
+        session: AsyncSession,
+    ) -> AsyncIterator[str | tuple[Query, Conversation]]:
+        """Stream LLM tokens, then yield the persisted (Query, Conversation) tuple.
+
+        Yields text chunk strings during streaming. After all tokens have been
+        yielded, yields a single ``(Query, Conversation)`` tuple as the final
+        item. The caller (service layer) is responsible for constructing SSE
+        events from these values.
+
+        If wiki context is empty, yields the canned answer text as one chunk
+        followed by the persisted tuple.
+
+        Raises:
+            RuntimeError: When all LLM providers fail.
+
+        Args:
+            request: The query request.
+            session: Async database session.
+
+        Yields:
+            ``str`` text chunks, then a final ``tuple[Query, Conversation]``.
+        """
+        ctx = await self._prepare_context(request, session)
+
+        if ctx.no_context_result is not None:
+            result = ctx.no_context_result
+            yield result.answer
+            query_record, conversation = await self._persist_query(request, result, ctx, session)
+            yield (query_record, conversation)
+            return
+
+        assert ctx.completion_request is not None
+        stream_session = await self.router.stream_complete(ctx.completion_request)
+        full_text_parts: list[str] = []
+        async for chunk_text in stream_session:
+            full_text_parts.append(chunk_text)
+            yield chunk_text
+
+        full_text = "".join(full_text_parts)
+
+        # Parse the accumulated JSON
+        try:
+            content = full_text.strip()
+            if content.startswith("```"):
+                lines = content.split("\n")
+                content = "\n".join(lines[1:-1])
+            data = json.loads(content)
+            result = QueryResult(**data)
+        except Exception as e:
+            log.error("Failed to parse streamed QA response", error=str(e))
             result = QueryResult(
-                answer="No relevant articles found in your wiki for this question. Consider ingesting sources on this topic.",
+                answer="Error processing answer. Please try again.",
                 confidence="low",
                 sources=[],
                 related_articles=[],
-                follow_up_questions=[f"What sources cover {request.question}?"],
             )
-        else:
-            result = await self._query_llm(request.question, context, prior_turns, session)
 
-        # Persist the new Query row
-        query_record = Query(
-            question=request.question,
-            answer=result.answer,
-            confidence=result.confidence,
-            source_article_ids=json.dumps(result.sources),
-            related_article_ids=json.dumps(result.related_articles),
-            conversation_id=conversation.id,
-            turn_index=next_turn_index,
-        )
-        session.add(query_record)
-
-        # Touch the conversation's updated_at
-        conversation.updated_at = utcnow_naive()
-        session.add(conversation)
-
-        # File back if requested — stage the changes and let the single
-        # commit below persist everything atomically (no double commit).
-        filed_article: Article | None = None
-        if request.file_back and result.confidence in ("high", "medium"):
-            await session.flush()  # make the new Query visible to file_back's SELECT
-            article, _ = await self._file_back_thread(conversation.id, session)
-            query_record.filed_back = True
-            query_record.filed_article_id = article.id
-            filed_article = article
-            session.add(query_record)
-
-        await session.commit()
-
-        try:
-            append_log_entry("query", request.question[:120])
-            if filed_article is not None:
-                append_log_entry(
-                    "filed",
-                    filed_article.title,
-                    extra={"conversation_id": conversation.id},
-                )
-        except Exception:
-            log.warning("activity log write failed", op="query")
-
-        await session.refresh(query_record)
-        await session.refresh(conversation)
-
-        return query_record, conversation
+        query_record, conversation = await self._persist_query(request, result, ctx, session)
+        yield (query_record, conversation)
 
     async def _retrieve_context(self, question: str, session: AsyncSession) -> list[dict]:
         """Retrieve relevant wiki articles for the question."""
@@ -265,41 +451,7 @@ class QAAgent:
         session: AsyncSession,
     ) -> QueryResult:
         """Build the LLM prompt (with optional conversation context) and call the router."""
-        # Wiki context block (unchanged)
-        context_text = "\n\n---\n\n".join([f"## {c['title']}\n\n{c['content']}" for c in context])
-
-        # Conversation context block — only present when there are prior turns
-        conv_block = ""
-        if prior_turns:
-            truncate_chars = self.settings.qa.prior_answer_truncate_chars
-            conv_lines: list[str] = ["", "---", "", "Conversation so far:"]
-            for prior in prior_turns:
-                turn_n = prior.turn_index + 1
-                truncated = prior.answer[:truncate_chars]
-                conv_lines.append(f"Q{turn_n}: {prior.question}")
-                conv_lines.append(f"A{turn_n}: {truncated}")
-            conv_block = "\n".join(conv_lines)
-
-        user_message = f"""Wiki context:
-
-{context_text}{conv_block}
-
----
-
-Current question: {question}
-
-Answer based on the wiki context above. Use the conversation history
-to disambiguate references like "it" or "that approach". If the
-conversation context contradicts the wiki, prefer the wiki."""
-
-        request_obj = CompletionRequest(
-            system=QA_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-            max_tokens=2048,
-            temperature=0.3,
-            response_format="json",
-            task_type=TaskType.QA,
-        )
+        request_obj = self._build_completion_request(question, context, prior_turns)
 
         response = await self.router.complete(request_obj, session=session)
 

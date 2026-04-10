@@ -382,6 +382,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /query/stream:
+    post:
+      tags:
+      - Query
+      summary: Ask Stream
+      description: 'Stream an answer token-by-token via Server-Sent Events.
+
+
+        Returns SSE events: ``chunk`` (text deltas), ``done`` (final AskResponse),
+
+        or ``error``. The Query row is persisted only after the stream completes
+
+        successfully. Client disconnect aborts without persisting.'
+      operationId: ask_stream_query_stream_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query/history:
     get:
       tags:

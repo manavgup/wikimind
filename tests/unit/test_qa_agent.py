@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -12,6 +13,7 @@ from fastapi import HTTPException
 from wikimind._datetime import utcnow_naive
 from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
+from wikimind.engine.llm_router import StreamSession
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
@@ -431,3 +433,120 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
     # The first article's content mentions the first answer
     content_a = Path(article_a.file_path).read_text()
     assert "First answer" in content_a
+
+
+# ---------------------------------------------------------------------------
+# Streaming tests
+# ---------------------------------------------------------------------------
+
+_MOCK_QA_JSON = json.dumps(
+    {
+        "answer": "Streamed answer.",
+        "confidence": "high",
+        "sources": ["A"],
+        "related_articles": [],
+        "follow_up_questions": [],
+    }
+)
+
+
+def _stream_session(content: str) -> StreamSession:
+    """Build a StreamSession that yields content in 10-char chunks."""
+
+    async def _gen():
+        for i in range(0, len(content), 10):
+            yield content[i : i + 10]
+        session.result = CompletionResponse(
+            content=content,
+            provider_used=Provider.ANTHROPIC,
+            model_used="m",
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            latency_ms=0,
+        )
+
+    session = StreamSession(_chunks=_gen())
+    return session
+
+
+async def test_answer_stream_no_context_yields_text_and_tuple(db_session, tmp_path) -> None:
+    """answer_stream() with no wiki context yields canned answer text + (Query, Conversation)."""
+    a = _agent(tmp_path)
+    with patch.object(a, "_retrieve_context", AsyncMock(return_value=[])):
+        items = [item async for item in a.answer_stream(QueryRequest(question="hello"), db_session)]
+
+    # First item: the canned answer text string
+    assert isinstance(items[0], str)
+    assert "No relevant articles" in items[0]
+
+    # Second item: the (Query, Conversation) tuple
+    assert isinstance(items[1], tuple)
+    query_record, conversation = items[1]
+    assert isinstance(query_record, Query)
+    assert isinstance(conversation, Conversation)
+    assert query_record.confidence == "low"
+
+
+async def test_answer_stream_with_context_yields_chunks_and_tuple(db_session, tmp_path) -> None:
+    """answer_stream() with wiki context streams text chunks then yields (Query, Conversation)."""
+    a = _agent(tmp_path)
+    with patch.object(
+        a,
+        "_retrieve_context",
+        AsyncMock(return_value=[{"title": "T", "content": "C"}]),
+    ):
+        a.router.stream_complete = AsyncMock(return_value=_stream_session(_MOCK_QA_JSON))
+
+        items = [item async for item in a.answer_stream(QueryRequest(question="hello"), db_session)]
+
+    # All items except the last should be strings (text chunks)
+    text_chunks = [i for i in items if isinstance(i, str)]
+    tuples = [i for i in items if isinstance(i, tuple)]
+    assert len(text_chunks) > 0
+    assert len(tuples) == 1
+
+    # Concatenated text should equal the mock JSON
+    assert "".join(text_chunks) == _MOCK_QA_JSON
+
+    # The final tuple contains persisted Query and Conversation
+    query_record, _conversation = tuples[0]
+    assert query_record.answer == "Streamed answer."
+    assert query_record.confidence == "high"
+
+
+async def test_answer_stream_persists_query_after_completion(db_session, tmp_path) -> None:
+    """answer_stream() persists a Query row after the stream finishes."""
+    a = _agent(tmp_path)
+    with patch.object(
+        a,
+        "_retrieve_context",
+        AsyncMock(return_value=[{"title": "T", "content": "C"}]),
+    ):
+        a.router.stream_complete = AsyncMock(return_value=_stream_session(_MOCK_QA_JSON))
+
+        items = [item async for item in a.answer_stream(QueryRequest(question="stream persist test"), db_session)]
+
+    # Extract the final tuple
+    final = next(i for i in items if isinstance(i, tuple))
+    query_record, _conversation = final
+
+    # The query was persisted with the streamed answer
+    assert query_record.answer == "Streamed answer."
+    assert query_record.confidence == "high"
+    assert query_record.id is not None
+
+
+async def test_answer_stream_raises_on_stream_failure(db_session, tmp_path) -> None:
+    """answer_stream() raises when stream_complete raises (caller handles error)."""
+    a = _agent(tmp_path)
+    with patch.object(
+        a,
+        "_retrieve_context",
+        AsyncMock(return_value=[{"title": "T", "content": "C"}]),
+    ):
+        a.router.stream_complete = AsyncMock(side_effect=RuntimeError("all providers dead"))
+
+        with pytest.raises(RuntimeError, match="all providers dead"):
+            async for _ in a.answer_stream(QueryRequest(question="will fail"), db_session):
+                pass

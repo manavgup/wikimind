@@ -3,12 +3,20 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
 
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
-from wikimind.models import Article, Conversation, Query, Source, SourceType
+from wikimind.models import (
+    Article,
+    Conversation,
+    Query,
+    QueryRequest,
+    Source,
+    SourceType,
+)
 from wikimind.services.query import QueryService, _build_citations, _sanitize_filename
 
 
@@ -236,3 +244,75 @@ class TestSanitizeFilename:
 
     def test_preserves_hyphens_and_underscores(self):
         assert _sanitize_filename("my-conversation_v2") == "my-conversation_v2"
+
+
+# ---------------------------------------------------------------------------
+# ask_stream tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestAskStream:
+    async def test_ask_stream_emits_chunk_and_done_events(self, db_session):
+        """ask_stream() converts agent's str/tuple yields into SSE events."""
+        # Seed a conversation + query so _build_citations has something to work with
+        conv = Conversation(
+            id="conv-stream-1",
+            title="stream test",
+        )
+        db_session.add(conv)
+        q = Query(
+            id="q-stream-1",
+            question="test",
+            answer="hello",
+            confidence="high",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-stream-1",
+            turn_index=0,
+        )
+        db_session.add(q)
+        await db_session.commit()
+        await db_session.refresh(q)
+        await db_session.refresh(conv)
+
+        service = QueryService()
+
+        async def _fake_stream(request, session):
+            yield "hello "
+            yield "world"
+            yield (q, conv)
+
+        with patch.object(service._qa_agent, "answer_stream", side_effect=_fake_stream):
+            events = [event async for event in service.ask_stream(QueryRequest(question="test"), db_session)]
+
+        # Should have 2 chunk events + 1 done event
+        chunk_events = [e for e in events if e.startswith("event: chunk\n")]
+        done_events = [e for e in events if e.startswith("event: done\n")]
+        assert len(chunk_events) == 2
+        assert len(done_events) == 1
+
+        # Check chunk content
+        first_chunk_data = json.loads(chunk_events[0].split("data: ", 1)[1].strip())
+        assert first_chunk_data["text"] == "hello "
+
+        # Check done event has AskResponse shape
+        done_data = json.loads(done_events[0].split("data: ", 1)[1].strip())
+        assert "query" in done_data
+        assert "conversation" in done_data
+
+    async def test_ask_stream_emits_error_on_failure(self, db_session):
+        """ask_stream() emits an error event when the agent raises."""
+        service = QueryService()
+
+        async def _failing_stream(request, session):
+            raise RuntimeError("provider dead")
+            yield  # make it a generator  # pragma: no cover
+
+        with patch.object(service._qa_agent, "answer_stream", side_effect=_failing_stream):
+            events = [event async for event in service.ask_stream(QueryRequest(question="fail"), db_session)]
+
+        error_events = [e for e in events if e.startswith("event: error\n")]
+        assert len(error_events) == 1
+        error_data = json.loads(error_events[0].split("data: ", 1)[1].strip())
+        assert error_data["code"] == "stream_failed"

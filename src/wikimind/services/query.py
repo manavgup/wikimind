@@ -9,6 +9,7 @@ from.
 
 import json
 import re
+from collections.abc import AsyncIterator
 
 import structlog
 from fastapi import HTTPException
@@ -197,6 +198,46 @@ class QueryService:
             query=_to_query_response(query, citations),
             conversation=_to_conversation_response(conversation),
         )
+
+    async def ask_stream(
+        self,
+        request: QueryRequest,
+        session: AsyncSession,
+    ) -> AsyncIterator[str]:
+        """Stream an answer token-by-token via SSE events.
+
+        Delegates to :meth:`QAAgent.answer_stream` for LLM streaming and
+        persistence, then wraps each value in the SSE event protocol.
+
+        SSE events emitted:
+        - ``event: chunk`` with ``{"text": "..."}`` for each text delta
+        - ``event: done`` with the full ``AskResponse`` JSON after completion
+        - ``event: error`` with ``{"code": "...", "message": "..."}`` on failure
+
+        Args:
+            request: The query request.
+            session: Async database session.
+
+        Yields:
+            SSE-formatted event strings.
+        """
+        try:
+            async for item in self._qa_agent.answer_stream(request, session):
+                if isinstance(item, str):
+                    yield (f"event: chunk\ndata: {json.dumps({'text': item})}\n\n")
+                else:
+                    # Final tuple: (Query, Conversation)
+                    query_record, conversation = item
+                    citations = await _build_citations(query_record, session)
+                    done_payload = AskResponse(
+                        query=_to_query_response(query_record, citations),
+                        conversation=_to_conversation_response(conversation),
+                    )
+                    yield (f"event: done\ndata: {done_payload.model_dump_json()}\n\n")
+        except Exception as e:
+            log.error("Stream failed", error=str(e))
+            error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
+            yield f"event: error\ndata: {error_payload}\n\n"
 
     async def query_history(self, session: AsyncSession, limit: int = 50) -> list[Query]:
         """List past queries ordered by most recent first.

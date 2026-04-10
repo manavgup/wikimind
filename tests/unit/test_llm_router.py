@@ -18,6 +18,7 @@ from wikimind.engine.llm_router import (
     MockProvider,
     OllamaProvider,
     OpenAIProvider,
+    StreamSession,
     _calc_cost,
     get_llm_router,
 )
@@ -362,3 +363,149 @@ class TestMockProvider:
         assert data == _MOCK_LINT_RESPONSE
         assert "contradictions" in data
         assert data["contradictions"] == []
+
+
+# ---------------------------------------------------------------------------
+# StreamSession tests
+# ---------------------------------------------------------------------------
+
+
+async def test_stream_session_aiter_yields_chunks() -> None:
+    """StreamSession yields chunks from the underlying async iterator."""
+
+    async def _gen():
+        yield "hello "
+        yield "world"
+
+    session = StreamSession(_chunks=_gen())
+    chunks = [chunk async for chunk in session]
+    assert chunks == ["hello ", "world"]
+
+
+async def test_stream_session_result_starts_none() -> None:
+    """StreamSession.result is None before iteration."""
+
+    async def _gen():
+        yield "x"
+
+    session = StreamSession(_chunks=_gen())
+    assert session.result is None
+
+
+# ---------------------------------------------------------------------------
+# Provider stream() tests
+# ---------------------------------------------------------------------------
+
+
+class TestMockProviderStream:
+    """MockProvider.stream() returns canned responses chunked into ~20-char pieces."""
+
+    @pytest.mark.asyncio
+    async def test_stream_qa_yields_full_content(self) -> None:
+        provider = MockProvider()
+        request = CompletionRequest(
+            system="system",
+            messages=[{"role": "user", "content": "what is mocking?"}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.QA,
+        )
+
+        session = await provider.stream(request, model="mock-1")
+        chunks = [chunk async for chunk in session]
+
+        full_text = "".join(chunks)
+        assert json.loads(full_text) == _MOCK_QA_RESPONSE
+        assert session.result is not None
+        assert session.result.provider_used == Provider.MOCK
+        assert session.result.content == full_text
+        assert session.result.cost_usd == 0.0
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_chunks_not_entire_response(self) -> None:
+        provider = MockProvider()
+        request = CompletionRequest(
+            system="system",
+            messages=[{"role": "user", "content": "compile this"}],
+            max_tokens=2048,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.COMPILE,
+        )
+
+        session = await provider.stream(request, model="mock-1")
+        chunks = [chunk async for chunk in session]
+
+        # Content is longer than one chunk (20 chars)
+        full_content = json.dumps(_MOCK_COMPILE_RESPONSE)
+        assert len(full_content) > 20
+        assert len(chunks) > 1
+        assert all(len(c) <= 20 for c in chunks)
+
+
+# ---------------------------------------------------------------------------
+# Router stream_complete() tests
+# ---------------------------------------------------------------------------
+
+
+async def test_router_stream_complete_success() -> None:
+    """Router.stream_complete() returns a StreamSession from the first available provider."""
+    router = _router_with_settings()
+    fake_session = StreamSession(_chunks=_fake_aiter(["a", "b"]))
+    instance = SimpleNamespace(stream=AsyncMock(return_value=fake_session))
+    with (
+        patch.object(router, "_is_provider_available", return_value=True),
+        patch.object(router, "_get_provider_instance", AsyncMock(return_value=instance)),
+    ):
+        result = await router.stream_complete(_req())
+    assert result is fake_session
+
+
+async def test_router_stream_complete_falls_through_on_error() -> None:
+    """stream_complete() tries next provider when first fails."""
+    router = _router_with_settings()
+    good_session = StreamSession(_chunks=_fake_aiter(["ok"]))
+    bad = SimpleNamespace(stream=AsyncMock(side_effect=RuntimeError("boom")))
+    good = SimpleNamespace(stream=AsyncMock(return_value=good_session))
+
+    instances = [bad, good]
+
+    async def get_instance(_p):
+        return instances.pop(0)
+
+    with (
+        patch.object(router, "_is_provider_available", return_value=True),
+        patch.object(router, "_get_provider_instance", side_effect=get_instance),
+    ):
+        result = await router.stream_complete(_req())
+    assert result is good_session
+
+
+async def test_router_stream_complete_no_available_providers() -> None:
+    """stream_complete() raises RuntimeError when no providers are available."""
+    router = _router_with_settings()
+    with (
+        patch.object(router, "_is_provider_available", return_value=False),
+        pytest.raises(RuntimeError),
+    ):
+        await router.stream_complete(_req())
+
+
+async def test_router_stream_complete_no_fallback_raises() -> None:
+    """stream_complete() raises immediately when fallback_enabled=False."""
+    router = _router_with_settings()
+    router.settings.llm.fallback_enabled = False
+    bad = SimpleNamespace(stream=AsyncMock(side_effect=RuntimeError("boom")))
+    with (
+        patch.object(router, "_is_provider_available", return_value=True),
+        patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
+        pytest.raises(RuntimeError),
+    ):
+        await router.stream_complete(_req())
+
+
+async def _fake_aiter(items):
+    """Helper to create an async iterator from a list."""
+    for item in items:
+        yield item
