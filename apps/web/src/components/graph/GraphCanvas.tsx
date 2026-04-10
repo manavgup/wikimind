@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import ForceGraph from "react-force-graph-2d";
 import type { ForceGraphMethods } from "react-force-graph-2d";
 import type { GraphNode, GraphEdge } from "../../types/api";
@@ -93,13 +93,16 @@ export function GraphCanvas({ nodes, edges, width, height, onNodeClick }: GraphC
     [onNodeClick],
   );
 
-  // Zoom to fit once the engine settles
+  // Stable key for the current node set — triggers zoom on any filter change
+  const nodeKey = useMemo(() => nodes.map((n) => n.id).join(","), [nodes]);
+
+  // Zoom to fit whenever the visible node set changes
   useEffect(() => {
     const timer = setTimeout(() => {
       fgRef.current?.zoomToFit(400, 40);
-    }, 500);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [nodes.length]);
+  }, [nodeKey]);
 
   return (
     <ForceGraph<GraphCanvasNode, GraphCanvasLink>
