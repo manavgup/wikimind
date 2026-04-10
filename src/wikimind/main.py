@@ -4,6 +4,7 @@ Runs as a local daemon on localhost:7842. Initializes the database,
 registers all routers, and configures CORS for Electron and web dev servers.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
@@ -16,6 +17,7 @@ from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, init_db
 from wikimind.errors import WikiMindError
+from wikimind.ingest.service import _DOCLING_AVAILABLE, _get_docling_converter
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
@@ -36,6 +38,18 @@ async def lifespan(app: FastAPI):
     log.info("WikiMind gateway starting", port=settings.gateway_port)
     await init_db()
     log.info("Database initialized")
+
+    # Warm up the Docling converter in a background thread so ML model
+    # weights (~500 MB) are downloaded and loaded before the first PDF
+    # arrives.  Without this, the first PDF ingest blocks for 30-60 s
+    # while models are fetched and the UI appears stuck.
+    try:
+        if _DOCLING_AVAILABLE:
+            log.info("Warming up Docling converter (background thread)…")
+            await asyncio.to_thread(_get_docling_converter)
+            log.info("Docling converter ready")
+    except Exception:
+        log.warning("Docling warm-up failed — will retry on first PDF ingest")
 
     yield
 
