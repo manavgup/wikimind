@@ -26,7 +26,6 @@ export function AskView() {
   // Streaming state
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [hasReceivedChunk, setHasReceivedChunk] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Load the current conversation's full thread (only if we have an id)
@@ -94,20 +93,20 @@ export function AskView() {
     setPendingError(null);
     setPendingQuestion(question);
     setIsStreaming(true);
-    setHasReceivedChunk(false);
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
+      console.log("[Ask] Starting SSE stream to /query/stream");
+      let chunkCount = 0;
       for await (const event of askQuestionStream(req, controller.signal)) {
         switch (event.type) {
           case "chunk":
-            // The QA agent returns structured JSON, so we don't render
-            // partial tokens — just track that the stream is active.
-            if (!hasReceivedChunk) setHasReceivedChunk(true);
+            chunkCount++;
             break;
           case "done": {
+            console.log(`[Ask] Stream complete — ${chunkCount} chunks received`);
             const response = event.response;
             const newId = response.conversation.id;
             if (!conversationId) {
@@ -121,25 +120,24 @@ export function AskView() {
               }),
             );
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
-            // Also refetch the conversation detail to get full citations
             queryClient.invalidateQueries({ queryKey: ["conversation", newId] });
             setPendingQuestion(null);
             break;
           }
           case "error":
+            console.error("[Ask] Stream error event:", event.message);
             setPendingError(event.message);
             setPendingQuestion(null);
             break;
         }
       }
     } catch (err) {
-      // If the stream fails to connect, fall back to non-streaming endpoint
+      console.warn("[Ask] Stream failed, falling back to POST /query", err);
       if (controller.signal.aborted) return;
       setPendingError(null);
       askFallback.mutate(req);
     } finally {
       setIsStreaming(false);
-      setHasReceivedChunk(false);
       abortRef.current = null;
     }
   }, [conversationId, navigate, queryClient, askFallback]);
@@ -197,7 +195,7 @@ export function AskView() {
             detail={conversationDetail.data}
             isLoading={conversationDetail.isLoading}
             pendingQuestion={pendingQuestion}
-            isStreaming={hasReceivedChunk}
+            isStreaming={isStreaming}
             onSave={handleSave}
             isSaving={fileBack.isPending}
             onExport={handleExport}
