@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { listArticles, listConcepts, searchWiki } from "../api/wiki";
-import type { Article, Concept, ConfidenceLevel } from "../types/api";
+import { getGraph, listArticles, listConcepts, searchWiki } from "../api/wiki";
+import type { Article, Concept, ConfidenceLevel, GraphResponse } from "../types/api";
 
 export interface UseArticlesParams {
   concept?: string;
@@ -29,5 +29,13 @@ export function useSearch(query: string): UseQueryResult<Article[]> {
     queryFn: () => searchWiki(query),
     enabled: query.trim().length >= 2,
     staleTime: 30_000,
+  });
+}
+
+export function useGraph(): UseQueryResult<GraphResponse> {
+  return useQuery({
+    queryKey: ["wiki-graph"],
+    queryFn: () => getGraph(),
+    staleTime: 60_000,
   });
 }

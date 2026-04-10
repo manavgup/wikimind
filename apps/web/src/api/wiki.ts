@@ -6,6 +6,7 @@ import type {
   ArticleResponse,
   Concept,
   ConfidenceLevel,
+  GraphResponse,
 } from "../types/api";
 
 export interface ListArticlesParams {
@@ -31,4 +32,8 @@ export function listConcepts(): Promise<Concept[]> {
 
 export function searchWiki(q: string, limit = 20): Promise<Article[]> {
   return apiFetch<Article[]>("/wiki/search", { query: { q, limit } });
+}
+
+export function getGraph(): Promise<GraphResponse> {
+  return apiFetch<GraphResponse>("/wiki/graph");
 }
