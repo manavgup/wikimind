@@ -143,6 +143,7 @@ class EmbeddingService:
         self._model_name = settings.embedding.model_name
         self._chunk_size = settings.embedding.chunk_size_tokens
         self._chunk_overlap = settings.embedding.chunk_overlap_tokens
+        self._min_score = settings.embedding.min_similarity_score
         self._model: Any = None
 
     def _get_model(self) -> Any:
@@ -233,6 +234,12 @@ class EmbeddingService:
             distance = results["distances"][0][i] if results["distances"] else 0.0  # type: ignore[index]
             # ChromaDB cosine distance is in [0, 2]; convert to similarity score [0, 1]
             score = 1.0 - (distance / 2.0)  # type: ignore[operator]
+
+            # Filter out low-relevance results — ChromaDB always returns top N
+            # regardless of actual similarity.
+            if score < self._min_score:
+                continue
+
             metadata = results["metadatas"][0][i] if results["metadatas"] else {}  # type: ignore[index]
             document = results["documents"][0][i] if results["documents"] else ""  # type: ignore[index]
 

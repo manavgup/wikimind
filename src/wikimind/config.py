@@ -147,6 +147,7 @@ class EmbeddingConfig(BaseModel):
     model_name: str = "all-MiniLM-L6-v2"
     chunk_size_tokens: int = 500
     chunk_overlap_tokens: int = 50
+    min_similarity_score: float = 0.65
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
