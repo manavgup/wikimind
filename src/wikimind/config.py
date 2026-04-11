@@ -208,6 +208,16 @@ class Settings(BaseSettings):
     # slightly higher overhead from repeated converter calls.
     docling_batch_pages: int = 10
 
+    # Vision-enhanced slide deck ingestion (issue #68).
+    # Pages with fewer characters than the threshold are treated as
+    # image-heavy (diagrams, charts, cover slides) and sent to the
+    # multimodal LLM for description. Set vision_enabled=False to
+    # disable the feature entirely (kill switch).
+    vision_enabled: bool = True
+    vision_text_threshold: int = 300
+    vision_dpi: int = 150
+    vision_max_pages_per_batch: int = 20
+
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
