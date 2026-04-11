@@ -585,6 +585,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/{conversation_id}/fork:
+    post:
+      tags:
+      - Query
+      summary: Fork Conversation
+      description: 'Fork a conversation at a specific turn with a new question.
+
+
+        Creates a new conversation that shares turns 0..turn_index-1 with the
+
+        parent by reference. The original branch is preserved immutably.'
+      operationId: fork_conversation_query_conversations__conversation_id__fork_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForkRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /jobs:
     get:
       tags:
@@ -1279,6 +1317,20 @@ components:
           - type: string
           - type: 'null'
           title: Filed Article Id
+        parent_conversation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Conversation Id
+        forked_at_turn_index:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Forked At Turn Index
+        fork_count:
+          type: integer
+          title: Fork Count
+          default: 0
       type: object
       required:
       - id
@@ -1308,6 +1360,20 @@ components:
           - type: string
           - type: 'null'
           title: Filed Article Id
+        parent_conversation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Conversation Id
+        forked_at_turn_index:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Forked At Turn Index
+        fork_count:
+          type: integer
+          title: Fork Count
+          default: 0
         turn_count:
           type: integer
           title: Turn Count
@@ -1320,6 +1386,20 @@ components:
       - turn_count
       title: ConversationSummary
       description: Conversation summary for the history sidebar — adds turn count.
+    ForkRequest:
+      properties:
+        turn_index:
+          type: integer
+          title: Turn Index
+        new_question:
+          type: string
+          title: New Question
+      type: object
+      required:
+      - turn_index
+      - new_question
+      title: ForkRequest
+      description: Request to fork a conversation at a specific turn with a new question.
     GraphEdge:
       properties:
         source:
