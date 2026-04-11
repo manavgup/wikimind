@@ -559,6 +559,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/file-back:
+    post:
+      tags:
+      - Query
+      summary: File Back Selection
+      description: File selected turns from one or more conversations back to the
+        wiki as a single article.
+      operationId: file_back_selection_query_conversations_file_back_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileBackSelectionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query/conversations/{conversation_id}/file-back:
     post:
       tags:
@@ -1386,6 +1412,23 @@ components:
       - turn_count
       title: ConversationSummary
       description: Conversation summary for the history sidebar — adds turn count.
+    FileBackSelectionRequest:
+      properties:
+        selections:
+          items:
+            $ref: '#/components/schemas/TurnSelection'
+          type: array
+          title: Selections
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      type: object
+      required:
+      - selections
+      title: FileBackSelectionRequest
+      description: Request to file back selected turns from one or more conversations.
     ForkRequest:
       properties:
         turn_index:
@@ -1890,6 +1933,22 @@ components:
       - obsidian
       title: SourceType
       description: Type of ingested source.
+    TurnSelection:
+      properties:
+        conversation_id:
+          type: string
+          title: Conversation Id
+        turn_indices:
+          items:
+            type: integer
+          type: array
+          title: Turn Indices
+      type: object
+      required:
+      - conversation_id
+      - turn_indices
+      title: TurnSelection
+      description: A selection of specific turns from a single conversation.
     ValidationError:
       properties:
         loc:
