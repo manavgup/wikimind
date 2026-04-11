@@ -170,6 +170,10 @@ class Conversation(SQLModel, table=True):
     first turn's question becomes the conversation's title (truncated).
     Filing a conversation back to the wiki is a per-conversation action,
     not per-turn — see ADR-011.
+
+    Branching: when a user edits a prior turn, a new Conversation is
+    created that shares turns 0..N-1 with the parent by reference.
+    The original branch is preserved immutably.
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
@@ -177,6 +181,10 @@ class Conversation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
     filed_article_id: str | None = Field(default=None, foreign_key="article.id")
+    parent_conversation_id: str | None = Field(
+        default=None, foreign_key="conversation.id", index=True
+    )
+    forked_at_turn_index: int | None = None
 
 
 class Query(SQLModel, table=True):
@@ -467,6 +475,13 @@ class QueryRequest(BaseModel):
     conversation_id: str | None = None  # None means start a new conversation
 
 
+class ForkRequest(BaseModel):
+    """Request to fork a conversation at a specific turn with a new question."""
+
+    turn_index: int
+    new_question: str
+
+
 class SourceResponse(BaseModel):
     """Provenance view of a raw ingested source exposed via the API.
 
@@ -585,6 +600,9 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     filed_article_id: str | None = None
+    parent_conversation_id: str | None = None
+    forked_at_turn_index: int | None = None
+    fork_count: int = 0
 
 
 class ConversationSummary(ConversationResponse):
