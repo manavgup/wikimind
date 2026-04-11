@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from wikimind.jobs import background as bg_mod
 from wikimind.jobs import worker as worker_mod
 from wikimind.jobs.background import BackgroundCompiler, get_background_compiler
 from wikimind.jobs.worker import compile_source, get_redis_settings, lint_wiki
-from wikimind.models import Article, IngestStatus, Source, SourceType
+from wikimind.models import IngestStatus, LintReport, LintReportStatus, Source, SourceType
 
 
 async def test_background_compiler_dev_mode_compile() -> None:
@@ -275,44 +274,23 @@ async def test_lint_wiki_no_articles(db_session) -> None:
 
 
 async def test_lint_wiki_with_articles(db_session, tmp_path) -> None:
-    f = tmp_path / "a.md"
-    f.write_text("body", encoding="utf-8")
-    art = Article(slug="a", title="A", file_path=str(f))
-    db_session.add(art)
-    await db_session.commit()
-
-    fake_router = MagicMock()
-    fake_router.complete = AsyncMock(return_value=MagicMock(content="{}"))
-    fake_router.parse_json_response = MagicMock(
-        return_value={
-            "contradictions": [{"claim_a": "x", "claim_b": "y", "articles": ["A"]}],
-            "orphaned_articles": [],
-            "stale_articles": [],
-            "gap_suggestions": ["new"],
-            "coverage_scores": {},
-        }
+    """Lint runs the structured pipeline via run_lint."""
+    fake_report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=1,
+        orphans_count=0,
     )
     with (
         _patch_session_factory(db_session),
-        patch.object(worker_mod, "get_llm_router", return_value=fake_router),
-        patch.object(worker_mod, "emit_linter_alert", AsyncMock()),
-        patch.object(worker_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch("wikimind.jobs.worker.run_lint", AsyncMock(return_value=fake_report)),
     ):
         await lint_wiki({})
 
 
 async def test_lint_wiki_failure(db_session, tmp_path) -> None:
-    f = tmp_path / "a.md"
-    f.write_text("body", encoding="utf-8")
-    art = Article(slug="a", title="A", file_path=str(f))
-    db_session.add(art)
-    await db_session.commit()
-
-    fake_router = MagicMock()
-    fake_router.complete = AsyncMock(side_effect=RuntimeError("boom"))
+    """Lint handles run_lint exceptions gracefully."""
     with (
         _patch_session_factory(db_session),
-        patch.object(worker_mod, "get_llm_router", return_value=fake_router),
-        patch.object(worker_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch("wikimind.jobs.worker.run_lint", AsyncMock(side_effect=RuntimeError("boom"))),
     ):
         await lint_wiki({})

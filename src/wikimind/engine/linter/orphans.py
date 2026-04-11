@@ -11,7 +11,7 @@ import hashlib
 
 import structlog
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.config import Settings
 from wikimind.models import (

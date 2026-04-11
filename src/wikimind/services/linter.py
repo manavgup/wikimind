@@ -8,8 +8,8 @@ job system.
 from __future__ import annotations
 
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.jobs.background import get_background_compiler
@@ -138,6 +138,7 @@ class LinterService:
         """
         now = utcnow_naive()
 
+        finding: ContradictionFinding | OrphanFinding | None
         if kind == LintFindingKind.CONTRADICTION:
             finding = await session.get(ContradictionFinding, finding_id)
         elif kind == LintFindingKind.ORPHAN:

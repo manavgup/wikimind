@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import structlog
 from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import emit_linter_alert
@@ -36,31 +36,27 @@ async def _apply_dismiss_suppression(
     orphans: list[OrphanFinding],
 ) -> None:
     """Mark findings as dismissed if their content_hash exists in DismissedFinding."""
-    all_hashes: set[str] = set()
-    for f in contradictions:
-        all_hashes.add(f.content_hash)
-    for f in orphans:
-        all_hashes.add(f.content_hash)
+    all_findings: list[ContradictionFinding | OrphanFinding] = [
+        *contradictions,
+        *orphans,
+    ]
+    all_hashes = {f.content_hash for f in all_findings}
 
     if not all_hashes:
         return
 
     result = await session.execute(
         select(DismissedFinding.content_hash).where(
-            DismissedFinding.content_hash.in_(all_hashes)  # type: ignore[union-attr]
+            DismissedFinding.content_hash.in_(all_hashes)  # type: ignore[attr-defined]
         )
     )
     dismissed_hashes = {row[0] for row in result.fetchall()}
 
     now = utcnow_naive()
-    for f in contradictions:
-        if f.content_hash in dismissed_hashes:
-            f.dismissed = True
-            f.dismissed_at = now
-    for f in orphans:
-        if f.content_hash in dismissed_hashes:
-            f.dismissed = True
-            f.dismissed_at = now
+    for finding in all_findings:
+        if finding.content_hash in dismissed_hashes:
+            finding.dismissed = True
+            finding.dismissed_at = now
 
 
 async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintReport:
@@ -98,10 +94,10 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
         await _apply_dismiss_suppression(session, contradictions, orphans)
 
         # Persist findings
-        for f in contradictions:
-            session.add(f)
-        for f in orphans:
-            session.add(f)
+        for cf in contradictions:
+            session.add(cf)
+        for of in orphans:
+            session.add(of)
 
         # Update report
         report.status = LintReportStatus.COMPLETE

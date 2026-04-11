@@ -14,7 +14,7 @@ from pathlib import Path
 
 import structlog
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.config import Settings
 from wikimind.engine.linter.prompts import CONTRADICTION_SYSTEM_PROMPT, CONTRADICTION_USER_TEMPLATE
