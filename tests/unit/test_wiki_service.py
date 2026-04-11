@@ -339,3 +339,204 @@ class TestConceptPopulation:
         non_empty = await service.get_concepts(db_session, include_empty=False)
         assert len(non_empty) == 1
         assert non_empty[0].name == "populated"
+
+
+@pytest.mark.asyncio
+class TestConceptFiltering:
+    """Tests for list_articles concept filtering via json_each()."""
+
+    async def test_list_articles_filters_by_concept(self, db_session, tmp_path):
+        """Articles are filtered when a concept name is passed."""
+        fp_ml = tmp_path / "ml.md"
+        fp_ml.write_text("# ML", encoding="utf-8")
+        fp_db = tmp_path / "db.md"
+        fp_db.write_text("# DB", encoding="utf-8")
+
+        ml_article = Article(
+            slug="ml-article",
+            title="ML Article",
+            file_path=str(fp_ml),
+            concept_ids=json.dumps(["Machine Learning", "AI"]),
+        )
+        db_article = Article(
+            slug="db-article",
+            title="DB Article",
+            file_path=str(fp_db),
+            concept_ids=json.dumps(["Databases"]),
+        )
+        db_session.add_all([ml_article, db_article])
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session, concept="Machine Learning")
+
+        assert len(results) == 1
+        assert results[0].slug == "ml-article"
+
+    async def test_list_articles_no_concept_returns_all(self, db_session, tmp_path):
+        """Without a concept filter, all articles are returned."""
+        fp_a = tmp_path / "a.md"
+        fp_a.write_text("# A", encoding="utf-8")
+        fp_b = tmp_path / "b.md"
+        fp_b.write_text("# B", encoding="utf-8")
+
+        db_session.add_all(
+            [
+                Article(
+                    slug="a",
+                    title="A",
+                    file_path=str(fp_a),
+                    concept_ids=json.dumps(["AI"]),
+                ),
+                Article(
+                    slug="b",
+                    title="B",
+                    file_path=str(fp_b),
+                    concept_ids=json.dumps(["Databases"]),
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session)
+
+        assert len(results) == 2
+
+    async def test_list_articles_concept_filter_excludes_null_concept_ids(self, db_session, tmp_path):
+        """Articles with null concept_ids are excluded when filtering by concept."""
+        fp = tmp_path / "no-concepts.md"
+        fp.write_text("# No Concepts", encoding="utf-8")
+
+        db_session.add(
+            Article(
+                slug="no-concepts",
+                title="No Concepts",
+                file_path=str(fp),
+                concept_ids=None,
+            )
+        )
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session, concept="AI")
+
+        assert len(results) == 0
+
+    async def test_list_articles_concept_filter_with_confidence(self, db_session, tmp_path):
+        """Concept and confidence filters work together."""
+        fp_a = tmp_path / "sourced.md"
+        fp_a.write_text("# Sourced", encoding="utf-8")
+        fp_b = tmp_path / "inferred.md"
+        fp_b.write_text("# Inferred", encoding="utf-8")
+
+        db_session.add_all(
+            [
+                Article(
+                    slug="sourced-ai",
+                    title="Sourced AI",
+                    file_path=str(fp_a),
+                    concept_ids=json.dumps(["AI"]),
+                    confidence="sourced",
+                ),
+                Article(
+                    slug="inferred-ai",
+                    title="Inferred AI",
+                    file_path=str(fp_b),
+                    concept_ids=json.dumps(["AI"]),
+                    confidence="inferred",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(
+            db_session,
+            concept="AI",
+            confidence="sourced",
+        )
+
+        assert len(results) == 1
+        assert results[0].slug == "sourced-ai"
+
+    async def test_list_articles_concept_no_match(self, db_session, tmp_path):
+        """A concept that no article has returns an empty list."""
+        fp = tmp_path / "ml.md"
+        fp.write_text("# ML", encoding="utf-8")
+
+        db_session.add(
+            Article(
+                slug="ml",
+                title="ML",
+                file_path=str(fp),
+                concept_ids=json.dumps(["Machine Learning"]),
+            )
+        )
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session, concept="Quantum Computing")
+
+        assert len(results) == 0
+
+
+@pytest.mark.asyncio
+class TestArticleSummaryCounts:
+    """Tests for source_count and backlink_count on ArticleSummaryResponse."""
+
+    async def test_source_count_populated(self, db_session, tmp_path):
+        """source_count reflects the number of resolved sources."""
+        _article, _sources = await _seed_article_with_sources(db_session, tmp_path)
+        service = WikiService()
+
+        results = await service.list_articles(db_session)
+
+        assert len(results) == 1
+        assert results[0].source_count == 2
+
+    async def test_backlink_count_populated(self, db_session, tmp_path):
+        """backlink_count reflects both incoming and outgoing backlinks."""
+        fp_a = tmp_path / "a.md"
+        fp_a.write_text("# A", encoding="utf-8")
+        fp_b = tmp_path / "b.md"
+        fp_b.write_text("# B", encoding="utf-8")
+
+        article_a = Article(slug="a", title="A", file_path=str(fp_a))
+        article_b = Article(slug="b", title="B", file_path=str(fp_b))
+        db_session.add_all([article_a, article_b])
+        await db_session.flush()
+
+        bl = Backlink(source_article_id=article_a.id, target_article_id=article_b.id)
+        db_session.add(bl)
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session)
+
+        by_slug = {r.slug: r for r in results}
+        # article_a has 1 outgoing backlink
+        assert by_slug["a"].backlink_count == 1
+        # article_b has 1 incoming backlink
+        assert by_slug["b"].backlink_count == 1
+
+    async def test_zero_counts_when_no_sources_or_backlinks(self, db_session, tmp_path):
+        """source_count and backlink_count default to 0."""
+        fp = tmp_path / "lonely.md"
+        fp.write_text("# Lonely", encoding="utf-8")
+
+        db_session.add(
+            Article(
+                slug="lonely",
+                title="Lonely",
+                file_path=str(fp),
+            )
+        )
+        await db_session.commit()
+
+        service = WikiService()
+        results = await service.list_articles(db_session)
+
+        assert len(results) == 1
+        assert results[0].source_count == 0
+        assert results[0].backlink_count == 0

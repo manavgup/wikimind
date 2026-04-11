@@ -16,6 +16,7 @@ from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
+from sqlalchemy import literal_column, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -149,6 +150,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     """
     source_ids = _parse_source_ids(article.source_ids)
     sources = await _fetch_sources(session, source_ids)
+    backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
     return ArticleSummaryResponse(
         id=article.id,
         slug=article.slug,
@@ -157,6 +159,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         confidence=article.confidence,
         linter_score=article.linter_score,
         sources=[_to_source_summary(s) for s in sources],
+        source_count=len(sources),
+        backlink_count=backlink_count,
         created_at=article.created_at,
         updated_at=article.updated_at,
     )
@@ -221,7 +225,9 @@ class WikiService:
 
         Args:
             session: Async database session.
-            concept: Optional concept filter (unused, reserved for future).
+            concept: Optional concept name to filter by. Uses SQLite
+                ``json_each()`` to unnest ``Article.concept_ids`` and
+                match against the requested concept name.
             confidence: Optional confidence level filter.
             limit: Maximum number of results.
             offset: Pagination offset.
@@ -231,6 +237,14 @@ class WikiService:
             populated.
         """
         query = select(Article).offset(offset).limit(limit)
+        if concept:
+            query = query.where(
+                literal_column("article.id").in_(
+                    select(literal_column("article.id"))
+                    .select_from(text("article, json_each(article.concept_ids)"))
+                    .where(literal_column("json_each.value") == concept)
+                )
+            )
         if confidence:
             query = query.where(Article.confidence == confidence)
         result = await session.execute(query)

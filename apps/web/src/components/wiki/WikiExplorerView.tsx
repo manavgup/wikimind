@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useArticle } from "../../hooks/useArticle";
 import { Spinner } from "../shared/Spinner";
+import { ArticleCardGrid } from "./ArticleCardGrid";
 import { ArticleReader } from "./ArticleReader";
 import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
@@ -10,6 +12,7 @@ export function WikiExplorerView() {
   const params = useParams<{ slug?: string }>();
   const slug = params.slug;
   const articleQuery = useArticle(slug);
+  const [activeConcept, setActiveConcept] = useState<string | null>(null);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -22,46 +25,47 @@ export function WikiExplorerView() {
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-[15rem_1fr_15rem] overflow-hidden">
-        <aside className="overflow-y-auto border-r border-slate-200 bg-white">
-          <ConceptTree selectedSlug={slug} />
-        </aside>
+      {slug ? (
+        <div className="grid flex-1 grid-cols-[15rem_1fr_15rem] overflow-hidden">
+          <aside className="overflow-y-auto border-r border-slate-200 bg-white">
+            <ConceptTree
+              activeConcept={activeConcept}
+              onSelectConcept={setActiveConcept}
+            />
+          </aside>
 
-        <section className="overflow-y-auto bg-slate-50">
-          {!slug ? (
-            <EmptyArticleState />
-          ) : articleQuery.isLoading ? (
-            <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
-              <Spinner size={16} /> Loading article...
-            </div>
-          ) : articleQuery.isError ? (
-            <div className="m-8 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-              Failed to load article.
-            </div>
-          ) : articleQuery.data ? (
-            <ArticleReader article={articleQuery.data} />
-          ) : null}
-        </section>
+          <section className="overflow-y-auto bg-slate-50">
+            {articleQuery.isLoading ? (
+              <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
+                <Spinner size={16} /> Loading article...
+              </div>
+            ) : articleQuery.isError ? (
+              <div className="m-8 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                Failed to load article.
+              </div>
+            ) : articleQuery.data ? (
+              <ArticleReader article={articleQuery.data} />
+            ) : null}
+          </section>
 
-        <aside className="overflow-y-auto border-l border-slate-200 bg-white">
-          <BacklinkPanel article={articleQuery.data ?? null} />
-        </aside>
-      </div>
-    </div>
-  );
-}
+          <aside className="overflow-y-auto border-l border-slate-200 bg-white">
+            <BacklinkPanel article={articleQuery.data ?? null} />
+          </aside>
+        </div>
+      ) : (
+        <div className="grid flex-1 grid-cols-[15rem_1fr] overflow-hidden">
+          <aside className="overflow-y-auto border-r border-slate-200 bg-white">
+            <ConceptTree
+              activeConcept={activeConcept}
+              onSelectConcept={setActiveConcept}
+            />
+          </aside>
 
-function EmptyArticleState() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <div className="max-w-md text-center">
-        <div className="mb-3 text-4xl">📚</div>
-        <h2 className="text-lg font-semibold text-slate-800">Pick an article</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Choose a concept on the left, search above, or open one of the recent
-          articles to start reading.
-        </p>
-      </div>
+          <section className="overflow-y-auto bg-slate-50">
+            <ArticleCardGrid activeConcept={activeConcept} />
+          </section>
+        </div>
+      )}
     </div>
   );
 }
