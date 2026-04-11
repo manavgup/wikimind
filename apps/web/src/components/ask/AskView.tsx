@@ -7,17 +7,28 @@ import {
   getConversation,
   listConversations,
   fileBackConversation,
+  fileBackSelection,
   exportConversation,
   forkConversation,
   type AskRequest,
   type ConversationDetail,
+  type TurnSelection,
 } from "../../api/query";
 import { useWebSocketStore } from "../../store/websocket";
+import { SelectionProvider, useSelection } from "../../store/selection";
 import { ConversationHistory } from "./ConversationHistory";
 import { ConversationThread } from "./ConversationThread";
 import { QueryInput } from "./QueryInput";
 
 export function AskView() {
+  return (
+    <SelectionProvider>
+      <AskViewInner />
+    </SelectionProvider>
+  );
+}
+
+function AskViewInner() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -109,7 +120,9 @@ export function AskView() {
     [conversationId, fork],
   );
 
-  // File-back mutation
+  const selection = useSelection();
+
+  // File-back mutation (whole conversation)
   const fileBack = useMutation({
     mutationFn: (id: string) => fileBackConversation(id),
     onSuccess: (response) => {
@@ -125,6 +138,29 @@ export function AskView() {
       pushToast({
         kind: "error",
         title: "Failed to save thread",
+        detail: err.message,
+      });
+    },
+  });
+
+  // File-back selection mutation (partial / multi-thread)
+  const fileBackSel = useMutation({
+    mutationFn: (selections: TurnSelection[]) =>
+      fileBackSelection({ selections }),
+    onSuccess: (response) => {
+      selection.clear();
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      pushToast({
+        kind: "success",
+        title: "Saved selected turns to wiki",
+        detail: response.article.title,
+      });
+    },
+    onError: (err: Error) => {
+      pushToast({
+        kind: "error",
+        title: "Failed to save selection",
         detail: err.message,
       });
     },
@@ -183,6 +219,24 @@ export function AskView() {
     if (conversationId) fileBack.mutate(conversationId);
   };
 
+  const handleSaveSelection = () => {
+    if (selection.count === 0) return;
+    // Group selections by conversation_id
+    const byConv = new Map<string, number[]>();
+    for (const item of selection.items) {
+      const indices = byConv.get(item.conversationId) ?? [];
+      indices.push(item.turnIndex);
+      byConv.set(item.conversationId, indices);
+    }
+    const selections: TurnSelection[] = Array.from(byConv.entries()).map(
+      ([conversation_id, turn_indices]) => ({
+        conversation_id,
+        turn_indices: turn_indices.sort((a, b) => a - b),
+      }),
+    );
+    fileBackSel.mutate(selections);
+  };
+
   const [isExporting, setIsExporting] = useState(false);
   const handleExport = async () => {
     if (!conversationId) return;
@@ -238,6 +292,8 @@ export function AskView() {
             onExport={handleExport}
             isExporting={isExporting}
             onFork={handleFork}
+            onSaveSelection={handleSaveSelection}
+            isSavingSelection={fileBackSel.isPending}
           />
           {pendingError && (
             <div className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">

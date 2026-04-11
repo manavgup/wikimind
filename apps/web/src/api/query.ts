@@ -73,6 +73,20 @@ export interface ForkRequest {
   new_question: string;
 }
 
+export interface TurnSelection {
+  conversation_id: string;
+  turn_indices: number[];
+}
+
+export interface FileBackSelectionRequest {
+  selections: TurnSelection[];
+  title?: string;
+}
+
+export interface FileBackSelectionResponse {
+  article: { id: string; slug: string; title: string };
+}
+
 // ----- Functions -----
 
 export function askQuestion(req: AskRequest): Promise<AskResponse> {
@@ -93,6 +107,13 @@ export function getConversation(id: string): Promise<ConversationDetail> {
 
 export function fileBackConversation(id: string): Promise<FileBackResponse> {
   return apiFetch<FileBackResponse>(`/query/conversations/${id}/file-back`, { method: "POST" });
+}
+
+export function fileBackSelection(req: FileBackSelectionRequest): Promise<FileBackSelectionResponse> {
+  return apiFetch<FileBackSelectionResponse>("/query/conversations/file-back", {
+    method: "POST",
+    body: req,
+  });
 }
 
 export async function exportConversation(id: string): Promise<string> {
