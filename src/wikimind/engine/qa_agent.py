@@ -87,6 +87,9 @@ class QAAgent:
     ) -> list[Query]:
         """Load up to qa.max_prior_turns_in_context turns from a conversation.
 
+        For forked conversations, also walks the parent chain to include
+        ancestor turns that precede the fork point, providing full context.
+
         Returns the most recent N prior turns (where N = the configured cap),
         ordered ascending by turn_index so they can be formatted into the
         prompt in conversational order.
@@ -101,6 +104,49 @@ class QAAgent:
             List of Query rows ordered by turn_index ascending.
         """
         cap = self.settings.qa.max_prior_turns_in_context
+
+        # Check if this is a forked conversation — if so, materialize ancestor turns
+        conversation = await session.get(Conversation, conversation_id)
+        if conversation is not None and conversation.parent_conversation_id is not None:
+            # Collect ancestor turns by walking the parent chain
+            all_turns: list[Query] = []
+            current = conversation
+            ancestors: list[tuple[str, int]] = []
+            while (
+                current.parent_conversation_id is not None
+                and current.forked_at_turn_index is not None
+            ):
+                ancestors.append(
+                    (current.parent_conversation_id, current.forked_at_turn_index)
+                )
+                parent = await session.get(Conversation, current.parent_conversation_id)
+                if parent is None:
+                    break
+                current = parent
+            ancestors.reverse()
+
+            for ancestor_id, fork_at in ancestors:
+                result = await session.execute(
+                    select(Query)
+                    .where(Query.conversation_id == ancestor_id)
+                    .where(Query.turn_index < fork_at)
+                    .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+                )
+                all_turns.extend(result.scalars().all())
+
+            # Add this conversation's own prior turns
+            result = await session.execute(
+                select(Query)
+                .where(Query.conversation_id == conversation_id)
+                .where(Query.turn_index < up_to_turn_index)
+                .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+            )
+            all_turns.extend(result.scalars().all())
+
+            # Take the most recent `cap` turns
+            return all_turns[-cap:] if len(all_turns) > cap else all_turns
+
+        # Non-forked conversation: simple query
         result = await session.execute(
             select(Query)
             .where(Query.conversation_id == conversation_id)

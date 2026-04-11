@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator
 import structlog
 from fastapi import HTTPException
 from fastapi.responses import Response
-from sqlmodel import select
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
@@ -28,6 +28,7 @@ from wikimind.models import (
     ConversationDetail,
     ConversationResponse,
     ConversationSummary,
+    ForkRequest,
     Query,
     QueryRequest,
     QueryResponse,
@@ -161,7 +162,9 @@ def _to_query_response(query: Query, citations: list[CitationResponse]) -> Query
     )
 
 
-def _to_conversation_response(conversation: Conversation) -> ConversationResponse:
+def _to_conversation_response(
+    conversation: Conversation, fork_count: int = 0
+) -> ConversationResponse:
     """Project a Conversation row into the API response shape."""
     return ConversationResponse(
         id=conversation.id,
@@ -169,7 +172,63 @@ def _to_conversation_response(conversation: Conversation) -> ConversationRespons
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         filed_article_id=conversation.filed_article_id,
+        parent_conversation_id=conversation.parent_conversation_id,
+        forked_at_turn_index=conversation.forked_at_turn_index,
+        fork_count=fork_count,
     )
+
+
+async def _count_forks(conversation_id: str, session: AsyncSession) -> int:
+    """Count child conversations (forks) for a given conversation."""
+    result = await session.execute(
+        select(func.count()).where(
+            Conversation.parent_conversation_id == conversation_id
+        )
+    )
+    return result.scalar_one()
+
+
+async def _materialize_thread(
+    conversation: Conversation,
+    session: AsyncSession,
+) -> list[Query]:
+    """Materialize the full thread for a forked conversation.
+
+    Walks the parent chain recursively, collecting ancestor turns before
+    forked_at_turn_index from each ancestor, then appends this conversation's
+    own turns. Returns a flat list ordered by turn_index.
+    """
+    # Collect ancestor chain (oldest first)
+    ancestors: list[tuple[str, int]] = []  # (conversation_id, forked_at_turn_index)
+    current = conversation
+    while current.parent_conversation_id is not None and current.forked_at_turn_index is not None:
+        ancestors.append((current.parent_conversation_id, current.forked_at_turn_index))
+        parent = await session.get(Conversation, current.parent_conversation_id)
+        if parent is None:
+            break
+        current = parent
+    ancestors.reverse()  # oldest ancestor first
+
+    # Collect turns from ancestors
+    all_turns: list[Query] = []
+    for ancestor_id, fork_at in ancestors:
+        result = await session.execute(
+            select(Query)
+            .where(Query.conversation_id == ancestor_id)
+            .where(Query.turn_index < fork_at)
+            .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+        )
+        all_turns.extend(result.scalars().all())
+
+    # Add this conversation's own turns
+    result = await session.execute(
+        select(Query)
+        .where(Query.conversation_id == conversation.id)
+        .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+    )
+    all_turns.extend(result.scalars().all())
+
+    return all_turns
 
 
 class QueryService:
@@ -289,6 +348,16 @@ class QueryService:
         for conv_id, _qid in count_rows.all():
             counts[conv_id] = counts.get(conv_id, 0) + 1
 
+        # Compute fork counts in one query
+        fork_count_rows = await session.execute(
+            select(Conversation.parent_conversation_id, Conversation.id).where(
+                Conversation.parent_conversation_id.in_(ids)  # type: ignore[union-attr]
+            )
+        )
+        fork_counts: dict[str, int] = {}
+        for parent_id, _child_id in fork_count_rows.all():
+            fork_counts[parent_id] = fork_counts.get(parent_id, 0) + 1
+
         return [
             ConversationSummary(
                 id=c.id,
@@ -296,6 +365,9 @@ class QueryService:
                 created_at=c.created_at,
                 updated_at=c.updated_at,
                 filed_article_id=c.filed_article_id,
+                parent_conversation_id=c.parent_conversation_id,
+                forked_at_turn_index=c.forked_at_turn_index,
+                fork_count=fork_counts.get(c.id, 0),
                 turn_count=counts.get(c.id, 0),
             )
             for c in conversations
@@ -307,6 +379,9 @@ class QueryService:
         session: AsyncSession,
     ) -> ConversationDetail:
         """Return a single conversation with all its queries ordered by turn_index.
+
+        For forked conversations, materializes the full thread by walking the
+        parent chain and collecting ancestor turns before the fork point.
 
         Args:
             conversation_id: The conversation UUID to retrieve.
@@ -322,10 +397,16 @@ class QueryService:
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        result = await session.execute(
-            select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
-        )
-        queries = list(result.scalars().all())
+        # Use thread materialization for forked conversations
+        if conversation.parent_conversation_id is not None:
+            queries = await _materialize_thread(conversation, session)
+        else:
+            result = await session.execute(
+                select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+            )
+            queries = list(result.scalars().all())
+
+        fork_count = await _count_forks(conversation_id, session)
 
         # Build full QueryResponse for each turn (with citations)
         query_responses: list[QueryResponse] = []
@@ -334,7 +415,7 @@ class QueryService:
             query_responses.append(_to_query_response(q, citations))
 
         return ConversationDetail(
-            conversation=_to_conversation_response(conversation),
+            conversation=_to_conversation_response(conversation, fork_count),
             queries=query_responses,
         )
 
@@ -362,6 +443,63 @@ class QueryService:
             "article": {"id": article.id, "slug": article.slug, "title": article.title},
             "was_update": was_update,
         }
+
+    async def fork_conversation(
+        self,
+        conversation_id: str,
+        fork_request: ForkRequest,
+        session: AsyncSession,
+    ) -> AskResponse:
+        """Fork a conversation at a specific turn and ask a new question.
+
+        Creates a new Conversation that shares turns 0..turn_index-1 with
+        the parent by reference (via parent_conversation_id and
+        forked_at_turn_index). Then runs the QA agent on the new question
+        within the fork.
+
+        Args:
+            conversation_id: The parent conversation UUID to fork from.
+            fork_request: Contains turn_index (fork point) and new_question.
+            session: Async database session.
+
+        Returns:
+            :class:`AskResponse` with the new query and the forked conversation.
+
+        Raises:
+            HTTPException: 404 if the parent conversation is not found.
+            HTTPException: 400 if turn_index is invalid.
+        """
+        parent = await session.get(Conversation, conversation_id)
+        if parent is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Validate turn_index: must be >= 0 and there must be at least that
+        # many turns in the parent (or its materialized thread)
+        if fork_request.turn_index < 0:
+            raise HTTPException(status_code=400, detail="turn_index must be >= 0")
+
+        # Create the fork conversation
+        title_max = self._qa_agent.settings.qa.conversation_title_max_chars
+        fork_conv = Conversation(
+            title=fork_request.new_question[:title_max],
+            parent_conversation_id=conversation_id,
+            forked_at_turn_index=fork_request.turn_index,
+        )
+        session.add(fork_conv)
+        await session.flush()
+
+        # Now ask the new question in the forked conversation
+        ask_request = QueryRequest(
+            question=fork_request.new_question,
+            conversation_id=fork_conv.id,
+        )
+        query, conversation = await self._qa_agent.answer(ask_request, session)
+        citations = await _build_citations(query, session)
+        fork_count = await _count_forks(fork_conv.id, session)
+        return AskResponse(
+            query=_to_query_response(query, citations),
+            conversation=_to_conversation_response(conversation, fork_count),
+        )
 
     async def export_conversation(
         self,
