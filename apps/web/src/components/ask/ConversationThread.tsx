@@ -11,6 +11,7 @@ interface Props {
   isSaving: boolean;
   onExport: () => void;
   isExporting: boolean;
+  onFork?: (turnIndex: number, newQuestion: string) => void;
 }
 
 export function ConversationThread({
@@ -22,6 +23,7 @@ export function ConversationThread({
   isSaving,
   onExport,
   isExporting,
+  onFork,
 }: Props) {
   // Empty state: no existing conversation AND nothing in flight
   if (!detail && !pendingQuestion) {
@@ -38,7 +40,12 @@ export function ConversationThread({
   return (
     <div className="space-y-6">
       {queries.map((q) => (
-        <TurnCard key={q.id} query={q} />
+        <TurnCard
+          key={q.id}
+          query={q}
+          onEdit={onFork}
+          forkCount={detail?.conversation.fork_count}
+        />
       ))}
       {pendingQuestion && (
         <PendingTurnCard

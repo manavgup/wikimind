@@ -8,6 +8,7 @@ import {
   listConversations,
   fileBackConversation,
   exportConversation,
+  forkConversation,
   type AskRequest,
   type ConversationDetail,
 } from "../../api/query";
@@ -65,6 +66,45 @@ export function AskView() {
       setPendingError(err.message || "Failed to ask question");
     },
   });
+
+  // Fork mutation
+  const fork = useMutation({
+    mutationFn: ({ id, turnIndex, newQuestion }: { id: string; turnIndex: number; newQuestion: string }) =>
+      forkConversation(id, { turn_index: turnIndex, new_question: newQuestion }),
+    onSuccess: (response) => {
+      setPendingError(null);
+      const newId = response.conversation.id;
+      navigate(`/ask/${newId}`, { replace: true });
+      queryClient.setQueryData<ConversationDetail>(
+        ["conversation", newId],
+        {
+          conversation: response.conversation,
+          queries: [response.query],
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      // Invalidate parent to update fork_count
+      if (conversationId) {
+        queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      }
+      pushToast({
+        kind: "success",
+        title: "Created branch",
+        detail: `Forked at turn ${response.query.turn_index + 1}`,
+      });
+    },
+    onError: (err: Error) => {
+      setPendingError(err.message || "Failed to create branch");
+    },
+  });
+
+  const handleFork = useCallback(
+    (turnIndex: number, newQuestion: string) => {
+      if (!conversationId) return;
+      fork.mutate({ id: conversationId, turnIndex, newQuestion });
+    },
+    [conversationId, fork],
+  );
 
   // File-back mutation
   const fileBack = useMutation({
@@ -173,7 +213,7 @@ export function AskView() {
     }
   };
 
-  const isBusy = isStreaming || askFallback.isPending;
+  const isBusy = isStreaming || askFallback.isPending || fork.isPending;
 
   return (
     <div className="flex h-full">
@@ -194,6 +234,7 @@ export function AskView() {
             isSaving={fileBack.isPending}
             onExport={handleExport}
             isExporting={isExporting}
+            onFork={handleFork}
           />
           {pendingError && (
             <div className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
