@@ -480,6 +480,20 @@ class ForkRequest(BaseModel):
     new_question: str
 
 
+class TurnSelection(BaseModel):
+    """A selection of specific turns from a single conversation."""
+
+    conversation_id: str
+    turn_indices: list[int]
+
+
+class FileBackSelectionRequest(BaseModel):
+    """Request to file back selected turns from one or more conversations."""
+
+    selections: list[TurnSelection]
+    title: str | None = None
+
+
 class SourceResponse(BaseModel):
     """Provenance view of a raw ingested source exposed via the API.
 

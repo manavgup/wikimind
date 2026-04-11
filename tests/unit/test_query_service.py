@@ -12,10 +12,12 @@ from wikimind.engine.conversation_serializer import serialize_conversation_to_ma
 from wikimind.models import (
     Article,
     Conversation,
+    FileBackSelectionRequest,
     Query,
     QueryRequest,
     Source,
     SourceType,
+    TurnSelection,
 )
 from wikimind.services.query import QueryService, _build_citations, _sanitize_filename
 
@@ -316,3 +318,217 @@ class TestAskStream:
         assert len(error_events) == 1
         error_data = json.loads(error_events[0].split("data: ", 1)[1].strip())
         assert error_data["code"] == "stream_failed"
+
+
+# ---------------------------------------------------------------------------
+# file_back_selection tests
+# ---------------------------------------------------------------------------
+
+
+async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversation, list[Query]]:
+    """Seed two conversations with multiple turns each for file-back selection tests."""
+    conv1 = Conversation(
+        id="conv-sel-1",
+        title="First Thread",
+        created_at=datetime(2026, 4, 8, 12, 0, 0),
+        updated_at=datetime(2026, 4, 8, 12, 5, 0),
+    )
+    conv2 = Conversation(
+        id="conv-sel-2",
+        title="Second Thread",
+        created_at=datetime(2026, 4, 9, 10, 0, 0),
+        updated_at=datetime(2026, 4, 9, 10, 5, 0),
+    )
+    db_session.add_all([conv1, conv2])
+    await db_session.flush()
+
+    queries = [
+        Query(
+            id="q-sel-1-0",
+            question="Q1 from thread 1",
+            answer="Answer 1-0.",
+            confidence="high",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-sel-1",
+            turn_index=0,
+        ),
+        Query(
+            id="q-sel-1-1",
+            question="Q2 from thread 1",
+            answer="Answer 1-1.",
+            confidence="medium",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-sel-1",
+            turn_index=1,
+        ),
+        Query(
+            id="q-sel-1-2",
+            question="Q3 from thread 1",
+            answer="Answer 1-2.",
+            confidence="high",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-sel-1",
+            turn_index=2,
+        ),
+        Query(
+            id="q-sel-2-0",
+            question="Q1 from thread 2",
+            answer="Answer 2-0.",
+            confidence="high",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-sel-2",
+            turn_index=0,
+        ),
+        Query(
+            id="q-sel-2-1",
+            question="Q2 from thread 2",
+            answer="Answer 2-1.",
+            confidence="medium",
+            source_article_ids=json.dumps([]),
+            related_article_ids=json.dumps([]),
+            conversation_id="conv-sel-2",
+            turn_index=1,
+        ),
+    ]
+    db_session.add_all(queries)
+    await db_session.commit()
+    return conv1, conv2, queries
+
+
+@pytest.mark.asyncio
+class TestFileBackSelection:
+    async def test_partial_save_selected_turns(self, db_session):
+        """Partial save: only selected turns from one conversation are filed."""
+        await _seed_two_conversations(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 2]),
+            ],
+        )
+        result = await service.file_back_selection(request, db_session)
+
+        assert "article" in result
+        article_data = result["article"]
+        assert article_data["title"] == "First Thread"  # defaults to first conv title
+
+        # Verify the article was created on disk
+        article = await db_session.get(Article, article_data["id"])
+        assert article is not None
+        content = Path(article.file_path).read_text(encoding="utf-8")
+        assert "## Q1: Q1 from thread 1" in content
+        assert "## Q2: Q3 from thread 1" in content
+        # Q2 from thread 1 (turn_index=1) should NOT be present
+        assert "Q2 from thread 1" not in content
+
+    async def test_multi_thread_merge(self, db_session):
+        """Multi-thread merge: turns from two conversations combined into one article."""
+        await _seed_two_conversations(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-sel-1", turn_indices=[0]),
+                TurnSelection(conversation_id="conv-sel-2", turn_indices=[0, 1]),
+            ],
+            title="Merged Research",
+        )
+        result = await service.file_back_selection(request, db_session)
+
+        article_data = result["article"]
+        assert article_data["title"] == "Merged Research"
+
+        article = await db_session.get(Article, article_data["id"])
+        content = Path(article.file_path).read_text(encoding="utf-8")
+        assert "# Merged Research" in content
+        assert "## Q1: Q1 from thread 1" in content
+        assert "## Q2: Q1 from thread 2" in content
+        assert "## Q3: Q2 from thread 2" in content
+
+    async def test_marks_turns_as_filed_back(self, db_session):
+        """Selected turns are marked filed_back=True with the article's id."""
+        await _seed_two_conversations(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 1]),
+            ],
+        )
+        result = await service.file_back_selection(request, db_session)
+        article_id = result["article"]["id"]
+
+        # Refresh the selected queries
+        from sqlmodel import select
+
+        res = await db_session.execute(
+            select(Query).where(Query.conversation_id == "conv-sel-1")
+        )
+        queries = {q.turn_index: q for q in res.scalars().all()}
+
+        assert queries[0].filed_back is True
+        assert queries[0].filed_article_id == article_id
+        assert queries[1].filed_back is True
+        assert queries[1].filed_article_id == article_id
+        # Turn 2 was not selected — should remain unfiled
+        assert queries[2].filed_back is False
+
+    async def test_404_for_nonexistent_conversation(self, db_session):
+        """Raises 404 when a selection references a nonexistent conversation."""
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="nonexistent", turn_indices=[0]),
+            ],
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await service.file_back_selection(request, db_session)
+        assert exc_info.value.status_code == 404
+
+    async def test_400_for_empty_selections(self, db_session):
+        """Raises 400 when the selections list is empty."""
+        service = QueryService()
+
+        request = FileBackSelectionRequest(selections=[])
+        with pytest.raises(HTTPException) as exc_info:
+            await service.file_back_selection(request, db_session)
+        assert exc_info.value.status_code == 400
+
+    async def test_400_for_missing_turn_indices(self, db_session):
+        """Raises 400 when requested turn indices don't exist."""
+        await _seed_two_conversations(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 99]),
+            ],
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await service.file_back_selection(request, db_session)
+        assert exc_info.value.status_code == 400
+        assert "99" in str(exc_info.value.detail)
+
+    async def test_custom_title_overrides_default(self, db_session):
+        """Custom title appears in the article and file content."""
+        await _seed_two_conversations(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-sel-1", turn_indices=[0]),
+            ],
+            title="My Custom Title",
+        )
+        result = await service.file_back_selection(request, db_session)
+
+        assert result["article"]["title"] == "My Custom Title"
+        article = await db_session.get(Article, result["article"]["id"])
+        content = Path(article.file_path).read_text(encoding="utf-8")
+        assert "# My Custom Title" in content
