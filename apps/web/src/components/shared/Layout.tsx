@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: "/ask", label: "Ask", icon: "💬" },
   { to: "/wiki", label: "Wiki", icon: "📚" },
   { to: "/graph", label: "Graph", icon: "🕸️" },
+  { to: "/health", label: "Health", icon: "🩺" },
 ];
 
 export function Layout({ children }: LayoutProps) {

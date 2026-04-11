@@ -1,0 +1,98 @@
+import { Badge } from "../shared/Badge";
+import { Card } from "../shared/Card";
+import { RunLintButton } from "./RunLintButton";
+import type { LintReport } from "../../api/lint";
+
+interface Props {
+  report: LintReport | null;
+  isLoading: boolean;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "Never";
+  return new Date(iso).toLocaleString();
+}
+
+export function LintReportSummary({ report, isLoading }: Props) {
+  if (isLoading) {
+    return (
+      <Card className="p-5">
+        <p className="text-sm text-slate-500">Loading report...</p>
+      </Card>
+    );
+  }
+
+  if (!report) {
+    return (
+      <Card className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">
+              Wiki Health
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              No lint reports yet. Run the linter to generate a health report.
+            </p>
+          </div>
+          <RunLintButton />
+        </div>
+      </Card>
+    );
+  }
+
+  const statusTone =
+    report.status === "complete"
+      ? "success"
+      : report.status === "failed"
+        ? "danger"
+        : "info";
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-slate-800">
+              Wiki Health
+            </h2>
+            <Badge tone={statusTone}>
+              {report.status === "in_progress" ? "Running" : report.status}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Last run: {formatDate(report.generated_at)} | {report.article_count}{" "}
+            articles scanned
+          </p>
+        </div>
+        <RunLintButton />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="rounded-md border border-slate-200 p-3 text-center">
+          <div className="text-2xl font-bold text-slate-800">
+            {report.total_findings}
+          </div>
+          <div className="text-xs text-slate-500">Total findings</div>
+        </div>
+        <div className="rounded-md border border-slate-200 p-3 text-center">
+          <div className="text-2xl font-bold text-amber-600">
+            {report.contradictions_count}
+          </div>
+          <div className="text-xs text-slate-500">Contradictions</div>
+        </div>
+        <div className="rounded-md border border-slate-200 p-3 text-center">
+          <div className="text-2xl font-bold text-sky-600">
+            {report.orphans_count}
+          </div>
+          <div className="text-xs text-slate-500">Orphans</div>
+        </div>
+      </div>
+
+      {report.error_message ? (
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {report.error_message}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
