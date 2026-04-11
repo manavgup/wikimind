@@ -136,6 +136,9 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make pyright` | Run basedpyright type checking (requires Node.js) |
 | `make pylint` | Run pylint static analysis (fails under 9.0/10) |
 | `make docstyle` | Run pydocstyle docstring checks |
+| `make bandit` | Run bandit security scanner |
+| `make vulture` | Detect dead code (80% confidence) |
+| `make security` | Run security and dead-code checks |
 | `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop) |
 | `make coverage-check` | Run tests and fail if coverage is under 80% |
 | `make frontend-install` | Install frontend dependencies |

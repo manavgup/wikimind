@@ -32,6 +32,13 @@ repos:
       - id: ruff-format
         args: ["--config=pyproject.toml"]
 
+  # ── Secret detection ─────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+
   # ── Doc sync (local hooks) ────────────────────────────────────────────────
   - repo: local
     hooks:
@@ -72,3 +79,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^pyproject\.toml$
+
+      - id: forbid-ai-artifacts
+        name: Forbid AI-generated artifacts
+        entry: >-
+          bash -c 'grep -rn --include="*.py" --include="*.ts" --include="*.tsx"
+          --include="*.md" -E "\[oaicite:|contentReference\[|As an AI language model|As a large language model"
+          "$@" && echo "ERROR: AI artifacts found" && exit 1 || exit 0' --
+        language: system
+        types: [text]
