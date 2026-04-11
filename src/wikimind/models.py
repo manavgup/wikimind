@@ -181,9 +181,7 @@ class Conversation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
     filed_article_id: str | None = Field(default=None, foreign_key="article.id")
-    parent_conversation_id: str | None = Field(
-        default=None, foreign_key="conversation.id", index=True
-    )
+    parent_conversation_id: str | None = Field(default=None, foreign_key="conversation.id", index=True)
     forked_at_turn_index: int | None = None
 
 

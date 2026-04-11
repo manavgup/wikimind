@@ -112,13 +112,8 @@ class QAAgent:
             all_turns: list[Query] = []
             current = conversation
             ancestors: list[tuple[str, int]] = []
-            while (
-                current.parent_conversation_id is not None
-                and current.forked_at_turn_index is not None
-            ):
-                ancestors.append(
-                    (current.parent_conversation_id, current.forked_at_turn_index)
-                )
+            while current.parent_conversation_id is not None and current.forked_at_turn_index is not None:
+                ancestors.append((current.parent_conversation_id, current.forked_at_turn_index))
                 parent = await session.get(Conversation, current.parent_conversation_id)
                 if parent is None:
                     break

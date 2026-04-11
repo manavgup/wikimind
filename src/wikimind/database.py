@@ -142,8 +142,7 @@ async def _migrate_added_columns(engine) -> None:
         (
             "conversation",
             "parent_conversation_id",
-            "ALTER TABLE conversation ADD COLUMN parent_conversation_id TEXT"
-            " REFERENCES conversation(id)",
+            "ALTER TABLE conversation ADD COLUMN parent_conversation_id TEXT REFERENCES conversation(id)",
         ),
         (
             "conversation",
@@ -159,8 +158,7 @@ async def _migrate_added_columns(engine) -> None:
         ),
         (
             "ix_conversation_parent_id",
-            "CREATE INDEX IF NOT EXISTS ix_conversation_parent_id"
-            " ON conversation (parent_conversation_id)",
+            "CREATE INDEX IF NOT EXISTS ix_conversation_parent_id ON conversation (parent_conversation_id)",
         ),
     ]
 

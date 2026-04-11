@@ -162,9 +162,7 @@ def _to_query_response(query: Query, citations: list[CitationResponse]) -> Query
     )
 
 
-def _to_conversation_response(
-    conversation: Conversation, fork_count: int = 0
-) -> ConversationResponse:
+def _to_conversation_response(conversation: Conversation, fork_count: int = 0) -> ConversationResponse:
     """Project a Conversation row into the API response shape."""
     return ConversationResponse(
         id=conversation.id,
@@ -180,11 +178,7 @@ def _to_conversation_response(
 
 async def _count_forks(conversation_id: str, session: AsyncSession) -> int:
     """Count child conversations (forks) for a given conversation."""
-    result = await session.execute(
-        select(func.count()).where(
-            Conversation.parent_conversation_id == conversation_id
-        )
-    )
+    result = await session.execute(select(func.count()).where(Conversation.parent_conversation_id == conversation_id))
     return result.scalar_one()
 
 
@@ -222,9 +216,7 @@ async def _materialize_thread(
 
     # Add this conversation's own turns
     result = await session.execute(
-        select(Query)
-        .where(Query.conversation_id == conversation.id)
-        .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+        select(Query).where(Query.conversation_id == conversation.id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
     )
     all_turns.extend(result.scalars().all())
 

@@ -75,9 +75,7 @@ class TestForkConversation:
             async def _fake_answer(request, session):
                 # Find the fork conversation that was just created
                 result = await session.execute(
-                    select(Conversation).where(
-                        Conversation.parent_conversation_id == parent.id
-                    )
+                    select(Conversation).where(Conversation.parent_conversation_id == parent.id)
                 )
                 fork_conv = result.scalars().first()
                 assert fork_conv is not None
@@ -173,9 +171,7 @@ class TestMaterializeThread:
 
     async def test_forked_conversation_includes_ancestor_turns(self, db_session):
         """A forked conversation includes parent turns before the fork point."""
-        _parent, _parent_queries = await _seed_conversation_with_turns(
-            db_session, conv_id="parent-conv", num_turns=3
-        )
+        _parent, _parent_queries = await _seed_conversation_with_turns(db_session, conv_id="parent-conv", num_turns=3)
 
         # Create a fork at turn_index=2 (shares turns 0, 1 from parent)
         fork_conv = Conversation(
@@ -212,9 +208,7 @@ class TestMaterializeThread:
     async def test_deep_fork_chain_materializes_all_ancestors(self, db_session):
         """A fork-of-a-fork materializes the full ancestor chain."""
         # Grandparent: 3 turns
-        _grandparent, _ = await _seed_conversation_with_turns(
-            db_session, conv_id="grandparent", num_turns=3
-        )
+        _grandparent, _ = await _seed_conversation_with_turns(db_session, conv_id="grandparent", num_turns=3)
 
         # Parent fork at turn 2 (shares turns 0,1 from grandparent)
         parent_fork = Conversation(
@@ -286,9 +280,7 @@ class TestMaterializeThread:
 class TestGetConversationWithFork:
     async def test_get_forked_conversation_materializes_thread(self, db_session):
         """get_conversation on a fork returns the full materialized thread."""
-        _parent, _ = await _seed_conversation_with_turns(
-            db_session, conv_id="parent-gc", num_turns=3
-        )
+        _parent, _ = await _seed_conversation_with_turns(db_session, conv_id="parent-gc", num_turns=3)
 
         fork_conv = Conversation(
             id="fork-gc",
@@ -322,9 +314,7 @@ class TestGetConversationWithFork:
 
     async def test_get_parent_includes_fork_count(self, db_session):
         """get_conversation on a parent returns fork_count."""
-        _parent, _ = await _seed_conversation_with_turns(
-            db_session, conv_id="parent-fc", num_turns=2
-        )
+        _parent, _ = await _seed_conversation_with_turns(db_session, conv_id="parent-fc", num_turns=2)
 
         fork_conv = Conversation(
             id="fork-fc",
