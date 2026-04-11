@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
+from sqlmodel import select
 
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.models import (
@@ -464,11 +465,7 @@ class TestFileBackSelection:
         article_id = result["article"]["id"]
 
         # Refresh the selected queries
-        from sqlmodel import select
-
-        res = await db_session.execute(
-            select(Query).where(Query.conversation_id == "conv-sel-1")
-        )
+        res = await db_session.execute(select(Query).where(Query.conversation_id == "conv-sel-1"))
         queries = {q.turn_index: q for q in res.scalars().all()}
 
         assert queries[0].filed_back is True

@@ -124,14 +124,7 @@ def serialize_selected_turns_to_markdown(
     """
     if not turns:
         effective_title = title or "Untitled"
-        return (
-            "---\n"
-            f'title: "{effective_title}"\n'
-            "type: qa-selection\n"
-            "turn_count: 0\n"
-            "---\n"
-            f"\n# {effective_title}\n"
-        )
+        return f'---\ntitle: "{effective_title}"\ntype: qa-selection\nturn_count: 0\n---\n\n# {effective_title}\n'
 
     effective_title = title or turns[0].conversation.title
     turn_count = len(turns)

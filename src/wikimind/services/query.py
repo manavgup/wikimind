@@ -543,7 +543,7 @@ class QueryService:
             result = await session.execute(
                 select(Query)
                 .where(Query.conversation_id == selection.conversation_id)
-                .where(Query.turn_index.in_(selection.turn_indices))  # type: ignore[union-attr]
+                .where(Query.turn_index.in_(selection.turn_indices))  # type: ignore[attr-defined]
                 .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
             )
             queries = list(result.scalars().all())
@@ -553,10 +553,7 @@ class QueryService:
             if missing:
                 raise HTTPException(
                     status_code=400,
-                    detail=(
-                        f"Turn indices {sorted(missing)} not found "
-                        f"in conversation {selection.conversation_id}"
-                    ),
+                    detail=(f"Turn indices {sorted(missing)} not found in conversation {selection.conversation_id}"),
                 )
 
             for query in queries:
