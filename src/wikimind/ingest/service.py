@@ -868,14 +868,12 @@ class PDFAdapter:
                     "type": "text",
                     "text": (
                         f"Describe the following {len(batch_images)} page(s). "
-                        "Page numbers: "
-                        + ", ".join(str(idx + 1) for idx in batch_indices)
-                        + "."
+                        "Page numbers: " + ", ".join(str(idx + 1) for idx in batch_indices) + "."
                     ),
                 }
             )
 
-            for idx, img_bytes in zip(batch_indices, batch_images):
+            for idx, img_bytes in zip(batch_indices, batch_images, strict=True):
                 content_parts.append(
                     {
                         "type": "text",

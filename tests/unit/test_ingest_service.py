@@ -79,7 +79,7 @@ async def test_url_adapter_no_content_raises(db_session) -> None:
             await adapter.ingest("http://example.com", db_session)
 
 
-async def test_pdf_adapter_fitz_path(db_session, tmp_path) -> None:
+async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
     fake_page = MagicMock()
     fake_page.get_text = MagicMock(return_value="page text")
 
@@ -91,6 +91,10 @@ async def test_pdf_adapter_fitz_path(db_session, tmp_path) -> None:
     fake_text_doc = MagicMock()
     fake_text_doc.__iter__ = lambda self: iter([fake_page, fake_page])
     fake_text_doc.close = MagicMock()
+
+    # Disable vision so _enhance_with_vision is a no-op
+    mock_enhance = AsyncMock(side_effect=lambda fb, ct, sid: ct)
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", mock_enhance)
 
     with (
         patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
@@ -446,8 +450,9 @@ def test_first_markdown_heading_skips_h2() -> None:
     assert _first_markdown_heading(text) is None
 
 
-async def test_pdf_adapter_metadata_title(db_session) -> None:
+async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
     """PDF with metadata title uses it instead of filename."""
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {
         "title": "Attention Is All You Need",
@@ -474,8 +479,9 @@ async def test_pdf_adapter_metadata_title(db_session) -> None:
     assert source.published_date.year == 2017
 
 
-async def test_pdf_adapter_heading_fallback(db_session) -> None:
+async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
     """When PDF has no metadata title, falls back to first markdown heading."""
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
     fake_meta_doc.close = MagicMock()
@@ -495,8 +501,9 @@ async def test_pdf_adapter_heading_fallback(db_session) -> None:
     assert source.title == "A Great Paper"
 
 
-async def test_pdf_adapter_filename_fallback(db_session) -> None:
+async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
     """When no metadata title and no heading, falls back to filename."""
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
     fake_meta_doc.close = MagicMock()

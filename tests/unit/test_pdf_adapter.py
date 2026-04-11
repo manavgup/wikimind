@@ -54,7 +54,7 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ``ingest.service`` module attribute the adapter actually calls instead of
     trying to bust the cache.
     """
-    fake_settings = Settings(data_dir=str(tmp_path))
+    fake_settings = Settings(data_dir=str(tmp_path), vision_enabled=False)
     monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
     # Pre-create raw_dir so the assertions can rely on it existing.
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)

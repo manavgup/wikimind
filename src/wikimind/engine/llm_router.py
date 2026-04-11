@@ -147,7 +147,7 @@ class AnthropicProvider:
             max_tokens=max_tokens,
             temperature=temperature,
             system=system,
-            messages=[{"role": "user", "content": content_parts}],  # type: ignore[arg-type]
+            messages=[{"role": "user", "content": content_parts}],  # type: ignore[arg-type,typeddict-item]
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -296,8 +296,8 @@ class OpenAIProvider:
 
         latency_ms = int((time.monotonic() - start) * 1000)
         content = response.choices[0].message.content
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
 
         return CompletionResponse(
             content=content,
@@ -528,8 +528,7 @@ class MockProvider:
         # Count images and return one description per image
         image_count = sum(1 for p in content_parts if p.get("type") == "image")
         descriptions = [
-            f"[Page {i + 1} description: A visual slide with diagrams and minimal text.]"
-            for i in range(image_count)
+            f"[Page {i + 1} description: A visual slide with diagrams and minimal text.]" for i in range(image_count)
         ]
         content = "\n\n".join(descriptions) if descriptions else "No images provided."
         latency_ms = int((time.monotonic() - start) * 1000)
