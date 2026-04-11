@@ -141,6 +141,19 @@ class TaxonomyConfig(BaseModel):
     max_hierarchy_depth: int = 3
 
 
+class LinterConfig(BaseModel):
+    """Wiki linter configuration."""
+
+    enable_orphan_detection: bool = False
+    max_concepts_per_run: int = 25
+    max_contradiction_pairs_per_concept: int = 10
+    contradiction_llm_max_tokens: int = 1024
+    contradiction_llm_temperature: float = 0.2
+    respect_monthly_budget: bool = True
+    max_cost_per_run_usd: float = 1.00
+    enable_pair_cache: bool = True
+
+
 class EmbeddingConfig(BaseModel):
     """Embedding and semantic search configuration."""
 
@@ -189,6 +202,7 @@ class Settings(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
+    linter: LinterConfig = Field(default_factory=LinterConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
     # PDF extraction: number of pages per Docling batch (issue #117).

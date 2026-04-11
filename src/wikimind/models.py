@@ -323,6 +323,103 @@ class LinterResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Lint Report + Per-Kind Finding Tables
+# ---------------------------------------------------------------------------
+
+
+class LintSeverity(StrEnum):
+    """Severity level for a lint finding."""
+
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
+
+
+class LintFindingKind(StrEnum):
+    """Kind of lint finding — maps 1:1 to a detection function AND a table.
+
+    Used as the content_hash prefix (so dismiss state is keyed by kind + content)
+    and as the discriminator field in the frontend API response union.
+    """
+
+    CONTRADICTION = "contradiction"
+    ORPHAN = "orphan"
+
+
+class LintReportStatus(StrEnum):
+    """Lifecycle of a lint report."""
+
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class LintReport(SQLModel, table=True):
+    """One run of the linter. All findings from a run FK back to this row via report_id."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    generated_at: datetime = Field(default_factory=utcnow_naive, index=True)
+    completed_at: datetime | None = None
+    status: LintReportStatus = LintReportStatus.IN_PROGRESS
+    article_count: int = 0
+    total_findings: int = 0
+    contradictions_count: int = 0
+    orphans_count: int = 0
+    error_message: str | None = None
+    job_id: str | None = Field(default=None, foreign_key="job.id", index=True)
+
+
+class _LintFindingBase(SQLModel):
+    """Fields shared across every per-kind finding table. NOT a table itself."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    report_id: str = Field(foreign_key="lintreport.id", index=True)
+    severity: LintSeverity = LintSeverity.WARN
+    description: str
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    dismissed: bool = False
+    dismissed_at: datetime | None = None
+    content_hash: str = Field(index=True)
+
+
+class ContradictionFinding(_LintFindingBase, table=True):
+    """A contradiction between key claims of two articles that share a concept."""
+
+    kind: LintFindingKind = Field(default=LintFindingKind.CONTRADICTION)
+    article_a_id: str = Field(foreign_key="article.id", index=True)
+    article_b_id: str = Field(foreign_key="article.id", index=True)
+    article_a_claim: str
+    article_b_claim: str
+    llm_confidence: str  # "high" | "medium" | "low"
+    shared_concept_id: str | None = Field(default=None, foreign_key="concept.id", index=True)
+
+
+class OrphanFinding(_LintFindingBase, table=True):
+    """An article with zero inbound AND zero outbound backlinks."""
+
+    kind: LintFindingKind = Field(default=LintFindingKind.ORPHAN)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    article_title: str
+
+
+class DismissedFinding(SQLModel, table=True):
+    """Cross-run dismiss record — keyed by content hash."""
+
+    content_hash: str = Field(primary_key=True)
+    kind: LintFindingKind
+    dismissed_at: datetime = Field(default_factory=utcnow_naive)
+    reason: str | None = None
+
+
+class LintReportDetail(BaseModel):
+    """API response shape for a single report with all findings."""
+
+    report: LintReport
+    contradictions: list[ContradictionFinding]
+    orphans: list[OrphanFinding]
+
+
+# ---------------------------------------------------------------------------
 # API Request/Response Models
 # ---------------------------------------------------------------------------
 

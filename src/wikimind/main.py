@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from wikimind.api.routes import ingest, jobs, query, wiki, ws
+from wikimind.api.routes import ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, init_db
@@ -91,6 +91,7 @@ app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 app.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
 app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
+app.include_router(lint.router, prefix="/lint", tags=["Lint"])
 app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
 app.include_router(ws.router, tags=["WebSocket"])
 
