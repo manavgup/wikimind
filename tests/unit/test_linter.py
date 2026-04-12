@@ -77,7 +77,7 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
         article_id="a1",
         slug="article-a",
         title="Article A",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["The sky is blue"],
     )
     art_b = _make_article(
@@ -85,7 +85,7 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
         article_id="a2",
         slug="article-b",
         title="Article B",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["The sky is green"],
     )
     db_session.add(art_a)
@@ -132,7 +132,7 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
         article_id="a1",
         slug="article-a",
         title="Article A",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["The sky is blue"],
     )
     art_b = _make_article(
@@ -140,7 +140,7 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
         article_id="a2",
         slug="article-b",
         title="Article B",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["Water is wet"],
     )
     db_session.add(art_a)
@@ -169,7 +169,7 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
             article_id=f"a{i}",
             slug=f"article-{i}",
             title=f"Article {i}",
-            concept_ids=["c1"],
+            concept_ids=["testing"],
             claims=[f"Claim {i}"],
         )
         db_session.add(art)
@@ -249,7 +249,7 @@ async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated
         article_id="a1",
         slug="article-a",
         title="Article A",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["Claim A"],
     )
     art_b = _make_article(
@@ -257,7 +257,7 @@ async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated
         article_id="a2",
         slug="article-b",
         title="Article B",
-        concept_ids=["c1"],
+        concept_ids=["testing"],
         claims=["Claim B"],
     )
     db_session.add(art_a)

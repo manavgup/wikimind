@@ -76,8 +76,9 @@ def _extract_claims(article: Article, data_dir: str) -> list[str]:
     return claims
 
 
-async def _get_articles_for_concept(session: AsyncSession, concept_id: str) -> list[Article]:
-    """Load articles whose concept_ids JSON array contains the given concept id."""
+async def _get_articles_for_concept(session: AsyncSession, concept_name: str) -> list[Article]:
+    """Load articles whose concept_ids JSON array contains the given concept name."""
+    # concept_ids stores concept names (not UUIDs), so match by name directly.
     result = await session.execute(
         text(
             "SELECT article.id, article.slug, article.title, article.file_path, "
@@ -85,9 +86,9 @@ async def _get_articles_for_concept(session: AsyncSession, concept_id: str) -> l
             "article.summary, article.created_at, article.updated_at, "
             "article.source_ids, article.provider "
             "FROM article, json_each(article.concept_ids) AS je "
-            "WHERE je.value = :concept_id"
+            "WHERE je.value = :concept_name"
         ),
-        {"concept_id": concept_id},
+        {"concept_name": concept_name},
     )
     rows = result.fetchall()
     articles = []
@@ -179,7 +180,7 @@ async def detect_contradictions(
 
     for concept_row in concepts:
         concept_id, concept_name = concept_row
-        articles = await _get_articles_for_concept(session, concept_id)
+        articles = await _get_articles_for_concept(session, concept_name)
 
         if len(articles) < 2:
             continue
