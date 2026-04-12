@@ -87,7 +87,7 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
 
     try:
         # Run checks
-        contradictions = await detect_contradictions(session, router, settings, report.id)
+        contradictions = await detect_contradictions(session, router, settings, report)
         orphans = await detect_orphans(session, settings, report.id)
 
         # Apply dismiss suppression
@@ -99,12 +99,17 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
         for of in orphans:
             session.add(of)
 
-        # Update report
+        # Update report — count only active (non-dismissed) findings
+        active_contradictions = [c for c in contradictions if not c.dismissed]
+        active_orphans = [o for o in orphans if not o.dismissed]
+        dismissed = (len(contradictions) - len(active_contradictions)) + (len(orphans) - len(active_orphans))
+
         report.status = LintReportStatus.COMPLETE
         report.completed_at = utcnow_naive()
-        report.contradictions_count = len(contradictions)
-        report.orphans_count = len(orphans)
-        report.total_findings = len(contradictions) + len(orphans)
+        report.contradictions_count = len(active_contradictions)
+        report.orphans_count = len(active_orphans)
+        report.total_findings = len(active_contradictions) + len(active_orphans)
+        report.dismissed_count = dismissed
         session.add(report)
         await session.commit()
 

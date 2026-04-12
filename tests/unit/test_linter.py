@@ -110,7 +110,10 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
     )
 
     settings = get_settings()
-    findings = await detect_contradictions(db_session, mock_router, settings, report_id="r1")
+    report = LintReport(id="r1")
+    db_session.add(report)
+    await db_session.flush()
+    findings = await detect_contradictions(db_session, mock_router, settings, report)
 
     assert len(findings) == 1
     assert findings[0].description == "Sky color contradiction"
@@ -152,7 +155,10 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
     mock_router.parse_json_response = MagicMock(return_value={"contradictions": []})
 
     settings = get_settings()
-    findings = await detect_contradictions(db_session, mock_router, settings, report_id="r1")
+    report = LintReport(id="r1")
+    db_session.add(report)
+    await db_session.flush()
+    findings = await detect_contradictions(db_session, mock_router, settings, report)
 
     assert len(findings) == 0
 
@@ -183,7 +189,10 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
     # Set cap very low
     settings.linter.max_contradiction_pairs_per_concept = 2
 
-    await detect_contradictions(db_session, mock_router, settings, report_id="r1")
+    report = LintReport(id="r1")
+    db_session.add(report)
+    await db_session.flush()
+    await detect_contradictions(db_session, mock_router, settings, report)
 
     # 5 articles = 10 pairs, capped at 2
     assert mock_router.complete.call_count <= 2

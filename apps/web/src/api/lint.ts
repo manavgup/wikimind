@@ -17,6 +17,10 @@ export interface LintReport {
   total_findings: number;
   contradictions_count: number;
   orphans_count: number;
+  missing_pages_count: number;
+  dismissed_count: number;
+  total_pairs: number;
+  checked_pairs: number;
   error_message: string | null;
   job_id: string | null;
 }

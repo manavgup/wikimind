@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import json
 import random
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import Settings
 from wikimind.engine.linter.prompts import CONTRADICTION_SYSTEM_PROMPT, CONTRADICTION_USER_TEMPLATE
 from wikimind.engine.llm_router import LLMRouter
@@ -24,6 +26,7 @@ from wikimind.models import (
     CompletionRequest,
     ContradictionFinding,
     LintFindingKind,
+    LintReport,
     LintSeverity,
     TaskType,
 )
@@ -31,10 +34,15 @@ from wikimind.models import (
 log = structlog.get_logger()
 
 
-def _content_hash(article_a_id: str, article_b_id: str, description: str) -> str:
-    """Compute a stable sha256 for cross-run dedup of dismissed findings."""
+def _content_hash(article_a_id: str, article_b_id: str) -> str:
+    """Compute a stable sha256 for cross-run dedup of dismissed findings.
+
+    Keyed by sorted article pair IDs only — not the LLM description,
+    which varies between runs. Dismissing any contradiction between
+    articles A and B dismisses all future contradictions for that pair.
+    """
     ids = sorted([article_a_id, article_b_id])
-    raw = f"{LintFindingKind.CONTRADICTION}|{ids[0]}|{ids[1]}|{description}"
+    raw = f"{LintFindingKind.CONTRADICTION}|{ids[0]}|{ids[1]}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -112,47 +120,99 @@ async def _get_articles_for_concept(session: AsyncSession, concept_name: str) ->
     return articles
 
 
+async def _check_pair_cache(session: AsyncSession, article_a: Article, article_b: Article) -> list[dict] | None:
+    """Check if we have a cached result for this article pair."""
+    ids = sorted([article_a.id, article_b.id])
+    result = await session.execute(
+        text(
+            "SELECT result_json, article_a_updated_at, article_b_updated_at "
+            "FROM lintpaircache "
+            "WHERE article_a_id = :a_id AND article_b_id = :b_id"
+        ),
+        {"a_id": ids[0], "b_id": ids[1]},
+    )
+    row = result.fetchone()
+    if not row:
+        return None
+    # Check if articles have been updated since cache was written
+    cached_a_updated = row[1]
+    cached_b_updated = row[2]
+    current_a = str(article_a.updated_at) if ids[0] == article_a.id else str(article_b.updated_at)
+    current_b = str(article_b.updated_at) if ids[1] == article_b.id else str(article_a.updated_at)
+    if cached_a_updated == current_a and cached_b_updated == current_b:
+        return json.loads(row[0])
+    return None
+
+
+async def _save_pair_cache(
+    session: AsyncSession,
+    article_a: Article,
+    article_b: Article,
+    result_data: list[dict],
+) -> None:
+    """Save LLM result to pair cache."""
+    ids = sorted([article_a.id, article_b.id])
+    a_art = article_a if ids[0] == article_a.id else article_b
+    b_art = article_b if ids[1] == article_b.id else article_a
+    # Delete old cache entry if exists
+    await session.execute(
+        text("DELETE FROM lintpaircache WHERE article_a_id = :a AND article_b_id = :b"),
+        {"a": ids[0], "b": ids[1]},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO lintpaircache (id, article_a_id, article_b_id, "
+            "article_a_updated_at, article_b_updated_at, result_json, checked_at) "
+            "VALUES (:id, :a_id, :b_id, :a_up, :b_up, :result, :now)"
+        ),
+        {
+            "id": str(hashlib.sha256(f"{ids[0]}|{ids[1]}".encode()).hexdigest()[:32]),
+            "a_id": ids[0],
+            "b_id": ids[1],
+            "a_up": str(a_art.updated_at),
+            "b_up": str(b_art.updated_at),
+            "result": json.dumps(result_data),
+            "now": str(utcnow_naive()),
+        },
+    )
+
+
 async def detect_contradictions(
     session: AsyncSession,
     router: LLMRouter,
     settings: Settings,
-    report_id: str,
+    report: LintReport,
 ) -> list[ContradictionFinding]:
     """For each concept, LLM-compare article pairs within that concept bucket.
 
-    Args:
-        session: Async database session.
-        router: LLM router for making completion calls.
-        settings: Application settings with linter config.
-        report_id: The parent LintReport ID.
-
-    Returns:
-        List of ContradictionFinding instances ready for persistence.
+    Updates report.total_pairs and report.checked_pairs for progress tracking.
+    Uses pair cache to skip LLM calls for unchanged article pairs.
     """
     cfg = settings.linter
     findings: list[ContradictionFinding] = []
 
-    # Load concepts, ordered by most recently updated articles first
+    # Load concepts
     result = await session.execute(
         text("SELECT c.id, c.name FROM concept c ORDER BY c.article_count DESC LIMIT :limit"),
         {"limit": cfg.max_concepts_per_run},
     )
     concepts = result.fetchall()
 
+    # Collect all pairs across concepts first (for progress tracking)
+    all_work: list[tuple[str | None, str, list[tuple[Article, Article]]]] = []
+
     if not concepts:
-        # Fallback: no concepts exist — compare top articles by updated_at
         log.info("No concepts found, falling back to top-N article comparison")
         result = await session.execute(
             text(
                 "SELECT id, slug, title, file_path, concept_ids, confidence, "
                 "linter_score, summary, created_at, updated_at, source_ids, provider "
-                "FROM article ORDER BY updated_at DESC "
-                "LIMIT :limit"
+                "FROM article ORDER BY updated_at DESC LIMIT :limit"
             ),
             {"limit": cfg.max_contradiction_pairs_per_concept * 2},
         )
         rows = result.fetchall()
-        all_articles = [
+        articles = [
             Article(
                 id=r[0],
                 slug=r[1],
@@ -169,35 +229,80 @@ async def detect_contradictions(
             )
             for r in rows
         ]
-        pairs = list(itertools.combinations(all_articles, 2))
-        if len(pairs) > cfg.max_contradiction_pairs_per_concept:
-            pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
-
-        for article_a, article_b in pairs:
-            new_findings = await _compare_article_pair(article_a, article_b, None, router, settings, report_id)
-            findings.extend(new_findings)
-        return findings
-
-    for concept_row in concepts:
-        concept_id, concept_name = concept_row
-        articles = await _get_articles_for_concept(session, concept_name)
-
-        if len(articles) < 2:
-            continue
-
         pairs = list(itertools.combinations(articles, 2))
         if len(pairs) > cfg.max_contradiction_pairs_per_concept:
             pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
+        all_work.append((None, "all-articles", pairs))
+    else:
+        for concept_row in concepts:
+            concept_id, concept_name = concept_row
+            articles = await _get_articles_for_concept(session, concept_name)
+            if len(articles) < 2:
+                continue
+            pairs = list(itertools.combinations(articles, 2))
+            if len(pairs) > cfg.max_contradiction_pairs_per_concept:
+                pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
+            all_work.append((concept_id, concept_name, pairs))
 
-        log.info(
-            "Checking contradictions in concept",
-            concept=concept_name,
-            pairs=len(pairs),
-        )
+    # Compute total pairs and update report for progress
+    total_pairs = sum(len(pairs) for _, _, pairs in all_work)
+    report.total_pairs = total_pairs
+    report.checked_pairs = 0
+    session.add(report)
+    await session.flush()
+
+    checked = 0
+    for concept_id, concept_name, pairs in all_work:
+        log.info("Checking contradictions in concept", concept=concept_name, pairs=len(pairs))
 
         for article_a, article_b in pairs:
-            new_findings = await _compare_article_pair(article_a, article_b, concept_id, router, settings, report_id)
+            # Check cache first
+            if cfg.enable_pair_cache:
+                cached = await _check_pair_cache(session, article_a, article_b)
+                if cached is not None:
+                    log.info("Pair cache hit", a=article_a.title[:30], b=article_b.title[:30])
+                    for c in cached:
+                        findings.append(
+                            ContradictionFinding(
+                                report_id=report.id,
+                                severity=LintSeverity.WARN,
+                                description=c.get("description", "Contradiction detected"),
+                                content_hash=_content_hash(article_a.id, article_b.id),
+                                article_a_id=article_a.id,
+                                article_b_id=article_b.id,
+                                article_a_claim=c.get("article_a_claim", ""),
+                                article_b_claim=c.get("article_b_claim", ""),
+                                llm_confidence=c.get("confidence", "medium"),
+                                shared_concept_id=concept_id,
+                            )
+                        )
+                    checked += 1
+                    report.checked_pairs = checked
+                    session.add(report)
+                    await session.flush()
+                    continue
+
+            # LLM call
+            new_findings = await _compare_article_pair(article_a, article_b, concept_id, router, settings, report.id)
             findings.extend(new_findings)
+
+            # Save to cache
+            if cfg.enable_pair_cache:
+                cache_data = [
+                    {
+                        "description": f.description,
+                        "article_a_claim": f.article_a_claim,
+                        "article_b_claim": f.article_b_claim,
+                        "confidence": f.llm_confidence,
+                    }
+                    for f in new_findings
+                ]
+                await _save_pair_cache(session, article_a, article_b, cache_data)
+
+            checked += 1
+            report.checked_pairs = checked
+            session.add(report)
+            await session.flush()
 
     return findings
 
@@ -258,7 +363,7 @@ async def _compare_article_pair(
             report_id=report_id,
             severity=LintSeverity.WARN,
             description=description,
-            content_hash=_content_hash(article_a.id, article_b.id, description),
+            content_hash=_content_hash(article_a.id, article_b.id),
             article_a_id=article_a.id,
             article_b_id=article_b.id,
             article_a_claim=c.get("article_a_claim", ""),

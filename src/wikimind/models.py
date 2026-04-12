@@ -365,6 +365,10 @@ class LintReport(SQLModel, table=True):
     total_findings: int = 0
     contradictions_count: int = 0
     orphans_count: int = 0
+    missing_pages_count: int = 0
+    dismissed_count: int = 0
+    total_pairs: int = 0
+    checked_pairs: int = 0
     error_message: str | None = None
     job_id: str | None = Field(default=None, foreign_key="job.id", index=True)
 
@@ -417,6 +421,22 @@ class LintReportDetail(BaseModel):
     report: LintReport
     contradictions: list[ContradictionFinding]
     orphans: list[OrphanFinding]
+
+
+class LintPairCache(SQLModel, table=True):
+    """Cache of LLM contradiction check results for article pairs.
+
+    Keyed by sorted article pair IDs. Invalidated when either article's
+    updated_at changes.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    article_a_id: str = Field(index=True)
+    article_b_id: str = Field(index=True)
+    article_a_updated_at: str
+    article_b_updated_at: str
+    result_json: str  # JSON list of contradiction dicts
+    checked_at: datetime = Field(default_factory=utcnow_naive)
 
 
 # ---------------------------------------------------------------------------

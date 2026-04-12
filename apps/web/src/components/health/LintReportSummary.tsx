@@ -67,12 +67,41 @@ export function LintReportSummary({ report, isLoading }: Props) {
         <RunLintButton />
       </div>
 
+      {/* Progress bar when running */}
+      {report.status === "in_progress" && report.total_pairs > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>
+              Checking pair {report.checked_pairs} of {report.total_pairs}...
+            </span>
+            <span>
+              {Math.round((report.checked_pairs / report.total_pairs) * 100)}%
+            </span>
+          </div>
+          <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-brand-500 transition-all"
+              style={{
+                width: `${Math.round((report.checked_pairs / report.total_pairs) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div className="rounded-md border border-slate-200 p-3 text-center">
           <div className="text-2xl font-bold text-slate-800">
             {report.total_findings}
           </div>
-          <div className="text-xs text-slate-500">Total findings</div>
+          <div className="text-xs text-slate-500">
+            Active findings
+            {report.dismissed_count > 0 && (
+              <span className="ml-1 text-slate-400">
+                ({report.dismissed_count} dismissed)
+              </span>
+            )}
+          </div>
         </div>
         <div className="rounded-md border border-slate-200 p-3 text-center">
           <div className="text-2xl font-bold text-amber-600">
