@@ -3,18 +3,20 @@ import { Spinner } from "../shared/Spinner";
 import { useRunLint } from "../../hooks/useLint";
 
 export function RunLintButton() {
-  const { mutate, isPending } = useRunLint();
+  const { mutate, isPending, isPolling } = useRunLint();
+  const busy = isPending || isPolling;
 
   return (
     <Button
       variant="primary"
       size="sm"
-      disabled={isPending}
+      disabled={busy}
       onClick={() => mutate()}
     >
-      {isPending ? (
+      {busy ? (
         <>
-          <Spinner size={14} /> Running...
+          <Spinner size={14} />{" "}
+          {isPolling ? "Analyzing articles..." : "Starting..."}
         </>
       ) : (
         "Run lint now"

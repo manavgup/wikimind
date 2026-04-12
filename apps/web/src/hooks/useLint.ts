@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -34,14 +35,37 @@ export function useRunLint(): UseMutationResult<
   { status: string },
   Error,
   void
-> {
+> & { isPolling: boolean } {
   const queryClient = useQueryClient();
-  return useMutation({
+  const [isPolling, setIsPolling] = useState(false);
+
+  const mutation = useMutation({
     mutationFn: () => runLint(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lint"] });
+      // Start polling for completion
+      setIsPolling(true);
+      const poll = setInterval(async () => {
+        try {
+          const report = await getLatestReport();
+          queryClient.setQueryData(["lint", "latest"], report);
+          if (report.report.status !== "in_progress") {
+            clearInterval(poll);
+            setIsPolling(false);
+            queryClient.invalidateQueries({ queryKey: ["lint"] });
+          }
+        } catch {
+          // Report not ready yet — keep polling
+        }
+      }, 2000);
+      // Safety: stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(poll);
+        setIsPolling(false);
+      }, 300_000);
     },
   });
+
+  return { ...mutation, isPolling };
 }
 
 export function useDismissFinding(): UseMutationResult<
