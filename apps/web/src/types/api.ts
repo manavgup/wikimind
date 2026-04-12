@@ -47,6 +47,8 @@ export interface Article {
   summary: string | null;
   confidence: ConfidenceLevel | null;
   linter_score: number | null;
+  source_count: number;
+  backlink_count: number;
   created_at: string;
   updated_at: string;
 }
