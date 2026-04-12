@@ -1477,6 +1477,22 @@ components:
           type: integer
           title: Orphans Count
           default: 0
+        missing_pages_count:
+          type: integer
+          title: Missing Pages Count
+          default: 0
+        dismissed_count:
+          type: integer
+          title: Dismissed Count
+          default: 0
+        total_pairs:
+          type: integer
+          title: Total Pairs
+          default: 0
+        checked_pairs:
+          type: integer
+          title: Checked Pairs
+          default: 0
         error_message:
           anyOf:
           - type: string
