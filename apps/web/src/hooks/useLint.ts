@@ -42,13 +42,19 @@ export function useRunLint(): UseMutationResult<
   const mutation = useMutation({
     mutationFn: () => runLint(),
     onSuccess: () => {
-      // Start polling for completion
+      // Capture the current report's timestamp so we can detect the NEW report
+      const cached = queryClient.getQueryData<LintReportDetail>(["lint", "latest"]);
+      const prevGeneratedAt = cached?.report?.generated_at ?? "";
+
       setIsPolling(true);
       const poll = setInterval(async () => {
         try {
-          const report = await getLatestReport();
-          queryClient.setQueryData(["lint", "latest"], report);
-          if (report.report.status !== "in_progress") {
+          const detail = await getLatestReport();
+          queryClient.setQueryData(["lint", "latest"], detail);
+          // Only stop when we see a NEWER report that's no longer in_progress
+          const isNewer = detail.report.generated_at !== prevGeneratedAt;
+          const isDone = detail.report.status !== "in_progress";
+          if (isNewer && isDone) {
             clearInterval(poll);
             setIsPolling(false);
             queryClient.invalidateQueries({ queryKey: ["lint"] });
