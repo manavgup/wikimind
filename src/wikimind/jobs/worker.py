@@ -15,38 +15,32 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import ClassVar
 
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
-from sqlmodel import select
 
 import wikimind.ingest.service as _ingest_service
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import (
     emit_compilation_complete,
     emit_compilation_failed,
-    emit_linter_alert,
     emit_source_progress,
 )
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.compiler import Compiler
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.linter.runner import run_lint
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
-    Article,
-    CompletionRequest,
     IngestStatus,
     Job,
     JobStatus,
     JobType,
     NormalizedDocument,
     Source,
-    TaskType,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 
@@ -171,7 +165,11 @@ async def compile_source(ctx, source_id: str):
 
 
 async def lint_wiki(ctx):
-    """Run the wiki linter to find contradictions, orphans, and gaps."""
+    """Run the wiki linter to find contradictions, orphans, and gaps.
+
+    Delegates to the structured ``run_lint`` pipeline. The existing
+    ARQ cron and ``POST /jobs/lint`` entry point call this function.
+    """
     log.info("lint_wiki started")
 
     async with get_session_factory()() as session:
@@ -184,75 +182,11 @@ async def lint_wiki(ctx):
         await session.commit()
 
         try:
-            # Gather all articles
-            result = await session.execute(select(Article))
-            articles = result.scalars().all()
-
-            if not articles:
-                job.status = JobStatus.COMPLETE
-                job.result_summary = "No articles to lint"
-                session.add(job)
-                await session.commit()
-                return
-
-            # Build wiki summary for linter
-            summaries = []
-            for article in articles[:50]:  # Cap at 50 for token budget
-                try:
-                    content = Path(article.file_path).read_text(encoding="utf-8")[:1000]
-                    summaries.append(f"## {article.title}\n{content}\n")
-                except Exception:
-                    continue
-
-            wiki_text = "\n---\n".join(summaries)
-
-            router = get_llm_router()
-            lint_request = CompletionRequest(
-                system="""You are a wiki health auditor. Analyze these wiki articles and identify issues.
-
-Return valid JSON only:
-{
-  "contradictions": [{"claim_a": "...", "claim_b": "...", "articles": ["title1", "title2"]}],
-  "orphaned_articles": ["title"],
-  "stale_articles": ["title"],
-  "gap_suggestions": ["New article title that should exist"],
-  "coverage_scores": {"topic": 0.0}
-}""",
-                messages=[{"role": "user", "content": f"Analyze this wiki:\n\n{wiki_text}"}],
-                max_tokens=2048,
-                temperature=0.2,
-                response_format="json",
-                task_type=TaskType.LINT,
-            )
-
-            response = await router.complete(lint_request, session=session)
-            lint_data = router.parse_json_response(response)
-
-            # Save health report
-            settings = get_settings()
-            meta_dir = Path(settings.data_dir) / "wiki" / "_meta"
-            meta_dir.mkdir(parents=True, exist_ok=True)
-
-            health = {
-                "generated_at": utcnow_naive().isoformat(),
-                "total_articles": len(articles),
-                **lint_data,
-            }
-            (meta_dir / "health.json").write_text(json.dumps(health, indent=2))
-
-            # Emit alerts
-            if lint_data.get("contradictions"):
-                articles_involved = []
-                for c in lint_data["contradictions"]:
-                    articles_involved.extend(c.get("articles", []))
-                await emit_linter_alert("contradiction", articles_involved)
+            report = await run_lint(session, job_id=job.id)
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
-            job.result_summary = (
-                f"Found {len(lint_data.get('contradictions', []))} contradictions, "
-                f"{len(lint_data.get('gap_suggestions', []))} gaps"
-            )
+            job.result_summary = f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans"
             session.add(job)
             await session.commit()
 

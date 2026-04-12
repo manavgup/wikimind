@@ -368,7 +368,12 @@ paths:
       tags:
       - Wiki
       summary: Get Health
-      description: Latest wiki health report from linter.
+      description: 'Latest wiki health report from linter.
+
+
+        DEPRECATED: Use GET /lint/reports/latest instead. This endpoint
+
+        delegates to the new LinterService for backward compatibility.'
       operationId: get_health_wiki_health_get
       responses:
         '200':
@@ -672,7 +677,12 @@ paths:
       tags:
       - Jobs
       summary: Trigger Lint
-      description: Trigger wiki linting.
+      description: 'Trigger wiki linting.
+
+
+        DEPRECATED: Use POST /lint/run instead. This endpoint delegates
+
+        to the new LinterService for backward compatibility.'
       operationId: trigger_lint_jobs_lint_post
       responses:
         '200':
@@ -693,6 +703,132 @@ paths:
           content:
             application/json:
               schema: {}
+  /lint/run:
+    post:
+      tags:
+      - Lint
+      summary: Run Lint
+      description: Trigger a new lint run. Returns immediately with status.
+      operationId: run_lint_lint_run_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /lint/reports:
+    get:
+      tags:
+      - Lint
+      summary: List Reports
+      description: List lint reports ordered by most recent first.
+      operationId: list_reports_lint_reports_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LintReport'
+                title: Response List Reports Lint Reports Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /lint/reports/latest:
+    get:
+      tags:
+      - Lint
+      summary: Get Latest Report
+      description: Get the most recent lint report with all non-dismissed findings.
+      operationId: get_latest_report_lint_reports_latest_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LintReportDetail'
+  /lint/reports/{report_id}:
+    get:
+      tags:
+      - Lint
+      summary: Get Report
+      description: Get a specific lint report with findings.
+      operationId: get_report_lint_reports__report_id__get
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Report Id
+      - name: include_dismissed
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Dismissed
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LintReportDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /lint/findings/{kind}/{finding_id}/dismiss:
+    post:
+      tags:
+      - Lint
+      summary: Dismiss Finding
+      description: Dismiss a finding. Persists across future lint runs via content
+        hash.
+      operationId: dismiss_finding_lint_findings__kind___finding_id__dismiss_post
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/LintFindingKind'
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /settings:
     get:
       tags:
@@ -1040,6 +1176,73 @@ components:
       - opinion
       title: ConfidenceLevel
       description: Confidence level for claims.
+    ContradictionFinding:
+      properties:
+        id:
+          type: string
+          title: Id
+        report_id:
+          type: string
+          title: Report Id
+        severity:
+          $ref: '#/components/schemas/LintSeverity'
+          default: warn
+        description:
+          type: string
+          title: Description
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        dismissed:
+          type: boolean
+          title: Dismissed
+          default: false
+        dismissed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Dismissed At
+        content_hash:
+          type: string
+          title: Content Hash
+        kind:
+          $ref: '#/components/schemas/LintFindingKind'
+          default: contradiction
+        article_a_id:
+          type: string
+          title: Article A Id
+        article_b_id:
+          type: string
+          title: Article B Id
+        article_a_claim:
+          type: string
+          title: Article A Claim
+        article_b_claim:
+          type: string
+          title: Article B Claim
+        llm_confidence:
+          type: string
+          title: Llm Confidence
+        shared_concept_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Shared Concept Id
+      type: object
+      required:
+      - report_id
+      - description
+      - content_hash
+      - article_a_id
+      - article_b_id
+      - article_a_claim
+      - article_b_claim
+      - llm_confidence
+      title: ContradictionFinding
+      description: A contradiction between key claims of two articles that share a
+        concept.
     ConversationDetail:
       properties:
         conversation:
@@ -1235,6 +1438,169 @@ components:
       - url
       title: IngestURLRequest
       description: Request to ingest a URL.
+    LintFindingKind:
+      type: string
+      enum:
+      - contradiction
+      - orphan
+      title: LintFindingKind
+      description: 'Kind of lint finding — maps 1:1 to a detection function AND a
+        table.
+
+
+        Used as the content_hash prefix (so dismiss state is keyed by kind + content)
+
+        and as the discriminator field in the frontend API response union.'
+    LintReport:
+      properties:
+        id:
+          type: string
+          title: Id
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+        status:
+          $ref: '#/components/schemas/LintReportStatus'
+          default: in_progress
+        article_count:
+          type: integer
+          title: Article Count
+          default: 0
+        total_findings:
+          type: integer
+          title: Total Findings
+          default: 0
+        contradictions_count:
+          type: integer
+          title: Contradictions Count
+          default: 0
+        orphans_count:
+          type: integer
+          title: Orphans Count
+          default: 0
+        missing_pages_count:
+          type: integer
+          title: Missing Pages Count
+          default: 0
+        dismissed_count:
+          type: integer
+          title: Dismissed Count
+          default: 0
+        total_pairs:
+          type: integer
+          title: Total Pairs
+          default: 0
+        checked_pairs:
+          type: integer
+          title: Checked Pairs
+          default: 0
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+      type: object
+      title: LintReport
+      description: One run of the linter. All findings from a run FK back to this
+        row via report_id.
+    LintReportDetail:
+      properties:
+        report:
+          $ref: '#/components/schemas/LintReport'
+        contradictions:
+          items:
+            $ref: '#/components/schemas/ContradictionFinding'
+          type: array
+          title: Contradictions
+        orphans:
+          items:
+            $ref: '#/components/schemas/OrphanFinding'
+          type: array
+          title: Orphans
+      type: object
+      required:
+      - report
+      - contradictions
+      - orphans
+      title: LintReportDetail
+      description: API response shape for a single report with all findings.
+    LintReportStatus:
+      type: string
+      enum:
+      - in_progress
+      - complete
+      - failed
+      title: LintReportStatus
+      description: Lifecycle of a lint report.
+    LintSeverity:
+      type: string
+      enum:
+      - info
+      - warn
+      - error
+      title: LintSeverity
+      description: Severity level for a lint finding.
+    OrphanFinding:
+      properties:
+        id:
+          type: string
+          title: Id
+        report_id:
+          type: string
+          title: Report Id
+        severity:
+          $ref: '#/components/schemas/LintSeverity'
+          default: warn
+        description:
+          type: string
+          title: Description
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        dismissed:
+          type: boolean
+          title: Dismissed
+          default: false
+        dismissed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Dismissed At
+        content_hash:
+          type: string
+          title: Content Hash
+        kind:
+          $ref: '#/components/schemas/LintFindingKind'
+          default: orphan
+        article_id:
+          type: string
+          title: Article Id
+        article_title:
+          type: string
+          title: Article Title
+      type: object
+      required:
+      - report_id
+      - description
+      - content_hash
+      - article_id
+      - article_title
+      title: OrphanFinding
+      description: An article with zero inbound AND zero outbound backlinks.
     QueryRequest:
       properties:
         question:

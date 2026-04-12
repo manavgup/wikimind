@@ -125,6 +125,19 @@ async def _migrate_added_columns(engine) -> None:
             "ALTER TABLE query ADD COLUMN conversation_id TEXT REFERENCES conversation(id)",
         ),
         ("query", "turn_index", "ALTER TABLE query ADD COLUMN turn_index INTEGER NOT NULL DEFAULT 0"),
+        # Lint report — additional columns
+        (
+            "lintreport",
+            "missing_pages_count",
+            "ALTER TABLE lintreport ADD COLUMN missing_pages_count INTEGER NOT NULL DEFAULT 0",
+        ),
+        (
+            "lintreport",
+            "dismissed_count",
+            "ALTER TABLE lintreport ADD COLUMN dismissed_count INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("lintreport", "total_pairs", "ALTER TABLE lintreport ADD COLUMN total_pairs INTEGER NOT NULL DEFAULT 0"),
+        ("lintreport", "checked_pairs", "ALTER TABLE lintreport ADD COLUMN checked_pairs INTEGER NOT NULL DEFAULT 0"),
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)

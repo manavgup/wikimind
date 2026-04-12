@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
 from wikimind.services.compiler import CompilerService, get_compiler_service
+from wikimind.services.linter import LinterService, get_linter_service
 
 router = APIRouter()
 
@@ -43,10 +44,14 @@ async def trigger_compile(
 
 @router.post("/lint")
 async def trigger_lint(
-    service: CompilerService = Depends(get_compiler_service),
+    service: LinterService = Depends(get_linter_service),
 ):
-    """Trigger wiki linting."""
-    return await service.trigger_lint()
+    """Trigger wiki linting.
+
+    DEPRECATED: Use POST /lint/run instead. This endpoint delegates
+    to the new LinterService for backward compatibility.
+    """
+    return await service.trigger_run()
 
 
 @router.post("/reindex")

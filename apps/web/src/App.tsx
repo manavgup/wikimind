@@ -4,6 +4,7 @@ import { InboxView } from "./components/inbox/InboxView";
 import { WikiExplorerView } from "./components/wiki/WikiExplorerView";
 import { AskView } from "./components/ask/AskView";
 import { GraphView } from "./components/graph/GraphView";
+import { HealthView } from "./components/health/HealthView";
 import { useWebSocket } from "./hooks/useWebSocket";
 
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/wiki" element={<WikiExplorerView />} />
         <Route path="/wiki/:slug" element={<WikiExplorerView />} />
         <Route path="/graph" element={<GraphView />} />
+        <Route path="/health" element={<HealthView />} />
         <Route path="*" element={<Navigate to="/inbox" replace />} />
       </Routes>
     </Layout>

@@ -581,8 +581,15 @@ class LLMRouter:
         """Parse JSON from LLM response, stripping markdown fences if present."""
         content = response.content.strip()
         if content.startswith("```"):
+            # Find the closing ``` fence (not just the last line)
             lines = content.split("\n")
-            content = "\n".join(lines[1:-1])
+            # Skip the opening ```json line
+            body_lines = lines[1:]
+            # Find the closing ``` and take everything before it
+            for i, line in enumerate(body_lines):
+                if line.strip() == "```":
+                    content = "\n".join(body_lines[:i])
+                    break
         return json.loads(content)
 
 

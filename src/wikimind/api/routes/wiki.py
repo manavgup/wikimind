@@ -2,10 +2,13 @@
 
 import structlog
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
-from wikimind.models import ArticleResponse, ArticleSummaryResponse, GraphResponse
+from wikimind.models import Article, ArticleResponse, ArticleSummaryResponse, GraphResponse
+from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, get_wiki_service
 
@@ -79,7 +82,27 @@ async def rebuild_concepts(
 @router.get("/health")
 async def get_health(
     session: AsyncSession = Depends(get_session),
-    service: WikiService = Depends(get_wiki_service),
+    linter_service: LinterService = Depends(get_linter_service),
 ):
-    """Latest wiki health report from linter."""
-    return await service.get_health(session)
+    """Latest wiki health report from linter.
+
+    DEPRECATED: Use GET /lint/reports/latest instead. This endpoint
+    delegates to the new LinterService for backward compatibility.
+    """
+    try:
+        detail = await linter_service.get_latest(session)
+        return {
+            "generated_at": detail.report.generated_at.isoformat() if detail.report.generated_at else None,
+            "total_articles": detail.report.article_count,
+            "total_findings": detail.report.total_findings,
+            "contradictions_count": detail.report.contradictions_count,
+            "orphans_count": detail.report.orphans_count,
+            "status": detail.report.status,
+        }
+    except Exception:
+        count_result = await session.execute(select(func.count()).select_from(Article))
+        return {
+            "generated_at": None,
+            "total_articles": count_result.scalar() or 0,
+            "message": "Run the linter to generate a health report",
+        }
