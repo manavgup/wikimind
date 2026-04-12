@@ -149,8 +149,6 @@ class LinterConfig(BaseModel):
     max_contradiction_pairs_per_concept: int = 10
     contradiction_llm_max_tokens: int = 1024
     contradiction_llm_temperature: float = 0.2
-    respect_monthly_budget: bool = True
-    max_cost_per_run_usd: float = 1.00
     enable_pair_cache: bool = True
 
 

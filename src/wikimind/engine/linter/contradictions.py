@@ -14,18 +14,20 @@ import random
 from pathlib import Path
 
 import structlog
-from sqlalchemy import text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
-from wikimind._datetime import utcnow_naive
 from wikimind.config import Settings
 from wikimind.engine.linter.prompts import CONTRADICTION_SYSTEM_PROMPT, CONTRADICTION_USER_TEMPLATE
 from wikimind.engine.llm_router import LLMRouter
 from wikimind.models import (
     Article,
     CompletionRequest,
+    Concept,
     ContradictionFinding,
     LintFindingKind,
+    LintPairCache,
     LintReport,
     LintSeverity,
     TaskType,
@@ -46,7 +48,7 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _extract_claims(article: Article, data_dir: str) -> list[str]:
+def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file.
 
     Looks for a "Key Claims" section and parses bullet points.
@@ -85,62 +87,33 @@ def _extract_claims(article: Article, data_dir: str) -> list[str]:
 
 
 async def _get_articles_for_concept(session: AsyncSession, concept_name: str) -> list[Article]:
-    """Load articles whose concept_ids JSON array contains the given concept name."""
-    # concept_ids stores concept names (not UUIDs), so match by name directly.
-    result = await session.execute(
-        text(
-            "SELECT article.id, article.slug, article.title, article.file_path, "
-            "article.concept_ids, article.confidence, article.linter_score, "
-            "article.summary, article.created_at, article.updated_at, "
-            "article.source_ids, article.provider "
-            "FROM article, json_each(article.concept_ids) AS je "
-            "WHERE je.value = :concept_name"
-        ),
-        {"concept_name": concept_name},
-    )
-    rows = result.fetchall()
-    articles = []
-    for row in rows:
-        articles.append(
-            Article(
-                id=row[0],
-                slug=row[1],
-                title=row[2],
-                file_path=row[3],
-                concept_ids=row[4],
-                confidence=row[5],
-                linter_score=row[6],
-                summary=row[7],
-                created_at=row[8],
-                updated_at=row[9],
-                source_ids=row[10],
-                provider=row[11],
-            )
-        )
-    return articles
+    """Load articles whose concept_ids JSON array contains the given concept name.
+
+    Uses ORM query + Python filter for database portability (works on both
+    SQLite and PostgreSQL without dialect-specific JSON functions).
+    """
+    result = await session.execute(select(Article))
+    all_articles = list(result.scalars().all())
+    return [a for a in all_articles if concept_name in (a.concept_ids or [])]
 
 
 async def _check_pair_cache(session: AsyncSession, article_a: Article, article_b: Article) -> list[dict] | None:
     """Check if we have a cached result for this article pair."""
     ids = sorted([article_a.id, article_b.id])
     result = await session.execute(
-        text(
-            "SELECT result_json, article_a_updated_at, article_b_updated_at "
-            "FROM lintpaircache "
-            "WHERE article_a_id = :a_id AND article_b_id = :b_id"
-        ),
-        {"a_id": ids[0], "b_id": ids[1]},
+        select(LintPairCache).where(
+            LintPairCache.article_a_id == ids[0],
+            LintPairCache.article_b_id == ids[1],
+        )
     )
-    row = result.fetchone()
-    if not row:
+    cached = result.scalars().first()
+    if not cached:
         return None
     # Check if articles have been updated since cache was written
-    cached_a_updated = row[1]
-    cached_b_updated = row[2]
     current_a = str(article_a.updated_at) if ids[0] == article_a.id else str(article_b.updated_at)
     current_b = str(article_b.updated_at) if ids[1] == article_b.id else str(article_a.updated_at)
-    if cached_a_updated == current_a and cached_b_updated == current_b:
-        return json.loads(row[0])
+    if cached.article_a_updated_at == current_a and cached.article_b_updated_at == current_b:
+        return json.loads(cached.result_json)
     return None
 
 
@@ -156,24 +129,20 @@ async def _save_pair_cache(
     b_art = article_b if ids[1] == article_b.id else article_a
     # Delete old cache entry if exists
     await session.execute(
-        text("DELETE FROM lintpaircache WHERE article_a_id = :a AND article_b_id = :b"),
-        {"a": ids[0], "b": ids[1]},
+        delete(LintPairCache).where(
+            LintPairCache.article_a_id == ids[0],  # type: ignore[arg-type]
+            LintPairCache.article_b_id == ids[1],  # type: ignore[arg-type]
+        )
     )
-    await session.execute(
-        text(
-            "INSERT INTO lintpaircache (id, article_a_id, article_b_id, "
-            "article_a_updated_at, article_b_updated_at, result_json, checked_at) "
-            "VALUES (:id, :a_id, :b_id, :a_up, :b_up, :result, :now)"
-        ),
-        {
-            "id": str(hashlib.sha256(f"{ids[0]}|{ids[1]}".encode()).hexdigest()[:32]),
-            "a_id": ids[0],
-            "b_id": ids[1],
-            "a_up": str(a_art.updated_at),
-            "b_up": str(b_art.updated_at),
-            "result": json.dumps(result_data),
-            "now": str(utcnow_naive()),
-        },
+    session.add(
+        LintPairCache(
+            id=hashlib.sha256(f"{ids[0]}|{ids[1]}".encode()).hexdigest()[:32],
+            article_a_id=ids[0],
+            article_b_id=ids[1],
+            article_a_updated_at=str(a_art.updated_at),
+            article_b_updated_at=str(b_art.updated_at),
+            result_json=json.dumps(result_data),
+        )
     )
 
 
@@ -192,50 +161,31 @@ async def detect_contradictions(
     findings: list[ContradictionFinding] = []
 
     # Load concepts
-    result = await session.execute(
-        text("SELECT c.id, c.name FROM concept c ORDER BY c.article_count DESC LIMIT :limit"),
-        {"limit": cfg.max_concepts_per_run},
+    concept_result = await session.execute(
+        select(Concept)
+        .order_by(Concept.article_count.desc())  # type: ignore[attr-defined]
+        .limit(cfg.max_concepts_per_run)
     )
-    concepts = result.fetchall()
+    concepts = list(concept_result.scalars().all())
 
     # Collect all pairs across concepts first (for progress tracking)
     all_work: list[tuple[str | None, str, list[tuple[Article, Article]]]] = []
 
     if not concepts:
         log.info("No concepts found, falling back to top-N article comparison")
-        result = await session.execute(
-            text(
-                "SELECT id, slug, title, file_path, concept_ids, confidence, "
-                "linter_score, summary, created_at, updated_at, source_ids, provider "
-                "FROM article ORDER BY updated_at DESC LIMIT :limit"
-            ),
-            {"limit": cfg.max_contradiction_pairs_per_concept * 2},
+        article_result = await session.execute(
+            select(Article)
+            .order_by(Article.updated_at.desc())  # type: ignore[attr-defined]
+            .limit(cfg.max_contradiction_pairs_per_concept * 2)
         )
-        rows = result.fetchall()
-        articles = [
-            Article(
-                id=r[0],
-                slug=r[1],
-                title=r[2],
-                file_path=r[3],
-                concept_ids=r[4],
-                confidence=r[5],
-                linter_score=r[6],
-                summary=r[7],
-                created_at=r[8],
-                updated_at=r[9],
-                source_ids=r[10],
-                provider=r[11],
-            )
-            for r in rows
-        ]
+        articles = list(article_result.scalars().all())
         pairs = list(itertools.combinations(articles, 2))
         if len(pairs) > cfg.max_contradiction_pairs_per_concept:
             pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
         all_work.append((None, "all-articles", pairs))
     else:
-        for concept_row in concepts:
-            concept_id, concept_name = concept_row
+        for concept_obj in concepts:
+            concept_id, concept_name = concept_obj.id, concept_obj.name
             articles = await _get_articles_for_concept(session, concept_name)
             if len(articles) < 2:
                 continue
@@ -252,7 +202,7 @@ async def detect_contradictions(
     await session.flush()
 
     checked = 0
-    for concept_id, concept_name, pairs in all_work:
+    for concept_id, concept_name, pairs in all_work:  # type: ignore[assignment]
         log.info("Checking contradictions in concept", concept=concept_name, pairs=len(pairs))
 
         for article_a, article_b in pairs:
@@ -317,19 +267,23 @@ async def _compare_article_pair(
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
-    claims_a = _extract_claims(article_a, settings.data_dir)
-    claims_b = _extract_claims(article_b, settings.data_dir)
+    claims_a = _extract_claims(article_a)
+    claims_b = _extract_claims(article_b)
 
     if not claims_a or not claims_b:
         return []
 
-    claims_a_text = "\n".join(f"- {c}" for c in claims_a)
-    claims_b_text = "\n".join(f"- {c}" for c in claims_b)
+    # Sanitize inputs to limit prompt injection surface
+    _MAX_TITLE = 200
+    _MAX_CLAIM = 500
+    _MAX_CLAIMS_TEXT = 2000
+    claims_a_text = "\n".join(f"- {c[:_MAX_CLAIM]}" for c in claims_a)[:_MAX_CLAIMS_TEXT]
+    claims_b_text = "\n".join(f"- {c[:_MAX_CLAIM]}" for c in claims_b)[:_MAX_CLAIMS_TEXT]
 
     user_msg = CONTRADICTION_USER_TEMPLATE.format(
-        title_a=article_a.title,
+        title_a=article_a.title[:_MAX_TITLE],
         claims_a=claims_a_text,
-        title_b=article_b.title,
+        title_b=article_b.title[:_MAX_TITLE],
         claims_b=claims_b_text,
     )
 

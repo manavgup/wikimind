@@ -23,9 +23,12 @@ from wikimind.models import (
 log = structlog.get_logger()
 
 
-def _content_hash(article_id: str, article_title: str) -> str:
-    """Compute a stable sha256 for cross-run dedup of dismissed findings."""
-    raw = f"{LintFindingKind.ORPHAN}|{article_id}|{article_title}"
+def _content_hash(article_id: str) -> str:
+    """Compute a stable sha256 for cross-run dedup of dismissed findings.
+
+    Keyed by article ID only — not the title, which may change.
+    """
+    raw = f"{LintFindingKind.ORPHAN}|{article_id}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -70,7 +73,7 @@ async def detect_orphans(
                 report_id=report_id,
                 severity=LintSeverity.INFO,
                 description=f"Article '{article_title}' has no inbound or outbound links",
-                content_hash=_content_hash(article_id, article_title),
+                content_hash=_content_hash(article_id),
                 article_id=article_id,
                 article_title=article_title,
             )

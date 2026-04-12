@@ -8,7 +8,7 @@ export function HealthView() {
   return (
     <div className="flex h-full flex-col overflow-auto p-6">
       <LintReportSummary
-        report={data?.report ?? null}
+        detail={data ?? null}
         isLoading={isLoading}
       />
 

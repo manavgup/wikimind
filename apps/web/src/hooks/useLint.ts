@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -38,6 +38,16 @@ export function useRunLint(): UseMutationResult<
 > & { isPolling: boolean } {
   const queryClient = useQueryClient();
   const [isPolling, setIsPolling] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: () => runLint(),
@@ -47,7 +57,7 @@ export function useRunLint(): UseMutationResult<
       const prevGeneratedAt = cached?.report?.generated_at ?? "";
 
       setIsPolling(true);
-      const poll = setInterval(async () => {
+      pollRef.current = setInterval(async () => {
         try {
           const detail = await getLatestReport();
           queryClient.setQueryData(["lint", "latest"], detail);
@@ -55,7 +65,8 @@ export function useRunLint(): UseMutationResult<
           const isNewer = detail.report.generated_at !== prevGeneratedAt;
           const isDone = detail.report.status !== "in_progress";
           if (isNewer && isDone) {
-            clearInterval(poll);
+            if (pollRef.current) clearInterval(pollRef.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
             setIsPolling(false);
             queryClient.invalidateQueries({ queryKey: ["lint"] });
           }
@@ -64,8 +75,8 @@ export function useRunLint(): UseMutationResult<
         }
       }, 2000);
       // Safety: stop polling after 5 minutes
-      setTimeout(() => {
-        clearInterval(poll);
+      timeoutRef.current = setTimeout(() => {
+        if (pollRef.current) clearInterval(pollRef.current);
         setIsPolling(false);
       }, 300_000);
     },
