@@ -144,7 +144,7 @@ class TaxonomyConfig(BaseModel):
 class LinterConfig(BaseModel):
     """Wiki linter configuration."""
 
-    enable_orphan_detection: bool = False
+    enable_orphan_detection: bool = True
     max_concepts_per_run: int = 25
     max_contradiction_pairs_per_concept: int = 10
     contradiction_llm_max_tokens: int = 1024
