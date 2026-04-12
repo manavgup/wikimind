@@ -1,10 +1,10 @@
 import { Badge } from "../shared/Badge";
 import { Card } from "../shared/Card";
 import { RunLintButton } from "./RunLintButton";
-import type { LintReport } from "../../api/lint";
+import type { LintReportDetail } from "../../api/lint";
 
 interface Props {
-  report: LintReport | null;
+  detail: LintReportDetail | null;
   isLoading: boolean;
 }
 
@@ -13,7 +13,8 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-export function LintReportSummary({ report, isLoading }: Props) {
+export function LintReportSummary({ detail, isLoading }: Props) {
+  const report = detail?.report ?? null;
   if (isLoading) {
     return (
       <Card className="p-5">
@@ -92,7 +93,7 @@ export function LintReportSummary({ report, isLoading }: Props) {
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div className="rounded-md border border-slate-200 p-3 text-center">
           <div className="text-2xl font-bold text-slate-800">
-            {report.total_findings}
+            {(detail?.contradictions.length ?? 0) + (detail?.orphans.length ?? 0)}
           </div>
           <div className="text-xs text-slate-500">
             Active findings
@@ -105,13 +106,13 @@ export function LintReportSummary({ report, isLoading }: Props) {
         </div>
         <div className="rounded-md border border-slate-200 p-3 text-center">
           <div className="text-2xl font-bold text-amber-600">
-            {report.contradictions_count}
+            {detail?.contradictions.length ?? 0}
           </div>
           <div className="text-xs text-slate-500">Contradictions</div>
         </div>
         <div className="rounded-md border border-slate-200 p-3 text-center">
           <div className="text-2xl font-bold text-sky-600">
-            {report.orphans_count}
+            {detail?.orphans.length ?? 0}
           </div>
           <div className="text-xs text-slate-500">Orphans</div>
         </div>

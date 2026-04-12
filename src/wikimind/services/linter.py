@@ -153,6 +153,17 @@ class LinterService:
         finding.dismissed_at = now
         session.add(finding)
 
+        # Update parent report counts
+        report = await session.get(LintReport, finding.report_id)
+        if report:
+            if kind == LintFindingKind.CONTRADICTION:
+                report.contradictions_count = max(0, report.contradictions_count - 1)
+            elif kind == LintFindingKind.ORPHAN:
+                report.orphans_count = max(0, report.orphans_count - 1)
+            report.total_findings = max(0, report.total_findings - 1)
+            report.dismissed_count += 1
+            session.add(report)
+
         # Record in DismissedFinding for cross-run suppression
         existing = await session.get(DismissedFinding, finding.content_hash)
         if not existing:
