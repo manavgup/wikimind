@@ -142,6 +142,17 @@ pylint: ## Run pylint static analysis (fails under 9.0/10)
 docstyle: ## Run pydocstyle docstring checks
 	$(BIN)/pydocstyle src/wikimind
 
+.PHONY: bandit
+bandit: ## Run bandit security scanner
+	$(BIN)/bandit -r src/wikimind -c pyproject.toml
+
+.PHONY: vulture
+vulture: ## Detect dead code (80% confidence)
+	$(BIN)/vulture src/wikimind vulture_whitelist.py --min-confidence 80
+
+.PHONY: security
+security: bandit vulture ## Run security and dead-code checks
+
 .PHONY: verify
 verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify ## Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop)
 

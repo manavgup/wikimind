@@ -75,7 +75,7 @@ jobs:
   # ---------------------------------------------------------------
   build:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    name: build (dev + prod)
+    name: build prod image
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -89,38 +89,24 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # -----------------------------------------------------------
-      # Build the dev image. `cache-to` writes the GHA cache so the
-      # parallel `scan` job below (which also builds dev) gets an
-      # instant cache hit instead of a full cold build.
+      # Build the prod image — this is what ships. Dev image is only
+      # needed locally via docker-compose; CI tests cover the Python
+      # layer via pytest/ruff/mypy directly.
       # -----------------------------------------------------------
-      - name: 🏗️   Build dev image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: dev
-          push: false
-          cache-from: type=gha,scope=dev
-          cache-to: type=gha,scope=dev,mode=max
-
-      # -----------------------------------------------------------
-      # Verify the prod target also builds. The PR job doesn't push
-      # it — this is just a smoke check so merge-to-main is never
-      # the first time we discover a broken prod stage.
-      # -----------------------------------------------------------
-      - name: 🏗️   Build prod image (verification only)
+      - name: 🏗️   Build prod image
         uses: docker/build-push-action@v6
         with:
           context: .
           target: prod
           push: false
           load: true
-          tags: wikimind-prod-check:latest
+          tags: wikimind-prod:ci
           cache-from: type=gha,scope=prod
           cache-to: type=gha,scope=prod,mode=max
 
       - name: 🔍  Bloat guard — verify no GPU packages in CPU image
         run: |
-          if docker run --rm wikimind-prod-check:latest pip list --format=freeze 2>/dev/null \
+          if docker run --rm wikimind-prod:ci pip list --format=freeze 2>/dev/null \
             | grep -iE '^(nvidia|triton)'; then
             echo "::error::GPU packages found in CPU-only image. See ADR-015."
             exit 1
@@ -128,9 +114,8 @@ jobs:
           echo "✅ No GPU bloat detected in prod image"
 
   # ---------------------------------------------------------------
-  # Tier 3 — Trivy CVE scan, separate top-level check
-  # Rebuilds the dev target from GHA cache (near-instant after the
-  # `build` job has populated the cache) and scans the local image.
+  # Tier 3 — Trivy CVE scan on the prod image
+  # Reuses the prod cache from the build job for a near-instant load.
   # ---------------------------------------------------------------
   scan:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -148,24 +133,20 @@ jobs:
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Rebuild dev from the GHA cache populated by `build`. With
-      # cache-from only (no cache-to), every layer is a cache hit and
-      # the build step takes ~20-30s just to load the final image into
-      # the runner's Docker daemon for Trivy to scan.
-      - name: 🏗️   Load dev image from cache
+      - name: 🏗️   Load prod image from cache
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: dev
+          target: prod
           push: false
           load: true
-          tags: wikimind-dev:ci
-          cache-from: type=gha,scope=dev
+          tags: wikimind-prod:ci
+          cache-from: type=gha,scope=prod
 
       - name: 🔒  Scan for CVEs (Trivy)
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: wikimind-dev:ci
+          image-ref: wikimind-prod:ci
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
@@ -191,21 +172,21 @@ jobs:
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🏗️   Rebuild dev image against latest base
+      - name: 🏗️   Rebuild prod image against latest base
         uses: docker/build-push-action@v6
         with:
           context: .
-          target: dev
+          target: prod
           push: false
           load: true
-          tags: wikimind-dev:weekly
+          tags: wikimind-prod:weekly
           no-cache: true
           pull: true
 
       - name: 🔒  Scan weekly image for CVEs
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          image-ref: wikimind-dev:weekly
+          image-ref: wikimind-prod:weekly
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
