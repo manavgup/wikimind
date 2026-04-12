@@ -41,10 +41,21 @@ HEAVY_PACKAGES = {
 
 def _normalize(name: str) -> str:
     """PEP 503 normalize: lowercase, replace [-_.] with -."""
-    return name.lower().replace("_", "-").replace(".", "-").split("[")[0].split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
+    return (
+        name.lower()
+        .replace("_", "-")
+        .replace(".", "-")
+        .split("[")[0]
+        .split(">")[0]
+        .split("<")[0]
+        .split("=")[0]
+        .split("!")[0]
+        .strip()
+    )
 
 
 def main() -> int:
+    """Check pyproject.toml core deps for GPU-heavy packages."""
     if "--allow-gpu" in sys.argv:
         print("Bloat guard: --allow-gpu set, skipping check.")
         return 0
