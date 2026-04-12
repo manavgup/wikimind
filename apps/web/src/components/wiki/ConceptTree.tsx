@@ -88,6 +88,7 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
                 All articles
               </button>
             </li>
+            <li className="my-1 border-t border-slate-200" />
             {filtered.map((node) => (
               <ConceptItem
                 key={node.id}
