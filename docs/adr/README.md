@@ -22,6 +22,7 @@ considered, and the consequences.
 | [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Proposed |
 | [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph visualization | Proposed |
 | [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
+| [015](adr-015-cpu-first-docker-packaging.md) | CPU-First Docker Packaging | Unknown |
 
 ## ADR Format
 

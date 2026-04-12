@@ -33,10 +33,9 @@ dependencies = [
     "google-generativeai>=0.8.3",
     "ollama>=0.3.3",
 
-    # Document processing
+    # Document processing (docling is in [pdf] extra — see below)
     "trafilatura>=1.12.2",
     "pymupdf>=1.24.13",
-    "docling>=2.0",
     "youtube-transcript-api>=0.6.3",
     "feedparser>=6.0.11",
 
@@ -55,6 +54,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+pdf = [
+    "docling>=2.0",
+]
 search = [
     "chromadb>=0.5.20",
     "sentence-transformers>=3.2.1",
@@ -63,7 +65,7 @@ transcribe = [
     "openai-whisper>=20240930",
 ]
 dev = [
-    "wikimind[test,lint]",
+    "wikimind[test,lint,pdf]",
 ]
 test = [
     "pytest>=8.3.3",

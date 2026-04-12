@@ -65,3 +65,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: check-docker-bloat
+        name: Docker bloat guard — no GPU deps in core
+        entry: python scripts/check_docker_bloat.py
+        language: system
+        pass_filenames: false
+        files: ^pyproject\.toml$
