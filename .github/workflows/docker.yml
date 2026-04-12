@@ -113,8 +113,19 @@ jobs:
           context: .
           target: prod
           push: false
+          load: true
+          tags: wikimind-prod-check:latest
           cache-from: type=gha,scope=prod
           cache-to: type=gha,scope=prod,mode=max
+
+      - name: 🔍  Bloat guard — verify no GPU packages in CPU image
+        run: |
+          if docker run --rm wikimind-prod-check:latest pip list --format=freeze 2>/dev/null \
+            | grep -iE '^(nvidia|triton)'; then
+            echo "::error::GPU packages found in CPU-only image. See ADR-015."
+            exit 1
+          fi
+          echo "✅ No GPU bloat detected in prod image"
 
   # ---------------------------------------------------------------
   # Tier 3 — Trivy CVE scan, separate top-level check

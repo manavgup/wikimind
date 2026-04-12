@@ -7,6 +7,10 @@
 #   prod   — slim runtime with only production dependencies
 
 # ---------------------------------------------------------------------------
+# PyTorch index — defaults to CPU-only wheels (~1.7 GB image).
+# For GPU/CUDA support, rebuild with:
+#   docker build --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu121 .
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim AS base
 
@@ -32,15 +36,13 @@ WORKDIR /app
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
-# Install the dev extras (tests + lint) but NOT the `search` extras by
-# default — the `chromadb` and `sentence-transformers` deps in `[search]`
-# pull PyTorch and the HuggingFace transformers stack (~4.7GB) and nothing
-# in `src/wikimind/` actually imports them yet. A test fixture in
-# `tests/conftest.py` uses `pytest.importorskip("chromadb")` so tests
-# skip cleanly when the extras aren't present. Keeping `[search]` out of
-# the default dev image drops it from ~6.3GB to ~1.6GB; rebuild with
-# `--build-arg EXTRAS=dev,search` if you need the search stack.
+# Install the dev extras (tests + lint + pdf) but NOT `search` by default.
+# The `[search]` extras pull chromadb + sentence-transformers (~4.7 GB);
+# rebuild with `--build-arg EXTRAS=dev,search` if you need the search stack.
+# The `[pdf]` extra pulls docling + PyTorch; CPU-only wheels keep the image
+# under 2 GB (see TORCH_INDEX above). GPU builds use cu121 wheels (~9 GB).
 ARG EXTRAS=dev
+ARG TORCH_INDEX
 COPY pyproject.toml README.md ./
 COPY src ./src
 # Upgrade pip, setuptools, AND wheel before installing — the python:3.11-slim
@@ -50,7 +52,7 @@ COPY src ./src
 # Both are build-time tools, not runtime deps, but HIGH severity with fixes
 # available — cheaper to upgrade than to justify a .trivyignore exception.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install -e ".[${EXTRAS}]"
+    && pip install --extra-index-url ${TORCH_INDEX} -e ".[${EXTRAS}]"
 
 COPY . .
 
@@ -60,11 +62,13 @@ CMD ["uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port", "7842", "--r
 # ---------------------------------------------------------------------------
 FROM base AS prod
 
+ARG TORCH_INDEX
 COPY pyproject.toml README.md ./
 COPY src ./src
 # Same CVE upgrade as the dev stage — see comment above.
+# Install with [pdf] extra for structured PDF extraction via docling.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install .
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]"
 
 # Run as a non-root user in production.
 RUN useradd --create-home --uid 1000 wikimind \
