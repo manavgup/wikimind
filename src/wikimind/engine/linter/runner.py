@@ -73,9 +73,7 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
     router = get_llm_router()
 
     # Guard against concurrent runs
-    existing = await session.execute(
-        select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS)
-    )
+    existing = await session.execute(select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS))
     in_progress = existing.scalars().first()
     if in_progress:
         log.info("Lint run already in progress", report_id=in_progress.id)

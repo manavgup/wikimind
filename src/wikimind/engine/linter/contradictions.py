@@ -130,8 +130,8 @@ async def _save_pair_cache(
     # Delete old cache entry if exists
     await session.execute(
         delete(LintPairCache).where(
-            LintPairCache.article_a_id == ids[0],
-            LintPairCache.article_b_id == ids[1],
+            LintPairCache.article_a_id == ids[0],  # type: ignore[arg-type]
+            LintPairCache.article_b_id == ids[1],  # type: ignore[arg-type]
         )
     )
     session.add(
@@ -161,24 +161,24 @@ async def detect_contradictions(
     findings: list[ContradictionFinding] = []
 
     # Load concepts
-    result = await session.execute(
+    concept_result = await session.execute(
         select(Concept)
         .order_by(Concept.article_count.desc())  # type: ignore[attr-defined]
         .limit(cfg.max_concepts_per_run)
     )
-    concepts = list(result.scalars().all())
+    concepts = list(concept_result.scalars().all())
 
     # Collect all pairs across concepts first (for progress tracking)
     all_work: list[tuple[str | None, str, list[tuple[Article, Article]]]] = []
 
     if not concepts:
         log.info("No concepts found, falling back to top-N article comparison")
-        result = await session.execute(
+        article_result = await session.execute(
             select(Article)
             .order_by(Article.updated_at.desc())  # type: ignore[attr-defined]
             .limit(cfg.max_contradiction_pairs_per_concept * 2)
         )
-        articles = list(result.scalars().all())
+        articles = list(article_result.scalars().all())
         pairs = list(itertools.combinations(articles, 2))
         if len(pairs) > cfg.max_contradiction_pairs_per_concept:
             pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
@@ -202,7 +202,7 @@ async def detect_contradictions(
     await session.flush()
 
     checked = 0
-    for concept_id, concept_name, pairs in all_work:
+    for concept_id, concept_name, pairs in all_work:  # type: ignore[assignment]
         log.info("Checking contradictions in concept", concept=concept_name, pairs=len(pairs))
 
         for article_a, article_b in pairs:
