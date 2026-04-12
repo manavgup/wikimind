@@ -14,11 +14,10 @@ import random
 from pathlib import Path
 
 import structlog
-from sqlalchemy import delete, text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from wikimind._datetime import utcnow_naive
 from wikimind.config import Settings
 from wikimind.engine.linter.prompts import CONTRADICTION_SYSTEM_PROMPT, CONTRADICTION_USER_TEMPLATE
 from wikimind.engine.llm_router import LLMRouter
@@ -135,14 +134,16 @@ async def _save_pair_cache(
             LintPairCache.article_b_id == ids[1],
         )
     )
-    session.add(LintPairCache(
-        id=hashlib.sha256(f"{ids[0]}|{ids[1]}".encode()).hexdigest()[:32],
-        article_a_id=ids[0],
-        article_b_id=ids[1],
-        article_a_updated_at=str(a_art.updated_at),
-        article_b_updated_at=str(b_art.updated_at),
-        result_json=json.dumps(result_data),
-    ))
+    session.add(
+        LintPairCache(
+            id=hashlib.sha256(f"{ids[0]}|{ids[1]}".encode()).hexdigest()[:32],
+            article_a_id=ids[0],
+            article_b_id=ids[1],
+            article_a_updated_at=str(a_art.updated_at),
+            article_b_updated_at=str(b_art.updated_at),
+            result_json=json.dumps(result_data),
+        )
+    )
 
 
 async def detect_contradictions(
