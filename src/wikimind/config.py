@@ -218,6 +218,15 @@ class Settings(BaseSettings):
     vision_dpi: int = 150
     vision_max_pages_per_batch: int = 20
 
+    # Image extraction from PDFs (issue #142).
+    # Extracts embedded images and serves them via /images/ endpoint.
+    image_extraction_enabled: bool = True
+    image_min_width: int = 100
+    image_min_height: int = 100
+    image_max_per_page: int = 5
+    image_max_per_pdf: int = 30
+    image_base_url: str = "/images"
+
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None

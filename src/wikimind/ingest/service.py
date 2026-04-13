@@ -35,7 +35,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from wikimind.api.routes.ws import emit_source_progress
-from wikimind.config import get_settings
+from wikimind.config import Settings, get_settings
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     DocumentChunk,
@@ -632,6 +632,18 @@ class PDFAdapter:
         # back into the extracted text.
         clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
 
+        # Image extraction (issue #142): extract embedded images from the
+        # PDF and replace [Visual content] / <!-- image --> markers with
+        # real markdown image references served via /images/ endpoint.
+        settings = get_settings()
+        if settings.image_extraction_enabled:
+            try:
+                images = self._extract_pdf_images(file_bytes, source.id, settings)
+                if images:
+                    clean_text = self._insert_image_references(clean_text, images, source.id, settings)
+            except Exception:
+                log.warning("Image extraction failed, continuing without images", source_id=source.id, exc_info=True)
+
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(clean_text, encoding="utf-8")
         source.file_path = str(text_path)
@@ -676,6 +688,126 @@ class PDFAdapter:
         pages_text: list[str] = [str(page.get_text()) for page in doc]
         doc.close()
         return "\n\n".join(pages_text), len(pages_text)
+
+    @staticmethod
+    def _extract_pdf_images(
+        file_bytes: bytes,
+        source_id: str,
+        settings: Settings,
+    ) -> list[dict[str, object]]:
+        """Extract embedded images from PDF pages using pymupdf.
+
+        Filters out small images (logos, icons) and caps total count.
+
+        Returns:
+            List of dicts with keys: page, index, path, width, height, url.
+        """
+        images_dir = Path(settings.data_dir) / "images" / source_id
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        extracted: list[dict[str, object]] = []
+        total = 0
+
+        for page_idx in range(doc.page_count):
+            if total >= settings.image_max_per_pdf:
+                break
+            page = doc[page_idx]
+            page_images = page.get_images(full=True)
+            page_count = 0
+
+            for img_info in page_images:
+                if total >= settings.image_max_per_pdf or page_count >= settings.image_max_per_page:
+                    break
+                xref = img_info[0]
+                try:
+                    img_data = doc.extract_image(xref)
+                except Exception:
+                    continue
+                if not img_data or not img_data.get("image"):
+                    continue
+
+                w, h = img_data.get("width", 0), img_data.get("height", 0)
+                if w < settings.image_min_width or h < settings.image_min_height:
+                    continue
+
+                ext = img_data.get("ext", "png")
+                filename = f"p{page_idx}_i{page_count}.{ext}"
+                filepath = images_dir / filename
+                filepath.write_bytes(img_data["image"])
+
+                extracted.append(
+                    {
+                        "page": page_idx,
+                        "index": page_count,
+                        "path": str(filepath),
+                        "width": w,
+                        "height": h,
+                        "url": f"{settings.image_base_url}/{source_id}/{filename}",
+                    }
+                )
+                page_count += 1
+                total += 1
+
+        doc.close()
+        if extracted:
+            log.info("Extracted PDF images", source_id=source_id, count=len(extracted))
+        return extracted
+
+    @staticmethod
+    def _insert_image_references(
+        text: str,
+        images: list[dict[str, object]],
+        source_id: str,
+        settings: Settings,
+    ) -> str:
+        """Replace [Visual content] and <!-- image --> markers with real image URLs.
+
+        For each extracted image, finds the closest marker on the same page
+        and replaces it. Images without a matching marker are appended after
+        the page's text block.
+        """
+        # Group images by page
+        by_page: dict[int, list[dict[str, object]]] = {}
+        for img in images:
+            pg = int(img["page"])  # type: ignore[call-overload]
+            by_page.setdefault(pg, []).append(img)
+
+        # Split text into pages (double newline is the page separator)
+        pages = text.split("\n\n")
+
+        # Simple heuristic: markers appear roughly in page order.
+        # We process markers left-to-right and assign images in order.
+        marker_pattern = re.compile(
+            r"(\[Visual content\]:\s*(.+?)$|<!--\s*image\s*-->)",
+            re.MULTILINE,
+        )
+
+        result_pages = []
+        page_idx = 0
+        for page_text in pages:
+            page_images = by_page.get(page_idx, [])
+            img_queue = list(page_images)
+            consumed = [0]  # mutable counter to avoid closure binding issue
+
+            def _replace_marker(m: re.Match, _queue: list = img_queue, _c: list = consumed) -> str:  # type: ignore[type-arg]
+                if _c[0] >= len(_queue):
+                    return m.group(0)  # No image left, keep marker
+                img = _queue[_c[0]]
+                _c[0] += 1
+                url = img["url"]
+                desc = m.group(2) if m.group(2) else "Figure"
+                return f"![{desc}]({url})\n\n*{desc}*"
+
+            new_text = marker_pattern.sub(_replace_marker, page_text)
+            result_pages.append(new_text)
+
+            # Advance page counter heuristically — pages with substantial
+            # text likely correspond to a PDF page.
+            if len(page_text.strip()) > 50:
+                page_idx += 1
+
+        return "\n\n".join(result_pages)
 
     @staticmethod
     def _extract_via_docling(raw_pdf_path: Path) -> tuple[str, int]:

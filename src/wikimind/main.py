@@ -6,6 +6,7 @@ registers all routers, and configures CORS for Electron and web dev servers.
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI, Request
@@ -85,6 +86,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve extracted PDF images (issue #142)
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_images_dir = Path(get_settings().data_dir) / "images"
+_images_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/images", StaticFiles(directory=str(_images_dir)), name="images")
 
 # Mount routers
 app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
