@@ -14,6 +14,7 @@ from wikimind.models import (
     AskResponse,
     ConversationDetail,
     ConversationSummary,
+    ForkRequest,
     QueryRequest,
 )
 from wikimind.services.query import QueryService, get_query_service
@@ -126,3 +127,18 @@ async def file_back_conversation(
 ):
     """File the entire conversation back to the wiki as a single article."""
     return await service.file_back_conversation(conversation_id, session)
+
+
+@router.post("/conversations/{conversation_id}/fork", response_model=AskResponse)
+async def fork_conversation(
+    conversation_id: str,
+    fork_request: ForkRequest,
+    session: AsyncSession = Depends(get_session),
+    service: QueryService = Depends(get_query_service),
+):
+    """Fork a conversation at a specific turn with a new question.
+
+    Creates a new conversation that shares turns 0..turn_index-1 with the
+    parent by reference. The original branch is preserved immutably.
+    """
+    return await service.fork_conversation(conversation_id, fork_request, session)

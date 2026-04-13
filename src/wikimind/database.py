@@ -138,12 +138,27 @@ async def _migrate_added_columns(engine) -> None:
         ),
         ("lintreport", "total_pairs", "ALTER TABLE lintreport ADD COLUMN total_pairs INTEGER NOT NULL DEFAULT 0"),
         ("lintreport", "checked_pairs", "ALTER TABLE lintreport ADD COLUMN checked_pairs INTEGER NOT NULL DEFAULT 0"),
+        # Issue #89 — conversation branching (fork-on-edit)
+        (
+            "conversation",
+            "parent_conversation_id",
+            "ALTER TABLE conversation ADD COLUMN parent_conversation_id TEXT REFERENCES conversation(id)",
+        ),
+        (
+            "conversation",
+            "forked_at_turn_index",
+            "ALTER TABLE conversation ADD COLUMN forked_at_turn_index INTEGER",
+        ),
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)
         (
             "ix_source_content_hash",
             "CREATE INDEX IF NOT EXISTS ix_source_content_hash ON source (content_hash)",
+        ),
+        (
+            "ix_conversation_parent_id",
+            "CREATE INDEX IF NOT EXISTS ix_conversation_parent_id ON conversation (parent_conversation_id)",
         ),
     ]
 

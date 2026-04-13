@@ -44,6 +44,9 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   filed_article_id: string | null;
+  parent_conversation_id: string | null;
+  forked_at_turn_index: number | null;
+  fork_count: number;
 }
 
 export interface ConversationSummary extends Conversation {
@@ -63,6 +66,11 @@ export interface AskResponse {
 export interface FileBackResponse {
   article: { id: string; slug: string; title: string };
   was_update: boolean;
+}
+
+export interface ForkRequest {
+  turn_index: number;
+  new_question: string;
 }
 
 // ----- Functions -----
@@ -91,6 +99,13 @@ export async function exportConversation(id: string): Promise<string> {
   const res = await fetch(`${getBaseUrl()}/query/conversations/${id}/export`);
   if (!res.ok) throw new Error("Export failed");
   return res.text();
+}
+
+export function forkConversation(id: string, req: ForkRequest): Promise<AskResponse> {
+  return apiFetch<AskResponse>(`/query/conversations/${id}/fork`, {
+    method: "POST",
+    body: req,
+  });
 }
 
 // ----- SSE Streaming -----

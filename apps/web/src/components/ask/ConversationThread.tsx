@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ConversationDetail } from "../../api/query";
 import { TurnCard } from "./TurnCard";
 import { SaveThreadButton } from "./SaveThreadButton";
@@ -11,6 +12,7 @@ interface Props {
   isSaving: boolean;
   onExport: () => void;
   isExporting: boolean;
+  onFork?: (turnIndex: number, newQuestion: string) => void;
 }
 
 export function ConversationThread({
@@ -22,7 +24,16 @@ export function ConversationThread({
   isSaving,
   onExport,
   isExporting,
+  onFork,
 }: Props) {
+  const pendingRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pendingQuestion && pendingRef.current) {
+      pendingRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pendingQuestion]);
+
   // Empty state: no existing conversation AND nothing in flight
   if (!detail && !pendingQuestion) {
     return (
@@ -38,14 +49,21 @@ export function ConversationThread({
   return (
     <div className="space-y-6">
       {queries.map((q) => (
-        <TurnCard key={q.id} query={q} />
+        <TurnCard
+          key={q.id}
+          query={q}
+          onEdit={onFork}
+          forkCount={detail?.conversation.fork_count}
+        />
       ))}
       {pendingQuestion && (
-        <PendingTurnCard
-          turnNumber={queries.length + 1}
-          question={pendingQuestion}
-          isStreaming={isStreaming}
-        />
+        <div ref={pendingRef}>
+          <PendingTurnCard
+            turnNumber={queries.length + 1}
+            question={pendingQuestion}
+            isStreaming={isStreaming}
+          />
+        </div>
       )}
       {queries.length > 0 && !pendingQuestion && (
         <div className="flex gap-2 pt-4">
