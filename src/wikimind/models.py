@@ -20,27 +20,6 @@ from wikimind._datetime import utcnow_naive
 
 
 class PageType(StrEnum):
-    """Type of wiki page -- determines compilation pipeline and validation rules."""
-
-    SOURCE = "source"
-    CONCEPT = "concept"
-    ANSWER = "answer"
-    INDEX = "index"
-    META = "meta"
-
-
-class RelationType(StrEnum):
-    """Semantic relationship between two linked articles."""
-
-    REFERENCES = "references"
-    CONTRADICTS = "contradicts"
-    EXTENDS = "extends"
-    SUPERSEDES = "supersedes"
-    SYNTHESIZES = "synthesizes"
-    RELATED_TO = "related_to"
-
-
-class PageType(StrEnum):
     """Type of wiki page — determines compilation pipeline and validation rules."""
 
     SOURCE = "source"
