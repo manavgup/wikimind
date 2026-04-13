@@ -38,6 +38,7 @@ from wikimind.models import (
     ConversationSummary,
     FileBackSelectionRequest,
     ForkRequest,
+    PageType,
     Query,
     QueryRequest,
     QueryResponse,
@@ -581,6 +582,7 @@ class QueryService:
             file_path=str(file_path),
             summary=(selected_turns[0].query.answer[:200] if selected_turns else None),
             confidence=None,
+            page_type=PageType.ANSWER,
             created_at=now,
             updated_at=now,
         )

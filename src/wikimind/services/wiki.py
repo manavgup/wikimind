@@ -158,6 +158,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         summary=article.summary,
         confidence=article.confidence,
         linter_score=article.linter_score,
+        page_type=article.page_type,
         sources=[_to_source_summary(s) for s in sources],
         source_count=len(sources),
         backlink_count=backlink_count,
@@ -214,10 +215,11 @@ class WikiService:
         session: AsyncSession,
         concept: str | None = None,
         confidence: str | None = None,
+        page_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ArticleSummaryResponse]:
-        """List wiki articles with optional filtering by concept or confidence.
+        """List wiki articles with optional filtering by concept, confidence, or page_type.
 
         Each returned summary embeds a lightweight list of source
         descriptors so callers can show provenance directly in listing
@@ -229,6 +231,7 @@ class WikiService:
                 ``json_each()`` to unnest ``Article.concept_ids`` and
                 match against the requested concept name.
             confidence: Optional confidence level filter.
+            page_type: Optional page type filter (source, concept, answer, index, meta).
             limit: Maximum number of results.
             offset: Pagination offset.
 
@@ -247,6 +250,8 @@ class WikiService:
             )
         if confidence:
             query = query.where(Article.confidence == confidence)
+        if page_type:
+            query = query.where(Article.page_type == page_type)
         result = await session.execute(query)
         articles = list(result.scalars().all())
         return [await _build_article_summary(a, session) for a in articles]
@@ -286,19 +291,25 @@ class WikiService:
 
         # Resolve incoming backlinks (articles that link TO this one)
         bl_in_result = await session.execute(
-            select(Backlink.source_article_id, Article.title, Article.slug)
+            select(Backlink.source_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)
             .join(Article, Article.id == Backlink.source_article_id)  # type: ignore[arg-type]
             .where(Backlink.target_article_id == article.id)
         )
-        backlinks_in = [BacklinkEntry(id=row[0], title=row[1], slug=row[2]) for row in bl_in_result.all()]
+        backlinks_in = [
+            BacklinkEntry(id=row[0], title=row[1], slug=row[2], relation_type=row[3], resolution=row[4])
+            for row in bl_in_result.all()
+        ]
 
         # Resolve outgoing backlinks (articles this one links TO)
         bl_out_result = await session.execute(
-            select(Backlink.target_article_id, Article.title, Article.slug)
+            select(Backlink.target_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)
             .join(Article, Article.id == Backlink.target_article_id)  # type: ignore[arg-type]
             .where(Backlink.source_article_id == article.id)
         )
-        backlinks_out = [BacklinkEntry(id=row[0], title=row[1], slug=row[2]) for row in bl_out_result.all()]
+        backlinks_out = [
+            BacklinkEntry(id=row[0], title=row[1], slug=row[2], relation_type=row[3], resolution=row[4])
+            for row in bl_out_result.all()
+        ]
 
         source_ids = _parse_source_ids(article.source_ids)
         sources = await _fetch_sources(session, source_ids)
@@ -312,6 +323,7 @@ class WikiService:
             summary=article.summary,
             confidence=article.confidence,
             linter_score=article.linter_score,
+            page_type=article.page_type,
             concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,

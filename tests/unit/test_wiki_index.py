@@ -45,11 +45,12 @@ class TestRegenerateIndexMd:
 
     @pytest.mark.anyio
     async def test_empty_database_produces_header_only(self, db_session: AsyncSession) -> None:
-        """An empty DB should produce a file with just the header."""
+        """An empty DB should produce a file with frontmatter and the header."""
         path = await regenerate_index_md(db_session)
         assert path.exists()
         content = path.read_text(encoding="utf-8")
-        assert content == _INDEX_HEADER
+        assert "page_type: index" in content
+        assert _INDEX_HEADER in content
 
     @pytest.mark.anyio
     async def test_articles_grouped_by_concept(self, db_session: AsyncSession) -> None:
