@@ -275,6 +275,14 @@ check-docs: check-openapi check-adr-index check-readme-targets ## Verify all aut
 check-doc-sync: ## Run the co-change rule engine against the staged diff
 	$(PYTHON) scripts/check_doc_sync.py
 
+.PHONY: backfill-images
+backfill-images: ## Extract images from existing PDFs that were ingested before image extraction
+	$(PYTHON) scripts/backfill_images.py
+
+.PHONY: backfill-images-dry-run
+backfill-images-dry-run: ## Show which PDFs would be processed (no changes)
+	$(PYTHON) scripts/backfill_images.py --dry-run
+
 ##@ 🗄️  DATABASE
 
 .PHONY: db-reset

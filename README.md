@@ -187,6 +187,8 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make regenerate-docs` | Regenerate all auto-generated docs |
 | `make check-docs` | Verify all auto-generated docs are in sync |
 | `make check-doc-sync` | Run the co-change rule engine against the staged diff |
+| `make backfill-images` | Extract images from existing PDFs that were ingested before image extraction |
+| `make backfill-images-dry-run` | Show which PDFs would be processed (no changes) |
 
 ### 🗄️  DATABASE
 
