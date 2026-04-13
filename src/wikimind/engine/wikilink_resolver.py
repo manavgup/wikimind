@@ -44,12 +44,14 @@ class ResolvedBacklink:
     candidate_text: str
     target_id: str
     target_title: str
+    relation_type: str = "references"
 
 
 async def resolve_backlink_candidates(
     candidates: list[str],
     session: AsyncSession,
     exclude_article_id: str | None = None,
+    relation_types: dict[str, str] | None = None,
 ) -> tuple[list[ResolvedBacklink], list[str]]:
     """Resolve wikilink candidates against the Article table.
 
@@ -62,6 +64,9 @@ async def resolve_backlink_candidates(
             to this article ID is treated as unresolved. Used by the
             compiler to prevent self-references when an article is
             suggested to link to itself.
+        relation_types: Optional mapping of candidate text (lowered) to
+            relation type string. When provided, resolved backlinks
+            carry the relation type through. Defaults to references.
 
     Returns:
         A tuple ``(resolved, unresolved)``. Resolved contains one
@@ -70,6 +75,8 @@ async def resolve_backlink_candidates(
         Unresolved is the list of candidate strings that matched no
         article, in input order.
     """
+    rel_map = relation_types or {}
+
     # Drop empty / whitespace-only candidates up front.
     cleaned = [c.strip() for c in candidates if c and c.strip()]
     if not cleaned:
@@ -111,6 +118,7 @@ async def resolve_backlink_candidates(
                 candidate_text=candidate,
                 target_id=target.id,
                 target_title=target.title,
+                relation_type=rel_map.get(candidate.lower(), "references"),
             )
 
     return list(resolved_by_target.values()), unresolved

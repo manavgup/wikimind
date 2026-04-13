@@ -336,6 +336,79 @@ class CompilationResult(BaseModel):
     backlink_suggestions: list[str]
     open_questions: list[str]
     article_body: str  # Full markdown
+    page_type: PageType = PageType.SOURCE
+    compiled: datetime | None = None
+    provider: Provider | None = None
+
+
+class TypedBacklinkSuggestion(BaseModel):
+    """A backlink suggestion with semantic relationship type."""
+
+    target: str
+    relation_type: RelationType = RelationType.REFERENCES
+
+
+class SourceFrontmatter(BaseModel):
+    """Validates frontmatter for source-type wiki pages."""
+
+    page_type: PageType = PageType.SOURCE
+    title: str
+    slug: str
+    source_id: str
+    source_type: SourceType
+    source_url: str | None = None
+    compiled: datetime
+    concepts: list[str] = []
+    confidence: ConfidenceLevel | None = None
+    provider: Provider | None = None
+
+
+class ConceptFrontmatter(BaseModel):
+    """Validates frontmatter for concept-type wiki pages."""
+
+    page_type: PageType = PageType.CONCEPT
+    title: str
+    slug: str
+    concept_id: str
+    concept_kind: str = "topic"
+    synthesized_from: list[str] = []
+    source_count: int = 0
+    last_synthesized: datetime | None = None
+    confidence: ConfidenceLevel | None = None
+    provider: Provider | None = None
+
+
+class AnswerFrontmatter(BaseModel):
+    """Validates frontmatter for answer-type wiki pages."""
+
+    page_type: PageType = PageType.ANSWER
+    title: str
+    slug: str
+    conversation_id: str
+    turn_indices: list[int] = []
+    filed_at: datetime | None = None
+    concepts: list[str] = []
+    confidence: ConfidenceLevel | None = None
+
+
+class IndexFrontmatter(BaseModel):
+    """Validates frontmatter for index-type wiki pages."""
+
+    page_type: PageType = PageType.INDEX
+    title: str
+    slug: str
+    scope: str
+    concept_id: str | None = None
+    generated: datetime | None = None
+
+
+class MetaFrontmatter(BaseModel):
+    """Validates frontmatter for meta-type wiki pages."""
+
+    page_type: PageType = PageType.META
+    title: str
+    slug: str
+    generated: datetime | None = None
 
 
 class TypedBacklinkSuggestion(BaseModel):
