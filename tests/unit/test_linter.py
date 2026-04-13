@@ -303,8 +303,8 @@ async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated
 
     assert report.status == LintReportStatus.COMPLETE
     assert report.contradictions_count == 1
-    assert report.orphans_count == 2  # both articles have no backlinks
-    assert report.total_findings == 3  # 1 contradiction + 2 orphans
+    assert report.orphans_count == 0  # Phase 4: contradiction detection now creates backlinks
+    assert report.total_findings == 1  # 1 contradiction (articles no longer orphaned)
     assert report.article_count == 2
 
 

@@ -1,13 +1,22 @@
 """Endpoints for browsing wiki articles, knowledge graph, and search."""
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session
-from wikimind.models import Article, ArticleResponse, ArticleSummaryResponse, GraphResponse
+from wikimind.models import (
+    Article,
+    ArticleResponse,
+    ArticleSummaryResponse,
+    Backlink,
+    GraphResponse,
+    RelationType,
+    ResolveContradictionRequest,
+)
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, get_wiki_service
@@ -106,3 +115,61 @@ async def get_health(
             "total_articles": count_result.scalar() or 0,
             "message": "Run the linter to generate a health report",
         }
+
+
+@router.post("/backlinks/{source_id}/{target_id}/resolve")
+async def resolve_contradiction(
+    source_id: str,
+    target_id: str,
+    body: ResolveContradictionRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Resolve a contradiction between two articles."""
+    _VALID_RESOLUTIONS = {"source_a_wins", "source_b_wins", "both_valid", "superseded"}
+    if body.resolution not in _VALID_RESOLUTIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}",
+        )
+
+    result = await session.execute(
+        select(Backlink).where(
+            Backlink.source_article_id == source_id,
+            Backlink.target_article_id == target_id,
+            Backlink.relation_type == RelationType.CONTRADICTS,
+        )
+    )
+    backlink = result.scalars().first()
+    if backlink is None:
+        raise HTTPException(status_code=404, detail="Contradiction backlink not found")
+
+    now = utcnow_naive()
+    backlink.resolution = body.resolution
+    backlink.resolution_note = body.resolution_note
+    backlink.resolved_at = now
+    backlink.resolved_by = "user"
+    session.add(backlink)
+
+    inv_result = await session.execute(
+        select(Backlink).where(
+            Backlink.source_article_id == target_id,
+            Backlink.target_article_id == source_id,
+            Backlink.relation_type == RelationType.CONTRADICTS,
+        )
+    )
+    inverse = inv_result.scalars().first()
+    if inverse is not None:
+        inverse.resolution = body.resolution
+        inverse.resolution_note = body.resolution_note
+        inverse.resolved_at = now
+        inverse.resolved_by = "user"
+        session.add(inverse)
+
+    await session.commit()
+
+    return {
+        "resolved": True,
+        "source_id": source_id,
+        "target_id": target_id,
+        "resolution": body.resolution,
+    }

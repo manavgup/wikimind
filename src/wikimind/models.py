@@ -596,6 +596,13 @@ class LintPairCache(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class ResolveContradictionRequest(BaseModel):
+    """Request to resolve a contradiction between two articles."""
+
+    resolution: str  # "source_a_wins" | "source_b_wins" | "both_valid" | "superseded"
+    resolution_note: str | None = None
+
+
 class IngestURLRequest(BaseModel):
     """Request to ingest a URL."""
 
@@ -799,6 +806,8 @@ class GraphEdge(BaseModel):
     source: str
     target: str
     context: str | None
+    relation_type: RelationType = RelationType.REFERENCES
+    resolution: str | None = None
 
 
 class GraphResponse(BaseModel):
