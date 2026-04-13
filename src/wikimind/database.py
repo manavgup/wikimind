@@ -113,6 +113,9 @@ async def _migrate_added_columns(engine) -> None:
         - article.provider    (issue #67)
         - query.conversation_id (ADR-011)
         - query.turn_index    (ADR-011)
+        - article.page_type   (issue #143)
+        - backlink.relation_type + resolution columns (issue #143)
+        - concept.concept_kind (issue #143)
     """
     additions: list[tuple[str, str, str]] = [
         # (table, column, ALTER fragment)
@@ -149,6 +152,18 @@ async def _migrate_added_columns(engine) -> None:
             "forked_at_turn_index",
             "ALTER TABLE conversation ADD COLUMN forked_at_turn_index INTEGER",
         ),
+        # Issue #143 — schema overhaul Phase 1
+        ("article", "page_type", "ALTER TABLE article ADD COLUMN page_type TEXT NOT NULL DEFAULT 'source'"),
+        (
+            "backlink",
+            "relation_type",
+            "ALTER TABLE backlink ADD COLUMN relation_type TEXT NOT NULL DEFAULT 'references'",
+        ),
+        ("backlink", "resolution", "ALTER TABLE backlink ADD COLUMN resolution TEXT"),
+        ("backlink", "resolution_note", "ALTER TABLE backlink ADD COLUMN resolution_note TEXT"),
+        ("backlink", "resolved_at", "ALTER TABLE backlink ADD COLUMN resolved_at TEXT"),
+        ("backlink", "resolved_by", "ALTER TABLE backlink ADD COLUMN resolved_by TEXT"),
+        ("concept", "concept_kind", "ALTER TABLE concept ADD COLUMN concept_kind TEXT NOT NULL DEFAULT 'topic'"),
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)
