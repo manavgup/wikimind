@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ConversationDetail } from "../../api/query";
 import { TurnCard } from "./TurnCard";
 import { SaveThreadButton } from "./SaveThreadButton";
@@ -25,6 +26,14 @@ export function ConversationThread({
   isExporting,
   onFork,
 }: Props) {
+  const pendingRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pendingQuestion && pendingRef.current) {
+      pendingRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pendingQuestion]);
+
   // Empty state: no existing conversation AND nothing in flight
   if (!detail && !pendingQuestion) {
     return (
@@ -48,11 +57,13 @@ export function ConversationThread({
         />
       ))}
       {pendingQuestion && (
-        <PendingTurnCard
-          turnNumber={queries.length + 1}
-          question={pendingQuestion}
-          isStreaming={isStreaming}
-        />
+        <div ref={pendingRef}>
+          <PendingTurnCard
+            turnNumber={queries.length + 1}
+            question={pendingQuestion}
+            isStreaming={isStreaming}
+          />
+        </div>
       )}
       {queries.length > 0 && !pendingQuestion && (
         <div className="flex gap-2 pt-4">
