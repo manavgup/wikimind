@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from pathlib import Path
+from typing import Any
 
 import structlog
 from sqlmodel import select
@@ -25,22 +26,38 @@ from wikimind.models import Source
 log = structlog.get_logger()
 
 
-def _extract_with_docling(raw_pdf_path: Path, source_id: str, images_dir: Path) -> int:
-    """Run Docling with picture extraction and save images to disk."""
+def _get_converter() -> Any:
+    """Create a singleton docling converter with picture extraction enabled."""
+    global _converter
+    if _converter is not None:
+        return _converter
+
     try:
         from docling.datamodel.base_models import InputFormat  # noqa: PLC0415
         from docling.datamodel.pipeline_options import PdfPipelineOptions  # noqa: PLC0415
         from docling.document_converter import DocumentConverter, PdfFormatOption  # noqa: PLC0415
-        from docling_core.types.doc import PictureItem, TableItem  # noqa: PLC0415
     except ImportError:
         log.error("Docling not installed. Install with: pip install 'wikimind[pdf]'")
-        return 0
+        return None
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.images_scale = 2.0
     pipeline_options.generate_picture_images = True
 
-    converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)})
+    _converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)})
+    return _converter
+
+
+_converter: Any = None
+
+
+def _extract_with_docling(raw_pdf_path: Path, source_id: str, images_dir: Path, max_images: int = 30) -> int:
+    """Run Docling with picture extraction and save images to disk."""
+    from docling_core.types.doc import PictureItem, TableItem  # noqa: PLC0415
+
+    converter = _get_converter()
+    if converter is None:
+        return 0
 
     conv_res = converter.convert(str(raw_pdf_path))
     out_dir = images_dir / source_id
@@ -50,6 +67,8 @@ def _extract_with_docling(raw_pdf_path: Path, source_id: str, images_dir: Path) 
     pic_idx = 0
     tbl_idx = 0
     for element, _level in conv_res.document.iterate_items():
+        if count >= max_images:
+            break
         if isinstance(element, PictureItem):
             pic_idx += 1
             img = element.get_image(conv_res.document)
@@ -107,7 +126,9 @@ async def backfill(dry_run: bool = False) -> int:
                 continue
 
             try:
-                count = await asyncio.to_thread(_extract_with_docling, raw_pdf, source.id, images_base)
+                count = await asyncio.to_thread(
+                    _extract_with_docling, raw_pdf, source.id, images_base, settings.image_max_per_pdf
+                )
                 log.info("Backfilled images", source_id=source.id, title=source.title, image_count=count)
                 processed += 1
             except Exception:
