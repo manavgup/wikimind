@@ -139,6 +139,7 @@ class TaxonomyConfig(BaseModel):
 
     rebuild_threshold: int = 5
     max_hierarchy_depth: int = 3
+    concept_page_min_sources: int = 2
 
 
 class LinterConfig(BaseModel):

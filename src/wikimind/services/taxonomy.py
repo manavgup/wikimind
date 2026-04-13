@@ -132,6 +132,23 @@ async def update_article_counts(session: AsyncSession) -> None:
     await session.commit()
 
 
+async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
+    settings = get_settings()
+    min_sources = settings.taxonomy.concept_page_min_sources
+    result = await session.execute(select(Concept).where(Concept.article_count >= min_sources))
+    eligible = list(result.scalars().all())
+    if not eligible: return []
+    from wikimind.engine.concept_compiler import ConceptCompiler
+    compiler = ConceptCompiler()
+    compiled: list[str] = []
+    for concept in eligible:
+        try:
+            article = await compiler.compile_concept_page(concept, session)
+            if article is not None: compiled.append(concept.name)
+        except Exception: log.warning("Concept page compilation failed", concept=concept.name, exc_info=True)
+    return compiled
+
+
 async def maybe_trigger_taxonomy_rebuild(session: AsyncSession) -> bool:
     """Trigger a taxonomy rebuild if unparented concepts exceed the threshold.
 
