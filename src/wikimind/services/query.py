@@ -9,7 +9,9 @@ from.
 
 import json
 import re
+import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
@@ -17,7 +19,13 @@ from fastapi.responses import Response
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
+from wikimind._datetime import utcnow_naive
+from wikimind.config import get_settings
+from wikimind.engine.conversation_serializer import (
+    SelectedTurn,
+    serialize_conversation_to_markdown,
+    serialize_selected_turns_to_markdown,
+)
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
@@ -28,6 +36,7 @@ from wikimind.models import (
     ConversationDetail,
     ConversationResponse,
     ConversationSummary,
+    FileBackSelectionRequest,
     ForkRequest,
     Query,
     QueryRequest,
@@ -492,6 +501,103 @@ class QueryService:
             query=_to_query_response(query, citations),
             conversation=_to_conversation_response(conversation, fork_count),
         )
+
+    async def file_back_selection(
+        self,
+        request: FileBackSelectionRequest,
+        session: AsyncSession,
+    ) -> dict[str, object]:
+        """File selected turns from one or more conversations back to the wiki.
+
+        Validates that all referenced conversations and turns exist, builds
+        the selected-turn list, serializes to markdown, writes to disk, and
+        creates an Article row.
+
+        Args:
+            request: The file-back selection request with turn selections and optional title.
+            session: Async database session.
+
+        Returns:
+            Dict with article metadata (id, slug, title).
+
+        Raises:
+            HTTPException: 400 if selections are empty or invalid.
+            HTTPException: 404 if a conversation is not found.
+        """
+        if not request.selections:
+            raise HTTPException(status_code=400, detail="No selections provided")
+
+        selected_turns: list[SelectedTurn] = []
+
+        for selection in request.selections:
+            conversation = await session.get(Conversation, selection.conversation_id)
+            if conversation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Conversation not found: {selection.conversation_id}",
+                )
+
+            if not selection.turn_indices:
+                continue
+
+            result = await session.execute(
+                select(Query)
+                .where(Query.conversation_id == selection.conversation_id)
+                .where(Query.turn_index.in_(selection.turn_indices))  # type: ignore[attr-defined]
+                .order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
+            )
+            queries = list(result.scalars().all())
+
+            found_indices = {q.turn_index for q in queries}
+            missing = set(selection.turn_indices) - found_indices
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Turn indices {sorted(missing)} not found in conversation {selection.conversation_id}"),
+                )
+
+            for query in queries:
+                selected_turns.append(SelectedTurn(conversation=conversation, query=query))
+
+        if not selected_turns:
+            raise HTTPException(status_code=400, detail="No turns selected")
+
+        markdown = serialize_selected_turns_to_markdown(selected_turns, title=request.title)
+
+        settings = get_settings()
+        wiki_dir = Path(settings.data_dir) / "wiki" / "qa-answers"
+        wiki_dir.mkdir(parents=True, exist_ok=True)
+
+        now = utcnow_naive()
+        effective_title = request.title or selected_turns[0].conversation.title
+
+        slug = str(uuid.uuid4())
+        file_path = wiki_dir / f"{slug}.md"
+        file_path.write_text(markdown, encoding="utf-8")
+
+        article = Article(
+            slug=slug,
+            title=effective_title,
+            file_path=str(file_path),
+            summary=(selected_turns[0].query.answer[:200] if selected_turns else None),
+            confidence=None,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(article)
+
+        # Mark selected turns as filed back
+        for selected in selected_turns:
+            selected.query.filed_back = True
+            selected.query.filed_article_id = article.id
+            session.add(selected.query)
+
+        await session.commit()
+        await session.refresh(article)
+
+        return {
+            "article": {"id": article.id, "slug": article.slug, "title": article.title},
+        }
 
     async def export_conversation(
         self,

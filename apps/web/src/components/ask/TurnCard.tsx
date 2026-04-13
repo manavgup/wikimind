@@ -10,6 +10,9 @@ interface Props {
   query: QueryRecord;
   onEdit?: (turnIndex: number, newQuestion: string) => void;
   forkCount?: number;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 /**
@@ -21,7 +24,7 @@ interface Props {
  * mount — swapping the `query` prop on a live instance would
  * leak stale expand/collapse state.
  */
-export function TurnCard({ query, onEdit, forkCount }: Props) {
+export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, onToggleSelect }: Props) {
   const sources = useMemo(() => parseSources(query.source_article_ids), [query.source_article_ids]);
   const slugByTitle = useMemo(() => buildSlugMap(query.citations), [query.citations]);
   const relatedArticles = useMemo(
@@ -60,80 +63,97 @@ export function TurnCard({ query, onEdit, forkCount }: Props) {
     : truncateOnParagraphBoundary(query.answer, COLLAPSE_THRESHOLD_CHARS);
 
   return (
-    <article className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <header className="mb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-              Q{query.turn_index + 1}
-            </span>
-            {forkCount !== undefined && forkCount > 0 && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-600"
-                title={`${forkCount} branch${forkCount === 1 ? "" : "es"}`}
-              >
-                <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM5 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM4.25 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM11 4.5a.75.75 0 0 1 .75.75v1a2.25 2.25 0 0 1-2.25 2.25H6.56l1.22-1.22a.75.75 0 0 0-1.06-1.06l-2.5 2.5a.75.75 0 0 0 0 1.06l2.5 2.5a.75.75 0 1 0 1.06-1.06L6.56 10h2.94A3.75 3.75 0 0 0 13.25 6.25v-1A.75.75 0 0 0 12.5 4.5Z"/>
-                </svg>
-                {forkCount}
+    <article
+      className={`group rounded-lg border p-5 shadow-sm ${
+        selectionMode && isSelected
+          ? "border-blue-400 bg-blue-50"
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      <header className="mb-3 flex items-start gap-3">
+        {selectionMode && (
+          <input
+            type="checkbox"
+            checked={isSelected ?? false}
+            onChange={onToggleSelect}
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            aria-label={`Select turn Q${query.turn_index + 1}`}
+          />
+        )}
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                Q{query.turn_index + 1}
               </span>
-            )}
-          </div>
-          {onEdit && !isEditing && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsEditing(true);
-                setEditText(query.question);
-                setTimeout(() => textareaRef.current?.focus(), 0);
-              }}
-              className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
-              title="Edit question (creates a branch)"
-              aria-label="Edit question"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/>
-              </svg>
-            </button>
-          )}
-        </div>
-        {isEditing ? (
-          <div className="mt-1">
-            <textarea
-              ref={textareaRef}
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              onKeyDown={handleEditKeyDown}
-              rows={2}
-              className="w-full resize-none rounded border border-blue-300 bg-blue-50 p-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <div className="mt-1 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleEditSubmit}
-                disabled={!editText.trim() || editText.trim() === query.question}
-                className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                Fork
-              </button>
+              {forkCount !== undefined && forkCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-600"
+                  title={`${forkCount} branch${forkCount === 1 ? "" : "es"}`}
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM5 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM4.25 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM11 4.5a.75.75 0 0 1 .75.75v1a2.25 2.25 0 0 1-2.25 2.25H6.56l1.22-1.22a.75.75 0 0 0-1.06-1.06l-2.5 2.5a.75.75 0 0 0 0 1.06l2.5 2.5a.75.75 0 1 0 1.06-1.06L6.56 10h2.94A3.75 3.75 0 0 0 13.25 6.25v-1A.75.75 0 0 0 12.5 4.5Z"/>
+                  </svg>
+                  {forkCount}
+                </span>
+              )}
+            </div>
+            {onEdit && !isEditing && !selectionMode && (
               <button
                 type="button"
                 onClick={() => {
-                  setIsEditing(false);
+                  setIsEditing(true);
                   setEditText(query.question);
+                  setTimeout(() => textareaRef.current?.focus(), 0);
                 }}
-                className="rounded px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+                title="Edit question (creates a branch)"
+                aria-label="Edit question"
               >
-                Cancel
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/>
+                </svg>
               </button>
-              <span className="text-xs text-slate-400">
-                This creates a new branch
-              </span>
-            </div>
+            )}
           </div>
-        ) : (
-          <h3 className="mt-1 text-base font-semibold text-slate-900">{query.question}</h3>
-        )}
+          {isEditing ? (
+            <div className="mt-1">
+              <textarea
+                ref={textareaRef}
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                rows={2}
+                className="w-full resize-none rounded border border-blue-300 bg-blue-50 p-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleEditSubmit}
+                  disabled={!editText.trim() || editText.trim() === query.question}
+                  className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Fork
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditText(query.question);
+                  }}
+                  className="rounded px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <span className="text-xs text-slate-400">
+                  This creates a new branch
+                </span>
+              </div>
+            </div>
+          ) : (
+            <h3 className="mt-1 text-base font-semibold text-slate-900">{query.question}</h3>
+          )}
+        </div>
       </header>
 
       <div className="prose prose-sm max-w-none text-slate-700">

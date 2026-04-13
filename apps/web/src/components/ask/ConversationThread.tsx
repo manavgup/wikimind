@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ConversationDetail } from "../../api/query";
+import { useSelection } from "../../store/selection";
 import { TurnCard } from "./TurnCard";
 import { SaveThreadButton } from "./SaveThreadButton";
 
@@ -13,6 +14,8 @@ interface Props {
   onExport: () => void;
   isExporting: boolean;
   onFork?: (turnIndex: number, newQuestion: string) => void;
+  onSaveSelection: () => void;
+  isSavingSelection: boolean;
 }
 
 export function ConversationThread({
@@ -25,8 +28,13 @@ export function ConversationThread({
   onExport,
   isExporting,
   onFork,
+  onSaveSelection,
+  isSavingSelection,
 }: Props) {
   const pendingRef = useRef<HTMLDivElement>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const selection = useSelection();
+  const conversationId = detail?.conversation.id;
 
   useEffect(() => {
     if (pendingQuestion && pendingRef.current) {
@@ -46,6 +54,20 @@ export function ConversationThread({
   const queries = detail?.queries ?? [];
   const isFiledBack = !!detail?.conversation.filed_article_id;
 
+  const handleToggleSelectionMode = () => {
+    if (selectionMode) {
+      // Exiting selection mode — clear selections for this conversation
+      if (conversationId) {
+        for (const q of queries) {
+          if (selection.isSelected(conversationId, q.turn_index)) {
+            selection.removeTurn(conversationId, q.turn_index);
+          }
+        }
+      }
+    }
+    setSelectionMode((v) => !v);
+  };
+
   return (
     <div className="space-y-6">
       {queries.map((q) => (
@@ -54,6 +76,17 @@ export function ConversationThread({
           query={q}
           onEdit={onFork}
           forkCount={detail?.conversation.fork_count}
+          selectionMode={selectionMode}
+          isSelected={
+            selectionMode && conversationId
+              ? selection.isSelected(conversationId, q.turn_index)
+              : undefined
+          }
+          onToggleSelect={
+            selectionMode && conversationId
+              ? () => selection.toggleTurn(conversationId, q.turn_index)
+              : undefined
+          }
         />
       ))}
       {pendingQuestion && (
@@ -66,7 +99,7 @@ export function ConversationThread({
         </div>
       )}
       {queries.length > 0 && !pendingQuestion && (
-        <div className="flex gap-2 pt-4">
+        <div className="flex flex-wrap gap-2 pt-4">
           <SaveThreadButton
             isFiledBack={isFiledBack}
             isSaving={isSaving}
@@ -80,6 +113,29 @@ export function ConversationThread({
           >
             {isExporting ? "Exporting..." : "Export markdown"}
           </button>
+          <button
+            type="button"
+            onClick={handleToggleSelectionMode}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium ${
+              selectionMode
+                ? "border-blue-400 bg-blue-50 text-blue-700"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {selectionMode ? "Cancel selection" : "Select turns"}
+          </button>
+          {selectionMode && selection.count > 0 && (
+            <button
+              type="button"
+              onClick={onSaveSelection}
+              disabled={isSavingSelection}
+              className="rounded-lg border border-blue-500 bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+            >
+              {isSavingSelection
+                ? "Saving..."
+                : `Save ${selection.count} turn${selection.count !== 1 ? "s" : ""} to wiki`}
+            </button>
+          )}
         </div>
       )}
     </div>

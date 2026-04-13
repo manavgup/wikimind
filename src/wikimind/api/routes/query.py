@@ -14,6 +14,7 @@ from wikimind.models import (
     AskResponse,
     ConversationDetail,
     ConversationSummary,
+    FileBackSelectionRequest,
     ForkRequest,
     QueryRequest,
 )
@@ -117,6 +118,16 @@ async def export_conversation(
 ) -> Response:
     """Export a conversation as standalone markdown. Pure read, no DB writes."""
     return await service.export_conversation(conversation_id, session)
+
+
+@router.post("/conversations/file-back")
+async def file_back_selection(
+    request: FileBackSelectionRequest,
+    session: AsyncSession = Depends(get_session),
+    service: QueryService = Depends(get_query_service),
+):
+    """File selected turns from one or more conversations back to the wiki as a single article."""
+    return await service.file_back_selection(request, session)
 
 
 @router.post("/conversations/{conversation_id}/file-back")

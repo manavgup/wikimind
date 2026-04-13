@@ -2,7 +2,11 @@
 
 from datetime import datetime
 
-from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
+from wikimind.engine.conversation_serializer import (
+    SelectedTurn,
+    serialize_conversation_to_markdown,
+    serialize_selected_turns_to_markdown,
+)
 from wikimind.models import Conversation, Query
 
 
@@ -197,3 +201,191 @@ def test_serializer_does_not_touch_non_heading_hashes():
         pass
     else:
         assert "# This is a Python comment, not a heading" in md
+
+
+# ---------------------------------------------------------------------------
+# Selected turns serializer (partial / multi-thread file-back)
+# ---------------------------------------------------------------------------
+
+
+def _conv2(conv_id: str = "conv-2", title: str = "Second thread") -> Conversation:
+    return Conversation(
+        id=conv_id,
+        title=title,
+        created_at=datetime(2026, 4, 9, 10, 0, 0),
+        updated_at=datetime(2026, 4, 9, 10, 5, 0),
+    )
+
+
+def _selected(conv: Conversation, question: str, answer: str, turn_index: int) -> SelectedTurn:
+    query = Query(
+        id=f"q-{conv.id}-{turn_index}",
+        question=question,
+        answer=answer,
+        confidence="high",
+        source_article_ids="[]",
+        conversation_id=conv.id,
+        turn_index=turn_index,
+        created_at=datetime(2026, 4, 8, 12, 0, turn_index),
+    )
+    return SelectedTurn(conversation=conv, query=query)
+
+
+def test_selected_turns_empty_list():
+    """Empty selections produce valid markdown with zero turns."""
+    md = serialize_selected_turns_to_markdown([], title="Empty")
+    assert "turn_count: 0" in md
+    assert "# Empty" in md
+    assert "type: qa-selection" in md
+
+
+def test_selected_turns_single_turn():
+    """A single selected turn renders as Q1."""
+    conv = _conv()
+    turns = [_selected(conv, "What is X?", "X is a thing.", turn_index=2)]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    assert "## Q1: What is X?" in md
+    assert "X is a thing." in md
+    # Uses first conversation's title by default
+    assert "# What is X?" in md
+    assert "type: qa-selection" in md
+    assert "turn_count: 1" in md
+
+
+def test_selected_turns_custom_title():
+    """Custom title overrides default conversation title."""
+    conv = _conv()
+    turns = [_selected(conv, "Q?", "A.", turn_index=0)]
+    md = serialize_selected_turns_to_markdown(turns, title="My Custom Title")
+
+    assert "# My Custom Title" in md
+    assert 'title: "My Custom Title"' in md
+
+
+def test_selected_turns_continuous_numbering():
+    """Output turns are numbered Q1, Q2, Q3 regardless of original turn indices."""
+    conv = _conv()
+    turns = [
+        _selected(conv, "Second question", "Answer 2.", turn_index=1),
+        _selected(conv, "Fifth question", "Answer 5.", turn_index=4),
+    ]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    assert "## Q1: Second question" in md
+    assert "## Q2: Fifth question" in md
+    # Should NOT use original turn indices
+    assert "## Q2: Second question" not in md
+    assert "## Q5:" not in md
+
+
+def test_selected_turns_contiguous_no_separator():
+    """Contiguous turns from the same conversation have NO gap separator."""
+    conv = _conv()
+    turns = [
+        _selected(conv, "Q1", "A1.", turn_index=0),
+        _selected(conv, "Q2", "A2.", turn_index=1),
+        _selected(conv, "Q3", "A3.", turn_index=2),
+    ]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    # Count --- occurrences (frontmatter has one closing ---)
+    # The body should have NO --- separators for contiguous turns
+    body = md.split("---\n", 2)[-1]  # after frontmatter
+    assert "\n---\n" not in body
+
+
+def test_selected_turns_gap_separator_for_non_contiguous():
+    """Non-contiguous turns within the same conversation get a --- separator."""
+    conv = _conv()
+    turns = [
+        _selected(conv, "First", "A1.", turn_index=0),
+        _selected(conv, "Third", "A3.", turn_index=2),  # gap: turn 1 is missing
+    ]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    # The body should have a --- separator between the two turns
+    body = md.split("---\n", 2)[-1]  # after frontmatter
+    assert "\n---\n" in body
+
+
+def test_selected_turns_cross_conversation_separator():
+    """Turns from different conversations get a --- separator at the boundary."""
+    conv1 = _conv()
+    conv2 = _conv2()
+    turns = [
+        _selected(conv1, "From thread 1", "Answer 1.", turn_index=0),
+        _selected(conv2, "From thread 2", "Answer 2.", turn_index=0),
+    ]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    body = md.split("---\n", 2)[-1]  # after frontmatter
+    assert "\n---\n" in body
+    assert "## Q1: From thread 1" in md
+    assert "## Q2: From thread 2" in md
+
+
+def test_selected_turns_multi_thread_merge():
+    """Full multi-thread merge: turns from two conversations combined."""
+    conv1 = _conv()
+    conv2 = _conv2()
+    turns = [
+        _selected(conv1, "Q from conv1 turn 0", "A1.", turn_index=0),
+        _selected(conv1, "Q from conv1 turn 1", "A2.", turn_index=1),
+        _selected(conv2, "Q from conv2 turn 0", "B1.", turn_index=0),
+        _selected(conv2, "Q from conv2 turn 2", "B3.", turn_index=2),
+    ]
+    md = serialize_selected_turns_to_markdown(turns, title="Merged research")
+
+    assert "# Merged research" in md
+    assert "## Q1: Q from conv1 turn 0" in md
+    assert "## Q2: Q from conv1 turn 1" in md
+    assert "## Q3: Q from conv2 turn 0" in md
+    assert "## Q4: Q from conv2 turn 2" in md
+
+    # Should have separator between conv1 and conv2 (cross-conversation)
+    # and between conv2 turn 0 and conv2 turn 2 (non-contiguous)
+    body = md.split("---\n", 2)[-1]
+    separator_count = body.count("\n---\n")
+    assert separator_count == 2
+
+
+def test_selected_turns_downshifts_headings():
+    """Answer headings are downshifted just like the full-conversation serializer."""
+    conv = _conv()
+    turns = [_selected(conv, "Q?", "# My Heading\n\nContent.", turn_index=0)]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    assert "### My Heading" in md
+
+
+def test_selected_turns_renders_sources():
+    """Sources from selected turns are rendered as wikilinks."""
+    conv = _conv()
+    query = Query(
+        id="q-src",
+        question="Q?",
+        answer="A.",
+        confidence="high",
+        source_article_ids='["Article One", "Article Two"]',
+        conversation_id=conv.id,
+        turn_index=0,
+        created_at=datetime(2026, 4, 8, 12, 0, 0),
+    )
+    turns = [SelectedTurn(conversation=conv, query=query)]
+    md = serialize_selected_turns_to_markdown(turns)
+
+    assert "[[Article One]]" in md
+    assert "[[Article Two]]" in md
+
+
+def test_selected_turns_byte_identical():
+    """Two calls with the same input produce byte-identical output."""
+    conv = _conv()
+    turns = [
+        _selected(conv, "Q1", "A1.", turn_index=0),
+        _selected(conv, "Q2", "A2.", turn_index=2),
+    ]
+    a = serialize_selected_turns_to_markdown(turns, title="Test")
+    b = serialize_selected_turns_to_markdown(turns, title="Test")
+    assert a == b
