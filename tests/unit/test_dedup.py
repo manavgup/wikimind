@@ -62,7 +62,7 @@ def _build_pdf_bytes(pages: list[str]) -> bytes:
 @pytest.fixture
 def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point `get_settings().data_dir` at a tmp directory for one test."""
-    fake_settings = Settings(data_dir=str(tmp_path))
+    fake_settings = Settings(data_dir=str(tmp_path), vision_enabled=False)
     monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
     monkeypatch.setattr(compiler_module, "get_settings", lambda: fake_settings)
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)

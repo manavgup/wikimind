@@ -10,6 +10,7 @@ import json
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from typing import Any
 
 import anthropic
 import ollama
@@ -116,6 +117,54 @@ class AnthropicProvider:
             latency_ms=latency_ms,
         )
 
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+    ) -> CompletionResponse:
+        """Complete a multimodal request with text and images using Anthropic.
+
+        Args:
+            system: System prompt.
+            content_parts: List of content blocks. Each block is either
+                ``{"type": "text", "text": "..."}`` or
+                ``{"type": "image", "source": {"type": "base64",
+                "media_type": "image/png", "data": "..."}}``.
+            model: Model name to use.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+
+        Returns:
+            CompletionResponse with the LLM's text output.
+        """
+        start = time.monotonic()
+
+        response = await self.client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system,
+            messages=[{"role": "user", "content": content_parts}],  # type: ignore[arg-type,typeddict-item]
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response.content[0].text  # type: ignore[union-attr]
+        input_tokens = response.usage.input_tokens
+        output_tokens = response.usage.output_tokens
+
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.ANTHROPIC,
+            model_used=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=_calc_cost(Provider.ANTHROPIC, model, input_tokens, output_tokens),
+            latency_ms=latency_ms,
+        )
+
     async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
         """Stream a completion request using Anthropic."""
         messages = [{"role": m["role"], "content": m["content"]} for m in request.messages]
@@ -182,6 +231,73 @@ class OpenAIProvider:
         content = response.choices[0].message.content
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
+
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.OPENAI,
+            model_used=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=_calc_cost(Provider.OPENAI, model, input_tokens, output_tokens),
+            latency_ms=latency_ms,
+        )
+
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+    ) -> CompletionResponse:
+        """Complete a multimodal request with text and images using OpenAI.
+
+        Translates the Anthropic-style content blocks to OpenAI's
+        ``image_url`` format before calling the API.
+
+        Args:
+            system: System prompt.
+            content_parts: List of content blocks in Anthropic format.
+            model: Model name to use.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+
+        Returns:
+            CompletionResponse with the LLM's text output.
+        """
+        start = time.monotonic()
+
+        # Translate Anthropic content blocks to OpenAI format
+        openai_parts: list[dict[str, Any]] = []
+        for part in content_parts:
+            if part["type"] == "text":
+                openai_parts.append({"type": "text", "text": part["text"]})
+            elif part["type"] == "image":
+                media_type = part["source"]["media_type"]
+                data = part["source"]["data"]
+                openai_parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{media_type};base64,{data}"},
+                    }
+                )
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": openai_parts},
+        ]
+
+        response = await self.client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=messages,  # type: ignore[arg-type]
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response.choices[0].message.content
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
 
         return CompletionResponse(
             content=content,
@@ -273,6 +389,65 @@ class OllamaProvider:
             latency_ms=latency_ms,
         )
 
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+    ) -> CompletionResponse:
+        """Complete a multimodal request using Ollama.
+
+        Ollama accepts images as base64 strings in the ``images`` field
+        of a message.
+
+        Args:
+            system: System prompt.
+            content_parts: List of content blocks in Anthropic format.
+            model: Model name to use.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+
+        Returns:
+            CompletionResponse with the LLM's text output.
+        """
+        start = time.monotonic()
+
+        # Extract text and images from content parts
+        text_parts: list[str] = []
+        images: list[str] = []
+        for part in content_parts:
+            if part["type"] == "text":
+                text_parts.append(part["text"])
+            elif part["type"] == "image":
+                images.append(part["source"]["data"])
+
+        user_content = "\n".join(text_parts) if text_parts else "Describe these images."
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_content, "images": images},
+        ]
+
+        response = await self.client.chat(
+            model=model,
+            messages=messages,  # type: ignore[arg-type]
+            options={"temperature": temperature},
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response["message"]["content"]
+
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.OLLAMA,
+            model_used=model,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            latency_ms=latency_ms,
+        )
+
     async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
         """Stream a completion request using Ollama."""
         messages: list[dict[str, str]] = [{"role": "system", "content": request.system}]
@@ -329,6 +504,33 @@ class MockProvider:
         """Return a deterministic canned response matching the request's task type."""
         start = time.monotonic()
         content = self._response_for(request)
+        latency_ms = int((time.monotonic() - start) * 1000)
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.MOCK,
+            model_used=model,
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=0.0,
+            latency_ms=latency_ms,
+        )
+
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+    ) -> CompletionResponse:
+        """Return a deterministic description for each image in the request."""
+        start = time.monotonic()
+        # Count images and return one description per image
+        image_count = sum(1 for p in content_parts if p.get("type") == "image")
+        descriptions = [
+            f"[Page {i + 1} description: A visual slide with diagrams and minimal text.]" for i in range(image_count)
+        ]
+        content = "\n\n".join(descriptions) if descriptions else "No images provided."
         latency_ms = int((time.monotonic() - start) * 1000)
         return CompletionResponse(
             content=content,
@@ -523,6 +725,91 @@ class LLMRouter:
 
             except Exception as e:
                 log.warning("LLM provider failed", provider=provider, error=str(e))
+                last_error = e
+                if not self.settings.llm.fallback_enabled:
+                    raise
+
+        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
+
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        task_type: TaskType = TaskType.INGEST,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+        preferred_provider: Provider | None = None,
+        session=None,
+    ) -> CompletionResponse:
+        """Execute a multimodal LLM completion with images and text.
+
+        Routes to the appropriate provider and translates content blocks
+        as needed. Supports fallback across providers just like
+        :meth:`complete`.
+
+        Args:
+            system: System prompt.
+            content_parts: List of content blocks (text and image).
+            task_type: Task type for cost tracking.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+            preferred_provider: Optional provider preference.
+            session: Optional AsyncSession for cost logging.
+
+        Returns:
+            CompletionResponse with the LLM's text output.
+
+        Raises:
+            RuntimeError: When all providers fail.
+        """
+        provider_order = self._get_provider_order(preferred_provider)
+
+        last_error = None
+        for provider in provider_order:
+            if not self._is_provider_available(provider):
+                continue
+
+            model = self._get_model(provider)
+            try:
+                log.info(
+                    "LLM multimodal call",
+                    provider=provider,
+                    model=model,
+                    task=task_type,
+                )
+                instance = await self._get_provider_instance(provider)
+                response = await instance.complete_multimodal(
+                    system=system,
+                    content_parts=content_parts,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+
+                # Log cost
+                if session:
+                    cost_entry = CostLog(
+                        provider=provider,
+                        model=model,
+                        task_type=task_type,
+                        input_tokens=response.input_tokens,
+                        output_tokens=response.output_tokens,
+                        cost_usd=response.cost_usd,
+                        latency_ms=response.latency_ms,
+                    )
+                    session.add(cost_entry)
+                    await session.commit()
+
+                log.info(
+                    "LLM multimodal call complete",
+                    provider=provider,
+                    cost_usd=response.cost_usd,
+                    latency_ms=response.latency_ms,
+                )
+                return response
+
+            except Exception as e:
+                log.warning("LLM multimodal provider failed", provider=provider, error=str(e))
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
                     raise

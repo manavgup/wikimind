@@ -90,7 +90,7 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 
 .PHONY: dev
 dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
-	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload
+	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
 .PHONY: serve
 serve: ## Run production server on :7842 (gunicorn)
@@ -274,6 +274,14 @@ check-docs: check-openapi check-adr-index check-readme-targets ## Verify all aut
 .PHONY: check-doc-sync
 check-doc-sync: ## Run the co-change rule engine against the staged diff
 	$(PYTHON) scripts/check_doc_sync.py
+
+.PHONY: backfill-images
+backfill-images: ## Extract images from existing PDFs that were ingested before image extraction
+	$(PYTHON) scripts/backfill_images.py
+
+.PHONY: backfill-images-dry-run
+backfill-images-dry-run: ## Show which PDFs would be processed (no changes)
+	$(PYTHON) scripts/backfill_images.py --dry-run
 
 ##@ 🗄️  DATABASE
 

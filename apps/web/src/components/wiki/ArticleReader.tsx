@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
+import { getBaseUrl } from "../../api/client";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Badge } from "../shared/Badge";
 
@@ -32,9 +33,15 @@ function escapeHtml(s: string): string {
 //      the compiler rewrites resolved ones into standard [text](/wiki/<id>)
 //      markdown links at save time) into a dimmed <span> so the reader can see
 //      the reference exists but knows there's no article to click through to.
+// Matches ![alt](src) where src is NOT a URL (no / or http) — these are
+// LLM-generated figure references like ![description](Figure 1) that render
+// as broken images. Real images are displayed in the FiguresPanel below.
+const BROKEN_IMAGE_REGEX = /!\[[^\]]*\]\((?!\/|https?:\/\/)[^)]+\)\n*/g;
+
 function preprocessMarkdown(content: string): string {
   return content
     .replace(FRONTMATTER_REGEX, "")
+    .replace(BROKEN_IMAGE_REGEX, "")
     .replace(WIKILINK_REGEX, (_, target: string) => {
       const safe = escapeHtml(target.trim());
       return `<span class="wikilink-unresolved" title="Article not yet in wiki">${safe}</span>`;
@@ -96,6 +103,30 @@ export function ArticleReader({ article }: ArticleReaderProps) {
                 >
                   {children}
                 </a>
+              );
+            },
+            img: ({ node: _node, src, alt, ...props }) => {
+              // Prefix /images/ paths with the API base URL so they
+              // resolve to the backend, not the Vite dev server.
+              const resolvedSrc =
+                src && src.startsWith("/images/")
+                  ? `${getBaseUrl()}${src}`
+                  : src;
+              return (
+                <figure className="my-4">
+                  <img
+                    src={resolvedSrc}
+                    alt={alt || ""}
+                    className="mx-auto max-w-full rounded border border-slate-200"
+                    loading="lazy"
+                    {...props}
+                  />
+                  {alt && alt !== "Figure" && (
+                    <figcaption className="mt-1 text-center text-sm text-slate-500">
+                      {alt}
+                    </figcaption>
+                  )}
+                </figure>
               );
             },
             li: ({ children }) => (

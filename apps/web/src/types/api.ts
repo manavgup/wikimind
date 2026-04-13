@@ -59,11 +59,20 @@ export interface BacklinkEntry {
   slug: string;
 }
 
+export interface ArticleSourceRef {
+  id: string;
+  source_type: SourceType;
+  title: string | null;
+  source_url: string | null;
+  ingested_at: string;
+}
+
 export interface ArticleResponse extends Article {
   content: string;
   backlinks_in: BacklinkEntry[];
   backlinks_out: BacklinkEntry[];
   concepts: string[];
+  sources: ArticleSourceRef[];
 }
 
 export interface Concept {

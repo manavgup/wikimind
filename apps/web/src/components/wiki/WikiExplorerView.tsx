@@ -6,6 +6,7 @@ import { ArticleCardGrid } from "./ArticleCardGrid";
 import { ArticleReader } from "./ArticleReader";
 import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
+import { FiguresPanel } from "./FiguresPanel";
 import { SearchBar } from "./SearchBar";
 
 export function WikiExplorerView() {
@@ -13,6 +14,7 @@ export function WikiExplorerView() {
   const slug = params.slug;
   const articleQuery = useArticle(slug);
   const [activeConcept, setActiveConcept] = useState<string | null>(null);
+  const [figureCount, setFigureCount] = useState(0);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -44,12 +46,24 @@ export function WikiExplorerView() {
                 Failed to load article.
               </div>
             ) : articleQuery.data ? (
-              <ArticleReader article={articleQuery.data} />
+              <>
+                <ArticleReader article={articleQuery.data} />
+                {articleQuery.data.sources && (
+                  <FiguresPanel
+                    sources={articleQuery.data.sources}
+                    onImageCount={setFigureCount}
+                  />
+                )}
+              </>
             ) : null}
           </section>
 
           <aside className="overflow-y-auto border-l border-slate-200 bg-white">
-            <BacklinkPanel article={articleQuery.data ?? null} />
+            <BacklinkPanel
+              article={articleQuery.data ?? null}
+              hasFigures={figureCount > 0}
+              figureCount={figureCount}
+            />
           </aside>
         </div>
       ) : (

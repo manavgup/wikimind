@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useConcepts } from "../../hooks/useArticles";
 import type { Concept } from "../../types/api";
 import { Spinner } from "../shared/Spinner";
@@ -32,6 +33,7 @@ interface ConceptTreeProps {
 }
 
 export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps) {
+  const navigate = useNavigate();
   const conceptsQuery = useConcepts();
   const [search, setSearch] = useState("");
 
@@ -78,7 +80,7 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
             <li>
               <button
                 type="button"
-                onClick={() => onSelectConcept(null)}
+                onClick={() => { onSelectConcept(null); navigate("/wiki"); }}
                 className={`w-full rounded px-2 py-1 text-left text-sm transition ${
                   activeConcept === null
                     ? "bg-brand-50 font-medium text-brand-700"

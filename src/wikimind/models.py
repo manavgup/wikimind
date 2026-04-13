@@ -88,6 +88,7 @@ class TaskType(StrEnum):
     QA = "qa"
     LINT = "lint"
     INDEX = "index"
+    INGEST = "ingest"
 
 
 # ---------------------------------------------------------------------------
