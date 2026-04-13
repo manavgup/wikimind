@@ -378,12 +378,13 @@ class TestEnhanceWithVision:
         adapter = PDFAdapter()
         pdf_bytes = _build_sparse_and_dense_pdf()
 
-        result = await adapter._enhance_with_vision(pdf_bytes, "ignored", "src-3")
+        clean_text = "Original docling markdown with headings and structure."
+        result = await adapter._enhance_with_vision(pdf_bytes, clean_text, "src-3")
 
-        # The dense page text should be present
-        assert "This is a long paragraph" in result
-        # The sparse pages should have LLM descriptions
-        assert "[Visual content]:" in result
+        # The original clean_text is preserved (not rebuilt from fitz)
+        assert "Original docling markdown" in result
+        # The sparse pages should have LLM descriptions appended
+        assert "[Visual content" in result
         assert "title slide with company logo" in result
         assert "Architecture diagram" in result
         # Progress was emitted

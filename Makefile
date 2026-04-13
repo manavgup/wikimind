@@ -90,7 +90,7 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 
 .PHONY: dev
 dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
-	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload
+	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
 .PHONY: serve
 serve: ## Run production server on :7842 (gunicorn)

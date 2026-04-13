@@ -76,7 +76,6 @@ Rules:
 - Open questions should drive future research
 - article_body must be substantive — at least 300 words
 - Never fabricate quotes or statistics not in the source
-- If the source contains image references (![description](url)), preserve them in the article body where they illustrate key concepts. Use the description as a caption. Do not fabricate image references.
 """
 
 

@@ -12,6 +12,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from wikimind.api.routes import ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
@@ -88,8 +89,6 @@ app.add_middleware(
 )
 
 # Serve extracted PDF images (issue #142)
-from fastapi.staticfiles import StaticFiles  # noqa: E402
-
 _images_dir = Path(get_settings().data_dir) / "images"
 _images_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(_images_dir)), name="images")
