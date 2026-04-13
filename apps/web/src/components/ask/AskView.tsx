@@ -72,6 +72,7 @@ export function AskView() {
     mutationFn: ({ id, turnIndex, newQuestion }: { id: string; turnIndex: number; newQuestion: string }) =>
       forkConversation(id, { turn_index: turnIndex, new_question: newQuestion }),
     onSuccess: (response) => {
+      setPendingQuestion(null);
       setPendingError(null);
       const newId = response.conversation.id;
       navigate(`/ask/${newId}`, { replace: true });
@@ -94,6 +95,7 @@ export function AskView() {
       });
     },
     onError: (err: Error) => {
+      setPendingQuestion(null);
       setPendingError(err.message || "Failed to create branch");
     },
   });
@@ -101,6 +103,7 @@ export function AskView() {
   const handleFork = useCallback(
     (turnIndex: number, newQuestion: string) => {
       if (!conversationId) return;
+      setPendingQuestion(newQuestion);
       fork.mutate({ id: conversationId, turnIndex, newQuestion });
     },
     [conversationId, fork],
