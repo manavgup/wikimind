@@ -156,7 +156,7 @@ class Article(SQLModel, table=True):
     # same source with the same provider replaces this article in place;
     # different providers stack as separate articles for comparison.
     provider: Provider | None = None
-    page_type: PageType = PageType.SOURCE
+    page_type: str = Field(default=PageType.SOURCE)
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
@@ -195,7 +195,7 @@ class Backlink(SQLModel, table=True):
     source_article_id: str = Field(foreign_key="article.id", primary_key=True)
     target_article_id: str = Field(foreign_key="article.id", primary_key=True)
     context: str | None = None  # Sentence where link appears
-    relation_type: RelationType = RelationType.REFERENCES
+    relation_type: str = Field(default=RelationType.REFERENCES)
     resolution: str | None = None
     resolution_note: str | None = None
     resolved_at: datetime | None = None
@@ -336,6 +336,9 @@ class CompilationResult(BaseModel):
     backlink_suggestions: list[str]
     open_questions: list[str]
     article_body: str  # Full markdown
+    page_type: PageType = PageType.SOURCE
+    compiled: datetime | None = None
+    provider: Provider | None = None
 
 
 class TypedBacklinkSuggestion(BaseModel):
@@ -343,39 +346,6 @@ class TypedBacklinkSuggestion(BaseModel):
 
     target: str
     relation_type: RelationType = RelationType.REFERENCES
-
-
-class SourceCompilationResult(CompilationResult):
-    """Compilation result for source pages."""
-
-    page_type: PageType = PageType.SOURCE
-
-
-class ConceptCompilationResult(BaseModel):
-    """Compilation result for concept pages."""
-
-    title: str
-    overview: str
-    key_themes: list[str]
-    consensus_conflicts: str
-    open_questions: list[str]
-    timeline: str
-    sources_summary: str
-    article_body: str  # Full markdown
-    related_concepts: list[str] = []
-    page_type: PageType = PageType.CONCEPT
-
-
-class AnswerCompilationResult(BaseModel):
-    """Compilation result for answer pages."""
-
-    title: str
-    question: str
-    answer: str
-    sources_cited: list[str]
-    concepts: list[str]
-    article_body: str  # Full markdown
-    page_type: PageType = PageType.ANSWER
 
 
 class SourceFrontmatter(BaseModel):
@@ -439,6 +409,39 @@ class MetaFrontmatter(BaseModel):
     title: str
     slug: str
     generated: datetime | None = None
+
+
+class SourceCompilationResult(CompilationResult):
+    """Compilation result for source pages."""
+
+    page_type: PageType = PageType.SOURCE
+
+
+class ConceptCompilationResult(BaseModel):
+    """Compilation result for concept pages."""
+
+    title: str
+    overview: str
+    key_themes: list[str]
+    consensus_conflicts: str
+    open_questions: list[str]
+    timeline: str
+    sources_summary: str
+    article_body: str  # Full markdown
+    related_concepts: list[str] = []
+    page_type: PageType = PageType.CONCEPT
+
+
+class AnswerCompilationResult(BaseModel):
+    """Compilation result for answer pages."""
+
+    title: str
+    question: str
+    answer: str
+    sources_cited: list[str]
+    concepts: list[str]
+    article_body: str  # Full markdown
+    page_type: PageType = PageType.ANSWER
 
 
 class QueryResult(BaseModel):

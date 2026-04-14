@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
     ResolvedBacklink,
@@ -28,12 +29,16 @@ from wikimind.models import (
     Backlink,
     CompilationResult,
     CompletionRequest,
+    Concept,
     ConfidenceLevel,
     IngestStatus,
     NormalizedDocument,
+    PageType,
     Provider,
+    RelationType,
     Source,
     TaskType,
+    TypedBacklinkSuggestion,
 )
 from wikimind.services.activity_log import append_log_entry
 from wikimind.services.taxonomy import (
@@ -46,15 +51,60 @@ from wikimind.services.wiki_index import regenerate_index_md
 log = structlog.get_logger()
 
 
+def _normalize_backlink_suggestions(raw: list[str | dict]) -> list[str]:
+    """Normalize typed backlink suggestions to plain strings for CompilationResult.
+
+    The LLM may return backlink_suggestions as either:
+      - New format: ``[{"target": "Title", "relation_type": "references"}, ...]``
+      - Legacy format: ``["Title", ...]``
+
+    This function extracts just the target strings for backward compatibility
+    with ``CompilationResult.backlink_suggestions`` (``list[str]``). The typed
+    metadata is preserved separately via ``_extract_typed_suggestions()``.
+    """
+    normalized: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            target = item.get("target", "")
+            if target:
+                normalized.append(str(target))
+        elif isinstance(item, str):
+            normalized.append(item)
+    return normalized
+
+
+def _extract_typed_suggestions(raw: list[str | dict]) -> list[TypedBacklinkSuggestion]:
+    """Extract TypedBacklinkSuggestion objects from raw LLM output.
+
+    Handles both typed dicts and plain strings (defaulting to ``references``).
+    """
+    suggestions: list[TypedBacklinkSuggestion] = []
+    for item in raw:
+        if isinstance(item, dict):
+            target = item.get("target", "")
+            rel = item.get("relation_type", "references")
+            if target:
+                try:
+                    suggestions.append(TypedBacklinkSuggestion(target=str(target), relation_type=RelationType(rel)))
+                except ValueError:
+                    suggestions.append(
+                        TypedBacklinkSuggestion(target=str(target), relation_type=RelationType.REFERENCES)
+                    )
+        elif isinstance(item, str) and item.strip():
+            suggestions.append(TypedBacklinkSuggestion(target=item, relation_type=RelationType.REFERENCES))
+    return suggestions
+
+
 COMPILER_SYSTEM_PROMPT = """You are a knowledge compiler. Your job is to transform raw source material into a structured wiki article for a personal knowledge base.
 
-The user is building a living wiki — every article should connect to others, surface open questions, and make their knowledge compound over time.
+The user is building a living wiki -- every article should connect to others, surface open questions, and make their knowledge compound over time.
 
 You MUST respond with valid JSON only. No preamble, no markdown fences.
 
 Output schema:
 {
   "title": "Concise, specific article title",
+  "page_type": "source",
   "summary": "Exactly 2 sentences. What this is and why it matters.",
   "key_claims": [
     {
@@ -64,18 +114,23 @@ Output schema:
     }
   ],
   "concepts": ["concept-name-1", "concept-name-2"],
-  "backlink_suggestions": ["Title of related concept that likely exists in wiki"],
+  "backlink_suggestions": [
+    {"target": "Title of related article", "relation_type": "references|extends|supersedes"}
+  ],
   "open_questions": ["Question this source raises but does not answer"],
   "article_body": "Full markdown article. Use ## headings. Include Key Claims, Analysis, Open Questions sections."
 }
 
 Rules:
+- page_type is always "source" for source compilations
 - Every claim must be attributable to the source
 - Mark LLM inferences as confidence=inferred explicitly
 - Suggest backlinks only to concepts genuinely related
+- For backlink_suggestions, use relation_type "references" (mentions related topic), "extends" (builds on/adds to claims), or "supersedes" (newer source replaces older claims)
 - Open questions should drive future research
-- article_body must be substantive — at least 300 words
+- article_body must be substantive -- at least 300 words
 - Never fabricate quotes or statistics not in the source
+- For concepts: reuse existing concept names when they match your intent -- do not invent synonyms or near-duplicates
 """
 
 
@@ -86,10 +141,9 @@ class Compiler:
         self.router = get_llm_router()
         self.settings = get_settings()
         # Provider that handled the most recent successful `complete()` call.
-        # Used by `save_article` to find an existing article from the same
-        # source compiled by the same provider, so re-runs replace in place
-        # while different providers stack as separate articles (issue #67).
         self._last_provider_used: Provider | None = None
+        # Typed backlink suggestions from the most recent `compile()` call.
+        self._last_typed_suggestions: dict[str, str] = {}
 
     async def compile(
         self,
@@ -104,11 +158,21 @@ class Compiler:
         if doc.estimated_tokens > 80_000:
             return await self._compile_chunked(doc, session, progress_callback)
 
+        user_prompt = self._build_user_prompt(doc)
+
+        # Concept ID registry injection: prevents concept fragmentation by
+        # telling the LLM which concepts already exist (issue #143, Phase 2).
+        existing_concepts = [c.name for c in (await session.execute(select(Concept))).scalars().all()]
+        if existing_concepts:
+            user_prompt += "\n\nExisting concepts in this wiki (REUSE these before inventing new ones):\n" + ", ".join(
+                sorted(existing_concepts)
+            )
+
         request = CompletionRequest(
             system=COMPILER_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": self._build_user_prompt(doc)}],
+            messages=[{"role": "user", "content": user_prompt}],
             max_tokens=8192,
-            temperature=0.2,  # Low temp for factual compilation
+            temperature=0.2,
             response_format="json",
             task_type=TaskType.COMPILE,
         )
@@ -118,7 +182,21 @@ class Compiler:
 
         try:
             data = self.router.parse_json_response(response)
-            return CompilationResult(**data)
+            # Extract typed backlink suggestions before normalizing to
+            # plain strings. The typed map is used by save_article to
+            # pass relation_type through to resolved backlinks.
+            raw_suggestions = data.get("backlink_suggestions", [])
+            typed = _extract_typed_suggestions(raw_suggestions)
+            self._last_typed_suggestions = {s.target.lower(): s.relation_type.value for s in typed}
+            # Normalize to plain strings for backward-compatible CompilationResult.
+            data["backlink_suggestions"] = _normalize_backlink_suggestions(raw_suggestions)
+            result = CompilationResult(**data)
+            # System-controlled field overwriting: these fields are always
+            # set by Python regardless of what the LLM emitted (issue #143).
+            result.compiled = utcnow_naive()
+            result.provider = self._last_provider_used
+            result.page_type = PageType.SOURCE
+            return result
         except Exception as e:
             log.error(
                 "Failed to parse compilation response",
@@ -128,6 +206,7 @@ class Compiler:
             return None
 
     def _build_user_prompt(self, doc: NormalizedDocument) -> str:
+        """Build the user prompt for the LLM compiler."""
         meta = f"Title: {doc.title}"
         if doc.author:
             meta += f"\nAuthor: {doc.author}"
@@ -155,7 +234,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         log.info("Chunked compilation", chunks=total_chunks)
         chunk_results = []
 
-        for i, chunk in enumerate(doc.chunks[:10]):  # Max 10 chunks
+        for i, chunk in enumerate(doc.chunks[:10]):
             if progress_callback:
                 await progress_callback(f"Compiling chunk {i + 1}/{total_chunks}...")
             chunk_doc = NormalizedDocument(
@@ -173,13 +252,13 @@ Compile this into a wiki article following the JSON schema exactly."""
         if not chunk_results:
             return None
 
-        # Merge chunk results into single article
         return self._merge_chunk_results(doc.title, chunk_results)
 
     def _merge_chunk_results(self, title: str, results: list[CompilationResult]) -> CompilationResult:
+        """Merge multiple chunk results into a single CompilationResult."""
         all_claims = []
-        all_concepts = set()
-        all_backlinks = set()
+        all_concepts: set[str] = set()
+        all_backlinks: set[str] = set()
         all_questions = []
         body_parts = []
 
@@ -193,7 +272,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         return CompilationResult(
             title=title,
             summary=results[0].summary,
-            key_claims=all_claims[:20],  # Cap at 20
+            key_claims=all_claims[:20],
             concepts=list(all_concepts)[:10],
             backlink_suggestions=list(all_backlinks)[:10],
             open_questions=list(set(all_questions))[:5],
@@ -206,26 +285,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         source: Source,
         session: AsyncSession,
     ) -> Article:
-        """Persist a compiled article, replacing any prior same-provider build.
-
-        Behavior (issue #67):
-            - If an article already exists for `(source, provider)`, it is
-              replaced **in place** — the slug and id are preserved, the
-              `.md` file is rewritten, and only the metadata fields change.
-            - If no article exists for that pair, a new row is created with
-              `provider` set, leaving any same-source articles from other
-              providers untouched.
-            - When the provider could not be tracked (e.g. tests that
-              bypass `compile()`), we fall back to always-create.
-
-        Args:
-            result: The compilation result returned by `compile()`.
-            source: The Source row that was compiled.
-            session: Async database session.
-
-        Returns:
-            The persisted Article (either replaced or freshly created).
-        """
+        """Persist a compiled article, replacing any prior same-provider build."""
         provider = self._last_provider_used
         existing = await self._find_article_for_source_and_provider(session, source.id, provider)
         if existing is not None:
@@ -238,13 +298,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         source_id: str,
         provider: Provider | None,
     ) -> Article | None:
-        """Find an article previously compiled from this source by this provider.
-
-        `Article.source_ids` is a JSON-encoded string like ``["uuid1","uuid2"]``,
-        so we use a `LIKE` filter on the quoted UUID and then narrow by
-        provider in Python. Adequate for a single-user wiki — there is no
-        index on `source_ids` and we don't expect millions of rows.
-        """
+        """Find an article previously compiled from this source by this provider."""
         if provider is None:
             return None
         needle = f'"{source_id}"'
@@ -266,7 +320,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Create a brand-new article (no existing same-provider article)."""
         slug = self._generate_unique_slug(result.title)
 
-        resolved, unresolved = await resolve_backlink_candidates(result.backlink_suggestions, session)
+        resolved, unresolved = await resolve_backlink_candidates(
+            result.backlink_suggestions,
+            session,
+            relation_types=self._last_typed_suggestions,
+        )
 
         file_path = self._write_article_file(result, source, slug, resolved, unresolved)
 
@@ -279,6 +337,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             source_ids=json.dumps([source.id]),
             concept_ids=json.dumps(result.concepts),
             provider=provider,
+            page_type=PageType.SOURCE,
         )
         session.add(article)
 
@@ -329,22 +388,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         source: Source,
         session: AsyncSession,
     ) -> Article:
-        """Replace an existing same-source same-provider article in place.
-
-        Keeps the slug and id stable so backlinks and external bookmarks
-        remain valid. The old `.md` file is unlinked and a new one is
-        written under the same slug. The new file may live in a different
-        concept directory if the compiler picked a different first concept
-        on this run — `existing.file_path` is updated to track the new
-        location.
-        """
-        old_concept_ids = existing.concept_ids  # Capture before overwrite
+        """Replace an existing same-source same-provider article in place."""
+        old_concept_ids = existing.concept_ids
 
         old_path = Path(existing.file_path)
         old_path.unlink(missing_ok=True)
 
         resolved, unresolved = await resolve_backlink_candidates(
-            result.backlink_suggestions, session, exclude_article_id=existing.id
+            result.backlink_suggestions,
+            session,
+            exclude_article_id=existing.id,
+            relation_types=self._last_typed_suggestions,
         )
 
         new_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
@@ -354,6 +408,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing.confidence = self._overall_confidence(result)
         existing.file_path = str(new_path)
         existing.concept_ids = json.dumps(result.concepts)
+        existing.page_type = PageType.SOURCE
         existing.updated_at = utcnow_naive()
         session.add(existing)
 
@@ -361,7 +416,6 @@ Compile this into a wiki article following the JSON schema exactly."""
         source.compiled_at = utcnow_naive()
         session.add(source)
 
-        # Clear stale Backlink rows from the previous compile (source side only)
         old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == existing.id))
         for row in old_bl.scalars().all():
             await session.delete(row)
@@ -412,29 +466,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         resolved: list[ResolvedBacklink],
         session: AsyncSession,
     ) -> None:
-        """Insert one :class:`Backlink` row per resolved candidate.
-
-        The composite primary key ``(source_article_id, target_article_id)``
-        on :class:`Backlink` rejects duplicates automatically. We catch
-        :class:`IntegrityError` per-row so one duplicate does not abort the
-        batch. In normal use the resolver upstream already dedupes candidates
-        by ``target_id`` (see :mod:`wikimind.engine.wikilink_resolver`), so
-        this except branch is cold — it exists as a defense against contract
-        drift between the resolver and this writer.
-
-        Committed per-row AFTER the parent article has already been committed
-        by the caller. This means the ``Article`` row and its backlinks are
-        NOT transactionally coupled: if the process dies mid-loop, the
-        article exists in the DB with a partially-populated backlink set.
-        The next re-compile (which clears stale rows and re-inserts) will
-        heal the state. The markdown file on disk is the other record of
-        the resolved links and is written before any DB work.
-        """
+        """Insert one Backlink row per resolved candidate with relation_type."""
         for rb in resolved:
+            try:
+                rel = RelationType(rb.relation_type)
+            except ValueError:
+                rel = RelationType.REFERENCES
             bl = Backlink(
                 source_article_id=source_article_id,
                 target_article_id=rb.target_id,
                 context=rb.candidate_text,
+                relation_type=rel,
             )
             session.add(bl)
             try:
@@ -448,6 +490,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                 )
 
     def _generate_unique_slug(self, title: str) -> str:
+        """Generate a URL-safe slug from a title."""
         base = slugify(title, max_length=80)
         return base
 
@@ -459,25 +502,15 @@ Compile this into a wiki article following the JSON schema exactly."""
         resolved: list[ResolvedBacklink],
         unresolved: list[str],
     ) -> Path:
-        """Write .md file to wiki directory.
-
-        The "Related" section emits standard markdown links for resolved
-        wikilinks (``[Text](/wiki/<article_id>)``) and Obsidian-style
-        brackets only for unresolved candidates (``[[Text]]``). The
-        frontend's ArticleReader distinguishes the two at render time:
-        resolved become React Router links, unresolved become dimmed spans.
-        """
+        """Write .md file to wiki directory with page_type:source frontmatter."""
         wiki_dir = Path(self.settings.data_dir) / "wiki"
 
-        # Determine subdirectory from first concept
         concept = result.concepts[0] if result.concepts else "general"
         concept_dir = wiki_dir / slugify(concept)
         concept_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = concept_dir / f"{slug}.md"
 
-        # Build backlinks section — resolved become real markdown links,
-        # unresolved remain as [[Title]] brackets for the frontend to style.
         related_lines: list[str] = []
         for rb in resolved:
             related_lines.append(f"- [{rb.candidate_text}](/wiki/{rb.target_id})")
@@ -485,25 +518,27 @@ Compile this into a wiki article following the JSON schema exactly."""
             related_lines.append(f"- [[{text}]]")
         backlinks = "\n".join(related_lines)
 
-        # Build claims section
         claims = "\n".join(
-            [f"- **{c.claim}** *({c.confidence})*" + (f' — "{c.quote}"' if c.quote else "") for c in result.key_claims]
+            [f"- **{c.claim}** *({c.confidence})*" + (f' -- "{c.quote}"' if c.quote else "") for c in result.key_claims]
         )
 
-        # Build open questions
         questions = "\n".join([f"- {q}" for q in result.open_questions])
 
-        # Build concepts tags
         concepts_str = ", ".join(result.concepts)
+
+        provider_str = result.provider or self._last_provider_used or ""
 
         content = f"""---
 title: "{result.title}"
 slug: {slug}
+page_type: source
+source_id: {source.id}
 source_url: {source.source_url or ""}
 source_type: {source.source_type}
 compiled: {utcnow_naive().isoformat()}
 concepts: [{concepts_str}]
 confidence: {self._overall_confidence(result)}
+provider: {provider_str}
 ---
 
 ## Summary
@@ -532,6 +567,10 @@ confidence: {self._overall_confidence(result)}
 """
 
         file_path.write_text(content, encoding="utf-8")
+
+        # Post-write frontmatter validation (best-effort, log warnings)
+        validate_frontmatter(file_path)
+
         return file_path
 
     def _overall_confidence(self, result: CompilationResult) -> ConfidenceLevel:
