@@ -67,7 +67,7 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> Path:
+async def regenerate_index_md(session: AsyncSession) -> Path:  # noqa: PLR0912
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
@@ -122,13 +122,7 @@ async def regenerate_index_md(session: AsyncSession) -> Path:
     # Build the markdown content with page_type frontmatter
     now = utcnow_naive()
     frontmatter = (
-        "---\n"
-        "page_type: index\n"
-        "title: Wiki Index\n"
-        "slug: index\n"
-        "scope: global\n"
-        f"generated: {now.isoformat()}\n"
-        "---\n\n"
+        f"---\npage_type: index\ntitle: Wiki Index\nslug: index\nscope: global\ngenerated: {now.isoformat()}\n---\n\n"
     )
 
     lines: list[str] = [frontmatter, _INDEX_HEADER]
@@ -209,14 +203,7 @@ async def generate_meta_health_page(session: AsyncSession) -> Path:
     orphan_count = sum(1 for a in articles if a.id not in linked_ids)
 
     now = utcnow_naive()
-    frontmatter = (
-        "---\n"
-        "page_type: meta\n"
-        "title: Wiki Health\n"
-        "slug: wiki-health\n"
-        f"generated: {now.isoformat()}\n"
-        "---\n\n"
-    )
+    frontmatter = f"---\npage_type: meta\ntitle: Wiki Health\nslug: wiki-health\ngenerated: {now.isoformat()}\n---\n\n"
 
     lines: list[str] = [frontmatter]
     lines.append("# Wiki Health\n\n")

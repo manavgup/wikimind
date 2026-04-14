@@ -37,7 +37,9 @@ async def list_articles(
     service: WikiService = Depends(get_wiki_service),
 ):
     """List wiki articles with optional filtering and source provenance."""
-    return await service.list_articles(session, concept=concept, confidence=confidence, page_type=page_type, limit=limit, offset=offset)
+    return await service.list_articles(
+        session, concept=concept, confidence=confidence, page_type=page_type, limit=limit, offset=offset
+    )
 
 
 @router.get("/articles/{id_or_slug}", response_model=ArticleResponse)

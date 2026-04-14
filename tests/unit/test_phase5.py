@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
+    ArticleResponse,
+    ArticleSummaryResponse,
     Backlink,
-    Concept,
+    BacklinkEntry,
+    Conversation,
     PageType,
+    Query,
     RelationType,
 )
 from wikimind.services.wiki_index import (
@@ -22,7 +23,6 @@ from wikimind.services.wiki_index import (
     generate_meta_health_page,
     regenerate_index_md,
 )
-
 
 # ---------------------------------------------------------------------------
 # _page_type_label
@@ -189,8 +189,6 @@ class TestAnswerPageType:
     @pytest.mark.anyio
     async def test_file_back_sets_answer_page_type(self, db_session: AsyncSession) -> None:
         """When filing back a conversation, the Article should have page_type=ANSWER."""
-        from wikimind.models import Conversation, Query
-
         conv = Conversation(title="Test conversation")
         db_session.add(conv)
         await db_session.flush()
@@ -204,8 +202,6 @@ class TestAnswerPageType:
         )
         db_session.add(q)
         await db_session.commit()
-
-        from wikimind.engine.qa_agent import QAAgent
 
         agent = QAAgent()
         article, was_update = await agent._file_back_thread(conv.id, db_session)
@@ -221,8 +217,6 @@ class TestAnswerPageType:
 class TestApiResponseFields:
     def test_article_response_has_page_type(self) -> None:
         """ArticleResponse should include page_type field."""
-        from wikimind.models import ArticleResponse
-
         resp = ArticleResponse(
             id="1",
             slug="test",
@@ -240,8 +234,6 @@ class TestApiResponseFields:
 
     def test_backlink_entry_has_relation_type(self) -> None:
         """BacklinkEntry should include relation_type field."""
-        from wikimind.models import BacklinkEntry
-
         entry = BacklinkEntry(
             id="1",
             title="Test",
@@ -255,8 +247,6 @@ class TestApiResponseFields:
 
     def test_article_summary_response_has_page_type(self) -> None:
         """ArticleSummaryResponse should include page_type field."""
-        from wikimind.models import ArticleSummaryResponse
-
         resp = ArticleSummaryResponse(
             id="1",
             slug="test",
