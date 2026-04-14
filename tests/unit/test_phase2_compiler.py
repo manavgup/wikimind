@@ -35,26 +35,40 @@ from wikimind.models import (
 
 def _result(**overrides):
     defaults = dict(
-        title="Test Article", summary="A two sentence summary. It explains things.",
+        title="Test Article",
+        summary="A two sentence summary. It explains things.",
         key_claims=[CompiledClaim(claim="X", confidence=ConfidenceLevel.SOURCED)],
-        concepts=["test-concept"], backlink_suggestions=["Related"],
-        open_questions=["Q?"], article_body="Body of article. " * 50,
+        concepts=["test-concept"],
+        backlink_suggestions=["Related"],
+        open_questions=["Q?"],
+        article_body="Body of article. " * 50,
     )
     defaults.update(overrides)
     return CompilationResult(**defaults)
 
 
 def _doc(tokens=100):
-    return NormalizedDocument(raw_source_id="src-1", clean_text="Hello world", title="Doc Title", author="Author", estimated_tokens=tokens)
+    return NormalizedDocument(
+        raw_source_id="src-1", clean_text="Hello world", title="Doc Title", author="Author", estimated_tokens=tokens
+    )
 
 
 def _compiler_for(tmp_path):
-    with patch.object(compiler_mod, "get_llm_router"), patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))):
+    with (
+        patch.object(compiler_mod, "get_llm_router"),
+        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+    ):
         return Compiler()
 
 
 async def _make_source(session):
-    source = Source(id=str(uuid.uuid4()), source_type=SourceType.TEXT, title="Test Source", status=IngestStatus.PROCESSING, ingested_at=utcnow_naive())
+    source = Source(
+        id=str(uuid.uuid4()),
+        source_type=SourceType.TEXT,
+        title="Test Source",
+        status=IngestStatus.PROCESSING,
+        ingested_at=utcnow_naive(),
+    )
     session.add(source)
     await session.commit()
     await session.refresh(source)
@@ -62,7 +76,10 @@ async def _make_source(session):
 
 
 def test_normalize_typed_suggestions():
-    raw = [{"target": "Machine Learning", "relation_type": "references"}, {"target": "Deep Learning", "relation_type": "extends"}]
+    raw = [
+        {"target": "Machine Learning", "relation_type": "references"},
+        {"target": "Deep Learning", "relation_type": "extends"},
+    ]
     assert _normalize_backlink_suggestions(raw) == ["Machine Learning", "Deep Learning"]
 
 
@@ -102,8 +119,23 @@ async def test_concept_id_injection(db_session):
 
     c = _compiler_for(Path("/tmp/wm-test"))
     fake_resp = CompletionResponse(
-        content=json.dumps({"title": "X", "summary": "a. b.", "key_claims": [], "concepts": [], "backlink_suggestions": [], "open_questions": [], "article_body": "body"}),
-        provider_used=Provider.ANTHROPIC, model_used="m", input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1,
+        content=json.dumps(
+            {
+                "title": "X",
+                "summary": "a. b.",
+                "key_claims": [],
+                "concepts": [],
+                "backlink_suggestions": [],
+                "open_questions": [],
+                "article_body": "body",
+            }
+        ),
+        provider_used=Provider.ANTHROPIC,
+        model_used="m",
+        input_tokens=1,
+        output_tokens=1,
+        cost_usd=0.0,
+        latency_ms=1,
     )
     c.router.complete = AsyncMock(return_value=fake_resp)
     c.router.parse_json_response = lambda r: json.loads(r.content)
@@ -117,8 +149,23 @@ async def test_concept_id_injection(db_session):
 async def test_no_concept_injection_when_empty(db_session):
     c = _compiler_for(Path("/tmp/wm-test"))
     fake_resp = CompletionResponse(
-        content=json.dumps({"title": "X", "summary": "a. b.", "key_claims": [], "concepts": [], "backlink_suggestions": [], "open_questions": [], "article_body": "body"}),
-        provider_used=Provider.ANTHROPIC, model_used="m", input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1,
+        content=json.dumps(
+            {
+                "title": "X",
+                "summary": "a. b.",
+                "key_claims": [],
+                "concepts": [],
+                "backlink_suggestions": [],
+                "open_questions": [],
+                "article_body": "body",
+            }
+        ),
+        provider_used=Provider.ANTHROPIC,
+        model_used="m",
+        input_tokens=1,
+        output_tokens=1,
+        cost_usd=0.0,
+        latency_ms=1,
     )
     c.router.complete = AsyncMock(return_value=fake_resp)
     c.router.parse_json_response = lambda r: json.loads(r.content)
@@ -130,8 +177,26 @@ async def test_no_concept_injection_when_empty(db_session):
 async def test_system_controlled_fields(db_session):
     c = _compiler_for(Path("/tmp/wm-test"))
     fake_resp = CompletionResponse(
-        content=json.dumps({"title": "X", "summary": "a. b.", "key_claims": [], "concepts": [], "backlink_suggestions": [], "open_questions": [], "article_body": "body", "page_type": "concept", "compiled": "2020-01-01T00:00:00", "provider": "openai"}),
-        provider_used=Provider.ANTHROPIC, model_used="m", input_tokens=1, output_tokens=1, cost_usd=0.0, latency_ms=1,
+        content=json.dumps(
+            {
+                "title": "X",
+                "summary": "a. b.",
+                "key_claims": [],
+                "concepts": [],
+                "backlink_suggestions": [],
+                "open_questions": [],
+                "article_body": "body",
+                "page_type": "concept",
+                "compiled": "2020-01-01T00:00:00",
+                "provider": "openai",
+            }
+        ),
+        provider_used=Provider.ANTHROPIC,
+        model_used="m",
+        input_tokens=1,
+        output_tokens=1,
+        cost_usd=0.0,
+        latency_ms=1,
     )
     c.router.complete = AsyncMock(return_value=fake_resp)
     c.router.parse_json_response = lambda r: json.loads(r.content)
@@ -143,7 +208,13 @@ async def test_system_controlled_fields(db_session):
 
 
 async def test_relation_type_persisted(db_session, tmp_path):
-    target = Article(id=str(uuid.uuid4()), slug="existing", title="Existing Article", file_path=str(tmp_path / "existing.md"), confidence=ConfidenceLevel.SOURCED)
+    target = Article(
+        id=str(uuid.uuid4()),
+        slug="existing",
+        title="Existing Article",
+        file_path=str(tmp_path / "existing.md"),
+        confidence=ConfidenceLevel.SOURCED,
+    )
     db_session.add(target)
     await db_session.commit()
     compiler = _compiler_for(tmp_path)
@@ -157,7 +228,13 @@ async def test_relation_type_persisted(db_session, tmp_path):
 
 
 async def test_default_relation_type_references(db_session, tmp_path):
-    target = Article(id=str(uuid.uuid4()), slug="target", title="Target Article", file_path=str(tmp_path / "target.md"), confidence=ConfidenceLevel.SOURCED)
+    target = Article(
+        id=str(uuid.uuid4()),
+        slug="target",
+        title="Target Article",
+        file_path=str(tmp_path / "target.md"),
+        confidence=ConfidenceLevel.SOURCED,
+    )
     db_session.add(target)
     await db_session.commit()
     compiler = _compiler_for(tmp_path)
@@ -179,7 +256,9 @@ async def test_article_page_type_source(db_session, tmp_path):
 
 def test_validate_source_frontmatter(tmp_path):
     md = tmp_path / "test.md"
-    md.write_text("---\ntitle: \"Test\"\nslug: test\npage_type: source\nsource_id: abc-123\nsource_type: url\nsource_url: http://example.com\ncompiled: 2026-04-13T12:00:00\nconcepts: []\nconfidence: sourced\nprovider: anthropic\n---\n\n## Summary\n\nTest.\n")
+    md.write_text(
+        '---\ntitle: "Test"\nslug: test\npage_type: source\nsource_id: abc-123\nsource_type: url\nsource_url: http://example.com\ncompiled: 2026-04-13T12:00:00\nconcepts: []\nconfidence: sourced\nprovider: anthropic\n---\n\n## Summary\n\nTest.\n'
+    )
     assert validate_frontmatter(md) is True
 
 
@@ -205,7 +284,10 @@ def test_parse_frontmatter_extracts_yaml(tmp_path):
 
 
 def test_write_article_file_includes_page_type(tmp_path):
-    with patch.object(compiler_mod, "get_llm_router"), patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))):
+    with (
+        patch.object(compiler_mod, "get_llm_router"),
+        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+    ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
     path = c._write_article_file(_result(), src, "test-slug", [], [])
@@ -216,16 +298,30 @@ def test_write_article_file_includes_page_type(tmp_path):
 
 
 async def test_resolver_passes_relation_types(db_session):
-    article = Article(id=str(uuid.uuid4()), slug="ml", title="Machine Learning", file_path="/tmp/ml.md", confidence=ConfidenceLevel.SOURCED)
+    article = Article(
+        id=str(uuid.uuid4()),
+        slug="ml",
+        title="Machine Learning",
+        file_path="/tmp/ml.md",
+        confidence=ConfidenceLevel.SOURCED,
+    )
     db_session.add(article)
     await db_session.commit()
-    resolved, _ = await resolve_backlink_candidates(["Machine Learning"], db_session, relation_types={"machine learning": "extends"})
+    resolved, _ = await resolve_backlink_candidates(
+        ["Machine Learning"], db_session, relation_types={"machine learning": "extends"}
+    )
     assert len(resolved) == 1
     assert resolved[0].relation_type == "extends"
 
 
 async def test_resolver_defaults_to_references(db_session):
-    article = Article(id=str(uuid.uuid4()), slug="dl", title="Deep Learning", file_path="/tmp/dl.md", confidence=ConfidenceLevel.SOURCED)
+    article = Article(
+        id=str(uuid.uuid4()),
+        slug="dl",
+        title="Deep Learning",
+        file_path="/tmp/dl.md",
+        confidence=ConfidenceLevel.SOURCED,
+    )
     db_session.add(article)
     await db_session.commit()
     resolved, _ = await resolve_backlink_candidates(["Deep Learning"], db_session)
