@@ -19,6 +19,27 @@ from wikimind._datetime import utcnow_naive
 # ---------------------------------------------------------------------------
 
 
+class PageType(StrEnum):
+    """Type of wiki page — determines compilation pipeline and validation rules."""
+
+    SOURCE = "source"
+    CONCEPT = "concept"
+    ANSWER = "answer"
+    INDEX = "index"
+    META = "meta"
+
+
+class RelationType(StrEnum):
+    """Semantic relationship between two linked articles."""
+
+    REFERENCES = "references"
+    CONTRADICTS = "contradicts"
+    EXTENDS = "extends"
+    SUPERSEDES = "supersedes"
+    SYNTHESIZES = "synthesizes"
+    RELATED_TO = "related_to"
+
+
 class SourceType(StrEnum):
     """Type of ingested source."""
 
@@ -135,6 +156,7 @@ class Article(SQLModel, table=True):
     # same source with the same provider replaces this article in place;
     # different providers stack as separate articles for comparison.
     provider: Provider | None = None
+    page_type: PageType = PageType.SOURCE
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
@@ -143,6 +165,16 @@ class Article(SQLModel, table=True):
     backlinks_in: list["Backlink"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": "[Backlink.target_article_id]", "lazy": "selectin"},
     )
+
+
+class ConceptKindDef(SQLModel, table=True):
+    """Registry of concept kinds (Type Object pattern)."""
+
+    name: str = Field(primary_key=True)
+    prompt_template_key: str
+    required_sections: str  # JSON array
+    linter_rules: str  # JSON array
+    description: str | None = None
 
 
 class Concept(SQLModel, table=True):
@@ -154,6 +186,7 @@ class Concept(SQLModel, table=True):
     article_count: int = 0
     description: str | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
+    concept_kind: str = "topic"
 
 
 class Backlink(SQLModel, table=True):
@@ -162,6 +195,11 @@ class Backlink(SQLModel, table=True):
     source_article_id: str = Field(foreign_key="article.id", primary_key=True)
     target_article_id: str = Field(foreign_key="article.id", primary_key=True)
     context: str | None = None  # Sentence where link appears
+    relation_type: RelationType = RelationType.REFERENCES
+    resolution: str | None = None
+    resolution_note: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
 
 
 class Conversation(SQLModel, table=True):
@@ -298,6 +336,109 @@ class CompilationResult(BaseModel):
     backlink_suggestions: list[str]
     open_questions: list[str]
     article_body: str  # Full markdown
+
+
+class TypedBacklinkSuggestion(BaseModel):
+    """A backlink suggestion with semantic relationship type."""
+
+    target: str
+    relation_type: RelationType = RelationType.REFERENCES
+
+
+class SourceCompilationResult(CompilationResult):
+    """Compilation result for source pages."""
+
+    page_type: PageType = PageType.SOURCE
+
+
+class ConceptCompilationResult(BaseModel):
+    """Compilation result for concept pages."""
+
+    title: str
+    overview: str
+    key_themes: list[str]
+    consensus_conflicts: str
+    open_questions: list[str]
+    timeline: str
+    sources_summary: str
+    article_body: str  # Full markdown
+    related_concepts: list[str] = []
+    page_type: PageType = PageType.CONCEPT
+
+
+class AnswerCompilationResult(BaseModel):
+    """Compilation result for answer pages."""
+
+    title: str
+    question: str
+    answer: str
+    sources_cited: list[str]
+    concepts: list[str]
+    article_body: str  # Full markdown
+    page_type: PageType = PageType.ANSWER
+
+
+class SourceFrontmatter(BaseModel):
+    """Validates frontmatter for source-type wiki pages."""
+
+    page_type: PageType = PageType.SOURCE
+    title: str
+    slug: str
+    source_id: str
+    source_type: SourceType
+    source_url: str | None = None
+    compiled: datetime
+    concepts: list[str] = []
+    confidence: ConfidenceLevel | None = None
+    provider: Provider | None = None
+
+
+class ConceptFrontmatter(BaseModel):
+    """Validates frontmatter for concept-type wiki pages."""
+
+    page_type: PageType = PageType.CONCEPT
+    title: str
+    slug: str
+    concept_id: str
+    concept_kind: str = "topic"
+    synthesized_from: list[str] = []
+    source_count: int = 0
+    last_synthesized: datetime | None = None
+    confidence: ConfidenceLevel | None = None
+    provider: Provider | None = None
+
+
+class AnswerFrontmatter(BaseModel):
+    """Validates frontmatter for answer-type wiki pages."""
+
+    page_type: PageType = PageType.ANSWER
+    title: str
+    slug: str
+    conversation_id: str
+    turn_indices: list[int] = []
+    filed_at: datetime | None = None
+    concepts: list[str] = []
+    confidence: ConfidenceLevel | None = None
+
+
+class IndexFrontmatter(BaseModel):
+    """Validates frontmatter for index-type wiki pages."""
+
+    page_type: PageType = PageType.INDEX
+    title: str
+    slug: str
+    scope: str
+    concept_id: str | None = None
+    generated: datetime | None = None
+
+
+class MetaFrontmatter(BaseModel):
+    """Validates frontmatter for meta-type wiki pages."""
+
+    page_type: PageType = PageType.META
+    title: str
+    slug: str
+    generated: datetime | None = None
 
 
 class QueryResult(BaseModel):
