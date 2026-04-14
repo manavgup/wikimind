@@ -142,8 +142,8 @@ async def _collect_contradictions(source_article_ids: list[str], session: AsyncS
     result = await session.execute(
         select(Backlink).where(
             Backlink.relation_type == RelationType.CONTRADICTS,
-            Backlink.source_article_id.in_(source_article_ids),  # type: ignore[union-attr]
-            Backlink.target_article_id.in_(source_article_ids),  # type: ignore[union-attr]
+            Backlink.source_article_id.in_(source_article_ids),  # type: ignore[attr-defined]
+            Backlink.target_article_id.in_(source_article_ids),  # type: ignore[attr-defined]
         )
     )
     contradictions = list(result.scalars().all())
