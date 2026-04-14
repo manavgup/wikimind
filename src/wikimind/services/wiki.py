@@ -291,7 +291,7 @@ class WikiService:
 
         # Resolve incoming backlinks (articles that link TO this one)
         bl_in_result = await session.execute(
-            select(Backlink.source_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)
+            select(Backlink.source_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)  # type: ignore[call-overload]
             .join(Article, Article.id == Backlink.source_article_id)  # type: ignore[arg-type]
             .where(Backlink.target_article_id == article.id)
         )
@@ -302,7 +302,7 @@ class WikiService:
 
         # Resolve outgoing backlinks (articles this one links TO)
         bl_out_result = await session.execute(
-            select(Backlink.target_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)
+            select(Backlink.target_article_id, Article.title, Article.slug, Backlink.relation_type, Backlink.resolution)  # type: ignore[call-overload]
             .join(Article, Article.id == Backlink.target_article_id)  # type: ignore[arg-type]
             .where(Backlink.source_article_id == article.id)
         )

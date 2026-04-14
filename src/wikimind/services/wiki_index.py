@@ -41,9 +41,9 @@ def _first_sentence(text: str) -> str:
     return sentence
 
 
-def _page_type_label(page_type: PageType) -> str:
+def _page_type_label(page_type: str) -> str:
     """Return a human-readable label for a page type."""
-    labels = {
+    labels: dict[str, str] = {
         PageType.SOURCE: "Source",
         PageType.CONCEPT: "Concept",
         PageType.ANSWER: "Answer",
