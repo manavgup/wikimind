@@ -156,7 +156,7 @@ class Article(SQLModel, table=True):
     # same source with the same provider replaces this article in place;
     # different providers stack as separate articles for comparison.
     provider: Provider | None = None
-    page_type: PageType = PageType.SOURCE
+    page_type: str = Field(default=PageType.SOURCE)
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
@@ -195,7 +195,7 @@ class Backlink(SQLModel, table=True):
     source_article_id: str = Field(foreign_key="article.id", primary_key=True)
     target_article_id: str = Field(foreign_key="article.id", primary_key=True)
     context: str | None = None  # Sentence where link appears
-    relation_type: RelationType = RelationType.REFERENCES
+    relation_type: str = Field(default=RelationType.REFERENCES)
     resolution: str | None = None
     resolution_note: str | None = None
     resolved_at: datetime | None = None
