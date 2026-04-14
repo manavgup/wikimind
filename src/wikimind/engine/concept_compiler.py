@@ -93,6 +93,7 @@ Valid JSON only. No preamble, no markdown fences.""",
 
 
 def get_prompt_template(template_key: str) -> str | None:
+    """Look up a prompt template by key."""
     return PROMPT_TEMPLATES.get(template_key)
 
 
@@ -164,12 +165,15 @@ async def _collect_contradictions(source_article_ids: list[str], session: AsyncS
 
 
 class ConceptCompiler:
+    """Registry-driven compiler that synthesizes concept pages from source articles."""
+
     def __init__(self) -> None:
         self.router = get_llm_router()
         self.settings = get_settings()
         self._last_provider_used: Provider | None = None
 
     async def compile_concept_page(self, concept: Concept, session: AsyncSession) -> Article | None:
+        """Compile a concept page by synthesizing all source articles tagged with this concept."""
         kind_def = await self._load_kind_def(concept.concept_kind, session)
         if kind_def is None:
             kind_def = await self._load_kind_def("topic", session)
@@ -196,7 +200,10 @@ class ConceptCompiler:
         request = CompletionRequest(
             system=prompt,
             messages=[{"role": "user", "content": "Synthesize a concept page from these sources."}],
-            max_tokens=8192, temperature=0.3, response_format="json", task_type=TaskType.COMPILE,
+            max_tokens=8192,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.COMPILE,
         )
         try:
             response = await self.router.complete(request, session=session)
@@ -214,8 +221,13 @@ class ConceptCompiler:
         result = await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == kind_name))
         return result.scalar_one_or_none()
 
-    async def _save_concept_page(self, compilation: ConceptCompilationResult, concept: Concept,
-                                  source_articles: list[Article], session: AsyncSession) -> Article:
+    async def _save_concept_page(
+        self,
+        compilation: ConceptCompilationResult,
+        concept: Concept,
+        source_articles: list[Article],
+        session: AsyncSession,
+    ) -> Article:
         slug = slugify(concept.name)
         now = utcnow_naive()
         source_ids = [a.id for a in source_articles]
@@ -232,18 +244,27 @@ class ConceptCompiler:
             existing.updated_at = now
             existing.page_type = PageType.CONCEPT
             session.add(existing)
-            old_links = await session.execute(select(Backlink).where(
-                Backlink.source_article_id == existing.id, Backlink.relation_type == RelationType.SYNTHESIZES))
+            old_links = await session.execute(
+                select(Backlink).where(
+                    Backlink.source_article_id == existing.id, Backlink.relation_type == RelationType.SYNTHESIZES
+                )
+            )
             for bl in old_links.scalars().all():
                 await session.delete(bl)
             await session.commit()
             await session.refresh(existing)
             article = existing
         else:
-            article = Article(slug=f"concept-{slug}", title=compilation.title,
-                file_path=str(file_path), summary=compilation.overview,
-                concept_ids=json.dumps([concept.name]), source_ids=json.dumps(source_ids),
-                provider=self._last_provider_used, page_type=PageType.CONCEPT)
+            article = Article(
+                slug=f"concept-{slug}",
+                title=compilation.title,
+                file_path=str(file_path),
+                summary=compilation.overview,
+                concept_ids=json.dumps([concept.name]),
+                source_ids=json.dumps(source_ids),
+                provider=self._last_provider_used,
+                page_type=PageType.CONCEPT,
+            )
             session.add(article)
             await session.commit()
             await session.refresh(article)
@@ -253,12 +274,14 @@ class ConceptCompiler:
 
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
         slug = f"concept-{slugify(concept_name)}"
-        result = await session.execute(select(Article).where(
-            Article.slug == slug, Article.page_type == PageType.CONCEPT))
+        result = await session.execute(
+            select(Article).where(Article.slug == slug, Article.page_type == PageType.CONCEPT)
+        )
         return result.scalar_one_or_none()
 
-    def _write_concept_file(self, compilation: ConceptCompilationResult, concept: Concept,
-                            source_articles: list[Article]) -> Path:
+    def _write_concept_file(
+        self, compilation: ConceptCompilationResult, concept: Concept, source_articles: list[Article]
+    ) -> Path:
         wiki_dir = Path(self.settings.data_dir) / "wiki"
         slug = slugify(concept.name)
         concept_dir = wiki_dir / slug
@@ -321,19 +344,25 @@ provider: {self._last_provider_used or "unknown"}
         file_path.write_text(content, encoding="utf-8")
         return file_path
 
-    async def _create_synthesizes_links(self, concept_article_id: str, source_article_ids: list[str],
-                                         session: AsyncSession) -> None:
+    async def _create_synthesizes_links(
+        self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession
+    ) -> None:
         for source_id in source_article_ids:
-            bl = Backlink(source_article_id=concept_article_id, target_article_id=source_id,
-                relation_type=RelationType.SYNTHESIZES, context="Concept page synthesizes from source article")
+            bl = Backlink(
+                source_article_id=concept_article_id,
+                target_article_id=source_id,
+                relation_type=RelationType.SYNTHESIZES,
+                context="Concept page synthesizes from source article",
+            )
             session.add(bl)
             try:
                 await session.commit()
             except IntegrityError:
                 await session.rollback()
 
-    async def _create_related_to_links(self, concept_article: Article, related_concepts: list[str],
-                                        session: AsyncSession) -> None:
+    async def _create_related_to_links(
+        self, concept_article: Article, related_concepts: list[str], session: AsyncSession
+    ) -> None:
         if not related_concepts:
             return
         for related_name in related_concepts:
@@ -341,15 +370,19 @@ provider: {self._last_provider_used or "unknown"}
             if not normalized:
                 continue
             target_slug = f"concept-{normalized}"
-            result = await session.execute(select(Article).where(
-                Article.slug == target_slug, Article.page_type == PageType.CONCEPT))
+            result = await session.execute(
+                select(Article).where(Article.slug == target_slug, Article.page_type == PageType.CONCEPT)
+            )
             target = result.scalar_one_or_none()
             if target is None:
                 continue
             for src_id, tgt_id in [(concept_article.id, target.id), (target.id, concept_article.id)]:
-                bl = Backlink(source_article_id=src_id, target_article_id=tgt_id,
+                bl = Backlink(
+                    source_article_id=src_id,
+                    target_article_id=tgt_id,
                     relation_type=RelationType.RELATED_TO,
-                    context=f"Related: {concept_article.title} <-> {target.title}")
+                    context=f"Related: {concept_article.title} <-> {target.title}",
+                )
                 session.add(bl)
                 try:
                     await session.commit()
