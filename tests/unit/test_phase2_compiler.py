@@ -14,10 +14,22 @@ from wikimind._datetime import utcnow_naive
 from wikimind.engine import compiler as compiler_mod
 from wikimind.engine.compiler import Compiler, _extract_typed_suggestions, _normalize_backlink_suggestions
 from wikimind.engine.frontmatter_validator import parse_frontmatter, validate_frontmatter
+from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import (
-    Article, Backlink, CompilationResult, CompiledClaim, CompletionResponse,
-    Concept, ConfidenceLevel, IngestStatus, NormalizedDocument, PageType,
-    Provider, RelationType, Source, SourceType, TypedBacklinkSuggestion,
+    Article,
+    Backlink,
+    CompilationResult,
+    CompiledClaim,
+    CompletionResponse,
+    Concept,
+    ConfidenceLevel,
+    IngestStatus,
+    NormalizedDocument,
+    PageType,
+    Provider,
+    RelationType,
+    Source,
+    SourceType,
 )
 
 
@@ -204,7 +216,6 @@ def test_write_article_file_includes_page_type(tmp_path):
 
 
 async def test_resolver_passes_relation_types(db_session):
-    from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
     article = Article(id=str(uuid.uuid4()), slug="ml", title="Machine Learning", file_path="/tmp/ml.md", confidence=ConfidenceLevel.SOURCED)
     db_session.add(article)
     await db_session.commit()
@@ -214,7 +225,6 @@ async def test_resolver_passes_relation_types(db_session):
 
 
 async def test_resolver_defaults_to_references(db_session):
-    from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
     article = Article(id=str(uuid.uuid4()), slug="dl", title="Deep Learning", file_path="/tmp/dl.md", confidence=ConfidenceLevel.SOURCED)
     db_session.add(article)
     await db_session.commit()
