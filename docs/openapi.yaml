@@ -381,6 +381,44 @@ paths:
           content:
             application/json:
               schema: {}
+  /wiki/backlinks/{source_id}/{target_id}/resolve:
+    post:
+      tags:
+      - Wiki
+      summary: Resolve Contradiction
+      description: Resolve a contradiction between two articles.
+      operationId: resolve_contradiction_wiki_backlinks__source_id___target_id__resolve_post
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      - name: target_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Target Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveContradictionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query:
     post:
       tags:
@@ -1456,6 +1494,14 @@ components:
           - type: string
           - type: 'null'
           title: Context
+        relation_type:
+          $ref: '#/components/schemas/RelationType'
+          default: references
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
       type: object
       required:
       - source
@@ -1817,6 +1863,32 @@ components:
         resolved ``citations`` list so clients can see which articles were
 
         used and which original sources those articles came from.'
+    RelationType:
+      type: string
+      enum:
+      - references
+      - contradicts
+      - extends
+      - supersedes
+      - synthesizes
+      - related_to
+      title: RelationType
+      description: Semantic relationship between two linked articles.
+    ResolveContradictionRequest:
+      properties:
+        resolution:
+          type: string
+          title: Resolution
+        resolution_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Note
+      type: object
+      required:
+      - resolution
+      title: ResolveContradictionRequest
+      description: Request to resolve a contradiction between two articles.
     Source:
       properties:
         id:

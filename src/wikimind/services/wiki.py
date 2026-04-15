@@ -359,6 +359,8 @@ class WikiService:
                 source=bl.source_article_id,
                 target=bl.target_article_id,
                 context=bl.context,
+                relation_type=bl.relation_type,
+                resolution=bl.resolution if bl.relation_type == "contradicts" else None,
             )
             for bl in all_backlinks
         ]
