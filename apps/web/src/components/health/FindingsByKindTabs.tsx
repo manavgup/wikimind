@@ -6,7 +6,7 @@ interface Props {
   detail: LintReportDetail;
 }
 
-type TabKey = "contradictions" | "orphans";
+type TabKey = "contradictions" | "orphans" | "structurals";
 
 interface TabDef {
   key: TabKey;
@@ -23,6 +23,11 @@ export function FindingsByKindTabs({ detail }: Props) {
       count: detail.contradictions.length - resolvedCount,
     },
     { key: "orphans", label: "Orphans", count: detail.orphans.length },
+    {
+      key: "structurals",
+      label: "Structural",
+      count: (detail.structurals ?? []).length,
+    },
   ];
 
   const [activeTab, setActiveTab] = useState<TabKey>("contradictions");
@@ -68,6 +73,17 @@ export function FindingsByKindTabs({ detail }: Props) {
             </p>
           ) : (
             detail.orphans.map((f) => (
+              <FindingCard key={f.id} finding={f} />
+            ))
+          ))}
+
+        {activeTab === "structurals" &&
+          ((detail.structurals ?? []).length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">
+              No structural issues found.
+            </p>
+          ) : (
+            (detail.structurals ?? []).map((f) => (
               <FindingCard key={f.id} finding={f} />
             ))
           ))}

@@ -96,8 +96,8 @@ async def test_enforcer_source_page_no_concepts(db_session, _isolated_data_dir, 
     )
     db_session.add(art)
     await db_session.commit()
-    warnings = await enforce_backlinks("a1", db_session)
-    assert any("no concepts" in w.lower() for w in warnings)
+    result = await enforce_backlinks("a1", db_session)
+    assert any("no concepts" in w.lower() for w in result.warnings)
 
 
 @pytest.mark.asyncio
@@ -111,19 +111,21 @@ async def test_enforcer_concept_page_insufficient_synthesizes(db_session, _isola
     bl = Backlink(source_article_id="c1", target_article_id="s1", relation_type=RelationType.SYNTHESIZES)
     db_session.add(bl)
     await db_session.commit()
-    warnings = await enforce_backlinks("c1", db_session)
-    assert any("synthesizes" in w.lower() for w in warnings)
+    result = await enforce_backlinks("c1", db_session)
+    assert any("synthesizes" in w.lower() for w in result.warnings)
 
 
 @pytest.mark.asyncio
-async def test_enforcer_orphan_detected(db_session, _isolated_data_dir, tmp_path):
+async def test_enforcer_no_orphan_check(db_session, _isolated_data_dir, tmp_path):
+    """Orphan detection is handled by detect_orphans(), not the enforcer."""
     art = _make_article(
         tmp_path, article_id="orphan1", slug="orphan", title="Orphan Article", concept_ids=["some-concept"]
     )
     db_session.add(art)
     await db_session.commit()
-    warnings = await enforce_backlinks("orphan1", db_session)
-    assert any("orphan" in w.lower() for w in warnings)
+    result = await enforce_backlinks("orphan1", db_session)
+    # The enforcer no longer checks for orphans
+    assert not any("orphan" in w.lower() for w in result.warnings)
 
 
 @pytest.mark.asyncio

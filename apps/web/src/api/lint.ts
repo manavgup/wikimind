@@ -5,7 +5,6 @@ import { apiFetch } from "./client";
 // --- Response types ---
 
 export type LintSeverity = "info" | "warn" | "error";
-export type LintFindingKind = "contradiction" | "orphan";
 export type LintReportStatus = "in_progress" | "complete" | "failed";
 
 export interface LintReport {
@@ -52,12 +51,26 @@ export interface LintOrphanFinding extends LintFindingCommon {
   article_title: string;
 }
 
-export type LintFinding = LintContradictionFinding | LintOrphanFinding;
+export interface LintStructuralFinding extends LintFindingCommon {
+  kind: "structural";
+  article_id: string;
+  violation_type: string;
+  auto_repaired: boolean;
+  detail: string;
+}
+
+export type LintFindingKind = "contradiction" | "orphan" | "structural";
+
+export type LintFinding =
+  | LintContradictionFinding
+  | LintOrphanFinding
+  | LintStructuralFinding;
 
 export interface LintReportDetail {
   report: LintReport;
   contradictions: LintContradictionFinding[];
   orphans: LintOrphanFinding[];
+  structurals: LintStructuralFinding[];
   resolutions: Record<string, string>;
 }
 

@@ -164,6 +164,13 @@ async def _migrate_added_columns(engine) -> None:
         ("backlink", "resolved_at", "ALTER TABLE backlink ADD COLUMN resolved_at TEXT"),
         ("backlink", "resolved_by", "ALTER TABLE backlink ADD COLUMN resolved_by TEXT"),
         ("concept", "concept_kind", "ALTER TABLE concept ADD COLUMN concept_kind TEXT NOT NULL DEFAULT 'topic'"),
+        # PR #151 — backlink enforcer integration
+        (
+            "lintreport",
+            "structural_count",
+            "ALTER TABLE lintreport ADD COLUMN structural_count INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("lintreport", "checked_articles", "ALTER TABLE lintreport ADD COLUMN checked_articles INTEGER"),
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)

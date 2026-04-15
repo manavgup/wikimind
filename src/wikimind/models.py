@@ -497,6 +497,7 @@ class LintFindingKind(StrEnum):
 
     CONTRADICTION = "contradiction"
     ORPHAN = "orphan"
+    STRUCTURAL = "structural"
 
 
 class LintReportStatus(StrEnum):
@@ -518,6 +519,8 @@ class LintReport(SQLModel, table=True):
     total_findings: int = 0
     contradictions_count: int = 0
     orphans_count: int = 0
+    structural_count: int = 0
+    checked_articles: int | None = None
     missing_pages_count: int = 0
     dismissed_count: int = 0
     total_pairs: int = 0
@@ -559,6 +562,16 @@ class OrphanFinding(_LintFindingBase, table=True):
     article_title: str
 
 
+class StructuralFinding(_LintFindingBase, table=True):
+    """A structural integrity violation detected by the backlink enforcer."""
+
+    kind: LintFindingKind = Field(default=LintFindingKind.STRUCTURAL)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    violation_type: str  # source_no_concepts | concept_insufficient_synthesizes | missing_inverse_link
+    auto_repaired: bool = False
+    detail: str = ""
+
+
 class DismissedFinding(SQLModel, table=True):
     """Cross-run dismiss record — keyed by content hash."""
 
@@ -575,6 +588,7 @@ class LintReportDetail(BaseModel):
     contradictions: list[ContradictionFinding]
     orphans: list[OrphanFinding]
     resolutions: dict[str, str] = {}  # "article_a_id|article_b_id" → resolution
+    structurals: list[StructuralFinding] = []
 
 
 class LintPairCache(SQLModel, table=True):

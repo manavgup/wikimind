@@ -16,6 +16,7 @@ import type {
   LintFinding,
   LintOrphanFinding,
   LintSeverity,
+  LintStructuralFinding,
   ResolutionOption,
 } from "../../api/lint";
 
@@ -239,6 +240,50 @@ function OrphanActions({ finding }: { finding: LintOrphanFinding }) {
   );
 }
 
+function StructuralDetail({ finding }: { finding: LintStructuralFinding }) {
+  const typeColors: Record<string, string> = {
+    source_no_concepts: "bg-red-100 text-red-700",
+    concept_insufficient_synthesizes: "bg-amber-100 text-amber-700",
+    missing_inverse_link: "bg-blue-100 text-blue-700",
+  };
+  const color =
+    typeColors[finding.violation_type] ?? "bg-slate-100 text-slate-700";
+
+  return (
+    <div className="mt-2 space-y-1 text-sm">
+      <div className="flex items-center gap-2">
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs font-medium ${color}`}
+        >
+          {finding.violation_type.replace(/_/g, " ")}
+        </span>
+        {finding.auto_repaired && (
+          <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+            Auto-fixed
+          </span>
+        )}
+      </div>
+      <p className="text-slate-600">{finding.detail}</p>
+    </div>
+  );
+}
+
+function StructuralActions({ finding }: { finding: LintStructuralFinding }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Link
+        to={`/wiki/${finding.article_id}`}
+        className="rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+      >
+        View Article
+      </Link>
+      {!finding.auto_repaired && (
+        <RecompileButton articleId={finding.article_id} />
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  FindingCard (exported)                                             */
 /* ------------------------------------------------------------------ */
@@ -281,10 +326,15 @@ export function FindingCard({ finding, resolutions }: Props) {
           <ContradictionDetail finding={finding} />
           <ContradictionActions finding={finding} resolution={resolution} />
         </>
+      ) : finding.kind === "structural" ? (
+        <>
+          <StructuralDetail finding={finding as LintStructuralFinding} />
+          <StructuralActions finding={finding as LintStructuralFinding} />
+        </>
       ) : (
         <>
-          <OrphanDetail finding={finding} />
-          <OrphanActions finding={finding} />
+          <OrphanDetail finding={finding as LintOrphanFinding} />
+          <OrphanActions finding={finding as LintOrphanFinding} />
         </>
       )}
     </Card>
