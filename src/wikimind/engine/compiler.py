@@ -355,7 +355,14 @@ Compile this into a wiki article following the JSON schema exactly."""
             await upsert_concepts(result.concepts, session)
             await update_article_counts(session)
             await maybe_trigger_taxonomy_rebuild(session)
-            await maybe_trigger_concept_pages(session)
+            # Concept page generation must use its own session to avoid
+            # identity-map conflicts when both the source compiler and
+            # concept compiler create Backlinks for overlapping article
+            # pairs (issue #152 — greenlet_spawn error).
+            from wikimind.database import get_session_factory  # noqa: PLC0415
+
+            async with get_session_factory()() as concept_session:
+                await maybe_trigger_concept_pages(concept_session)
         except Exception:
             log.warning("taxonomy upsert failed", article_id=article.id)
 
