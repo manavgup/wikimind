@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.database import get_session_factory
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
@@ -359,8 +360,6 @@ Compile this into a wiki article following the JSON schema exactly."""
             # identity-map conflicts when both the source compiler and
             # concept compiler create Backlinks for overlapping article
             # pairs (issue #152 — greenlet_spawn error).
-            from wikimind.database import get_session_factory  # noqa: PLC0415
-
             async with get_session_factory()() as concept_session:
                 await maybe_trigger_concept_pages(concept_session)
         except Exception:
