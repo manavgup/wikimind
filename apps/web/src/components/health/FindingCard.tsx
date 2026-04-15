@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWebSocketStore } from "../../store/websocket";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
@@ -118,21 +119,38 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
 /* ------------------------------------------------------------------ */
 
 function RecompileButton({ articleId }: { articleId: string }) {
+  const [scheduled, setScheduled] = useState(false);
+  const lastEvent = useWebSocketStore((s) => s.lastEvent);
+
   const recompile = useMutation({
     mutationFn: () => recompileArticle(articleId),
+    onSuccess: () => setScheduled(true),
   });
+
+  // Reset when WebSocket reports this article's recompile is done
+  useEffect(() => {
+    if (
+      scheduled &&
+      lastEvent &&
+      lastEvent.event === "article.recompiled" &&
+      "article_id" in lastEvent &&
+      lastEvent.article_id === articleId
+    ) {
+      setScheduled(false);
+    }
+  }, [lastEvent, articleId, scheduled]);
 
   return (
     <button
       type="button"
-      disabled={recompile.isPending || recompile.isSuccess}
+      disabled={recompile.isPending || scheduled}
       className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       onClick={() => recompile.mutate()}
     >
       {recompile.isPending
         ? "Scheduling..."
-        : recompile.isSuccess
-          ? "Scheduled"
+        : scheduled
+          ? "Recompiling..."
           : "Recompile"}
     </button>
   );
