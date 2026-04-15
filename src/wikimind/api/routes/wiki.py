@@ -14,6 +14,7 @@ from wikimind.models import (
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
+    ContradictionResolution,
     GraphResponse,
     Job,
     JobStatus,
@@ -29,6 +30,12 @@ from wikimind.services.wiki import WikiService, get_wiki_service
 log = structlog.get_logger()
 
 router = APIRouter()
+
+
+@router.get("/contradiction-resolutions")
+async def list_contradiction_resolutions():
+    """Return the valid contradiction resolution options."""
+    return [{"value": r.value, "label": r.value.replace("_", " ").title()} for r in ContradictionResolution]
 
 
 @router.get("/articles", response_model=list[ArticleSummaryResponse])
@@ -133,11 +140,11 @@ async def resolve_contradiction(
     session: AsyncSession = Depends(get_session),
 ):
     """Resolve a contradiction between two articles."""
-    _VALID_RESOLUTIONS = {"source_a_wins", "source_b_wins", "both_valid", "superseded"}
-    if body.resolution not in _VALID_RESOLUTIONS:
+    valid = {r.value for r in ContradictionResolution}
+    if body.resolution not in valid:
         raise HTTPException(
             status_code=422,
-            detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}",
+            detail=f"resolution must be one of {sorted(valid)}",
         )
 
     # Check both directions — the finding's article_a/article_b order may not

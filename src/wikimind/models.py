@@ -598,10 +598,19 @@ class LintPairCache(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class ContradictionResolution(StrEnum):
+    """Valid resolution values for a contradiction between two articles."""
+
+    SOURCE_A_WINS = "source_a_wins"
+    SOURCE_B_WINS = "source_b_wins"
+    BOTH_VALID = "both_valid"
+    SUPERSEDED = "superseded"
+
+
 class ResolveContradictionRequest(BaseModel):
     """Request to resolve a contradiction between two articles."""
 
-    resolution: str  # "source_a_wins" | "source_b_wins" | "both_valid" | "superseded"
+    resolution: str
     resolution_note: str | None = None
 
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { useDismissFinding } from "../../hooks/useLint";
 import {
+  getResolutionOptions,
   recompileArticle,
   resolveContradiction,
 } from "../../api/lint";
@@ -14,6 +15,7 @@ import type {
   LintFinding,
   LintOrphanFinding,
   LintSeverity,
+  ResolutionOption,
 } from "../../api/lint";
 
 interface Props {
@@ -33,12 +35,13 @@ const confidenceTone: Record<string, BadgeTone> = {
   low: "neutral",
 };
 
-const RESOLUTION_OPTIONS = [
-  { value: "source_a_wins", label: "Source A wins" },
-  { value: "source_b_wins", label: "Source B wins" },
-  { value: "both_valid", label: "Both valid" },
-  { value: "superseded", label: "Superseded" },
-] as const;
+function useResolutionOptions() {
+  return useQuery<ResolutionOption[]>({
+    queryKey: ["contradiction-resolutions"],
+    queryFn: getResolutionOptions,
+    staleTime: Infinity,
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /*  ResolveDropdown                                                    */
@@ -48,6 +51,7 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
+  const { data: options = [] } = useResolutionOptions();
 
   const resolve = useMutation({
     mutationFn: (res: string) =>
@@ -84,7 +88,7 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
       {open && (
         <div className="absolute right-0 z-10 mt-1 w-56 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
           <div className="mb-2 space-y-1">
-            {RESOLUTION_OPTIONS.map((opt) => (
+            {options.map((opt) => (
               <button
                 key={opt.value}
                 type="button"

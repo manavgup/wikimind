@@ -103,6 +103,15 @@ export async function recompileArticle(
   });
 }
 
+export interface ResolutionOption {
+  value: string;
+  label: string;
+}
+
+export function getResolutionOptions(): Promise<ResolutionOption[]> {
+  return apiFetch<ResolutionOption[]>("/wiki/contradiction-resolutions");
+}
+
 export async function resolveContradiction(
   sourceId: string,
   targetId: string,
