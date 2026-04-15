@@ -60,6 +60,12 @@ parallel ingestion.
 **Always require Redis** -- Adds an infrastructure dependency for local
 development, violating the zero-dependency principle from ADR-001.
 
+## Revision (2026-04-15)
+
+Recompilation is now a first-class action triggered via API, not just at
+ingest time. See ADR-016 for details. The same `BackgroundCompiler` class
+handles both initial compilation and recompilation jobs.
+
 ## Consequences
 
 **Enables:**
