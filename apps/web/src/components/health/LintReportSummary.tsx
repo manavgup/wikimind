@@ -91,31 +91,45 @@ export function LintReportSummary({ detail, isLoading }: Props) {
       )}
 
       <div className="mt-4 grid grid-cols-3 gap-4">
-        <div className="rounded-md border border-slate-200 p-3 text-center">
-          <div className="text-2xl font-bold text-slate-800">
-            {(detail?.contradictions.length ?? 0) + (detail?.orphans.length ?? 0)}
-          </div>
-          <div className="text-xs text-slate-500">
-            Active findings
-            {report.dismissed_count > 0 && (
-              <span className="ml-1 text-slate-400">
-                ({report.dismissed_count} dismissed)
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="rounded-md border border-slate-200 p-3 text-center">
-          <div className="text-2xl font-bold text-amber-600">
-            {detail?.contradictions.length ?? 0}
-          </div>
-          <div className="text-xs text-slate-500">Contradictions</div>
-        </div>
-        <div className="rounded-md border border-slate-200 p-3 text-center">
-          <div className="text-2xl font-bold text-sky-600">
-            {detail?.orphans.length ?? 0}
-          </div>
-          <div className="text-xs text-slate-500">Orphans</div>
-        </div>
+        {(() => {
+          const resolutions = detail?.resolutions ?? {};
+          const resolvedCount = Object.keys(resolutions).length;
+          const unresolvedContradictions =
+            (detail?.contradictions.length ?? 0) - resolvedCount;
+          const orphanCount = detail?.orphans.length ?? 0;
+          const activeCount = unresolvedContradictions + orphanCount;
+
+          return (
+            <>
+              <div className="rounded-md border border-slate-200 p-3 text-center">
+                <div className="text-2xl font-bold text-slate-800">
+                  {activeCount}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Active findings
+                  {(report.dismissed_count > 0 || resolvedCount > 0) && (
+                    <span className="ml-1 text-slate-400">
+                      ({report.dismissed_count} dismissed
+                      {resolvedCount > 0 && `, ${resolvedCount} resolved`})
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-md border border-slate-200 p-3 text-center">
+                <div className="text-2xl font-bold text-amber-600">
+                  {unresolvedContradictions}
+                </div>
+                <div className="text-xs text-slate-500">Contradictions</div>
+              </div>
+              <div className="rounded-md border border-slate-200 p-3 text-center">
+                <div className="text-2xl font-bold text-sky-600">
+                  {orphanCount}
+                </div>
+                <div className="text-xs text-slate-500">Orphans</div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {report.error_message ? (
