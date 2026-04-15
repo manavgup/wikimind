@@ -79,6 +79,7 @@ class JobType(StrEnum):
     SWEEP_WIKILINKS = "sweep_wikilinks"
     REINDEX = "reindex"
     EMBED_CHUNKS = "embed_chunks"
+    RECOMPILE_ARTICLE = "recompile_article"
     SYNC_PUSH = "sync_push"
     SYNC_PULL = "sync_pull"
 

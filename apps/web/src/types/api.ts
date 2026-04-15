@@ -32,6 +32,7 @@ export type JobType =
   | "lint_wiki"
   | "reindex"
   | "embed_chunks"
+  | "recompile_article"
   | "sync_push"
   | "sync_pull";
 
