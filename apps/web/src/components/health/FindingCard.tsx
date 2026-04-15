@@ -126,6 +126,9 @@ function RecompileButton({ articleId }: { articleId: string }) {
     onSuccess: () => {
       setScheduled(true);
       queryClient.invalidateQueries({ queryKey: ["lint"] });
+      // Reset after 60s — the background job should be done by then.
+      // A full WebSocket listener is the proper long-term fix.
+      setTimeout(() => setScheduled(false), 60_000);
     },
   });
 
@@ -139,7 +142,7 @@ function RecompileButton({ articleId }: { articleId: string }) {
       {recompile.isPending
         ? "Scheduling..."
         : scheduled
-          ? "Recompiling..."
+          ? "Scheduled"
           : "Recompile"}
     </button>
   );
