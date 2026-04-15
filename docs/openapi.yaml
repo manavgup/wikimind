@@ -189,6 +189,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/contradiction-resolutions:
+    get:
+      tags:
+      - Wiki
+      summary: List Contradiction Resolutions
+      description: Return the valid contradiction resolution options.
+      operationId: list_contradiction_resolutions_wiki_contradiction_resolutions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /wiki/articles:
     get:
       tags:
@@ -415,6 +428,40 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ResolveContradictionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/articles/{article_id}/recompile:
+    post:
+      tags:
+      - Wiki
+      summary: Recompile Article
+      description: Schedule an async recompilation job for an article.
+      operationId: recompile_article_wiki_articles__article_id__recompile_post
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      - name: mode
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
       responses:
         '200':
           description: Successful Response
@@ -1731,6 +1778,12 @@ components:
             $ref: '#/components/schemas/OrphanFinding'
           type: array
           title: Orphans
+        resolutions:
+          additionalProperties:
+            type: string
+          type: object
+          title: Resolutions
+          default: {}
         structurals:
           items:
             $ref: '#/components/schemas/StructuralFinding'

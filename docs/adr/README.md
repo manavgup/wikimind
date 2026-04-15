@@ -23,6 +23,7 @@ considered, and the consequences.
 | [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph visualization | Proposed |
 | [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
 | [015](adr-015-cpu-first-docker-packaging.md) | CPU-First Docker Packaging | Unknown |
+| [016](adr-016-article-recompilation.md) | Article recompilation as a first-class action | Accepted |
 | [017](adr-017-backlink-enforcer-lint-phase.md) | Backlink enforcer as lint Phase 3 with auto-repair | Accepted |
 
 ## ADR Format
