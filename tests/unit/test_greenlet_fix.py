@@ -6,14 +6,13 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.models import Article, Backlink, PageType, RelationType
 
 
 @pytest.mark.asyncio
 async def test_synthesizes_link_skips_existing(db_session: AsyncSession):
     """_create_synthesizes_links should not create duplicate Backlinks."""
-    from wikimind.engine.concept_compiler import ConceptCompiler
-
     a1 = Article(
         id=str(uuid.uuid4()),
         slug="concept-test",
@@ -57,8 +56,6 @@ async def test_synthesizes_link_skips_existing(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_related_to_link_skips_existing(db_session: AsyncSession):
     """_create_related_to_links should not create duplicate Backlinks."""
-    from wikimind.engine.concept_compiler import ConceptCompiler
-
     a1 = Article(
         id=str(uuid.uuid4()),
         slug="concept-a",
