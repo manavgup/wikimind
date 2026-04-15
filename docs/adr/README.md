@@ -24,6 +24,7 @@ considered, and the consequences.
 | [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
 | [015](adr-015-cpu-first-docker-packaging.md) | CPU-First Docker Packaging | Unknown |
 | [016](adr-016-article-recompilation.md) | Article recompilation as a first-class action | Accepted |
+| [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Unknown |
 
 ## ADR Format
 
