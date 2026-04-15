@@ -8,7 +8,6 @@ job system.
 from __future__ import annotations
 
 from fastapi import HTTPException
-from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -115,21 +114,19 @@ class LinterService:
         """
         resolutions: dict[str, str] = {}
         for finding in contradictions:
-            result = await session.execute(
-                select(Backlink).where(
-                    Backlink.relation_type == RelationType.CONTRADICTS,
-                    or_(
-                        (Backlink.source_article_id == finding.article_a_id)
-                        & (Backlink.target_article_id == finding.article_b_id),
-                        (Backlink.source_article_id == finding.article_b_id)
-                        & (Backlink.target_article_id == finding.article_a_id),
-                    ),
+            a_id, b_id = finding.article_a_id, finding.article_b_id
+            for src, tgt in [(a_id, b_id), (b_id, a_id)]:
+                result = await session.execute(
+                    select(Backlink).where(
+                        Backlink.source_article_id == src,
+                        Backlink.target_article_id == tgt,
+                        Backlink.relation_type == RelationType.CONTRADICTS,
+                    )
                 )
-            )
-            bl = result.scalars().first()
-            if bl and bl.resolution:
-                key = f"{finding.article_a_id}|{finding.article_b_id}"
-                resolutions[key] = bl.resolution
+                bl = result.scalars().first()
+                if bl and bl.resolution:
+                    resolutions[f"{a_id}|{b_id}"] = bl.resolution
+                    break
         return resolutions
 
     async def get_latest(self, session: AsyncSession) -> LintReportDetail:

@@ -2,7 +2,7 @@
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -149,16 +149,18 @@ async def resolve_contradiction(
 
     # Check both directions — the finding's article_a/article_b order may not
     # match the backlink's source/target order.
-    result = await session.execute(
-        select(Backlink).where(
-            Backlink.relation_type == RelationType.CONTRADICTS,
-            or_(
-                (Backlink.source_article_id == source_id) & (Backlink.target_article_id == target_id),
-                (Backlink.source_article_id == target_id) & (Backlink.target_article_id == source_id),
-            ),
+    backlinks: list[Backlink] = []
+    for src, tgt in [(source_id, target_id), (target_id, source_id)]:
+        result = await session.execute(
+            select(Backlink).where(
+                Backlink.source_article_id == src,
+                Backlink.target_article_id == tgt,
+                Backlink.relation_type == RelationType.CONTRADICTS,
+            )
         )
-    )
-    backlinks = list(result.scalars().all())
+        bl = result.scalars().first()
+        if bl:
+            backlinks.append(bl)
     if not backlinks:
         raise HTTPException(status_code=404, detail="Contradiction backlink not found")
 
