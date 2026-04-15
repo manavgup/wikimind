@@ -42,6 +42,7 @@ from wikimind.models import (
 )
 from wikimind.services.activity_log import append_log_entry
 from wikimind.services.taxonomy import (
+    maybe_trigger_concept_pages,
     maybe_trigger_taxonomy_rebuild,
     update_article_counts,
     upsert_concepts,
@@ -354,6 +355,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             await upsert_concepts(result.concepts, session)
             await update_article_counts(session)
             await maybe_trigger_taxonomy_rebuild(session)
+            await maybe_trigger_concept_pages(session)
         except Exception:
             log.warning("taxonomy upsert failed", article_id=article.id)
 

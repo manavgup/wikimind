@@ -44,3 +44,4 @@ Thumbs.db
 
 # Serena MCP tool — auto-generated per-worktree config + cache + memories
 .serena/
+.venv
