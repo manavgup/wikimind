@@ -348,6 +348,15 @@ provider: {self._last_provider_used or "unknown"}
         self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession
     ) -> None:
         for source_id in source_article_ids:
+            # Guard against duplicate Backlinks (issue #152).
+            existing = await session.execute(
+                select(Backlink).where(
+                    Backlink.source_article_id == concept_article_id,
+                    Backlink.target_article_id == source_id,
+                )
+            )
+            if existing.scalars().first() is not None:
+                continue
             bl = Backlink(
                 source_article_id=concept_article_id,
                 target_article_id=source_id,
@@ -377,6 +386,15 @@ provider: {self._last_provider_used or "unknown"}
             if target is None:
                 continue
             for src_id, tgt_id in [(concept_article.id, target.id), (target.id, concept_article.id)]:
+                # Guard against duplicate Backlinks (issue #152).
+                existing = await session.execute(
+                    select(Backlink).where(
+                        Backlink.source_article_id == src_id,
+                        Backlink.target_article_id == tgt_id,
+                    )
+                )
+                if existing.scalars().first() is not None:
+                    continue
                 bl = Backlink(
                     source_article_id=src_id,
                     target_article_id=tgt_id,

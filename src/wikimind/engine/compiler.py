@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.database import get_session_factory
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
@@ -355,7 +356,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             await upsert_concepts(result.concepts, session)
             await update_article_counts(session)
             await maybe_trigger_taxonomy_rebuild(session)
-            await maybe_trigger_concept_pages(session)
+            # Concept page generation must use its own session to avoid
+            # identity-map conflicts when both the source compiler and
+            # concept compiler create Backlinks for overlapping article
+            # pairs (issue #152 — greenlet_spawn error).
+            async with get_session_factory()() as concept_session:
+                await maybe_trigger_concept_pages(concept_session)
         except Exception:
             log.warning("taxonomy upsert failed", article_id=article.id)
 
