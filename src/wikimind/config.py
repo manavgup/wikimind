@@ -152,7 +152,7 @@ class LinterConfig(BaseModel):
     contradiction_llm_temperature: float = 0.2
     enable_pair_cache: bool = True
     contradiction_batch_enabled: bool = True
-    contradiction_batch_size: int = 4
+    contradiction_batch_size: int = 10
 
 
 class EmbeddingConfig(BaseModel):
