@@ -22,6 +22,7 @@ from typing import ClassVar
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from sqlmodel import select
 
 import wikimind.ingest.service as _ingest_service
 from wikimind._datetime import utcnow_naive
@@ -274,7 +275,9 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
                 if not concept_ids:
                     raise ValueError("Article has no linked concepts")
 
-                concept = await session.get(Concept, concept_ids[0])
+                concept_name = concept_ids[0]
+                result = await session.execute(select(Concept).where(Concept.name == concept_name))
+                concept = result.scalars().first()
                 if not concept:
                     raise ValueError("Concept not found")
 
@@ -290,7 +293,7 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
             session.add(job)
             await session.commit()
 
-            await emit_article_recompiled(article_id, article.page_type, "success")
+            await emit_article_recompiled(article_id, article.page_type, "complete")
 
             log.info("recompile_article complete", article_id=article_id, mode=mode)
 
