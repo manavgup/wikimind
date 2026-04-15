@@ -15,16 +15,19 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import ClassVar
 
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from sqlmodel import select
 
 import wikimind.ingest.service as _ingest_service
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import (
+    emit_article_recompiled,
     emit_compilation_complete,
     emit_compilation_failed,
     emit_source_progress,
@@ -32,9 +35,12 @@ from wikimind.api.routes.ws import (
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.compiler import Compiler
+from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.engine.linter.runner import run_lint
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
+    Article,
+    Concept,
     IngestStatus,
     Job,
     JobStatus,
@@ -201,6 +207,108 @@ async def lint_wiki(ctx):
             await session.commit()
 
 
+async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
+    """Recompile an existing article from its source or concept.
+
+    Args:
+        ctx: ARQ context (unused in dev mode).
+        article_id: The article UUID to recompile.
+        mode: "source" or "concept".
+        _job_id: Pre-created Job record ID to update.
+    """
+    log.info("recompile_article started", article_id=article_id, mode=mode, job_id=_job_id)
+
+    async with get_session_factory()() as session:
+        job = await session.get(Job, _job_id)
+        if not job:
+            log.error("Job not found for recompile", job_id=_job_id)
+            return
+
+        job.status = JobStatus.RUNNING
+        job.started_at = utcnow_naive()
+        session.add(job)
+        await session.commit()
+
+        article = await session.get(Article, article_id)
+        if not article:
+            log.error("Article not found for recompile", article_id=article_id)
+            job.status = JobStatus.FAILED
+            job.completed_at = utcnow_naive()
+            job.error = "Article not found"
+            session.add(job)
+            await session.commit()
+            await emit_article_recompiled(article_id, "unknown", "failed")
+            return
+
+        try:
+            if mode == "source":
+                source_ids = json.loads(article.source_ids) if article.source_ids else []
+                if not source_ids:
+                    raise ValueError("Article has no linked sources")
+
+                source = await session.get(Source, source_ids[0])
+                if not source or not source.file_path:
+                    raise ValueError("Source or source file_path not found")
+
+                content = Path(source.file_path).read_text(encoding="utf-8")
+
+                doc = NormalizedDocument(
+                    raw_source_id=source.id,
+                    clean_text=content,
+                    title=source.title or "Untitled",
+                    author=source.author,
+                    published_date=source.published_date,
+                    estimated_tokens=_ingest_service.estimate_tokens(content),
+                    chunks=_ingest_service.chunk_text(content, source.id),
+                )
+
+                compiler = Compiler()
+                result = await compiler.compile(doc, session)
+
+                if not result:
+                    raise ValueError("Compiler returned no result")
+
+                await compiler.save_article(result, source, session)
+
+            elif mode == "concept":
+                concept_ids = json.loads(article.concept_ids) if article.concept_ids else []
+                if not concept_ids:
+                    raise ValueError("Article has no linked concepts")
+
+                concept_name = concept_ids[0]
+                result = await session.execute(select(Concept).where(Concept.name == concept_name))
+                concept = result.scalars().first()
+                if not concept:
+                    raise ValueError("Concept not found")
+
+                concept_compiler = ConceptCompiler()
+                result_article = await concept_compiler.compile_concept_page(concept, session)
+
+                if not result_article:
+                    raise ValueError("ConceptCompiler returned no result")
+
+            job.status = JobStatus.COMPLETE
+            job.completed_at = utcnow_naive()
+            job.result_summary = f"Recompiled article {article_id} via {mode}"
+            session.add(job)
+            await session.commit()
+
+            await emit_article_recompiled(article_id, article.page_type, "complete")
+
+            log.info("recompile_article complete", article_id=article_id, mode=mode)
+
+        except Exception as e:
+            log.error("recompile_article failed", article_id=article_id, error=str(e))
+
+            job.status = JobStatus.FAILED
+            job.completed_at = utcnow_naive()
+            job.error = str(e)
+            session.add(job)
+            await session.commit()
+
+            await emit_article_recompiled(article_id, article.page_type, "failed")
+
+
 # ---------------------------------------------------------------------------
 # Redis settings — only used when a Redis URL is configured (production ARQ)
 # ---------------------------------------------------------------------------
@@ -229,7 +337,7 @@ def get_redis_settings() -> RedisSettings:
 class WorkerSettings:
     """ARQ worker configuration for production (requires Redis)."""
 
-    functions: ClassVar[list] = [compile_source, lint_wiki, sweep_wikilinks]
+    functions: ClassVar[list] = [compile_source, lint_wiki, recompile_article, sweep_wikilinks]
     redis_settings = get_redis_settings()
     max_jobs = 4
     job_timeout = 300  # 5 min max per job

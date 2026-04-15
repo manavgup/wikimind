@@ -58,6 +58,7 @@ export interface LintReportDetail {
   report: LintReport;
   contradictions: LintContradictionFinding[];
   orphans: LintOrphanFinding[];
+  resolutions: Record<string, string>;
 }
 
 // --- API functions ---
@@ -90,4 +91,38 @@ export function dismissFinding(
   return apiFetch(`/lint/findings/${kind}/${encodeURIComponent(id)}/dismiss`, {
     method: "POST",
   });
+}
+
+export async function recompileArticle(
+  articleId: string,
+  mode?: "source" | "concept",
+): Promise<{ status: string; job_id: string }> {
+  const params = mode ? `?mode=${mode}` : "";
+  return apiFetch(`/wiki/articles/${articleId}/recompile${params}`, {
+    method: "POST",
+  });
+}
+
+export interface ResolutionOption {
+  value: string;
+  label: string;
+}
+
+export function getResolutionOptions(): Promise<ResolutionOption[]> {
+  return apiFetch<ResolutionOption[]>("/wiki/contradiction-resolutions");
+}
+
+export async function resolveContradiction(
+  sourceId: string,
+  targetId: string,
+  resolution: string,
+  note?: string,
+): Promise<{ resolved: boolean }> {
+  return apiFetch(
+    `/wiki/backlinks/${sourceId}/${targetId}/resolve`,
+    {
+      method: "POST",
+      body: { resolution, resolution_note: note },
+    },
+  );
 }

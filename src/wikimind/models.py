@@ -79,6 +79,7 @@ class JobType(StrEnum):
     SWEEP_WIKILINKS = "sweep_wikilinks"
     REINDEX = "reindex"
     EMBED_CHUNKS = "embed_chunks"
+    RECOMPILE_ARTICLE = "recompile_article"
     SYNC_PUSH = "sync_push"
     SYNC_PULL = "sync_pull"
 
@@ -573,6 +574,7 @@ class LintReportDetail(BaseModel):
     report: LintReport
     contradictions: list[ContradictionFinding]
     orphans: list[OrphanFinding]
+    resolutions: dict[str, str] = {}  # "article_a_id|article_b_id" → resolution
 
 
 class LintPairCache(SQLModel, table=True):
@@ -596,10 +598,19 @@ class LintPairCache(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 
+class ContradictionResolution(StrEnum):
+    """Valid resolution values for a contradiction between two articles."""
+
+    SOURCE_A_WINS = "source_a_wins"
+    SOURCE_B_WINS = "source_b_wins"
+    BOTH_VALID = "both_valid"
+    SUPERSEDED = "superseded"
+
+
 class ResolveContradictionRequest(BaseModel):
     """Request to resolve a contradiction between two articles."""
 
-    resolution: str  # "source_a_wins" | "source_b_wins" | "both_valid" | "superseded"
+    resolution: str
     resolution_note: str | None = None
 
 

@@ -14,12 +14,14 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
+    Backlink,
     ContradictionFinding,
     DismissedFinding,
     LintFindingKind,
     LintReport,
     LintReportDetail,
     OrphanFinding,
+    RelationType,
 )
 
 
@@ -91,11 +93,41 @@ class LinterService:
         contradictions_result = await session.execute(contradiction_query)
         orphans_result = await session.execute(orphan_query)
 
+        contradictions = list(contradictions_result.scalars().all())
+        resolutions = await self._get_resolutions(session, contradictions)
+
         return LintReportDetail(
             report=report,
-            contradictions=list(contradictions_result.scalars().all()),
+            contradictions=contradictions,
             orphans=list(orphans_result.scalars().all()),
+            resolutions=resolutions,
         )
+
+    async def _get_resolutions(
+        self,
+        session: AsyncSession,
+        contradictions: list[ContradictionFinding],
+    ) -> dict[str, str]:
+        """Look up contradiction resolutions from the Backlink table.
+
+        Returns a dict keyed by "article_a_id|article_b_id" → resolution string.
+        """
+        resolutions: dict[str, str] = {}
+        for finding in contradictions:
+            a_id, b_id = finding.article_a_id, finding.article_b_id
+            for src, tgt in [(a_id, b_id), (b_id, a_id)]:
+                result = await session.execute(
+                    select(Backlink).where(
+                        Backlink.source_article_id == src,
+                        Backlink.target_article_id == tgt,
+                        Backlink.relation_type == RelationType.CONTRADICTS,
+                    )
+                )
+                bl = result.scalars().first()
+                if bl and bl.resolution:
+                    resolutions[f"{a_id}|{b_id}"] = bl.resolution
+                    break
+        return resolutions
 
     async def get_latest(self, session: AsyncSession) -> LintReportDetail:
         """Get the most recent lint report with findings.

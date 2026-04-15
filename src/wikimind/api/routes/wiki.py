@@ -8,12 +8,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session
+from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Article,
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
+    ContradictionResolution,
     GraphResponse,
+    Job,
+    JobStatus,
+    JobType,
+    PageType,
     RelationType,
     ResolveContradictionRequest,
 )
@@ -24,6 +30,12 @@ from wikimind.services.wiki import WikiService, get_wiki_service
 log = structlog.get_logger()
 
 router = APIRouter()
+
+
+@router.get("/contradiction-resolutions")
+async def list_contradiction_resolutions():
+    """Return the valid contradiction resolution options."""
+    return [{"value": r.value, "label": r.value.replace("_", " ").title()} for r in ContradictionResolution]
 
 
 @router.get("/articles", response_model=list[ArticleSummaryResponse])
@@ -128,45 +140,37 @@ async def resolve_contradiction(
     session: AsyncSession = Depends(get_session),
 ):
     """Resolve a contradiction between two articles."""
-    _VALID_RESOLUTIONS = {"source_a_wins", "source_b_wins", "both_valid", "superseded"}
-    if body.resolution not in _VALID_RESOLUTIONS:
+    valid = {r.value for r in ContradictionResolution}
+    if body.resolution not in valid:
         raise HTTPException(
             status_code=422,
-            detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}",
+            detail=f"resolution must be one of {sorted(valid)}",
         )
 
-    result = await session.execute(
-        select(Backlink).where(
-            Backlink.source_article_id == source_id,
-            Backlink.target_article_id == target_id,
-            Backlink.relation_type == RelationType.CONTRADICTS,
+    # Check both directions — the finding's article_a/article_b order may not
+    # match the backlink's source/target order.
+    backlinks: list[Backlink] = []
+    for src, tgt in [(source_id, target_id), (target_id, source_id)]:
+        result = await session.execute(
+            select(Backlink).where(
+                Backlink.source_article_id == src,
+                Backlink.target_article_id == tgt,
+                Backlink.relation_type == RelationType.CONTRADICTS,
+            )
         )
-    )
-    backlink = result.scalars().first()
-    if backlink is None:
+        bl = result.scalars().first()
+        if bl:
+            backlinks.append(bl)
+    if not backlinks:
         raise HTTPException(status_code=404, detail="Contradiction backlink not found")
 
     now = utcnow_naive()
-    backlink.resolution = body.resolution
-    backlink.resolution_note = body.resolution_note
-    backlink.resolved_at = now
-    backlink.resolved_by = "user"
-    session.add(backlink)
-
-    inv_result = await session.execute(
-        select(Backlink).where(
-            Backlink.source_article_id == target_id,
-            Backlink.target_article_id == source_id,
-            Backlink.relation_type == RelationType.CONTRADICTS,
-        )
-    )
-    inverse = inv_result.scalars().first()
-    if inverse is not None:
-        inverse.resolution = body.resolution
-        inverse.resolution_note = body.resolution_note
-        inverse.resolved_at = now
-        inverse.resolved_by = "user"
-        session.add(inverse)
+    for bl in backlinks:
+        bl.resolution = body.resolution
+        bl.resolution_note = body.resolution_note
+        bl.resolved_at = now
+        bl.resolved_by = "user"
+        session.add(bl)
 
     await session.commit()
 
@@ -176,3 +180,48 @@ async def resolve_contradiction(
         "target_id": target_id,
         "resolution": body.resolution,
     }
+
+
+_VALID_RECOMPILE_MODES = {"source", "concept"}
+
+_PAGE_TYPE_TO_MODE = {
+    PageType.SOURCE: "source",
+    PageType.CONCEPT: "concept",
+    PageType.ANSWER: "source",
+    PageType.INDEX: "source",
+    PageType.META: "source",
+}
+
+
+@router.post("/articles/{article_id}/recompile")
+async def recompile_article(
+    article_id: str,
+    mode: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Schedule an async recompilation job for an article."""
+    if mode is not None and mode not in _VALID_RECOMPILE_MODES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"mode must be one of {sorted(_VALID_RECOMPILE_MODES)} or null",
+        )
+
+    article = await session.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    effective_mode = mode or _PAGE_TYPE_TO_MODE.get(PageType(article.page_type), "source")
+
+    job = Job(
+        job_type=JobType.RECOMPILE_ARTICLE,
+        status=JobStatus.QUEUED,
+        source_id=article_id,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    compiler = get_background_compiler()
+    await compiler.schedule_recompile(article_id, effective_mode, job.id)
+
+    return {"status": "scheduled", "job_id": job.id}

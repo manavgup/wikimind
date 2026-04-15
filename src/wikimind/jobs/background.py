@@ -20,7 +20,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from wikimind.config import get_settings
-from wikimind.jobs.worker import compile_source, lint_wiki, sweep_wikilinks
+from wikimind.jobs.worker import compile_source, lint_wiki, recompile_article, sweep_wikilinks
 
 log = structlog.get_logger()
 
@@ -71,6 +71,31 @@ class BackgroundCompiler:
         log.info("lint scheduled", mode="arq" if self.is_prod else "in-process")
         return job_id
 
+    async def schedule_recompile(self, article_id: str, mode: str, job_id: str) -> str:
+        """Schedule a recompile job for an article.
+
+        Args:
+            article_id: The article UUID to recompile.
+            mode: "source" or "concept".
+            job_id: Pre-created Job record ID.
+
+        Returns:
+            The job ID string.
+        """
+        if self.is_prod:
+            await self._enqueue_arq("recompile_article", article_id, mode, job_id)
+        else:
+            asyncio.create_task(self._run_recompile_in_process(article_id, mode, job_id))  # noqa: RUF006
+
+        log.info(
+            "recompile scheduled",
+            article_id=article_id,
+            mode=mode,
+            job_id=job_id,
+            dispatch="arq" if self.is_prod else "in-process",
+        )
+        return job_id
+
     async def schedule_sweep(self) -> str:
         """Schedule a wikilink resolution sweep job.
 
@@ -111,6 +136,14 @@ class BackgroundCompiler:
             await lint_wiki({})
         except Exception:
             log.exception("in-process lint failed")
+
+    @staticmethod
+    async def _run_recompile_in_process(article_id: str, mode: str, job_id: str) -> None:
+        """Run recompile_article directly in the current event loop."""
+        try:
+            await recompile_article({}, article_id, mode, job_id)
+        except Exception:
+            log.exception("in-process recompile failed", article_id=article_id)
 
     @staticmethod
     async def _run_sweep_in_process() -> None:

@@ -15,11 +15,12 @@ interface TabDef {
 }
 
 export function FindingsByKindTabs({ detail }: Props) {
+  const resolvedCount = Object.keys(detail.resolutions ?? {}).length;
   const tabs: TabDef[] = [
     {
       key: "contradictions",
       label: "Contradictions",
-      count: detail.contradictions.length,
+      count: detail.contradictions.length - resolvedCount,
     },
     { key: "orphans", label: "Orphans", count: detail.orphans.length },
   ];
@@ -56,7 +57,7 @@ export function FindingsByKindTabs({ detail }: Props) {
             </p>
           ) : (
             detail.contradictions.map((f) => (
-              <FindingCard key={f.id} finding={f} />
+              <FindingCard key={f.id} finding={f} resolutions={detail.resolutions} />
             ))
           ))}
 
