@@ -177,17 +177,11 @@ async def test_run_batch_success(tmp_path: Path) -> None:
 
     session = AsyncMock()
     session.execute = AsyncMock(
-        return_value=MagicMock(
-            scalars=MagicMock(
-                return_value=MagicMock(first=MagicMock(return_value=None))
-            )
-        )
+        return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
     session.flush = AsyncMock()
 
-    findings = await _run_batch(
-        pairs, "concept-1", mock_router, settings, "report-1", session
-    )
+    findings = await _run_batch(pairs, "concept-1", mock_router, settings, "report-1", session)
 
     assert len(findings) == 1
     assert findings[0].description == "test"
@@ -210,11 +204,7 @@ async def test_run_batch_retries_then_falls_back(tmp_path: Path) -> None:
 
     session = AsyncMock()
     session.execute = AsyncMock(
-        return_value=MagicMock(
-            scalars=MagicMock(
-                return_value=MagicMock(first=MagicMock(return_value=None))
-            )
-        )
+        return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
     session.flush = AsyncMock()
 
@@ -223,9 +213,7 @@ async def test_run_batch_retries_then_falls_back(tmp_path: Path) -> None:
         new_callable=AsyncMock,
         return_value=[],
     ) as mock_per_pair:
-        findings = await _run_batch(
-            pairs, "concept-1", mock_router, settings, "report-1", session
-        )
+        findings = await _run_batch(pairs, "concept-1", mock_router, settings, "report-1", session)
 
     # router.complete called twice (initial + retry)
     assert mock_router.complete.call_count == 2
@@ -257,11 +245,7 @@ async def test_run_batch_retry_succeeds_on_second_attempt(tmp_path: Path) -> Non
 
     session = AsyncMock()
     session.execute = AsyncMock(
-        return_value=MagicMock(
-            scalars=MagicMock(
-                return_value=MagicMock(first=MagicMock(return_value=None))
-            )
-        )
+        return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
     session.flush = AsyncMock()
 
@@ -269,9 +253,7 @@ async def test_run_batch_retry_succeeds_on_second_attempt(tmp_path: Path) -> Non
         "wikimind.engine.linter.contradictions._compare_article_pair",
         new_callable=AsyncMock,
     ) as mock_per_pair:
-        findings = await _run_batch(
-            pairs, None, mock_router, settings, "r1", session
-        )
+        findings = await _run_batch(pairs, None, mock_router, settings, "r1", session)
 
     assert mock_router.complete.call_count == 2
     assert mock_per_pair.call_count == 0  # no fallback needed
@@ -289,9 +271,7 @@ async def test_run_batch_parse_error_triggers_fallback(tmp_path: Path) -> None:
     mock_router = MagicMock()
     mock_router.complete = AsyncMock(return_value=mock_response)
     # Return a dict without "results" key -- triggers ValueError
-    mock_router.parse_json_response = MagicMock(
-        return_value={"unexpected": "shape"}
-    )
+    mock_router.parse_json_response = MagicMock(return_value={"unexpected": "shape"})
 
     settings = MagicMock()
     settings.linter.contradiction_llm_max_tokens = 1024
@@ -299,11 +279,7 @@ async def test_run_batch_parse_error_triggers_fallback(tmp_path: Path) -> None:
 
     session = AsyncMock()
     session.execute = AsyncMock(
-        return_value=MagicMock(
-            scalars=MagicMock(
-                return_value=MagicMock(first=MagicMock(return_value=None))
-            )
-        )
+        return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
     session.flush = AsyncMock()
 

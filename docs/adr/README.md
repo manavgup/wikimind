@@ -19,11 +19,11 @@ considered, and the consequences.
 | [009](adr-009-decoupled-ingest-compilation.md) | Decoupled ingest and compilation | Accepted |
 | [010](adr-010-llm-provider-auto-enable.md) | Auto-enable LLM providers when their API key is detected | Accepted |
 | [011](adr-011-conversational-qa-thread-model.md) | Conversational Q&A thread model | Accepted |
-| [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Accepted |
+| [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Proposed |
 | [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph visualization | Proposed |
 | [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
 | [015](adr-015-cpu-first-docker-packaging.md) | CPU-First Docker Packaging | Unknown |
-| [017](adr-017-backlink-enforcer-lint-phase.md) | Backlink enforcer as lint Phase 3 with auto-repair | Accepted |
+| [016](adr-016-article-recompilation.md) | Article recompilation as a first-class action | Accepted |
 | [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Unknown |
 
 ## ADR Format
