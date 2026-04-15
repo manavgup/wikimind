@@ -6,14 +6,16 @@ missing inverse links.
 
 Usage:
 
-    warnings = await enforce_backlinks(article_id, session)
-    # warnings is [] when all checks pass
+    result = await enforce_backlinks(article_id, session)
+    # result.violations is [] when all checks pass
+    # result.warnings is [] when all checks pass (backward compat)
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+from dataclasses import dataclass, field
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +27,25 @@ log = structlog.get_logger()
 
 # Symmetric relation types -- inverse must exist for graph consistency.
 _SYMMETRIC_TYPES: frozenset[RelationType] = frozenset({RelationType.CONTRADICTS, RelationType.RELATED_TO})
+
+
+@dataclass
+class EnforcerViolation:
+    """A single structural violation found by the enforcer."""
+
+    article_id: str
+    article_title: str
+    violation_type: str
+    detail: str
+    auto_repaired: bool = False
+
+
+@dataclass
+class EnforcerResult:
+    """Aggregated result of running the backlink enforcer on one article."""
+
+    violations: list[EnforcerViolation] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 async def ensure_bidirectional(backlink: Backlink, session: AsyncSession) -> bool:
@@ -64,26 +85,29 @@ async def ensure_bidirectional(backlink: Backlink, session: AsyncSession) -> boo
     return True
 
 
-async def enforce_backlinks(article_id: str, session: AsyncSession) -> list[str]:
+async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerResult:
     """Run structural integrity checks on an article's backlinks.
 
-    Returns a list of warning messages (empty means all checks pass).
+    Returns an EnforcerResult with violations and warnings.
 
     Checks performed:
         1. Source pages must have >= 1 concept in concept_ids.
         2. Concept pages must have >= 2 ``synthesizes`` outbound links.
-        3. Flag articles with zero inbound AND zero outbound links (orphans).
-        4. For ``contradicts`` / ``related_to`` links: auto-create inverse
+        3. For ``contradicts`` / ``related_to`` links: auto-create inverse
            if missing (bidirectional enforcement).
+
+    Note: orphan detection is handled separately by detect_orphans() in
+    the linter pipeline and is NOT duplicated here.
     """
-    warnings: list[str] = []
+    result = EnforcerResult()
 
     # Load the article
-    result = await session.execute(select(Article).where(Article.id == article_id))
-    article = result.scalars().first()
+    query_result = await session.execute(select(Article).where(Article.id == article_id))
+    article = query_result.scalars().first()
     if article is None:
-        warnings.append(f"Article {article_id} not found")
-        return warnings
+        msg = f"Article {article_id} not found"
+        result.warnings.append(msg)
+        return result
 
     # ---- Check 1: source pages need >= 1 concept ----
     if article.page_type == "source":
@@ -92,7 +116,16 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> list[str]
             with contextlib.suppress(TypeError, ValueError):
                 concept_ids = json.loads(article.concept_ids)
         if not concept_ids:
-            warnings.append(f"Source page '{article.title}' has no concepts in concept_ids")
+            msg = f"Source page '{article.title}' has no concepts in concept_ids"
+            result.warnings.append(msg)
+            result.violations.append(
+                EnforcerViolation(
+                    article_id=article_id,
+                    article_title=article.title,
+                    violation_type="source_no_concepts",
+                    detail=msg,
+                )
+            )
 
     # ---- Check 2: concept pages need >= 2 synthesizes links ----
     if article.page_type == "concept":
@@ -104,23 +137,41 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> list[str]
         )
         synth_count = len(list(synth_result.scalars().all()))
         if synth_count < 2:
-            warnings.append(f"Concept page '{article.title}' has {synth_count} synthesizes links (need >= 2)")
+            msg = f"Concept page '{article.title}' has {synth_count} synthesizes links (need >= 2)"
+            result.warnings.append(msg)
+            result.violations.append(
+                EnforcerViolation(
+                    article_id=article_id,
+                    article_title=article.title,
+                    violation_type="concept_insufficient_synthesizes",
+                    detail=msg,
+                )
+            )
 
-    # ---- Check 3: orphan detection ----
+    # ---- Check 3: bidirectional enforcement for symmetric types ----
     out_result = await session.execute(select(Backlink).where(Backlink.source_article_id == article_id))
     outbound = list(out_result.scalars().all())
 
     in_result = await session.execute(select(Backlink).where(Backlink.target_article_id == article_id))
     inbound = list(in_result.scalars().all())
 
-    if not outbound and not inbound:
-        warnings.append(f"Article '{article.title}' is an orphan (zero inbound and outbound links)")
-
-    # ---- Check 4: bidirectional enforcement for symmetric types ----
     all_links = outbound + inbound
     for bl in all_links:
         created = await ensure_bidirectional(bl, session)
         if created:
+            msg = (
+                f"Missing inverse link created: {bl.source_article_id} <-> {bl.target_article_id} ({bl.relation_type})"
+            )
+            result.warnings.append(msg)
+            result.violations.append(
+                EnforcerViolation(
+                    article_id=article_id,
+                    article_title=article.title,
+                    violation_type="missing_inverse_link",
+                    detail=msg,
+                    auto_repaired=True,
+                )
+            )
             log.info(
                 "Auto-created inverse for symmetric link",
                 source=bl.source_article_id,
@@ -128,4 +179,4 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> list[str]
                 relation_type=bl.relation_type,
             )
 
-    return warnings
+    return result

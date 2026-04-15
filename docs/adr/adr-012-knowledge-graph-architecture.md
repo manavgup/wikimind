@@ -2,7 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted
+
+**Revision (2026-04-15):** The backlink enforcer now runs as Phase 3 of
+the lint pipeline (ADR-017), auto-repairing missing inverse links for
+symmetric relation types. This strengthens the "graph quality is bounded
+by Backlink quality" constraint noted below by providing automated
+structural integrity enforcement.
 
 ## Context
 

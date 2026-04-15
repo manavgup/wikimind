@@ -22,6 +22,7 @@ from wikimind.models import (
     LintReportDetail,
     OrphanFinding,
     RelationType,
+    StructuralFinding,
 )
 
 
@@ -81,6 +82,7 @@ class LinterService:
 
         contradiction_query = select(ContradictionFinding).where(ContradictionFinding.report_id == report_id)
         orphan_query = select(OrphanFinding).where(OrphanFinding.report_id == report_id)
+        structural_query = select(StructuralFinding).where(StructuralFinding.report_id == report_id)
 
         if not include_dismissed:
             contradiction_query = contradiction_query.where(
@@ -89,9 +91,13 @@ class LinterService:
             orphan_query = orphan_query.where(
                 OrphanFinding.dismissed == False  # noqa: E712
             )
+            structural_query = structural_query.where(
+                StructuralFinding.dismissed == False  # noqa: E712
+            )
 
         contradictions_result = await session.execute(contradiction_query)
         orphans_result = await session.execute(orphan_query)
+        structurals_result = await session.execute(structural_query)
 
         contradictions = list(contradictions_result.scalars().all())
         resolutions = await self._get_resolutions(session, contradictions)
@@ -101,6 +107,7 @@ class LinterService:
             contradictions=contradictions,
             orphans=list(orphans_result.scalars().all()),
             resolutions=resolutions,
+            structurals=list(structurals_result.scalars().all()),
         )
 
     async def _get_resolutions(
@@ -170,11 +177,13 @@ class LinterService:
         """
         now = utcnow_naive()
 
-        finding: ContradictionFinding | OrphanFinding | None
+        finding: ContradictionFinding | OrphanFinding | StructuralFinding | None
         if kind == LintFindingKind.CONTRADICTION:
             finding = await session.get(ContradictionFinding, finding_id)
         elif kind == LintFindingKind.ORPHAN:
             finding = await session.get(OrphanFinding, finding_id)
+        elif kind == LintFindingKind.STRUCTURAL:
+            finding = await session.get(StructuralFinding, finding_id)
         else:
             raise HTTPException(status_code=400, detail=f"Unknown finding kind: {kind}")
 
@@ -192,6 +201,8 @@ class LinterService:
                 report.contradictions_count = max(0, report.contradictions_count - 1)
             elif kind == LintFindingKind.ORPHAN:
                 report.orphans_count = max(0, report.orphans_count - 1)
+            elif kind == LintFindingKind.STRUCTURAL:
+                report.structural_count = max(0, report.structural_count - 1)
             report.total_findings = max(0, report.total_findings - 1)
             report.dismissed_count += 1
             session.add(report)
