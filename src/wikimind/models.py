@@ -549,7 +549,6 @@ class ContradictionFinding(_LintFindingBase, table=True):
     article_b_claim: str
     llm_confidence: str  # "high" | "medium" | "low"
     shared_concept_id: str | None = Field(default=None, foreign_key="concept.id", index=True)
-    resolution: str | None = None  # populated from Backlink.resolution at query time
 
 
 class OrphanFinding(_LintFindingBase, table=True):
@@ -575,6 +574,7 @@ class LintReportDetail(BaseModel):
     report: LintReport
     contradictions: list[ContradictionFinding]
     orphans: list[OrphanFinding]
+    resolutions: dict[str, str] = {}  # "article_a_id|article_b_id" → resolution
 
 
 class LintPairCache(SQLModel, table=True):

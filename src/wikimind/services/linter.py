@@ -95,22 +95,25 @@ class LinterService:
         orphans_result = await session.execute(orphan_query)
 
         contradictions = list(contradictions_result.scalars().all())
-
-        # Attach resolution status from Backlink table to each contradiction
-        await self._attach_resolutions(session, contradictions)
+        resolutions = await self._get_resolutions(session, contradictions)
 
         return LintReportDetail(
             report=report,
             contradictions=contradictions,
             orphans=list(orphans_result.scalars().all()),
+            resolutions=resolutions,
         )
 
-    async def _attach_resolutions(
+    async def _get_resolutions(
         self,
         session: AsyncSession,
         contradictions: list[ContradictionFinding],
-    ) -> None:
-        """Look up contradiction resolution from the Backlink table and attach to findings."""
+    ) -> dict[str, str]:
+        """Look up contradiction resolutions from the Backlink table.
+
+        Returns a dict keyed by "article_a_id|article_b_id" → resolution string.
+        """
+        resolutions: dict[str, str] = {}
         for finding in contradictions:
             result = await session.execute(
                 select(Backlink).where(
@@ -125,7 +128,9 @@ class LinterService:
             )
             bl = result.scalars().first()
             if bl and bl.resolution:
-                finding.resolution = bl.resolution  # type: ignore[attr-defined]
+                key = f"{finding.article_a_id}|{finding.article_b_id}"
+                resolutions[key] = bl.resolution
+        return resolutions
 
     async def get_latest(self, session: AsyncSession) -> LintReportDetail:
         """Get the most recent lint report with findings.

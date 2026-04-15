@@ -44,7 +44,6 @@ export interface LintContradictionFinding extends LintFindingCommon {
   article_b_claim: string;
   llm_confidence: "high" | "medium" | "low";
   shared_concept_id: string | null;
-  resolution: string | null;
 }
 
 export interface LintOrphanFinding extends LintFindingCommon {
@@ -59,6 +58,7 @@ export interface LintReportDetail {
   report: LintReport;
   contradictions: LintContradictionFinding[];
   orphans: LintOrphanFinding[];
+  resolutions: Record<string, string>;
 }
 
 // --- API functions ---

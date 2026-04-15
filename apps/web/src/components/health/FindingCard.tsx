@@ -18,6 +18,7 @@ import type {
 
 interface Props {
   finding: LintFinding;
+  resolutions?: Record<string, string>;
 }
 
 const severityTone: Record<LintSeverity, BadgeTone> = {
@@ -43,17 +44,17 @@ const RESOLUTION_OPTIONS = [
 /*  ResolveDropdown                                                    */
 /* ------------------------------------------------------------------ */
 
-function ResolveDropdown({ finding }: { finding: LintContradictionFinding }) {
+function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFinding; resolution?: string }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
 
   const resolve = useMutation({
-    mutationFn: (resolution: string) =>
+    mutationFn: (res: string) =>
       resolveContradiction(
         finding.article_a_id,
         finding.article_b_id,
-        resolution,
+        res,
         note || undefined,
       ),
     onSuccess: () => {
@@ -62,10 +63,10 @@ function ResolveDropdown({ finding }: { finding: LintContradictionFinding }) {
     },
   });
 
-  if (finding.resolution) {
+  if (resolution) {
     return (
       <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-        {finding.resolution.replace(/_/g, " ")}
+        {resolution.replace(/_/g, " ")}
       </span>
     );
   }
@@ -184,8 +185,10 @@ function OrphanDetail({ finding }: { finding: LintOrphanFinding }) {
 
 function ContradictionActions({
   finding,
+  resolution,
 }: {
   finding: LintContradictionFinding;
+  resolution?: string;
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -202,7 +205,7 @@ function ContradictionActions({
         View Article B
       </Link>
       <RecompileButton articleId={finding.article_a_id} />
-      <ResolveDropdown finding={finding} />
+      <ResolveDropdown finding={finding} resolution={resolution} />
     </div>
   );
 }
@@ -225,8 +228,13 @@ function OrphanActions({ finding }: { finding: LintOrphanFinding }) {
 /*  FindingCard (exported)                                             */
 /* ------------------------------------------------------------------ */
 
-export function FindingCard({ finding }: Props) {
+export function FindingCard({ finding, resolutions }: Props) {
   const dismiss = useDismissFinding();
+
+  const resolution =
+    finding.kind === "contradiction" && resolutions
+      ? resolutions[`${finding.article_a_id}|${finding.article_b_id}`]
+      : undefined;
 
   return (
     <Card className="p-4">
@@ -256,7 +264,7 @@ export function FindingCard({ finding }: Props) {
       {finding.kind === "contradiction" ? (
         <>
           <ContradictionDetail finding={finding} />
-          <ContradictionActions finding={finding} />
+          <ContradictionActions finding={finding} resolution={resolution} />
         </>
       ) : (
         <>

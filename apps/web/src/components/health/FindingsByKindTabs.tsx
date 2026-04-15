@@ -56,7 +56,7 @@ export function FindingsByKindTabs({ detail }: Props) {
             </p>
           ) : (
             detail.contradictions.map((f) => (
-              <FindingCard key={f.id} finding={f} />
+              <FindingCard key={f.id} finding={f} resolutions={detail.resolutions} />
             ))
           ))}
 
