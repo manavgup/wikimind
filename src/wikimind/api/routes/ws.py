@@ -167,3 +167,15 @@ async def emit_linter_alert(alert_type: str, articles: list):
             "articles": articles,
         }
     )
+
+
+async def emit_article_recompiled(article_id: str, page_type: str, status: str):
+    """Emit article recompiled event."""
+    await manager.broadcast(
+        {
+            "event": "article.recompiled",
+            "article_id": article_id,
+            "page_type": page_type,
+            "status": status,
+        }
+    )

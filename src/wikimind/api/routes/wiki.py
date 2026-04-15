@@ -8,12 +8,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session
+from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Article,
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
     GraphResponse,
+    Job,
+    JobStatus,
+    JobType,
+    PageType,
     RelationType,
     ResolveContradictionRequest,
 )
@@ -176,3 +181,48 @@ async def resolve_contradiction(
         "target_id": target_id,
         "resolution": body.resolution,
     }
+
+
+_VALID_RECOMPILE_MODES = {"source", "concept"}
+
+_PAGE_TYPE_TO_MODE = {
+    PageType.SOURCE: "source",
+    PageType.CONCEPT: "concept",
+    PageType.ANSWER: "source",
+    PageType.INDEX: "source",
+    PageType.META: "source",
+}
+
+
+@router.post("/articles/{article_id}/recompile")
+async def recompile_article(
+    article_id: str,
+    mode: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Schedule an async recompilation job for an article."""
+    if mode is not None and mode not in _VALID_RECOMPILE_MODES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"mode must be one of {sorted(_VALID_RECOMPILE_MODES)} or null",
+        )
+
+    article = await session.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    effective_mode = mode or _PAGE_TYPE_TO_MODE.get(PageType(article.page_type), "source")
+
+    job = Job(
+        job_type=JobType.RECOMPILE_ARTICLE,
+        status=JobStatus.QUEUED,
+        source_id=article_id,
+    )
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+
+    compiler = get_background_compiler()
+    await compiler.schedule_recompile(article_id, effective_mode, job.id)
+
+    return {"status": "scheduled", "job_id": job.id}
