@@ -1389,6 +1389,11 @@ components:
           - type: string
           - type: 'null'
           title: Shared Concept Id
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
       type: object
       required:
       - report_id

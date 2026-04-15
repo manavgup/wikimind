@@ -549,6 +549,7 @@ class ContradictionFinding(_LintFindingBase, table=True):
     article_b_claim: str
     llm_confidence: str  # "high" | "medium" | "low"
     shared_concept_id: str | None = Field(default=None, foreign_key="concept.id", index=True)
+    resolution: str | None = None  # populated from Backlink.resolution at query time
 
 
 class OrphanFinding(_LintFindingBase, table=True):

@@ -44,6 +44,7 @@ export interface LintContradictionFinding extends LintFindingCommon {
   article_b_claim: string;
   llm_confidence: "high" | "medium" | "low";
   shared_concept_id: string | null;
+  resolution: string | null;
 }
 
 export interface LintOrphanFinding extends LintFindingCommon {

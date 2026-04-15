@@ -8,18 +8,21 @@ job system.
 from __future__ import annotations
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
+    Backlink,
     ContradictionFinding,
     DismissedFinding,
     LintFindingKind,
     LintReport,
     LintReportDetail,
     OrphanFinding,
+    RelationType,
 )
 
 
@@ -91,11 +94,38 @@ class LinterService:
         contradictions_result = await session.execute(contradiction_query)
         orphans_result = await session.execute(orphan_query)
 
+        contradictions = list(contradictions_result.scalars().all())
+
+        # Attach resolution status from Backlink table to each contradiction
+        await self._attach_resolutions(session, contradictions)
+
         return LintReportDetail(
             report=report,
-            contradictions=list(contradictions_result.scalars().all()),
+            contradictions=contradictions,
             orphans=list(orphans_result.scalars().all()),
         )
+
+    async def _attach_resolutions(
+        self,
+        session: AsyncSession,
+        contradictions: list[ContradictionFinding],
+    ) -> None:
+        """Look up contradiction resolution from the Backlink table and attach to findings."""
+        for finding in contradictions:
+            result = await session.execute(
+                select(Backlink).where(
+                    Backlink.relation_type == RelationType.CONTRADICTS,
+                    or_(
+                        (Backlink.source_article_id == finding.article_a_id)
+                        & (Backlink.target_article_id == finding.article_b_id),
+                        (Backlink.source_article_id == finding.article_b_id)
+                        & (Backlink.target_article_id == finding.article_a_id),
+                    ),
+                )
+            )
+            bl = result.scalars().first()
+            if bl and bl.resolution:
+                finding.resolution = bl.resolution  # type: ignore[attr-defined]
 
     async def get_latest(self, session: AsyncSession) -> LintReportDetail:
         """Get the most recent lint report with findings.

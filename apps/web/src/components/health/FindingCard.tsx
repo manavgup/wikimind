@@ -47,7 +47,6 @@ function ResolveDropdown({ finding }: { finding: LintContradictionFinding }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
-  const [resolved, setResolved] = useState(false);
 
   const resolve = useMutation({
     mutationFn: (resolution: string) =>
@@ -58,16 +57,15 @@ function ResolveDropdown({ finding }: { finding: LintContradictionFinding }) {
         note || undefined,
       ),
     onSuccess: () => {
-      setResolved(true);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["lint"] });
     },
   });
 
-  if (resolved) {
+  if (finding.resolution) {
     return (
       <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-        Resolved
+        {finding.resolution.replace(/_/g, " ")}
       </span>
     );
   }
