@@ -116,10 +116,12 @@ function ResolveDropdown({ finding }: { finding: LintContradictionFinding }) {
 
 function RecompileButton({ articleId }: { articleId: string }) {
   const queryClient = useQueryClient();
+  const [scheduled, setScheduled] = useState(false);
 
   const recompile = useMutation({
     mutationFn: () => recompileArticle(articleId),
     onSuccess: () => {
+      setScheduled(true);
       queryClient.invalidateQueries({ queryKey: ["lint"] });
     },
   });
@@ -127,11 +129,15 @@ function RecompileButton({ articleId }: { articleId: string }) {
   return (
     <button
       type="button"
-      disabled={recompile.isPending || recompile.isSuccess}
+      disabled={recompile.isPending || scheduled}
       className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       onClick={() => recompile.mutate()}
     >
-      {recompile.isPending ? "Recompiling..." : "Recompile"}
+      {recompile.isPending
+        ? "Scheduling..."
+        : scheduled
+          ? "Recompiling..."
+          : "Recompile"}
     </button>
   );
 }

@@ -112,8 +112,7 @@ export async function resolveContradiction(
     `/wiki/backlinks/${sourceId}/${targetId}/resolve`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolution, resolution_note: note }),
+      body: { resolution, resolution_note: note },
     },
   );
 }
