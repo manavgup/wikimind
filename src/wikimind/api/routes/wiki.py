@@ -2,7 +2,7 @@
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -140,38 +140,28 @@ async def resolve_contradiction(
             detail=f"resolution must be one of {sorted(_VALID_RESOLUTIONS)}",
         )
 
+    # Check both directions — the finding's article_a/article_b order may not
+    # match the backlink's source/target order.
     result = await session.execute(
         select(Backlink).where(
-            Backlink.source_article_id == source_id,
-            Backlink.target_article_id == target_id,
             Backlink.relation_type == RelationType.CONTRADICTS,
+            or_(
+                (Backlink.source_article_id == source_id) & (Backlink.target_article_id == target_id),
+                (Backlink.source_article_id == target_id) & (Backlink.target_article_id == source_id),
+            ),
         )
     )
-    backlink = result.scalars().first()
-    if backlink is None:
+    backlinks = list(result.scalars().all())
+    if not backlinks:
         raise HTTPException(status_code=404, detail="Contradiction backlink not found")
 
     now = utcnow_naive()
-    backlink.resolution = body.resolution
-    backlink.resolution_note = body.resolution_note
-    backlink.resolved_at = now
-    backlink.resolved_by = "user"
-    session.add(backlink)
-
-    inv_result = await session.execute(
-        select(Backlink).where(
-            Backlink.source_article_id == target_id,
-            Backlink.target_article_id == source_id,
-            Backlink.relation_type == RelationType.CONTRADICTS,
-        )
-    )
-    inverse = inv_result.scalars().first()
-    if inverse is not None:
-        inverse.resolution = body.resolution
-        inverse.resolution_note = body.resolution_note
-        inverse.resolved_at = now
-        inverse.resolved_by = "user"
-        session.add(inverse)
+    for bl in backlinks:
+        bl.resolution = body.resolution
+        bl.resolution_note = body.resolution_note
+        bl.resolved_at = now
+        bl.resolved_by = "user"
+        session.add(bl)
 
     await session.commit()
 
