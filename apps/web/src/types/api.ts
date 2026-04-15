@@ -150,4 +150,5 @@ export type WSEvent =
   | { event: "compilation.complete"; article_slug: string; article_title: string }
   | { event: "compilation.failed"; source_id: string; error: string }
   | { event: "sync.complete"; pushed: number; pulled: number; conflicts?: number }
-  | { event: "linter.alert"; type: string; articles: string[] };
+  | { event: "linter.alert"; type: string; articles: string[] }
+  | { event: "article.recompiled"; article_id: string; page_type: string; status: string };

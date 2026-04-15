@@ -91,3 +91,29 @@ export function dismissFinding(
     method: "POST",
   });
 }
+
+export async function recompileArticle(
+  articleId: string,
+  mode?: "source" | "concept",
+): Promise<{ status: string; job_id: string }> {
+  const params = mode ? `?mode=${mode}` : "";
+  return apiFetch(`/wiki/articles/${articleId}/recompile${params}`, {
+    method: "POST",
+  });
+}
+
+export async function resolveContradiction(
+  sourceId: string,
+  targetId: string,
+  resolution: string,
+  note?: string,
+): Promise<{ resolved: boolean }> {
+  return apiFetch(
+    `/wiki/backlinks/${sourceId}/${targetId}/resolve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolution, resolution_note: note }),
+    },
+  );
+}
