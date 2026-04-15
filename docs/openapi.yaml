@@ -189,19 +189,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/contradiction-resolutions:
-    get:
-      tags:
-      - Wiki
-      summary: List Contradiction Resolutions
-      description: Return the valid contradiction resolution options.
-      operationId: list_contradiction_resolutions_wiki_contradiction_resolutions_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
   /wiki/articles:
     get:
       tags:
@@ -428,40 +415,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ResolveContradictionRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{article_id}/recompile:
-    post:
-      tags:
-      - Wiki
-      summary: Recompile Article
-      description: Schedule an async recompilation job for an article.
-      operationId: recompile_article_wiki_articles__article_id__recompile_post
-      parameters:
-      - name: article_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Article Id
-      - name: mode
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Mode
       responses:
         '200':
           description: Successful Response
@@ -1682,6 +1635,7 @@ components:
       enum:
       - contradiction
       - orphan
+      - structural
       title: LintFindingKind
       description: 'Kind of lint finding — maps 1:1 to a detection function AND a
         table.
@@ -1724,6 +1678,15 @@ components:
           type: integer
           title: Orphans Count
           default: 0
+        structural_count:
+          type: integer
+          title: Structural Count
+          default: 0
+        checked_articles:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Checked Articles
         missing_pages_count:
           type: integer
           title: Missing Pages Count
@@ -1768,12 +1731,12 @@ components:
             $ref: '#/components/schemas/OrphanFinding'
           type: array
           title: Orphans
-        resolutions:
-          additionalProperties:
-            type: string
-          type: object
-          title: Resolutions
-          default: {}
+        structurals:
+          items:
+            $ref: '#/components/schemas/StructuralFinding'
+          type: array
+          title: Structurals
+          default: []
       type: object
       required:
       - report
@@ -2092,6 +2055,63 @@ components:
       - obsidian
       title: SourceType
       description: Type of ingested source.
+    StructuralFinding:
+      properties:
+        id:
+          type: string
+          title: Id
+        report_id:
+          type: string
+          title: Report Id
+        severity:
+          $ref: '#/components/schemas/LintSeverity'
+          default: warn
+        description:
+          type: string
+          title: Description
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        dismissed:
+          type: boolean
+          title: Dismissed
+          default: false
+        dismissed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Dismissed At
+        content_hash:
+          type: string
+          title: Content Hash
+        kind:
+          $ref: '#/components/schemas/LintFindingKind'
+          default: structural
+        article_id:
+          type: string
+          title: Article Id
+        violation_type:
+          type: string
+          title: Violation Type
+        auto_repaired:
+          type: boolean
+          title: Auto Repaired
+          default: false
+        detail:
+          type: string
+          title: Detail
+          default: ''
+      type: object
+      required:
+      - report_id
+      - description
+      - content_hash
+      - article_id
+      - violation_type
+      title: StructuralFinding
+      description: A structural integrity violation detected by the backlink enforcer.
     TurnSelection:
       properties:
         conversation_id:

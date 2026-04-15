@@ -188,6 +188,8 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
     settings = get_settings()
     # Set cap very low
     settings.linter.max_contradiction_pairs_per_concept = 2
+    # Disable batching so each pair = one LLM call
+    settings.linter.contradiction_batch_enabled = False
 
     report = LintReport(id="r1")
     db_session.add(report)
