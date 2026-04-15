@@ -1,10 +1,31 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import type { ArticleResponse, BacklinkEntry } from "../../types/api";
+import type { ArticleResponse, BacklinkEntry, RelationType } from "../../types/api";
 
 interface BacklinkPanelProps {
   article: ArticleResponse | null;
   hasFigures?: boolean;
   figureCount?: number;
+}
+
+const RELATION_STYLE: Record<RelationType, { label: string; className: string }> = {
+  references: { label: "References", className: "text-brand-700 hover:bg-brand-50" },
+  contradicts: { label: "Contradicts", className: "text-rose-700 hover:bg-rose-50" },
+  extends: { label: "Extends", className: "text-sky-700 hover:bg-sky-50" },
+  supersedes: { label: "Supersedes", className: "text-amber-700 hover:bg-amber-50" },
+  synthesizes: { label: "Synthesizes", className: "text-violet-700 hover:bg-violet-50" },
+  related_to: { label: "Related to", className: "text-slate-600 hover:bg-slate-100" },
+};
+
+function groupByRelationType(links: BacklinkEntry[]): Map<string, BacklinkEntry[]> {
+  const groups = new Map<string, BacklinkEntry[]>();
+  for (const link of links) {
+    const key = link.relation_type ?? "references";
+    const existing = groups.get(key) ?? [];
+    existing.push(link);
+    groups.set(key, existing);
+  }
+  return groups;
 }
 
 export function BacklinkPanel({ article, hasFigures, figureCount }: BacklinkPanelProps) {
@@ -21,8 +42,8 @@ export function BacklinkPanel({ article, hasFigures, figureCount }: BacklinkPane
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-      <Section title="Linked from" links={inLinks} emptyText="Nothing links here yet" />
-      <Section title="Links to" links={outLinks} emptyText="No outgoing links" />
+      <TypedSection title="Linked from" links={inLinks} emptyText="Nothing links here yet" />
+      <TypedSection title="Links to" links={outLinks} emptyText="No outgoing links" />
 
       {hasFigures && (
         <div>
@@ -66,13 +87,15 @@ export function BacklinkPanel({ article, hasFigures, figureCount }: BacklinkPane
   );
 }
 
-interface SectionProps {
+interface TypedSectionProps {
   title: string;
   links: BacklinkEntry[];
   emptyText: string;
 }
 
-function Section({ title, links, emptyText }: SectionProps) {
+function TypedSection({ title, links, emptyText }: TypedSectionProps) {
+  const grouped = useMemo(() => groupByRelationType(links), [links]);
+
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -80,20 +103,54 @@ function Section({ title, links, emptyText }: SectionProps) {
       </h3>
       {links.length === 0 ? (
         <p className="text-xs text-slate-400">{emptyText}</p>
-      ) : (
+      ) : grouped.size === 1 && grouped.has("references") ? (
+        // Simple list when all links are plain references
         <ul className="space-y-1">
           {links.map((link) => (
-            <li key={link.id}>
-              <Link
-                to={`/wiki/${encodeURIComponent(link.slug)}`}
-                className="block truncate rounded px-2 py-1 text-sm text-brand-700 hover:bg-brand-50"
-              >
-                {link.title}
-              </Link>
-            </li>
+            <BacklinkItem key={link.id} link={link} />
           ))}
         </ul>
+      ) : (
+        // Grouped by relation type
+        <div className="space-y-3">
+          {Array.from(grouped.entries()).map(([relType, groupLinks]) => {
+            const style = RELATION_STYLE[relType as RelationType] ?? RELATION_STYLE.references;
+            return (
+              <div key={relType}>
+                <p className="mb-1 text-xs font-medium text-slate-500">
+                  {style.label}
+                </p>
+                <ul className="space-y-1">
+                  {groupLinks.map((link) => (
+                    <BacklinkItem key={link.id} link={link} />
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
+  );
+}
+
+function BacklinkItem({ link }: { link: BacklinkEntry }) {
+  const relType = (link.relation_type ?? "references") as RelationType;
+  const style = RELATION_STYLE[relType] ?? RELATION_STYLE.references;
+
+  return (
+    <li>
+      <Link
+        to={`/wiki/${encodeURIComponent(link.slug)}`}
+        className={`block truncate rounded px-2 py-1 text-sm ${style.className}`}
+      >
+        {link.title}
+        {link.relation_type === "contradicts" && link.resolution ? (
+          <span className="ml-1 text-xs text-slate-400">
+            ({link.resolution})
+          </span>
+        ) : null}
+      </Link>
+    </li>
   );
 }

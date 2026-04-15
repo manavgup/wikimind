@@ -213,6 +213,14 @@ paths:
           - type: string
           - type: 'null'
           title: Confidence
+      - name: page_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Page Type
       - name: limit
         in: query
         required: false
@@ -1095,6 +1103,9 @@ components:
           type: string
           format: date-time
           title: Updated At
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: source
       type: object
       required:
       - id
@@ -1179,6 +1190,9 @@ components:
           type: string
           format: date-time
           title: Updated At
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: source
       type: object
       required:
       - id
@@ -1222,6 +1236,15 @@ components:
         slug:
           type: string
           title: Slug
+        relation_type:
+          anyOf:
+          - $ref: '#/components/schemas/RelationType'
+          - type: 'null'
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
       type: object
       required:
       - id
@@ -1770,6 +1793,17 @@ components:
       - article_title
       title: OrphanFinding
       description: An article with zero inbound AND zero outbound backlinks.
+    PageType:
+      type: string
+      enum:
+      - source
+      - concept
+      - answer
+      - index
+      - meta
+      title: PageType
+      description: Type of wiki page — determines compilation pipeline and validation
+        rules.
     QueryRequest:
       properties:
         question:

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useArticles } from "../../hooks/useArticles";
 import type { Article, ConfidenceLevel } from "../../types/api";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Spinner } from "../shared/Spinner";
 
 interface ArticleCardGridProps {
@@ -73,6 +74,7 @@ function ArticleCard({ article }: { article: Article }) {
       className="group block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-300 hover:shadow-md"
     >
       <div className="mb-2 flex items-center gap-2">
+        <PageTypeIndicator pageType={article.page_type} />
         {article.confidence ? (
           <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
         ) : null}

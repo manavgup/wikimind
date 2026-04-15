@@ -680,6 +680,8 @@ class BacklinkEntry(BaseModel):
     id: str
     title: str
     slug: str
+    relation_type: RelationType | None = None
+    resolution: str | None = None
 
 
 class ArticleResponse(BaseModel):
@@ -698,6 +700,7 @@ class ArticleResponse(BaseModel):
     sources: list[SourceResponse] = []
     created_at: datetime
     updated_at: datetime
+    page_type: PageType = PageType.SOURCE
 
 
 class ArticleSummaryResponse(BaseModel):
@@ -719,6 +722,7 @@ class ArticleSummaryResponse(BaseModel):
     backlink_count: int = 0
     created_at: datetime
     updated_at: datetime
+    page_type: PageType = PageType.SOURCE
 
 
 class CitationArticleRef(BaseModel):

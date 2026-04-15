@@ -6,6 +6,7 @@ import rehypeRaw from "rehype-raw";
 import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
 
 interface ArticleReaderProps {
@@ -14,7 +15,6 @@ interface ArticleReaderProps {
 
 const CONFIDENCE_TAG_REGEX = /\[(sourced|mixed|inferred|opinion)\]/gi;
 const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
-// Match a YAML frontmatter block at the very start of the document.
 const FRONTMATTER_REGEX = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
 function escapeHtml(s: string): string {
@@ -26,16 +26,6 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Pre-process the markdown to:
-//   1. Strip the YAML frontmatter block emitted by the compiler (it leaks into
-//      the visible article body otherwise — react-markdown doesn't parse YAML).
-//   2. Convert any remaining [[wikilinks]] (which are by definition unresolved —
-//      the compiler rewrites resolved ones into standard [text](/wiki/<id>)
-//      markdown links at save time) into a dimmed <span> so the reader can see
-//      the reference exists but knows there's no article to click through to.
-// Matches ![alt](src) where src is NOT a URL (no / or http) — these are
-// LLM-generated figure references like ![description](Figure 1) that render
-// as broken images. Real images are displayed in the FiguresPanel below.
 const BROKEN_IMAGE_REGEX = /!\[[^\]]*\]\((?!\/|https?:\/\/)[^)]+\)\n*/g;
 
 function preprocessMarkdown(content: string): string {
@@ -48,16 +38,48 @@ function preprocessMarkdown(content: string): string {
     });
 }
 
+/** Extract synthesized_from article IDs from concept page frontmatter. */
+function extractSynthesizedFrom(content: string): string[] {
+  const match = content.match(FRONTMATTER_REGEX);
+  if (!match) return [];
+  const fm = match[0];
+  const synMatch = fm.match(/synthesized_from:\s*\n((?:\s*-\s*.+\n)*)/);
+  if (!synMatch) return [];
+  return synMatch[1]
+    .split("\n")
+    .map((line) => line.replace(/^\s*-\s*/, "").trim())
+    .filter(Boolean);
+}
+
+/** Extract concept_kind from concept page frontmatter. */
+function extractConceptKind(content: string): string | null {
+  const match = content.match(FRONTMATTER_REGEX);
+  if (!match) return null;
+  const kindMatch = match[0].match(/concept_kind:\s*(.+)/);
+  return kindMatch ? kindMatch[1].trim() : null;
+}
+
 export function ArticleReader({ article }: ArticleReaderProps) {
   const processed = useMemo(
     () => preprocessMarkdown(article.content ?? ""),
     [article.content],
   );
 
+  const isConcept = article.page_type === "concept";
+  const synthesizedFrom = useMemo(
+    () => (isConcept ? extractSynthesizedFrom(article.content ?? "") : []),
+    [article.content, isConcept],
+  );
+  const conceptKind = useMemo(
+    () => (isConcept ? extractConceptKind(article.content ?? "") : null),
+    [article.content, isConcept],
+  );
+
   return (
     <article className="mx-auto max-w-3xl p-8">
       <header className="mb-6 border-b border-slate-200 pb-5">
         <div className="mb-3 flex flex-wrap items-center gap-2">
+          <PageTypeIndicator pageType={article.page_type} />
           {article.confidence ? (
             <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
           ) : null}
@@ -65,6 +87,9 @@ export function ArticleReader({ article }: ArticleReaderProps) {
             <Badge tone="info">
               Linter {(article.linter_score * 100).toFixed(0)}%
             </Badge>
+          ) : null}
+          {isConcept && conceptKind ? (
+            <Badge tone="neutral">{conceptKind}</Badge>
           ) : null}
           {article.concepts.slice(0, 3).map((concept) => (
             <Badge key={concept} tone="brand">
@@ -75,6 +100,26 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         <h1 className="text-3xl font-bold text-slate-900">{article.title}</h1>
         {article.summary ? (
           <p className="mt-2 text-base text-slate-600">{article.summary}</p>
+        ) : null}
+
+        {isConcept && synthesizedFrom.length > 0 ? (
+          <div className="mt-3 rounded-md border border-brand-100 bg-brand-50 p-3">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
+              Synthesized from
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {synthesizedFrom.map((sourceId) => (
+                <li key={sourceId}>
+                  <Link
+                    to={`/wiki/${encodeURIComponent(sourceId)}`}
+                    className="inline-block rounded-md border border-brand-200 bg-white px-2 py-0.5 text-xs text-brand-700 hover:bg-brand-50"
+                  >
+                    {sourceId}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </header>
 
@@ -106,8 +151,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
               );
             },
             img: ({ node: _node, src, alt, ...props }) => {
-              // Prefix /images/ paths with the API base URL so they
-              // resolve to the backend, not the Vite dev server.
               const resolvedSrc =
                 src && src.startsWith("/images/")
                   ? `${getBaseUrl()}${src}`
@@ -142,8 +185,6 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   );
 }
 
-// Walk text children and replace [sourced]/[inferred]/[opinion]/[mixed]
-// markers with inline confidence badges. Non-string children are passed through.
 function decorateConfidence(children: React.ReactNode): React.ReactNode {
   if (typeof children === "string") {
     return splitConfidence(children);

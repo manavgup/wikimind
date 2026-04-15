@@ -25,6 +25,7 @@ from wikimind.models import (
     CompletionRequest,
     Conversation,
     CostLog,
+    PageType,
     Query,
     QueryRequest,
     QueryResult,
@@ -591,6 +592,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 file_path=str(file_path),
                 summary=(queries[0].answer[:200] if queries else None),
                 confidence=None,  # per #84 / Option 2 — Q&A confidence is on Query, not Article
+                page_type=PageType.ANSWER,
                 created_at=now,
                 updated_at=now,
             )

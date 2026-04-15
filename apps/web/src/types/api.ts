@@ -15,6 +15,16 @@ export type IngestStatus = "pending" | "processing" | "compiled" | "failed";
 
 export type ConfidenceLevel = "sourced" | "mixed" | "inferred" | "opinion";
 
+export type PageType = "source" | "concept" | "answer" | "index" | "meta";
+
+export type RelationType =
+  | "references"
+  | "contradicts"
+  | "extends"
+  | "supersedes"
+  | "synthesizes"
+  | "related_to";
+
 export type JobStatus = "queued" | "running" | "complete" | "failed";
 
 export type JobType =
@@ -47,6 +57,7 @@ export interface Article {
   summary: string | null;
   confidence: ConfidenceLevel | null;
   linter_score: number | null;
+  page_type: PageType;
   source_count: number;
   backlink_count: number;
   created_at: string;
@@ -57,6 +68,8 @@ export interface BacklinkEntry {
   id: string;
   title: string;
   slug: string;
+  relation_type?: RelationType;
+  resolution?: string | null;
 }
 
 export interface ArticleSourceRef {
@@ -69,6 +82,7 @@ export interface ArticleSourceRef {
 
 export interface ArticleResponse extends Article {
   content: string;
+  page_type: PageType;
   backlinks_in: BacklinkEntry[];
   backlinks_out: BacklinkEntry[];
   concepts: string[];
