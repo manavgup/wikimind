@@ -87,7 +87,13 @@ class BackgroundCompiler:
         else:
             asyncio.create_task(self._run_recompile_in_process(article_id, mode, job_id))  # noqa: RUF006
 
-        log.info("recompile scheduled", article_id=article_id, mode=mode, job_id=job_id, dispatch="arq" if self.is_prod else "in-process")
+        log.info(
+            "recompile scheduled",
+            article_id=article_id,
+            mode=mode,
+            job_id=job_id,
+            dispatch="arq" if self.is_prod else "in-process",
+        )
         return job_id
 
     async def schedule_sweep(self) -> str:

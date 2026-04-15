@@ -427,6 +427,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/articles/{article_id}/recompile:
+    post:
+      tags:
+      - Wiki
+      summary: Recompile Article
+      description: Schedule an async recompilation job for an article.
+      operationId: recompile_article_wiki_articles__article_id__recompile_post
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      - name: mode
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mode
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query:
     post:
       tags:
