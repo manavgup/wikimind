@@ -51,6 +51,10 @@ export function useWebSocket(): void {
           if (event.event === "compilation.failed") {
             queryClient.invalidateQueries({ queryKey: ["sources"] });
           }
+          if (event.event === "article.recompiled") {
+            queryClient.invalidateQueries({ queryKey: ["articles"] });
+            queryClient.invalidateQueries({ queryKey: ["lint"] });
+          }
         } catch {
           // Ignore non-JSON frames
         }

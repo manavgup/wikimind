@@ -118,30 +118,20 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
 /* ------------------------------------------------------------------ */
 
 function RecompileButton({ articleId }: { articleId: string }) {
-  const queryClient = useQueryClient();
-  const [scheduled, setScheduled] = useState(false);
-
   const recompile = useMutation({
     mutationFn: () => recompileArticle(articleId),
-    onSuccess: () => {
-      setScheduled(true);
-      queryClient.invalidateQueries({ queryKey: ["lint"] });
-      // Reset after 60s — the background job should be done by then.
-      // A full WebSocket listener is the proper long-term fix.
-      setTimeout(() => setScheduled(false), 60_000);
-    },
   });
 
   return (
     <button
       type="button"
-      disabled={recompile.isPending || scheduled}
+      disabled={recompile.isPending || recompile.isSuccess}
       className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       onClick={() => recompile.mutate()}
     >
       {recompile.isPending
         ? "Scheduling..."
-        : scheduled
+        : recompile.isSuccess
           ? "Scheduled"
           : "Recompile"}
     </button>
