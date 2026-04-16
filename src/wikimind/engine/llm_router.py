@@ -6,6 +6,7 @@ Handles selection, fallback, cost tracking, and token budgeting.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
@@ -16,8 +17,13 @@ import anthropic
 import ollama
 import openai
 import structlog
+from sqlalchemy import func
+from sqlmodel import select
 
+from wikimind._datetime import utcnow_naive
+from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
 from wikimind.config import get_api_key, get_settings
+from wikimind.database import get_session_factory
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
 
 log = structlog.get_logger()
@@ -638,6 +644,10 @@ class LLMRouter:
 
     def __init__(self):
         self.settings = get_settings()
+        self._budget_warning_sent = False
+        self._budget_exceeded_sent = False
+        self._cached_spend: float | None = None
+        self._cache_expires_at: float = 0.0
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
         """Return ordered list of providers to try."""
@@ -682,6 +692,38 @@ class LLMRouter:
         cfg = getattr(self.settings.llm, provider.value, None)
         return cfg.model if cfg else "unknown"
 
+    async def _check_budget(self) -> None:
+        if self._budget_warning_sent and self._budget_exceeded_sent:
+            return
+
+        now = time.time()
+        if self._cached_spend is not None and now < self._cache_expires_at:
+            spend = self._cached_spend
+        else:
+            start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
+            async with get_session_factory()() as session:
+                result = await session.execute(
+                    select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
+                )
+                spend = result.scalar() or 0.0
+            self._cached_spend = spend
+            self._cache_expires_at = now + self.settings.llm.budget_check_cache_seconds
+
+        budget = self.settings.llm.monthly_budget_usd
+        if budget <= 0:
+            return
+        pct = spend / budget * 100
+
+        if pct >= self.settings.llm.budget_warning_pct * 100 and not self._budget_warning_sent:
+            log.warning("Budget warning threshold reached", spend_usd=spend, budget_usd=budget, pct=round(pct, 1))
+            await emit_budget_warning(spend, budget, pct)
+            self._budget_warning_sent = True
+
+        if pct >= 100.0 and not self._budget_exceeded_sent:
+            log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
+            await emit_budget_exceeded(spend, budget)
+            self._budget_exceeded_sent = True
+
     async def complete(
         self,
         request: CompletionRequest,
@@ -721,6 +763,8 @@ class LLMRouter:
                     cost_usd=response.cost_usd,
                     latency_ms=response.latency_ms,
                 )
+                task = asyncio.create_task(self._check_budget())
+                task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
                 return response
 
             except Exception as e:

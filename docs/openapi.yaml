@@ -1050,6 +1050,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /settings/llm/cost/breakdown:
+    get:
+      tags:
+      - Settings
+      summary: Get Llm Cost Breakdown
+      description: Cost breakdown by provider and task type for current month.
+      operationId: get_llm_cost_breakdown_settings_llm_cost_breakdown_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /settings/llm/cost:
     get:
       tags:

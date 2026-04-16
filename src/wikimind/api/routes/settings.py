@@ -53,6 +53,7 @@ async def get_all_settings():
         "sync": {
             "enabled": settings.sync.enabled,
             "interval_minutes": settings.sync.interval_minutes,
+            "bucket": settings.sync.bucket,
         },
     }
 
@@ -84,6 +85,61 @@ async def test_llm_connection(provider: str):
         return {"provider": provider, "status": "ok", "latency_ms": response.latency_ms}
     except Exception as e:
         return {"provider": provider, "status": "error", "error": str(e)}
+
+
+@router.get("/llm/cost/breakdown")
+async def get_llm_cost_breakdown():
+    """Cost breakdown by provider and task type for current month."""
+    start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
+    settings = get_settings()
+
+    async with get_session_factory()() as session:
+        total_result = await session.execute(
+            select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
+        )
+        total = total_result.scalar() or 0.0
+
+        provider_result = await session.execute(
+            select(CostLog.provider, func.sum(CostLog.cost_usd), func.count())
+            .where(CostLog.created_at >= start_of_month)
+            .group_by(CostLog.provider)
+        )
+        provider_rows = provider_result.all()
+
+        task_result = await session.execute(
+            select(CostLog.task_type, func.sum(CostLog.cost_usd), func.count())
+            .where(CostLog.created_at >= start_of_month)
+            .group_by(CostLog.task_type)
+        )
+        task_rows = task_result.all()
+
+    budget = settings.llm.monthly_budget_usd
+    budget_pct = round(total / budget * 100, 1) if budget else 0.0
+    month = utcnow_naive().strftime("%Y-%m")
+
+    by_provider = {
+        row[0].value if hasattr(row[0], "value") else str(row[0]): {
+            "cost_usd": round(row[1] or 0.0, 4),
+            "call_count": row[2],
+        }
+        for row in provider_rows
+    }
+    by_task_type = {
+        row[0].value if hasattr(row[0], "value") else str(row[0]): {
+            "cost_usd": round(row[1] or 0.0, 4),
+            "call_count": row[2],
+        }
+        for row in task_rows
+    }
+
+    return {
+        "month": month,
+        "total_usd": round(total, 4),
+        "budget_usd": budget,
+        "budget_pct": budget_pct,
+        "by_provider": by_provider,
+        "by_task_type": by_task_type,
+    }
 
 
 @router.get("/llm/cost")

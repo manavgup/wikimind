@@ -179,3 +179,26 @@ async def emit_article_recompiled(article_id: str, page_type: str, status: str =
             "status": status,
         }
     )
+
+
+async def emit_budget_warning(spend_usd: float, budget_usd: float, pct: float):
+    """Emitted once when monthly spend crosses the warning threshold."""
+    await manager.broadcast(
+        {
+            "event": "budget.warning",
+            "spend_usd": round(spend_usd, 4),
+            "budget_usd": budget_usd,
+            "pct": round(pct, 1),
+        }
+    )
+
+
+async def emit_budget_exceeded(spend_usd: float, budget_usd: float):
+    """Emitted once when monthly spend crosses 100% of budget."""
+    await manager.broadcast(
+        {
+            "event": "budget.exceeded",
+            "spend_usd": round(spend_usd, 4),
+            "budget_usd": budget_usd,
+        }
+    )
