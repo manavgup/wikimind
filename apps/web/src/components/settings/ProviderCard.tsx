@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "../shared/Badge";
 import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import type { ProviderInfo } from "../../api/settings";
-import { testProvider } from "../../api/settings";
+import { testProvider, setDefaultProvider } from "../../api/settings";
 
 interface ProviderCardProps {
   name: string;
@@ -23,6 +23,14 @@ const NO_KEY_PROVIDERS = new Set(["ollama", "mock"]);
 
 export function ProviderCard({ name, info, isDefault, onSetKey }: ProviderCardProps) {
   const [testState, setTestState] = useState<TestState>({ kind: "idle" });
+  const queryClient = useQueryClient();
+
+  const makeDefault = useMutation({
+    mutationFn: () => setDefaultProvider(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+    },
+  });
 
   const testMutation = useMutation({
     mutationFn: () => testProvider(name),
@@ -87,6 +95,16 @@ export function ProviderCard({ name, info, isDefault, onSetKey }: ProviderCardPr
         >
           {getTestLabel()}
         </Button>
+        {info.enabled && info.configured && !isDefault && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={makeDefault.isPending}
+            onClick={() => makeDefault.mutate()}
+          >
+            {makeDefault.isPending ? "Setting..." : "Make Default"}
+          </Button>
+        )}
       </div>
     </Card>
   );

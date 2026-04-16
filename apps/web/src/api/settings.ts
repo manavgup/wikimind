@@ -64,3 +64,20 @@ export function testProvider(provider: string): Promise<TestResult> {
     query: { provider },
   });
 }
+
+export function setDefaultProvider(provider: string): Promise<{ provider: string; status: string }> {
+  return apiFetch("/settings/llm/default-provider", {
+    method: "POST",
+    body: { provider },
+  });
+}
+
+export function updateSettings(updates: {
+  monthly_budget_usd?: number;
+  fallback_enabled?: boolean;
+}): Promise<{ status: string }> {
+  return apiFetch("/settings", {
+    method: "PATCH",
+    body: updates,
+  });
+}

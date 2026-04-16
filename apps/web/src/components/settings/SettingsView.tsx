@@ -1,19 +1,33 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../shared/Card";
+import { Button } from "../shared/Button";
 import { Spinner } from "../shared/Spinner";
 import { ProviderCard } from "./ProviderCard";
 import { ApiKeyModal } from "./ApiKeyModal";
 import { CostDashboard } from "./CostDashboard";
 import { SyncStatus } from "./SyncStatus";
-import { getSettings } from "../../api/settings";
+import { getSettings, updateSettings } from "../../api/settings";
 
 export function SettingsView() {
   const [apiKeyModalProvider, setApiKeyModalProvider] = useState<string | null>(null);
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetValue, setBudgetValue] = useState("");
+
+  const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
+  });
+
+  const patchSettings = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["cost-breakdown"] });
+      setEditingBudget(false);
+    },
   });
 
   if (isLoading) {
@@ -72,10 +86,62 @@ export function SettingsView() {
             <span className="capitalize text-slate-700">{settings.llm.default_provider}</span>
 
             <span className="text-slate-500">Fallback</span>
-            <span className="text-slate-700">{settings.llm.fallback_enabled ? "Enabled" : "Disabled"}</span>
+            <button
+              type="button"
+              className={`inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.llm.fallback_enabled ? "bg-emerald-500" : "bg-slate-300"
+              }`}
+              onClick={() =>
+                patchSettings.mutate({ fallback_enabled: !settings.llm.fallback_enabled })
+              }
+              disabled={patchSettings.isPending}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  settings.llm.fallback_enabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
 
             <span className="text-slate-500">Monthly budget</span>
-            <span className="text-slate-700">${settings.llm.monthly_budget_usd.toFixed(2)}</span>
+            {editingBudget ? (
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const val = parseFloat(budgetValue);
+                  if (val > 0) patchSettings.mutate({ monthly_budget_usd: val });
+                }}
+              >
+                <span className="text-slate-500">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={budgetValue}
+                  onChange={(e) => setBudgetValue(e.target.value)}
+                  className="w-24 rounded border border-slate-300 px-2 py-0.5 text-sm text-slate-700 focus:border-brand-300 focus:outline-none"
+                  autoFocus
+                />
+                <Button variant="ghost" size="sm" type="submit" disabled={patchSettings.isPending}>
+                  Save
+                </Button>
+                <Button variant="ghost" size="sm" type="button" onClick={() => setEditingBudget(false)}>
+                  Cancel
+                </Button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="text-left text-slate-700 hover:text-brand-600 hover:underline"
+                onClick={() => {
+                  setBudgetValue(settings.llm.monthly_budget_usd.toFixed(2));
+                  setEditingBudget(true);
+                }}
+              >
+                ${settings.llm.monthly_budget_usd.toFixed(2)}
+              </button>
+            )}
           </div>
         </Card>
       </section>
