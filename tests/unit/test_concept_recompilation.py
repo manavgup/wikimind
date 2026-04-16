@@ -14,16 +14,19 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlmodel import select
 
+from wikimind.engine.compiler import Compiler
 from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.models import (
     Article,
+    CompilationResult,
     CompletionResponse,
     Concept,
     ConceptKindDef,
+    IngestStatus,
     PageType,
     Provider,
+    Source,
 )
 from wikimind.services.taxonomy import _concept_source_set_changed, maybe_trigger_concept_pages
 
@@ -106,8 +109,8 @@ class TestSourceSetUnchangedSkipsRecompilation:
     async def test_skips_when_source_ids_match(self, db_session, tmp_path):
         """After compiling a concept page, _concept_source_set_changed returns False."""
         await _seed_kind(db_session)
-        a1 = await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
-        a2 = await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
         concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
         db_session.add(concept)
         await db_session.commit()
@@ -130,8 +133,8 @@ class TestSourceSetUnchangedSkipsRecompilation:
     async def test_maybe_trigger_skips_unchanged(self, db_session, tmp_path):
         """maybe_trigger_concept_pages does NOT call compile when source set is unchanged."""
         await _seed_kind(db_session)
-        a1 = await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
-        a2 = await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
         concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
         db_session.add(concept)
         await db_session.commit()
@@ -176,8 +179,8 @@ class TestSourceSetChangedTriggersRecompilation:
 
     async def test_changed_returns_true_when_new_source_added(self, db_session, tmp_path):
         await _seed_kind(db_session)
-        a1 = await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
-        a2 = await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
         concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
         db_session.add(concept)
         await db_session.commit()
@@ -197,7 +200,7 @@ class TestSourceSetChangedTriggersRecompilation:
         assert not await _concept_source_set_changed(concept, db_session)
 
         # Add a new source article.
-        a3 = await _mk_source_article(db_session, tmp_path, "s3", "S3", ["ml"])
+        await _mk_source_article(db_session, tmp_path, "s3", "S3", ["ml"])
 
         # Source set has now changed.
         assert await _concept_source_set_changed(concept, db_session)
@@ -209,9 +212,6 @@ class TestReplaceArticleTriggersConceptPages:
 
     async def test_replace_calls_maybe_trigger(self, db_session, tmp_path):
         """Verify that _replace_article_in_place invokes maybe_trigger_concept_pages."""
-        from wikimind.engine.compiler import Compiler
-        from wikimind.models import CompilationResult, IngestStatus, Source
-
         # Create a source.
         source = Source(
             title="Test Source",
@@ -269,7 +269,9 @@ class TestReplaceArticleTriggersConceptPages:
         compiler._last_typed_suggestions = {}
 
         with (
-            patch("wikimind.engine.compiler.resolve_backlink_candidates", new_callable=AsyncMock, return_value=([], [])),
+            patch(
+                "wikimind.engine.compiler.resolve_backlink_candidates", new_callable=AsyncMock, return_value=([], [])
+            ),
             patch("wikimind.engine.compiler.upsert_concepts", new_callable=AsyncMock),
             patch("wikimind.engine.compiler.update_article_counts", new_callable=AsyncMock),
             patch("wikimind.engine.compiler.maybe_trigger_taxonomy_rebuild", new_callable=AsyncMock),
