@@ -289,6 +289,17 @@ class SyncLog(SQLModel, table=True):
     error: str | None = None
 
 
+class UserPreference(SQLModel, table=True):
+    """Lightweight key-value store for runtime settings overrides.
+
+    Precedence: DB row wins if it exists, otherwise falls back to .env defaults.
+    """
+
+    key: str = Field(primary_key=True)
+    value: str
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
 # ---------------------------------------------------------------------------
 # Pydantic Models (not persisted — used for processing pipeline)
 # ---------------------------------------------------------------------------

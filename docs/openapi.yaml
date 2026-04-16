@@ -991,7 +991,7 @@ paths:
       tags:
       - Settings
       summary: Get All Settings
-      description: Return all application settings.
+      description: Return all application settings, with DB overrides applied.
       operationId: get_all_settings_settings_get
       responses:
         '200':
@@ -999,6 +999,55 @@ paths:
           content:
             application/json:
               schema: {}
+    patch:
+      tags:
+      - Settings
+      summary: Update Settings
+      description: Update runtime settings. Changes persist to DB across restarts.
+      operationId: update_settings_settings_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /settings/llm/default-provider:
+    post:
+      tags:
+      - Settings
+      summary: Set Default Provider
+      description: Set the default LLM provider. Persists to DB, survives restarts.
+      operationId: set_default_provider_settings_llm_default_provider_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefaultProviderRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /settings/llm/api-key:
     post:
       tags:
@@ -1533,6 +1582,16 @@ components:
       - turn_count
       title: ConversationSummary
       description: Conversation summary for the history sidebar — adds turn count.
+    DefaultProviderRequest:
+      properties:
+        provider:
+          type: string
+          title: Provider
+      type: object
+      required:
+      - provider
+      title: DefaultProviderRequest
+      description: Request to set the default LLM provider.
     FileBackSelectionRequest:
       properties:
         selections:
@@ -2005,6 +2064,26 @@ components:
       - resolution
       title: ResolveContradictionRequest
       description: Request to resolve a contradiction between two articles.
+    SettingsUpdateRequest:
+      properties:
+        monthly_budget_usd:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Monthly Budget Usd
+        default_provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Default Provider
+        fallback_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Fallback Enabled
+      type: object
+      title: SettingsUpdateRequest
+      description: Request to update settings.
     Source:
       properties:
         id:
