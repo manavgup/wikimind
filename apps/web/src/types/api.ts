@@ -151,4 +151,6 @@ export type WSEvent =
   | { event: "compilation.failed"; source_id: string; error: string }
   | { event: "sync.complete"; pushed: number; pulled: number; conflicts?: number }
   | { event: "linter.alert"; type: string; articles: string[] }
-  | { event: "article.recompiled"; article_id: string; page_type: string; status: string };
+  | { event: "article.recompiled"; article_id: string; page_type: string; status: string }
+  | { event: "budget.warning"; spend_usd: number; budget_usd: number; pct: number }
+  | { event: "budget.exceeded"; spend_usd: number; budget_usd: number };

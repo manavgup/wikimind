@@ -13,6 +13,7 @@ const RECONNECT_DELAY_MS = 2000;
 export function useWebSocket(): void {
   const setState = useWebSocketStore((s) => s.setState);
   const ingest = useWebSocketStore((s) => s.ingest);
+  const pushToast = useWebSocketStore((s) => s.pushToast);
   const queryClient = useQueryClient();
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<number | null>(null);
@@ -55,6 +56,22 @@ export function useWebSocket(): void {
             queryClient.invalidateQueries({ queryKey: ["articles"] });
             queryClient.invalidateQueries({ queryKey: ["lint"] });
           }
+          if (event.event === "budget.warning") {
+            pushToast({
+              kind: "info",
+              title: "Budget warning",
+              detail: `Monthly spend at ${event.pct}% of budget ($${event.spend_usd.toFixed(2)}/$${event.budget_usd.toFixed(2)})`,
+            });
+            queryClient.invalidateQueries({ queryKey: ["cost-breakdown"] });
+          }
+          if (event.event === "budget.exceeded") {
+            pushToast({
+              kind: "error",
+              title: "Budget exceeded",
+              detail: `Monthly spend exceeded budget ($${event.spend_usd.toFixed(2)}/$${event.budget_usd.toFixed(2)})`,
+            });
+            queryClient.invalidateQueries({ queryKey: ["cost-breakdown"] });
+          }
         } catch {
           // Ignore non-JSON frames
         }
@@ -93,5 +110,5 @@ export function useWebSocket(): void {
       }
       socketRef.current = null;
     };
-  }, [setState, ingest, queryClient]);
+  }, [setState, ingest, pushToast, queryClient]);
 }
