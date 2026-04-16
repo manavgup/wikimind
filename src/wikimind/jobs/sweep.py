@@ -87,18 +87,22 @@ async def _sweep_single_article(
     # Write the updated file
     file_path.write_text(new_content, encoding="utf-8")
 
-    # Persist Backlink rows — use merge() to handle duplicates gracefully.
-    # The old per-row commit + IntegrityError approach caused identity-map
-    # conflicts (SAWarning) when the selectin eager loading on Article
-    # already loaded the Backlink into the session (#163). merge() resolves
-    # this by reconciling new instances with existing identity-map entries.
+    # Persist Backlink rows — use get-or-create to handle duplicates
+    # gracefully. The selectin eager loading on Article pre-populates the
+    # identity map with existing Backlinks, so merge() would conflict
+    # (SAWarning + IntegrityError). Instead we check for each backlink
+    # by composite PK and only insert when it doesn't already exist (#163).
     for rb in resolved:
-        bl = Backlink(
-            source_article_id=article.id,
-            target_article_id=rb.target_id,
-            context=rb.candidate_text,
-        )
-        await session.merge(bl)
+        existing = await session.get(Backlink, (article.id, rb.target_id))
+        if existing is not None:
+            existing.context = rb.candidate_text
+        else:
+            bl = Backlink(
+                source_article_id=article.id,
+                target_article_id=rb.target_id,
+                context=rb.candidate_text,
+            )
+            session.add(bl)
 
     # Single commit for all backlinks of this article.
     await session.commit()
