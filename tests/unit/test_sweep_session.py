@@ -180,8 +180,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     # Should have at least 3 calls: 1 job session + 2 per article
     # (one per article in the loop). The key assertion is > 1.
     assert counting_factory.call_count >= 3, (
-        f"Expected at least 3 session factory calls (1 job + 2 articles), "
-        f"got {counting_factory.call_count}"
+        f"Expected at least 3 session factory calls (1 job + 2 articles), got {counting_factory.call_count}"
     )
 
     # Verify the backlink was actually created.
