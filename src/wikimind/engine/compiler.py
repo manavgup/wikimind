@@ -437,6 +437,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             await upsert_concepts(result.concepts, session)
             await update_article_counts(session)
             await maybe_trigger_taxonomy_rebuild(session)
+            # Concept page generation must use its own session to avoid
+            # identity-map conflicts (same pattern as _create_article,
+            # issue #152).  Added here so recompiling an existing source
+            # also updates concept pages (issue #162).
+            async with get_session_factory()() as concept_session:
+                await maybe_trigger_concept_pages(concept_session)
         except Exception:
             log.warning(
                 "taxonomy upsert failed",
