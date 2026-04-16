@@ -73,10 +73,13 @@ async def set_provider_api_key(request: APIKeyRequest):
 async def test_llm_connection(provider: str):
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
+    # Temporarily disable fallback so we only test the requested provider
+    original_fallback = router_instance.settings.llm.fallback_enabled
+    router_instance.settings.llm.fallback_enabled = False
     try:
         request = CompletionRequest(
             system="You are a test assistant.",
-            messages=[{"role": "user", "content": "Say 'ok' in one word."}],
+            messages=[{"role": "user", "content": 'Respond with the json object: {"status": "ok"}'}],
             max_tokens=10,
             task_type=TaskType.QA,
             preferred_provider=Provider(provider),
@@ -85,6 +88,8 @@ async def test_llm_connection(provider: str):
         return {"provider": provider, "status": "ok", "latency_ms": response.latency_ms}
     except Exception as e:
         return {"provider": provider, "status": "error", "error": str(e)}
+    finally:
+        router_instance.settings.llm.fallback_enabled = original_fallback
 
 
 @router.get("/llm/cost/breakdown")
