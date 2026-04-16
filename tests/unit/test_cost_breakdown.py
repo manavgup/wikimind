@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from wikimind.api.routes import settings as settings_mod
 from wikimind.models import Provider, TaskType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,8 +51,6 @@ def _make_fake_session_factory(total: float, provider_rows: list, task_rows: lis
 
 async def test_empty_cost_log_returns_zeros(client) -> None:
     session_factory = _make_fake_session_factory(total=0.0, provider_rows=[], task_rows=[])
-    from wikimind.api.routes import settings as settings_mod
-
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
         resp = await client.get("/settings/llm/cost/breakdown")
 
@@ -73,8 +71,6 @@ async def test_seeded_entries_group_by_provider(client) -> None:
         (TaskType.QA, 8.20, 30),
     ]
     session_factory = _make_fake_session_factory(total=12.50, provider_rows=provider_rows, task_rows=task_rows)
-    from wikimind.api.routes import settings as settings_mod
-
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
         resp = await client.get("/settings/llm/cost/breakdown")
 
@@ -94,8 +90,6 @@ async def test_seeded_entries_group_by_task_type(client) -> None:
         (TaskType.COMPILE, 3.20, 10),
     ]
     session_factory = _make_fake_session_factory(total=8.20, provider_rows=provider_rows, task_rows=task_rows)
-    from wikimind.api.routes import settings as settings_mod
-
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
         resp = await client.get("/settings/llm/cost/breakdown")
 
@@ -108,8 +102,6 @@ async def test_seeded_entries_group_by_task_type(client) -> None:
 
 async def test_budget_percentage_calculated_correctly(client) -> None:
     session_factory = _make_fake_session_factory(total=25.0, provider_rows=[], task_rows=[])
-    from wikimind.api.routes import settings as settings_mod
-
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
         resp = await client.get("/settings/llm/cost/breakdown")
 
