@@ -14,6 +14,7 @@ from keyring.backend import KeyringBackend
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
+import wikimind.database as _db_mod
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.main import app
@@ -102,7 +103,13 @@ async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, 
 
 @pytest.fixture
 async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
-    """FastAPI test client wired to in-memory database."""
+    """FastAPI test client wired to in-memory database.
+
+    Both the FastAPI dependency (``get_session``) and the module-level
+    ``get_session_factory`` singleton are redirected to the same in-memory
+    engine so that route handlers that call ``get_session_factory()`` directly
+    (rather than through FastAPI's DI) also use the hermetic test DB.
+    """
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
 
     async def _override_session() -> AsyncGenerator[AsyncSession, None]:
@@ -111,11 +118,17 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
 
     app.dependency_overrides[get_session] = _override_session
 
+    # Patch the module-level session-factory singleton so direct callers
+    # (e.g. _get_preference, _set_preference) also use the test DB.
+    original_factory = _db_mod._session_factory
+    _db_mod._session_factory = factory
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
 
     app.dependency_overrides.clear()
+    _db_mod._session_factory = original_factory
 
 
 # ---------------------------------------------------------------------------

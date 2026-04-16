@@ -95,6 +95,8 @@ class LLMConfig(BaseModel):
     default_provider: str = "anthropic"
     fallback_enabled: bool = True
     monthly_budget_usd: float = 50.0
+    budget_warning_pct: float = 0.8
+    budget_check_cache_seconds: int = 60
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     google: GoogleConfig = Field(default_factory=GoogleConfig)

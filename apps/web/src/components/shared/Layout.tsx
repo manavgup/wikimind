@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: "/wiki", label: "Wiki", icon: "📚" },
   { to: "/graph", label: "Graph", icon: "🕸️" },
   { to: "/health", label: "Health", icon: "🩺" },
+  { to: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
 export function Layout({ children }: LayoutProps) {

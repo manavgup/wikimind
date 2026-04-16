@@ -13,11 +13,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import select
 
 from wikimind.api.routes import ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
-from wikimind.database import close_db, init_db
+from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.errors import WikiMindError
 from wikimind.ingest.service import _DOCLING_AVAILABLE, _get_docling_converter
 from wikimind.middleware.correlation import CorrelationIdMiddleware
@@ -25,8 +26,23 @@ from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
+from wikimind.models import UserPreference
 
 log = structlog.get_logger()
+
+
+async def _apply_db_preferences() -> None:
+    """Apply persisted user preferences to the in-memory settings singleton."""
+    async with get_session_factory()() as session:
+        result = await session.execute(select(UserPreference))
+        for pref in result.scalars().all():
+            settings = get_settings()
+            if pref.key == "llm.default_provider":
+                settings.llm.default_provider = pref.value
+            elif pref.key == "llm.monthly_budget_usd":
+                settings.llm.monthly_budget_usd = float(pref.value)
+            elif pref.key == "llm.fallback_enabled":
+                settings.llm.fallback_enabled = pref.value.lower() == "true"
 
 
 @asynccontextmanager
@@ -39,6 +55,7 @@ async def lifespan(app: FastAPI):
 
     log.info("WikiMind gateway starting", port=settings.gateway_port)
     await init_db()
+    await _apply_db_preferences()
     log.info("Database initialized")
 
     # Warm up the Docling converter in a background thread so ML model
