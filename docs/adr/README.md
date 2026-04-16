@@ -26,6 +26,7 @@ considered, and the consequences.
 | [016](adr-016-article-recompilation.md) | Article recompilation as a first-class action | Accepted |
 | [017](adr-017-backlink-enforcer-lint-phase.md) | Backlink enforcer as lint Phase 3 with auto-repair | Accepted |
 | [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Unknown |
+| [019](adr-019-runtime-user-preferences.md) | Runtime User Preferences via DB Override Table | Accepted |
 
 ## ADR Format
 
