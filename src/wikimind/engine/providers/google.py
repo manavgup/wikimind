@@ -53,7 +53,7 @@ class GoogleProvider:
 
         response = await self.client.aio.models.generate_content(
             model=model,
-            contents=contents,
+            contents=contents,  # type: ignore[arg-type]
             config=types.GenerateContentConfig(**config_kwargs),
         )
 
@@ -170,7 +170,7 @@ class GoogleProvider:
 
             async for chunk in await self.client.aio.models.generate_content_stream(
                 model=model,
-                contents=contents,
+                contents=contents,  # type: ignore[arg-type]
                 config=types.GenerateContentConfig(**config_kwargs),
             ):
                 text = chunk.text
