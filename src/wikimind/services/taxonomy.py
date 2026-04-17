@@ -132,8 +132,46 @@ async def update_article_counts(session: AsyncSession) -> None:
     await session.commit()
 
 
+async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -> bool:
+    """Return True if the concept's current source articles differ from the last compilation.
+
+    Compares sorted source article IDs from the database against the
+    ``source_ids`` JSON stored on the existing concept page article.
+    Returns True (needs recompilation) when no existing concept page
+    exists, when the stored ``source_ids`` cannot be parsed, or when
+    the sorted ID lists do not match.
+
+    This avoids expensive LLM calls when the source set is unchanged
+    (issue #162).
+    """
+    from wikimind.engine.concept_compiler import (  # noqa: PLC0415
+        _collect_source_articles,
+    )
+
+    source_articles = await _collect_source_articles(concept.name, session)
+    current_ids = sorted(a.id for a in source_articles)
+
+    # Look up existing concept page.
+    slug = f"concept-{slugify(concept.name)}"
+    existing_result = await session.execute(select(Article).where(Article.slug == slug, Article.page_type == "concept"))
+    existing = existing_result.scalar_one_or_none()
+    if existing is None:
+        return True
+
+    try:
+        previous_ids = sorted(json.loads(existing.source_ids or "[]"))
+    except (TypeError, ValueError):
+        return True
+
+    return current_ids != previous_ids
+
+
 async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
-    """Generate concept pages for concepts with enough source articles."""
+    """Generate concept pages for concepts with enough source articles.
+
+    Skips concepts whose source set has not changed since the last
+    compilation, avoiding unnecessary LLM calls (issue #162).
+    """
     settings = get_settings()
     min_sources = settings.taxonomy.concept_page_min_sources
     result = await session.execute(select(Concept).where(Concept.article_count >= min_sources))
@@ -146,6 +184,12 @@ async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
     compiled: list[str] = []
     for concept in eligible:
         try:
+            if not await _concept_source_set_changed(concept, session):
+                log.debug(
+                    "Concept page source set unchanged, skipping recompilation",
+                    concept=concept.name,
+                )
+                continue
             article = await compiler.compile_concept_page(concept, session)
             if article is not None:
                 compiled.append(concept.name)
