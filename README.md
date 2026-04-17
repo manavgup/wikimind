@@ -43,6 +43,25 @@ npm run dev
 # Opens http://localhost:5173
 ```
 
+## Production (PostgreSQL)
+
+For shared access across multiple devices, use PostgreSQL instead of SQLite:
+
+```bash
+# 1. Set the database URL in .env
+echo 'WIKIMIND_DATABASE_URL=postgresql+asyncpg://localhost:5432/wikimind' >> .env
+
+# 2. Run Alembic migrations (first time only, and after upgrades)
+alembic upgrade head
+
+# 3. Start the server
+make dev
+```
+
+All features work identically on both backends. SQLite is recommended for
+single-device development. PostgreSQL is required for cloud deployments where
+multiple devices share the same database.
+
 ## Architecture
 
 ```
