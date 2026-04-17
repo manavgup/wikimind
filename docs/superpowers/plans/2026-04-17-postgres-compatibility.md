@@ -58,10 +58,10 @@ class TestDatabaseUrl:
 
     def test_database_url_from_env(self, monkeypatch, _isolated_data_dir):
         """database_url can be overridden via environment variable."""
-        monkeypatch.setenv("WIKIMIND_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/wikimind")
+        monkeypatch.setenv("WIKIMIND_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/wikimind  # pragma: allowlist secret")
         get_settings.cache_clear()
         settings = get_settings()
-        assert settings.database_url == "postgresql+asyncpg://user:pass@localhost/wikimind"
+        assert settings.database_url == "postgresql+asyncpg://user:pass@localhost/wikimind  # pragma: allowlist secret"
         get_settings.cache_clear()
 ```
 
@@ -1354,7 +1354,7 @@ Add the following section to `.env.example` after the existing `# Database (opti
 # Database (optional)
 # ----------------------------------------------------------------------------
 # Defaults to SQLite at ~/.wikimind/db/wikimind.db. Override for Postgres:
-# WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/wikimind
+# WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/wikimind  # pragma: allowlist secret
 #
 # For Postgres, run `alembic upgrade head` before first startup.
 #
@@ -1535,7 +1535,7 @@ Expected: All tests SKIPPED (no `WIKIMIND_TEST_POSTGRES_URL` set)
 
 If a local Postgres is available:
 ```bash
-export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/wikimind_test
+export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/wikimind_test  # pragma: allowlist secret
 createdb wikimind_test 2>/dev/null || true
 .venv/bin/pytest tests/integration/test_postgres_integration.py -v
 ```
