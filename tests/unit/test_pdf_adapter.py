@@ -22,6 +22,7 @@ from wikimind.config import Settings, get_settings
 from wikimind.ingest import service as ingest_service
 from wikimind.ingest.service import PDFAdapter
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
+from wikimind.storage import get_raw_storage, get_wiki_storage
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -56,13 +57,18 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """
     fake_settings = Settings(data_dir=str(tmp_path), vision_enabled=False)
     monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     # Pre-create raw_dir so the assertions can rely on it existing.
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)
     # Drop the global lru_cache too in case anything else hits it during the
     # test (defensive — the monkeypatch above is the primary mechanism).
     get_settings.cache_clear()
+    get_wiki_storage.cache_clear()
+    get_raw_storage.cache_clear()
     yield tmp_path
     get_settings.cache_clear()
+    get_wiki_storage.cache_clear()
+    get_raw_storage.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +135,7 @@ class TestPDFAdapterFitzFallback:
         assert raw_pdf.read_bytes() == pdf_bytes
         assert raw_txt.exists(), "cleaned .txt should be saved for the worker"
         assert "Lineage check page" in raw_txt.read_text(encoding="utf-8")
-        assert source.file_path == str(raw_txt)
+        assert source.file_path == f"{source.id}.txt"
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +215,7 @@ class TestPDFAdapterDoclingPath:
 
         assert doc.clean_text == markdown
         assert "# Slide deck" in doc.clean_text
-        assert source.file_path == str(isolated_data_dir / "raw" / f"{source.id}.txt")
+        assert source.file_path == f"{source.id}.txt"
         assert (isolated_data_dir / "raw" / f"{source.id}.txt").read_text(encoding="utf-8") == markdown
 
 

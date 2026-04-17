@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -24,6 +23,7 @@ from wikimind.models import (
     QueryRequest,
     QueryResult,
 )
+from wikimind.storage import resolve_wiki_path
 
 
 def _agent(tmp_path) -> QAAgent:
@@ -306,7 +306,7 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
     assert refreshed.filed_article_id == article.id
 
     # The .md file exists on disk
-    assert Path(article.file_path).exists()
+    assert resolve_wiki_path(article.file_path).exists()
 
 
 async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_path, monkeypatch) -> None:
@@ -360,7 +360,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     assert second_article.file_path == first_path  # same file path
 
     # The file content now reflects both turns
-    content = Path(first_path).read_text()
+    content = resolve_wiki_path(first_path).read_text()
     assert "Q1: What is Y?" in content
     assert "Q2: follow-up" in content
 
@@ -427,11 +427,11 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
     assert article_a.file_path != article_b.file_path
 
     # Both files exist on disk
-    assert Path(article_a.file_path).exists()
-    assert Path(article_b.file_path).exists()
+    assert resolve_wiki_path(article_a.file_path).exists()
+    assert resolve_wiki_path(article_b.file_path).exists()
 
     # The first article's content mentions the first answer
-    content_a = Path(article_a.file_path).read_text()
+    content_a = resolve_wiki_path(article_a.file_path).read_text()
     assert "First answer" in content_a
 
 

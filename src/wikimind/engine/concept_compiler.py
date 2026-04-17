@@ -26,6 +26,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -126,7 +127,7 @@ def _build_source_material(articles: list[Article]) -> str:
         if article.summary:
             section += f"Summary: {article.summary}\n"
         try:
-            fc = Path(article.file_path).read_text(encoding="utf-8")
+            fc = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
             if len(fc) > 5000:
                 fc = fc[:5000] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
@@ -232,12 +233,12 @@ class ConceptCompiler:
         now = utcnow_naive()
         source_ids = [a.id for a in source_articles]
         existing = await self._find_existing_concept_article(concept.name, session)
-        file_path = self._write_concept_file(compilation, concept, source_articles)
+        relative_path = self._write_concept_file(compilation, concept, source_articles)
         if existing is not None:
-            Path(existing.file_path).unlink(missing_ok=True)
+            resolve_wiki_path(existing.file_path).unlink(missing_ok=True)
             existing.title = compilation.title
             existing.summary = compilation.overview
-            existing.file_path = str(file_path)
+            existing.file_path = relative_path
             existing.concept_ids = json.dumps([concept.name])
             existing.source_ids = json.dumps(source_ids)
             existing.provider = self._last_provider_used
@@ -258,7 +259,7 @@ class ConceptCompiler:
             article = Article(
                 slug=f"concept-{slug}",
                 title=compilation.title,
-                file_path=str(file_path),
+                file_path=relative_path,
                 summary=compilation.overview,
                 concept_ids=json.dumps([concept.name]),
                 source_ids=json.dumps(source_ids),
@@ -281,7 +282,8 @@ class ConceptCompiler:
 
     def _write_concept_file(
         self, compilation: ConceptCompilationResult, concept: Concept, source_articles: list[Article]
-    ) -> Path:
+    ) -> str:
+        """Write concept page markdown. Returns wiki-relative path."""
         wiki_dir = Path(self.settings.data_dir) / "wiki"
         slug = slugify(concept.name)
         concept_dir = wiki_dir / slug
@@ -342,7 +344,7 @@ provider: {self._last_provider_used or "unknown"}
 {compilation.sources_summary}
 """
         file_path.write_text(content, encoding="utf-8")
-        return file_path
+        return str(file_path.relative_to(wiki_dir))
 
     async def _create_synthesizes_links(
         self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession

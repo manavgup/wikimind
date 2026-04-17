@@ -67,7 +67,7 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> Path:  # noqa: PLR0912
+async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: PLR0912
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
@@ -79,7 +79,7 @@ async def regenerate_index_md(session: AsyncSession) -> Path:  # noqa: PLR0912
         session: Async database session.
 
     Returns:
-        The Path to the written file.
+        The wiki-relative path string of the written file.
     """
     settings = get_settings()
     wiki_dir = Path(settings.data_dir) / "wiki"
@@ -161,10 +161,10 @@ async def regenerate_index_md(session: AsyncSession) -> Path:  # noqa: PLR0912
 
     index_path.write_text("".join(lines), encoding="utf-8")
     log.info("index.md regenerated", article_count=len(articles))
-    return index_path
+    return "index.md"
 
 
-async def generate_meta_health_page(session: AsyncSession) -> Path:
+async def generate_meta_health_page(session: AsyncSession) -> str:
     """Generate a meta page with wiki health statistics.
 
     Creates ``wiki/meta/wiki-health.md`` with deterministic summary
@@ -175,7 +175,7 @@ async def generate_meta_health_page(session: AsyncSession) -> Path:
         session: Async database session.
 
     Returns:
-        The Path to the written meta page file.
+        The wiki-relative path string of the written meta page file.
     """
     settings = get_settings()
     meta_dir = Path(settings.data_dir) / "wiki" / "meta"
@@ -239,4 +239,4 @@ async def generate_meta_health_page(session: AsyncSession) -> Path:
 
     health_path.write_text("".join(lines), encoding="utf-8")
     log.info("wiki-health.md generated", article_count=total, orphan_count=orphan_count)
-    return health_path
+    return "meta/wiki-health.md"

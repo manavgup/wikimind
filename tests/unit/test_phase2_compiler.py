@@ -254,30 +254,24 @@ async def test_article_page_type_source(db_session, tmp_path):
     assert article.page_type == PageType.SOURCE
 
 
-def test_validate_source_frontmatter(tmp_path):
-    md = tmp_path / "test.md"
-    md.write_text(
-        '---\ntitle: "Test"\nslug: test\npage_type: source\nsource_id: abc-123\nsource_type: url\nsource_url: http://example.com\ncompiled: 2026-04-13T12:00:00\nconcepts: []\nconfidence: sourced\nprovider: anthropic\n---\n\n## Summary\n\nTest.\n'
-    )
-    assert validate_frontmatter(md) is True
+def test_validate_source_frontmatter():
+    content = '---\ntitle: "Test"\nslug: test\npage_type: source\nsource_id: abc-123\nsource_type: url\nsource_url: http://example.com\ncompiled: 2026-04-13T12:00:00\nconcepts: []\nconfidence: sourced\nprovider: anthropic\n---\n\n## Summary\n\nTest.\n'
+    assert validate_frontmatter(content) is True
 
 
-def test_validate_missing_page_type(tmp_path):
-    md = tmp_path / "test.md"
-    md.write_text("---\ntitle: Test\nslug: test\n---\nContent.\n")
-    assert validate_frontmatter(md) is False
+def test_validate_missing_page_type():
+    content = "---\ntitle: Test\nslug: test\n---\nContent.\n"
+    assert validate_frontmatter(content) is False
 
 
-def test_validate_no_frontmatter(tmp_path):
-    md = tmp_path / "test.md"
-    md.write_text("No frontmatter here.")
-    assert validate_frontmatter(md) is False
+def test_validate_no_frontmatter():
+    content = "No frontmatter here."
+    assert validate_frontmatter(content) is False
 
 
-def test_parse_frontmatter_extracts_yaml(tmp_path):
-    md = tmp_path / "test.md"
-    md.write_text("---\ntitle: Hello\nslug: hello\npage_type: source\n---\nBody.\n")
-    data = parse_frontmatter(md)
+def test_parse_frontmatter_extracts_yaml():
+    content = "---\ntitle: Hello\nslug: hello\npage_type: source\n---\nBody.\n"
+    data = parse_frontmatter(content)
     assert data is not None
     assert data["title"] == "Hello"
     assert data["page_type"] == "source"
@@ -290,9 +284,10 @@ def test_write_article_file_includes_page_type(tmp_path):
     ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
-    path = c._write_article_file(_result(), src, "test-slug", [], [])
-    assert path.exists()
-    text = path.read_text()
+    rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
+    full_path = Path(tmp_path) / "wiki" / rel_path
+    assert full_path.exists()
+    text = full_path.read_text()
     assert "page_type: source" in text
     assert "source_id:" in text
 

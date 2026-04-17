@@ -49,6 +49,7 @@ from wikimind.services.taxonomy import (
     upsert_concepts,
 )
 from wikimind.services.wiki_index import regenerate_index_md
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -328,12 +329,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             relation_types=self._last_typed_suggestions,
         )
 
-        file_path = self._write_article_file(result, source, slug, resolved, unresolved)
+        relative_path = self._write_article_file(result, source, slug, resolved, unresolved)
 
         article = Article(
             slug=slug,
             title=result.title,
-            file_path=str(file_path),
+            file_path=relative_path,
             confidence=self._overall_confidence(result),
             summary=result.summary,
             source_ids=json.dumps([source.id]),
@@ -399,7 +400,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Replace an existing same-source same-provider article in place."""
         old_concept_ids = existing.concept_ids
 
-        old_path = Path(existing.file_path)
+        old_path = resolve_wiki_path(existing.file_path)
         old_path.unlink(missing_ok=True)
 
         resolved, unresolved = await resolve_backlink_candidates(
@@ -409,12 +410,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             relation_types=self._last_typed_suggestions,
         )
 
-        new_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
+        relative_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
 
         existing.title = result.title
         existing.summary = result.summary
         existing.confidence = self._overall_confidence(result)
-        existing.file_path = str(new_path)
+        existing.file_path = relative_path
         existing.concept_ids = json.dumps(result.concepts)
         existing.page_type = PageType.SOURCE
         existing.updated_at = utcnow_naive()
@@ -515,12 +516,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         slug: str,
         resolved: list[ResolvedBacklink],
         unresolved: list[str],
-    ) -> Path:
-        """Write .md file to wiki directory with page_type:source frontmatter."""
+    ) -> str:
+        """Write .md file to wiki directory with page_type:source frontmatter.
+
+        Returns the wiki-relative path (e.g. ``concept-slug/article.md``)
+        for storage in Article.file_path.
+        """
         wiki_dir = Path(self.settings.data_dir) / "wiki"
 
         concept = result.concepts[0] if result.concepts else "general"
-        concept_dir = wiki_dir / slugify(concept)
+        concept_slug = slugify(concept)
+        concept_dir = wiki_dir / concept_slug
         concept_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = concept_dir / f"{slug}.md"
@@ -583,9 +589,10 @@ provider: {provider_str}
         file_path.write_text(content, encoding="utf-8")
 
         # Post-write frontmatter validation (best-effort, log warnings)
-        validate_frontmatter(file_path)
+        validate_frontmatter(content)
 
-        return file_path
+        # Return relative path for DB storage instead of absolute Path
+        return str(file_path.relative_to(wiki_dir))
 
     def _overall_confidence(self, result: CompilationResult) -> ConfidenceLevel:
         """Determine overall confidence from claims."""

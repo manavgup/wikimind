@@ -207,9 +207,11 @@ def test_write_article_file(tmp_path) -> None:
     ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
-    path = c._write_article_file(_result(), src, "test-slug", [], [])
-    assert path.exists()
-    text = path.read_text()
+    rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
+    assert isinstance(rel_path, str)
+    full_path = Path(tmp_path) / "wiki" / rel_path
+    assert full_path.exists()
+    text = full_path.read_text()
     assert "Test Article" in text
     assert "test-slug" in text
 
@@ -230,9 +232,11 @@ def test_write_article_file_no_concepts(tmp_path) -> None:
         article_body="x",
     )
     src = Source(source_type=SourceType.TEXT, title=None)
-    path = c._write_article_file(r, src, "no-concept", [], [])
-    assert path.exists()
-    assert "general" in str(path)
+    rel_path = c._write_article_file(r, src, "no-concept", [], [])
+    assert isinstance(rel_path, str)
+    full_path = Path(tmp_path) / "wiki" / rel_path
+    assert full_path.exists()
+    assert "general" in rel_path
 
 
 async def test_save_article(db_session, tmp_path) -> None:
@@ -247,7 +251,8 @@ async def test_save_article(db_session, tmp_path) -> None:
     await db_session.refresh(src)
     article = await c.save_article(_result(), src, db_session)
     assert article.slug
-    assert Path(article.file_path).exists()
+    assert not Path(article.file_path).is_absolute()  # relative path
+    assert (Path(tmp_path) / "wiki" / article.file_path).exists()
     assert src.status == IngestStatus.COMPILED
 
 
@@ -376,7 +381,7 @@ async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session
     )
     article = await compiler.save_article(result, source, db_session)
 
-    content = Path(article.file_path).read_text()
+    content = (Path(tmp_path) / "wiki" / article.file_path).read_text()
     assert f"[Existing Article](/wiki/{target.id})" in content
     assert "[[Nonexistent Topic]]" in content
     assert "- [[Existing Article]]" not in content

@@ -16,7 +16,6 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import ClassVar
 
 import structlog
@@ -49,6 +48,7 @@ from wikimind.models import (
     Source,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
+from wikimind.storage import resolve_raw_path, resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -93,7 +93,7 @@ async def compile_source(ctx, source_id: str):
             if not source.file_path:
                 raise ValueError("No cleaned text file path for source")
 
-            text_path = Path(source.file_path)
+            text_path = resolve_raw_path(source.file_path)
             content = text_path.read_text(encoding="utf-8")
 
             await emit_source_progress(source_id, "Normalizing content...")
@@ -139,7 +139,7 @@ async def compile_source(ctx, source_id: str):
                 try:
                     embedding_service = get_embedding_service()
                     if embedding_service is not None:
-                        content = Path(article.file_path).read_text(encoding="utf-8")
+                        content = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
                         embedding_service.embed_article(article.id, article.title, content)
                         log.info("Article embedded", article_id=article.id)
                 except Exception as embed_err:
@@ -250,7 +250,7 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
                 if not source or not source.file_path:
                     raise ValueError("Source or source file_path not found")
 
-                content = Path(source.file_path).read_text(encoding="utf-8")
+                content = resolve_raw_path(source.file_path).read_text(encoding="utf-8")
 
                 doc = NormalizedDocument(
                     raw_source_id=source.id,

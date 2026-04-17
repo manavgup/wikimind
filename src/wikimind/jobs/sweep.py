@@ -13,7 +13,6 @@ promote is a no-op.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +23,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -42,7 +42,7 @@ async def _sweep_single_article(
     Returns True if any replacement was made (file rewritten + backlinks
     persisted), False if the file was unchanged.
     """
-    file_path = Path(article.file_path)
+    file_path = resolve_wiki_path(article.file_path)
     if not file_path.exists():
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
         return False

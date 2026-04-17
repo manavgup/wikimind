@@ -21,7 +21,7 @@ from pathlib import Path
 from slugify import slugify
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -97,6 +97,10 @@ async def init_db():
     await _backfill_conversation_for_legacy_queries(engine)
     await _repair_malformed_json_arrays(engine)
     await _backfill_concepts_from_articles(engine)
+
+    # Convert absolute file paths to relative (idempotent)
+    async with get_session_factory()() as session:
+        await _migrate_to_relative_paths(session)
 
 
 async def _migrate_added_columns(engine) -> None:
@@ -402,6 +406,34 @@ async def _backfill_concepts_from_articles(engine) -> None:
                 "UPDATE concept SET article_count = 0 WHERE name = ?",
                 (name,),
             )
+
+
+async def _migrate_to_relative_paths(session: AsyncSession) -> None:
+    """Convert absolute file_path values to relative paths.
+
+    Runs once at startup. Idempotent -- already-relative paths are skipped.
+    """
+    from wikimind.models import Article, Source  # noqa: PLC0415
+
+    settings = get_settings()
+    wiki_prefix = str(Path(settings.data_dir) / "wiki") + "/"
+    raw_prefix = str(Path(settings.data_dir) / "raw") + "/"
+
+    # Migrate Article.file_path (wiki-relative)
+    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))  # type: ignore[union-attr]
+    for article in result.scalars().all():
+        if article.file_path.startswith(wiki_prefix):
+            article.file_path = article.file_path[len(wiki_prefix) :]
+            session.add(article)
+
+    # Migrate Source.file_path (raw-relative)
+    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr,arg-type]
+    for source in result.scalars().all():
+        if source.file_path and source.file_path.startswith(raw_prefix):
+            source.file_path = source.file_path[len(raw_prefix) :]
+            session.add(source)
+
+    await session.commit()
 
 
 async def close_db():

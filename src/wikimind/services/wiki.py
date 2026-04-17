@@ -36,6 +36,7 @@ from wikimind.models import (
     SourceResponse,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -66,7 +67,7 @@ def _read_article_content(file_path: str) -> str:
         The file content, or an empty string if the file cannot be read.
     """
     try:
-        return Path(file_path).read_text(encoding="utf-8")
+        return resolve_wiki_path(file_path).read_text(encoding="utf-8")
     except Exception:
         return ""
 
