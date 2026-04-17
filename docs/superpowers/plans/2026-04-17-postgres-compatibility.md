@@ -58,10 +58,10 @@ class TestDatabaseUrl:
 
     def test_database_url_from_env(self, monkeypatch, _isolated_data_dir):
         """database_url can be overridden via environment variable."""
-        monkeypatch.setenv("WIKIMIND_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/wikimind")
+        monkeypatch.setenv("WIKIMIND_DATABASE_URL", "postgresql+asyncpg://user:pass@localhost/wikimind")  # pragma: allowlist secret
         get_settings.cache_clear()
         settings = get_settings()
-        assert settings.database_url == "postgresql+asyncpg://user:pass@localhost/wikimind"
+        assert settings.database_url == "postgresql+asyncpg://user:pass@localhost/wikimind"  # pragma: allowlist secret
         get_settings.cache_clear()
 ```
 
@@ -141,8 +141,8 @@ class TestDialectDetection:
         assert is_postgres("sqlite+aiosqlite:///path/to/db") is False
 
     def test_postgres_url_detected(self):
-        assert is_postgres("postgresql+asyncpg://user:pass@localhost/db") is True
-        assert is_sqlite("postgresql+asyncpg://user:pass@localhost/db") is False
+        assert is_postgres("postgresql+asyncpg://user:pass@localhost/db") is True  # pragma: allowlist secret
+        assert is_sqlite("postgresql+asyncpg://user:pass@localhost/db") is False  # pragma: allowlist secret
 
     def test_in_memory_sqlite_detected(self):
         assert is_sqlite("sqlite+aiosqlite://") is True
@@ -300,7 +300,7 @@ class TestCreateEngineFromUrl:
         We can not actually connect without a running Postgres instance,
         but we can verify the engine is created with the right URL.
         """
-        url = "postgresql+asyncpg://user:pass@localhost:5432/wikimind"
+        url = "postgresql+asyncpg://user:pass@localhost:5432/wikimind"  # pragma: allowlist secret
         engine = _create_engine_from_url(url)
         assert "postgresql" in str(engine.url)
         assert engine.pool.size() == 10  # pool_size=10
@@ -1354,7 +1354,7 @@ Add the following section to `.env.example` after the existing `# Database (opti
 # Database (optional)
 # ----------------------------------------------------------------------------
 # Defaults to SQLite at ~/.wikimind/db/wikimind.db. Override for Postgres:
-# WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/wikimind
+# WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/wikimind  # pragma: allowlist secret
 #
 # For Postgres, run `alembic upgrade head` before first startup.
 #
@@ -1373,7 +1373,7 @@ For shared access across multiple devices, use PostgreSQL instead of SQLite:
 
 ```bash
 # 1. Set the database URL in .env
-echo 'WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/wikimind' >> .env
+echo 'WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/wikimind' >> .env  # pragma: allowlist secret
 
 # 2. Run Alembic migrations (first time only, and after upgrades)
 alembic upgrade head
@@ -1408,7 +1408,7 @@ git commit -s -m "docs: add ADR-021 (Postgres compatibility), update docs and .e
 """Integration tests for PostgreSQL backend.
 
 Skipped automatically when WIKIMIND_TEST_POSTGRES_URL is not set.
-To run: export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://user:pass@localhost:5432/wikimind_test
+To run: export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://user:pass@localhost:5432/wikimind_test  # pragma: allowlist secret
 """
 
 from __future__ import annotations
@@ -1535,7 +1535,7 @@ Expected: All tests SKIPPED (no `WIKIMIND_TEST_POSTGRES_URL` set)
 
 If a local Postgres is available:
 ```bash
-export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/wikimind_test
+export WIKIMIND_TEST_POSTGRES_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/wikimind_test  # pragma: allowlist secret
 createdb wikimind_test 2>/dev/null || true
 .venv/bin/pytest tests/integration/test_postgres_integration.py -v
 ```

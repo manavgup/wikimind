@@ -47,7 +47,7 @@ pytestmark = pytest.mark.skipif(not _docker_available(), reason="Docker not avai
 MINIO_PORT = 9100
 MINIO_ENDPOINT = f"http://localhost:{MINIO_PORT}"
 MINIO_USER = "minioadmin"
-MINIO_PASSWORD = "minioadmin"
+MINIO_PASSWORD = "minioadmin"  # pragma: allowlist secret
 CONTAINER_NAME = "wikimind-test-minio"
 TEST_BUCKET = "wikimind-test"
 
@@ -71,7 +71,7 @@ def minio_container():
             "-e",
             f"MINIO_ROOT_USER={MINIO_USER}",
             "-e",
-            f"MINIO_ROOT_PASSWORD={MINIO_PASSWORD}",
+            f"MINIO_ROOT_PASSWORD={MINIO_PASSWORD}",  # pragma: allowlist secret
             "minio/minio",
             "server",
             "/data",
@@ -90,7 +90,7 @@ def minio_container():
         "s3",
         endpoint_url=MINIO_ENDPOINT,
         aws_access_key_id=MINIO_USER,
-        aws_secret_access_key=MINIO_PASSWORD,
+        aws_secret_access_key=MINIO_PASSWORD,  # pragma: allowlist secret
     )
 
     for _ in range(30):
@@ -125,7 +125,7 @@ def storage(minio_container):
         endpoint_url=MINIO_ENDPOINT,
         prefix="test",
         aws_access_key_id=MINIO_USER,
-        aws_secret_access_key=MINIO_PASSWORD,
+        aws_secret_access_key=MINIO_PASSWORD,  # pragma: allowlist secret
     )
 
 
@@ -140,7 +140,7 @@ def _clean_bucket(minio_container):
         "s3",
         endpoint_url=MINIO_ENDPOINT,
         aws_access_key_id=MINIO_USER,
-        aws_secret_access_key=MINIO_PASSWORD,
+        aws_secret_access_key=MINIO_PASSWORD,  # pragma: allowlist secret
     )
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=TEST_BUCKET):

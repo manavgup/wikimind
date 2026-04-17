@@ -28,7 +28,7 @@ def _make_storage(
         endpoint_url=endpoint_url,
         prefix=prefix,
         aws_access_key_id="test-key",
-        aws_secret_access_key="test-secret",
+        aws_secret_access_key="test-secret",  # pragma: allowlist secret
     )
 
 
@@ -378,7 +378,7 @@ def test_client_created_with_credentials():
         service_name="s3",
         endpoint_url="https://my-r2.example.com",
         aws_access_key_id="test-key",
-        aws_secret_access_key="test-secret",
+        aws_secret_access_key="test-secret",  # pragma: allowlist secret
     )
 
 
@@ -426,7 +426,7 @@ def test_factory_returns_r2_when_configured(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_R2_BUCKET", "my-bucket")
     monkeypatch.setenv("WIKIMIND_R2_ENDPOINT_URL", "https://r2.example.com")
     monkeypatch.setenv("WIKIMIND_AWS_ACCESS_KEY_ID", "key")
-    monkeypatch.setenv("WIKIMIND_AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("WIKIMIND_AWS_SECRET_ACCESS_KEY", "secret")  # pragma: allowlist secret
     get_settings.cache_clear()
     get_wiki_storage.cache_clear()
     get_raw_storage.cache_clear()
