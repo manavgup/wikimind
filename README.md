@@ -96,12 +96,38 @@ OPENAI_API_KEY=sk-...
 
 For more advanced configuration (model selection, fallback chain, monthly budget), see `.env.example`.
 
-### Cloud deployment (R2 / S3 storage)
+### Deployment modes
 
-For container-based deployment (Fly.io, Railway, etc.) where the local filesystem is ephemeral, WikiMind can store wiki articles and raw source files in Cloudflare R2 or any S3-compatible object store:
+WikiMind supports two deployment modes, selected by configuration:
+
+| Mode | Database | File Storage | Command |
+|------|----------|-------------|---------|
+| **Local** (default) | SQLite | Local filesystem | `make dev` |
+| **Cloud** | Postgres | S3-compatible (R2, MinIO) | `make dev-cloud` |
+
+**Local mode** requires zero configuration — just set an LLM API key and run `make dev`.
+
+**Cloud mode** uses Postgres for the database and any S3-compatible service (Cloudflare R2, MinIO, AWS S3) for file storage. All devices pointing at the same Postgres + S3 share the same wiki.
+
+#### Local cloud development
+
+Test cloud mode locally with Postgres + MinIO (S3-compatible) via Docker:
 
 ```bash
-# In .env:
+make dev-cloud        # starts Postgres + MinIO containers, runs migrations, starts app
+make dev-cloud-stop   # stops and removes containers
+```
+
+Containers are defined in `docker-compose.cloud.yml`. Defaults can be overridden in `.env` (see `.env.example` for `WIKIMIND_PG_*` and `WIKIMIND_MINIO_*` vars).
+
+MinIO console: http://localhost:9001 (admin / admin123)
+
+#### Production cloud deployment
+
+For production (Fly.io, Railway, Supabase, etc.), set in `.env`:
+
+```bash
+WIKIMIND_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/wikimind
 WIKIMIND_STORAGE_BACKEND=r2
 WIKIMIND_R2_BUCKET=my-wikimind-bucket
 WIKIMIND_R2_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
@@ -109,7 +135,7 @@ WIKIMIND_AWS_ACCESS_KEY_ID=...
 WIKIMIND_AWS_SECRET_ACCESS_KEY=...
 ```
 
-Files are stored with the same key structure as on disk (`wiki/{concept}/{slug}.md`), so R2 objects can be downloaded and browsed as regular markdown. See [ADR-020](docs/adr/adr-020-cloud-storage-abstraction.md) for design details.
+Files are stored with the same key structure as on disk (`wiki/{concept}/{slug}.md`). See [ADR-020](docs/adr/adr-020-cloud-storage-abstraction.md) and [ADR-021](docs/adr/adr-021-postgres-compatibility.md) for design details.
 
 ## Tech stack
 
@@ -117,7 +143,8 @@ Files are stored with the same key structure as on disk (`wiki/{concept}/{slug}.
 |---|---|
 | Backend gateway | Python 3.11+ / FastAPI |
 | Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
-| Database | SQLite via SQLModel + aiosqlite |
+| Database | SQLite (dev), Postgres (prod) via SQLModel + aiosqlite/asyncpg |
+| File storage | Local filesystem (dev), S3-compatible / Cloudflare R2 (prod) |
 | LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
 | PDF extraction | pymupdf (fitz) — default; IBM Docling — opt-in via `[parse-advanced]` |
 | Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
