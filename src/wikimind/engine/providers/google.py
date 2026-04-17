@@ -28,7 +28,20 @@ class GoogleProvider:
         """Complete a request using Google Gemini."""
         start = time.monotonic()
 
-        contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
+        # google.genai accepts plain strings or types.Content objects.
+        # For single-turn: pass the user message as a string.
+        # For multi-turn: build types.Content objects with role mapping.
+        if len(request.messages) == 1:
+            contents: str | list[types.Content] = request.messages[0]["content"]
+        else:
+            role_map = {"user": "user", "assistant": "model"}
+            contents = [
+                types.Content(
+                    role=role_map.get(m["role"], m["role"]),
+                    parts=[types.Part.from_text(text=m["content"])],
+                )
+                for m in request.messages
+            ]
 
         config_kwargs: dict[str, Any] = {
             "system_instruction": request.system,
@@ -40,7 +53,7 @@ class GoogleProvider:
 
         response = await self.client.aio.models.generate_content(
             model=model,
-            contents=contents,  # type: ignore[arg-type]
+            contents=contents,
             config=types.GenerateContentConfig(**config_kwargs),
         )
 
@@ -130,7 +143,17 @@ class GoogleProvider:
         """Stream a completion request using Google Gemini."""
         start = time.monotonic()
 
-        contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
+        if len(request.messages) == 1:
+            contents: str | list[types.Content] = request.messages[0]["content"]
+        else:
+            role_map = {"user": "user", "assistant": "model"}
+            contents = [
+                types.Content(
+                    role=role_map.get(m["role"], m["role"]),
+                    parts=[types.Part.from_text(text=m["content"])],
+                )
+                for m in request.messages
+            ]
 
         config_kwargs: dict[str, Any] = {
             "system_instruction": request.system,
@@ -147,7 +170,7 @@ class GoogleProvider:
 
             async for chunk in await self.client.aio.models.generate_content_stream(
                 model=model,
-                contents=contents,  # type: ignore[arg-type]
+                contents=contents,
                 config=types.GenerateContentConfig(**config_kwargs),
             ):
                 text = chunk.text
