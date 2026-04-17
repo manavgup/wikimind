@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
 
+from wikimind.database import _backfill_concepts_from_articles, _migrate_added_columns
 from wikimind.models import Article, ConfidenceLevel, Query, Source, SourceType
 
 POSTGRES_URL = os.environ.get("WIKIMIND_TEST_POSTGRES_URL")
@@ -92,15 +93,11 @@ class TestPostgresBasicOperations:
 class TestPostgresMigrationHelpers:
     async def test_inspector_migration_on_postgres(self, pg_engine):
         """_migrate_added_columns runs without error on Postgres."""
-        from wikimind.database import _migrate_added_columns
-
         # All columns already exist from create_all — should be a no-op
         await _migrate_added_columns(pg_engine)
 
     async def test_backfill_concepts_on_postgres(self, pg_engine, pg_session):
         """_backfill_concepts_from_articles works with named params on Postgres."""
-        from wikimind.database import _backfill_concepts_from_articles
-
         article = Article(
             slug="pg-backfill",
             title="PG Backfill",

@@ -309,7 +309,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
         if dialect == "postgresql":
             clause = json_array_contains(dialect, "source_ids", source_id)
-            result = await session.execute(select(Article).where(clause))
+            result = await session.execute(select(Article).where(clause))  # type: ignore[arg-type]
         else:
             needle = f'"{source_id}"'
             result = await session.execute(
