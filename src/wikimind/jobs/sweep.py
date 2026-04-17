@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 
 import structlog
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -38,6 +37,10 @@ async def _sweep_single_article(
     session: AsyncSession,
 ) -> bool:
     """Resolve unresolved brackets in a single article's .md file.
+
+    Each article gets its own session (passed in by the caller) to avoid
+    identity-map conflicts when multiple articles create Backlinks for
+    overlapping article pairs (issue #163).
 
     Returns True if any replacement was made (file rewritten + backlinks
     persisted), False if the file was unchanged.
@@ -84,23 +87,25 @@ async def _sweep_single_article(
     # Write the updated file
     file_path.write_text(new_content, encoding="utf-8")
 
-    # Persist Backlink rows (per-row commit + IntegrityError catch)
+    # Persist Backlink rows — use get-or-create to handle duplicates
+    # gracefully. The selectin eager loading on Article pre-populates the
+    # identity map with existing Backlinks, so merge() would conflict
+    # (SAWarning + IntegrityError). Instead we check for each backlink
+    # by composite PK and only insert when it doesn't already exist (#163).
     for rb in resolved:
-        bl = Backlink(
-            source_article_id=article.id,
-            target_article_id=rb.target_id,
-            context=rb.candidate_text,
-        )
-        session.add(bl)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
-            log.debug(
-                "sweep: skipped duplicate backlink",
-                source=article.id,
-                target=rb.target_id,
+        existing = await session.get(Backlink, (article.id, rb.target_id))
+        if existing is not None:
+            existing.context = rb.candidate_text
+        else:
+            bl = Backlink(
+                source_article_id=article.id,
+                target_article_id=rb.target_id,
+                context=rb.candidate_text,
             )
+            session.add(bl)
+
+    # Single commit for all backlinks of this article.
+    await session.commit()
 
     log.info(
         "sweep: article updated",
@@ -120,48 +125,58 @@ async def sweep_wikilinks(ctx) -> None:
        Article table (excluding self).
     4. For each newly-resolved link:
        a. Replace the [[Title]] in the file with [Title](/wiki/{target_id}).
-       b. Create a Backlink row (skip on IntegrityError -- it means the
-          row already exists from a prior sweep or fresh compile).
+       b. Create a Backlink row (skip if it already exists from a prior
+          sweep or fresh compile).
     5. If any replacements were made, write the file back to disk.
+
+    Each article is processed in its own database session to avoid
+    identity-map conflicts between articles (issue #163). The Job
+    record is managed by a separate outer session.
 
     Idempotent: running the sweep on a wiki with no unresolved brackets
     is a no-op (no file writes, no DB changes).
     """
     log.info("sweep_wikilinks started")
 
-    async with get_session_factory()() as session:
+    session_factory = get_session_factory()
+
+    async with session_factory() as job_session:
         # Create job record
         job = Job(
             job_type=JobType.SWEEP_WIKILINKS,
             status=JobStatus.RUNNING,
             started_at=utcnow_naive(),
         )
-        session.add(job)
-        await session.commit()
+        job_session.add(job)
+        await job_session.commit()
 
         try:
-            result = await session.execute(select(Article))
+            result = await job_session.execute(select(Article))
             articles = list(result.scalars().all())
 
             if not articles:
                 job.status = JobStatus.COMPLETE
                 job.result_summary = "No articles to sweep"
-                session.add(job)
-                await session.commit()
+                job_session.add(job)
+                await job_session.commit()
                 log.info("sweep_wikilinks complete: no articles")
                 return
 
             updated_count = 0
             for article in articles:
-                changed = await _sweep_single_article(article, session)  # type: ignore[arg-type]
-                if changed:
-                    updated_count += 1
+                # Each article gets its own session to prevent identity-map
+                # conflicts when both the source compiler and the sweep
+                # create Backlinks for overlapping article pairs (#163).
+                async with session_factory() as article_session:
+                    changed = await _sweep_single_article(article, article_session)
+                    if changed:
+                        updated_count += 1
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
             job.result_summary = f"Swept {len(articles)} articles, updated {updated_count}"
-            session.add(job)
-            await session.commit()
+            job_session.add(job)
+            await job_session.commit()
 
             log.info(
                 "sweep_wikilinks complete",
@@ -174,5 +189,5 @@ async def sweep_wikilinks(ctx) -> None:
             job.status = JobStatus.FAILED
             job.error = str(e)
             job.completed_at = utcnow_naive()
-            session.add(job)
-            await session.commit()
+            job_session.add(job)
+            await job_session.commit()
