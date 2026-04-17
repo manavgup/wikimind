@@ -6,7 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from wikimind.storage import LocalFileStorage
+from wikimind.config import get_settings
+from wikimind.storage import (
+    FileStorage,
+    LocalFileStorage,
+    get_raw_storage,
+    get_wiki_storage,
+    resolve_raw_path,
+    resolve_wiki_path,
+)
 
 
 @pytest.fixture
@@ -96,8 +104,6 @@ async def test_read_missing_raises(storage):
 @pytest.mark.asyncio
 async def test_local_storage_is_file_storage_protocol():
     """LocalFileStorage satisfies the FileStorage protocol."""
-    from wikimind.storage import FileStorage, LocalFileStorage
-
     storage = LocalFileStorage(root=Path("/tmp/test"))
     assert isinstance(storage, FileStorage)
 
@@ -105,9 +111,6 @@ async def test_local_storage_is_file_storage_protocol():
 def test_get_wiki_storage_returns_local(tmp_path, monkeypatch):
     """get_wiki_storage() returns a LocalFileStorage rooted at wiki_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    from wikimind.config import get_settings
-    from wikimind.storage import LocalFileStorage, get_wiki_storage
-
     get_settings.cache_clear()
     get_wiki_storage.cache_clear()
     storage = get_wiki_storage()
@@ -120,9 +123,6 @@ def test_get_wiki_storage_returns_local(tmp_path, monkeypatch):
 def test_get_raw_storage_returns_local(tmp_path, monkeypatch):
     """get_raw_storage() returns a LocalFileStorage rooted at raw_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    from wikimind.config import get_settings
-    from wikimind.storage import LocalFileStorage, get_raw_storage
-
     get_settings.cache_clear()
     get_raw_storage.cache_clear()
     storage = get_raw_storage()
@@ -139,9 +139,6 @@ def test_get_raw_storage_returns_local(tmp_path, monkeypatch):
 
 def test_resolve_wiki_path_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    from wikimind.config import get_settings
-    from wikimind.storage import resolve_wiki_path
-
     get_settings.cache_clear()
     result = resolve_wiki_path("concept/article.md")
     assert result == tmp_path / "wiki" / "concept" / "article.md"
@@ -149,17 +146,12 @@ def test_resolve_wiki_path_relative(tmp_path, monkeypatch):
 
 
 def test_resolve_wiki_path_absolute():
-    from wikimind.storage import resolve_wiki_path
-
     result = resolve_wiki_path("/absolute/path/article.md")
     assert result == Path("/absolute/path/article.md")
 
 
 def test_resolve_raw_path_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    from wikimind.config import get_settings
-    from wikimind.storage import resolve_raw_path
-
     get_settings.cache_clear()
     result = resolve_raw_path("source-id.txt")
     assert result == tmp_path / "raw" / "source-id.txt"
