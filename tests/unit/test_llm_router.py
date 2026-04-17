@@ -180,16 +180,17 @@ async def test_get_provider_instance_dispatch() -> None:
         patch.object(llm_router_mod, "get_api_key", return_value="k"),
         patch.object(llm_router_mod, "AnthropicProvider") as ant,
         patch.object(llm_router_mod, "OpenAIProvider") as opn,
+        patch.object(llm_router_mod, "GoogleProvider") as ggl,
         patch.object(llm_router_mod, "OllamaProvider") as oll,
     ):
         ant.return_value = "a"
         opn.return_value = "o"
+        ggl.return_value = "g"
         oll.return_value = "l"
         assert await router._get_provider_instance(Provider.ANTHROPIC) == "a"
         assert await router._get_provider_instance(Provider.OPENAI) == "o"
+        assert await router._get_provider_instance(Provider.GOOGLE) == "g"
         assert await router._get_provider_instance(Provider.OLLAMA) == "l"
-        with pytest.raises(ValueError):
-            await router._get_provider_instance(Provider.GOOGLE)
 
 
 async def test_router_complete_success(db_session) -> None:

@@ -7,6 +7,7 @@ Handles selection, fallback, cost tracking, and token budgeting.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 from collections.abc import AsyncIterator
@@ -14,9 +15,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import anthropic
+import google.generativeai as genai
 import ollama
 import openai
 import structlog
+from google.generativeai.types import GenerationConfig
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -489,6 +492,168 @@ class OllamaProvider:
         return session
 
 
+class GoogleProvider:
+    """Google Gemini LLM provider."""
+
+    def __init__(self) -> None:
+        api_key = get_api_key("google")
+        if not api_key:
+            raise ValueError("Google API key not configured")
+        genai.configure(api_key=api_key)
+
+    async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:
+        """Complete a request using Google Gemini."""
+        start = time.monotonic()
+
+        gen_model = genai.GenerativeModel(model, system_instruction=request.system)
+
+        contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
+
+        gen_cfg_kwargs: dict[str, Any] = {
+            "max_output_tokens": request.max_tokens,
+            "temperature": request.temperature,
+        }
+        if request.response_format == "json":
+            gen_cfg_kwargs["response_mime_type"] = "application/json"
+
+        response = await gen_model.generate_content_async(
+            contents,
+            generation_config=GenerationConfig(**gen_cfg_kwargs),
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response.text
+        usage = response.usage_metadata
+        input_tokens = usage.prompt_token_count if usage else 0
+        output_tokens = usage.candidates_token_count if usage else 0
+
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.GOOGLE,
+            model_used=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=_calc_cost(Provider.GOOGLE, model, input_tokens, output_tokens),
+            latency_ms=latency_ms,
+        )
+
+    async def complete_multimodal(
+        self,
+        system: str,
+        content_parts: list[dict[str, Any]],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+    ) -> CompletionResponse:
+        """Complete a multimodal request with text and images using Google Gemini.
+
+        Translates the Anthropic-style content blocks to Google's inline
+        data format before calling the API.
+
+        Args:
+            system: System prompt.
+            content_parts: List of content blocks in Anthropic format.
+            model: Model name to use.
+            max_tokens: Maximum output tokens.
+            temperature: Sampling temperature.
+
+        Returns:
+            CompletionResponse with the LLM's text output.
+        """
+        start = time.monotonic()
+
+        gen_model = genai.GenerativeModel(model, system_instruction=system)
+
+        # Translate Anthropic content blocks to Google format
+        google_parts: list[str | dict[str, str | bytes]] = []
+        for part in content_parts:
+            if part["type"] == "text":
+                google_parts.append(part["text"])
+            elif part["type"] == "image":
+                media_type = part["source"]["media_type"]
+                data_b64 = part["source"]["data"]
+                google_parts.append(
+                    {
+                        "mime_type": media_type,
+                        "data": base64.b64decode(data_b64),
+                    }
+                )
+
+        response = await gen_model.generate_content_async(
+            google_parts,
+            generation_config=GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+            ),
+        )
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        content = response.text
+        usage = response.usage_metadata
+        input_tokens = usage.prompt_token_count if usage else 0
+        output_tokens = usage.candidates_token_count if usage else 0
+
+        return CompletionResponse(
+            content=content,
+            provider_used=Provider.GOOGLE,
+            model_used=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=_calc_cost(Provider.GOOGLE, model, input_tokens, output_tokens),
+            latency_ms=latency_ms,
+        )
+
+    async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
+        """Stream a completion request using Google Gemini."""
+        start = time.monotonic()
+
+        gen_model = genai.GenerativeModel(model, system_instruction=request.system)
+
+        contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
+
+        gen_cfg_kwargs: dict[str, Any] = {
+            "max_output_tokens": request.max_tokens,
+            "temperature": request.temperature,
+        }
+        if request.response_format == "json":
+            gen_cfg_kwargs["response_mime_type"] = "application/json"
+
+        async def _generate() -> AsyncIterator[str]:
+            full_text_parts: list[str] = []
+            input_tokens = 0
+            output_tokens = 0
+
+            response = await gen_model.generate_content_async(
+                contents,
+                generation_config=GenerationConfig(**gen_cfg_kwargs),
+                stream=True,
+            )
+            async for chunk in response:
+                text = chunk.text
+                if text:
+                    full_text_parts.append(text)
+                    yield text
+                if chunk.usage_metadata:
+                    if chunk.usage_metadata.prompt_token_count:
+                        input_tokens = chunk.usage_metadata.prompt_token_count
+                    if chunk.usage_metadata.candidates_token_count:
+                        output_tokens = chunk.usage_metadata.candidates_token_count
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+            session.result = CompletionResponse(
+                content="".join(full_text_parts),
+                provider_used=Provider.GOOGLE,
+                model_used=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=_calc_cost(Provider.GOOGLE, model, input_tokens, output_tokens),
+                latency_ms=latency_ms,
+            )
+
+        session = StreamSession(_chunks=_generate())
+        return session
+
+
 class MockProvider:
     """Deterministic mock provider for CI e2e testing.
 
@@ -681,6 +846,8 @@ class LLMRouter:
             return AnthropicProvider()
         elif provider == Provider.OPENAI:
             return OpenAIProvider()
+        elif provider == Provider.GOOGLE:
+            return GoogleProvider()
         elif provider == Provider.OLLAMA:
             return OllamaProvider(self.settings.llm.ollama_base_url)
         elif provider == Provider.MOCK:
