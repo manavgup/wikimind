@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.database import get_session
 from wikimind.models import IngestTextRequest, IngestURLRequest, Source
 from wikimind.services.ingest import IngestService, get_ingest_service
+from wikimind.storage import resolve_raw_path
 
 router = APIRouter()
 
@@ -68,6 +69,25 @@ async def get_source(
 ):
     """Get source by ID."""
     return await service.get_source(source_id, session)
+
+
+@router.get("/sources/{source_id}/content")
+async def get_source_content(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+):
+    """Return the extracted text content of an ingested source."""
+    source = await service.get_source(source_id, session)
+    if not source.file_path:
+        raise HTTPException(status_code=404, detail="Source has no content file")
+
+    path = resolve_raw_path(source.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Source file not found on disk")
+
+    content = path.read_text(encoding="utf-8")
+    return {"source_id": source_id, "content": content, "filename": source.file_path}
 
 
 @router.delete("/sources/{source_id}")

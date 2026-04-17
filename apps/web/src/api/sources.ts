@@ -30,6 +30,12 @@ export function ingestPdf(file: File): Promise<Source> {
   return apiFetch<Source>("/ingest/pdf", { method: "POST", body: form });
 }
 
+export function getSourceContent(
+  sourceId: string,
+): Promise<{ source_id: string; content: string; filename: string }> {
+  return apiFetch(`/ingest/sources/${encodeURIComponent(sourceId)}/content`);
+}
+
 export function deleteSource(sourceId: string): Promise<{ deleted: string }> {
   return apiFetch(`/ingest/sources/${encodeURIComponent(sourceId)}`, {
     method: "DELETE",

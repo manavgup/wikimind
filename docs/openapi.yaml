@@ -189,6 +189,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/sources/{source_id}/content:
+    get:
+      tags:
+      - Ingest
+      summary: Get Source Content
+      description: Return the extracted text content of an ingested source.
+      operationId: get_source_content_ingest_sources__source_id__content_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/contradiction-resolutions:
     get:
       tags:
