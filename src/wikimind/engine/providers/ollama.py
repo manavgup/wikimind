@@ -8,7 +8,7 @@ from typing import Any
 
 import ollama
 
-from wikimind.engine.llm_router import StreamSession, _calc_cost
+from wikimind.engine.llm_router import StreamSession
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
 
 
