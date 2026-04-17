@@ -127,7 +127,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 
 | Target | Description |
 |--------|-------------|
-| `make pre-commit` | Run all pre-commit hooks locally (same as CI) |
+| `make pre-commit` | Run all pre-commit hooks + mypy + tests (matches CI) |
 | `make lint` | Run ruff linter on src/ and tests/ (includes pylint + pydocstyle rules) |
 | `make lint-fix` | Auto-fix lint issues where possible |
 | `make format` | Format source code with ruff |
