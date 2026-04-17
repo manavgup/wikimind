@@ -98,7 +98,7 @@ async def test_google_provider_complete_json_format() -> None:
     # Check that generation_config included response_mime_type
     call_kwargs = fake_model.generate_content_async.call_args
     gen_config = call_kwargs.kwargs["generation_config"]
-    assert gen_config["response_mime_type"] == "application/json"
+    assert gen_config.response_mime_type == "application/json"
 
 
 async def test_google_provider_complete_no_usage_metadata() -> None:
