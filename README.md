@@ -140,6 +140,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 |--------|-------------|
 | `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
 | `make serve` | Run production server on :7842 (gunicorn) |
+| `make dev-postgres` | Run dev server against local Postgres on :5433 |
 | `make worker` | Start ARQ background job worker |
 
 ### 🔍 QUALITY

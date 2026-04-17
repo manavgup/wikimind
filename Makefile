@@ -96,6 +96,17 @@ dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
 serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842
 
+.PHONY: dev-postgres
+dev-postgres: check-venv ## Run dev server against local Postgres on :5433
+	@docker ps --format '{{.Names}}' | grep -q wikimind-postgres || \
+		(echo "Starting wikimind-postgres on :5433…" && \
+		docker run -d -p 5433:5432 -e POSTGRES_PASSWORD=wikimind -e POSTGRES_DB=wikimind --name wikimind-postgres postgres:16 && \
+		sleep 2)
+	WIKIMIND_DATABASE_URL=postgresql+asyncpg://postgres:wikimind@localhost:5433/wikimind \
+		$(BIN)/python -m alembic upgrade head
+	WIKIMIND_DATABASE_URL=postgresql+asyncpg://postgres:wikimind@localhost:5433/wikimind \
+		$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
+
 .PHONY: worker
 worker: ## Start ARQ background job worker
 	$(PYTHON) -m arq wikimind.jobs.worker.WorkerSettings
