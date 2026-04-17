@@ -32,6 +32,7 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.activity_log import append_log_entry
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -497,7 +498,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
     def _read_article_content(self, file_path: str) -> str | None:
         try:
-            return Path(file_path).read_text(encoding="utf-8")
+            return resolve_wiki_path(file_path).read_text(encoding="utf-8")
         except Exception:
             return None
 
@@ -586,10 +587,12 @@ conversation context contradicts the wiki, prefer the wiki."""
             file_path = wiki_dir / f"{slug}.md"
             file_path.write_text(markdown, encoding="utf-8")
 
+            # Store wiki-relative path in the DB
+            relative_path = f"qa-answers/{slug}.md"
             article = Article(
                 slug=slug,
                 title=conversation.title,
-                file_path=str(file_path),
+                file_path=relative_path,
                 summary=(queries[0].answer[:200] if queries else None),
                 confidence=None,  # per #84 / Option 2 — Q&A confidence is on Query, not Article
                 page_type=PageType.ANSWER,
@@ -611,7 +614,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             return article, False
 
         # Update path: overwrite the existing Article's file in place
-        Path(existing_article.file_path).write_text(markdown, encoding="utf-8")
+        resolve_wiki_path(existing_article.file_path).write_text(markdown, encoding="utf-8")
         existing_article.updated_at = now
         conversation.updated_at = now
         session.add(existing_article)

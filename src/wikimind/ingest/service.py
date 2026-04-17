@@ -45,6 +45,7 @@ from wikimind.models import (
     SourceType,
     TaskType,
 )
+from wikimind.storage import resolve_raw_path
 
 log = structlog.get_logger()
 
@@ -377,7 +378,7 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     """
     if not source.file_path:
         raise ValueError(f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument")
-    clean_text = Path(source.file_path).read_text(encoding="utf-8")
+    clean_text = resolve_raw_path(source.file_path).read_text(encoding="utf-8")
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,
@@ -455,7 +456,7 @@ class URLAdapter:
         (raw_dir / f"{source.id}.html").write_text(html, encoding="utf-8")
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(downloaded, encoding="utf-8")
-        source.file_path = str(text_path)
+        source.file_path = f"{source.id}.txt"
 
         # Normalize
         clean_text = downloaded
@@ -634,7 +635,7 @@ class PDFAdapter:
 
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(clean_text, encoding="utf-8")
-        source.file_path = str(text_path)
+        source.file_path = f"{source.id}.txt"
 
         token_count = estimate_tokens(clean_text)
         source.token_count = token_count
@@ -1063,7 +1064,7 @@ class TextAdapter:
         raw_dir.mkdir(parents=True, exist_ok=True)
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(content, encoding="utf-8")
-        source.file_path = str(text_path)
+        source.file_path = f"{source.id}.txt"
         session.add(source)
         await session.commit()
 
@@ -1128,7 +1129,7 @@ class YouTubeAdapter:
         raw_dir.mkdir(parents=True, exist_ok=True)
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(transcript_text, encoding="utf-8")
-        source.file_path = str(text_path)
+        source.file_path = f"{source.id}.txt"
         session.add(source)
         await session.commit()
 

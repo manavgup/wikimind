@@ -15,7 +15,6 @@ Article so retrieval has something to find, and runs the full
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -229,15 +228,16 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     rather than calling _file_back_thread directly, so it exercises the
     production conditional that gates file-back on confidence.
     """
-    # Build the agent with patched router and settings, with data_dir = tmp_path
-    # so that _file_back_thread writes .md files to a path we control.
+    # Build the agent with patched router and settings, with data_dir matching
+    # the autouse _isolated_data_dir fixture so resolve_wiki_path is consistent.
+    data_dir = tmp_path / "wikimind"
     with (
         patch.object(qa_mod, "get_llm_router"),
         patch.object(
             qa_mod,
             "get_settings",
             return_value=SimpleNamespace(
-                data_dir=str(tmp_path),
+                data_dir=str(data_dir),
                 qa=SimpleNamespace(
                     max_prior_turns_in_context=5,
                     prior_answer_truncate_chars=500,
@@ -249,7 +249,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
         agent = QAAgent()
 
     # Seed a fixture article on disk so retrieval has something real to find
-    wiki_dir = tmp_path / "wiki"
+    wiki_dir = data_dir / "wiki"
     wiki_dir.mkdir(parents=True, exist_ok=True)
     fixture_path = wiki_dir / "fixture-source.md"
     fixture_path.write_text(
@@ -303,7 +303,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     # The filed-back article must now be in the Article table and on disk.
     filed_article = await db_session.get(Article, q_a.filed_article_id)
     assert filed_article is not None
-    assert Path(filed_article.file_path).exists()
+    assert (data_dir / "wiki" / filed_article.file_path).exists()
 
     # Phase 3: Verify the filed-back article is retrievable by a future question.
     # Use the agent's own retrieval helper to confirm the filed-back article
