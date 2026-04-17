@@ -1,4 +1,4 @@
-"""Tests for the GoogleProvider implementation."""
+"""Tests for the GoogleProvider implementation (google.genai SDK)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from google.genai import types as genai_types
 
-from wikimind.engine import llm_router as llm_router_mod
-from wikimind.engine.llm_router import GoogleProvider, StreamSession, _calc_cost
+from wikimind.engine.llm_router import StreamSession, _calc_cost
+from wikimind.engine.providers import google as google_provider_mod
+from wikimind.engine.providers.google import GoogleProvider
 from wikimind.models import CompletionRequest, CompletionResponse, Provider, TaskType
 
 
@@ -31,19 +33,20 @@ def _req(**kw) -> CompletionRequest:
 
 def test_google_provider_missing_key() -> None:
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value=None),
+        patch.object(google_provider_mod, "get_api_key", return_value=None),
         pytest.raises(ValueError, match="Google API key"),
     ):
         GoogleProvider()
 
 
-def test_google_provider_init_configures_genai() -> None:
+def test_google_provider_init_creates_client() -> None:
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="test-key"),
-        patch.object(llm_router_mod.genai, "configure") as mock_configure,
+        patch.object(google_provider_mod, "get_api_key", return_value="test-key"),
+        patch.object(google_provider_mod.genai, "Client") as mock_client_cls,
     ):
-        GoogleProvider()
-        mock_configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
+        provider = GoogleProvider()
+        mock_client_cls.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
+        assert provider.client is mock_client_cls.return_value
 
 
 # ---------------------------------------------------------------------------
@@ -55,19 +58,16 @@ async def test_google_provider_complete() -> None:
     """GoogleProvider.complete() returns a CompletionResponse with token counts."""
     fake_usage = SimpleNamespace(prompt_token_count=15, candidates_token_count=25)
     fake_response = SimpleNamespace(text="hello from gemini", usage_metadata=fake_usage)
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_response)
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model) as mock_model_cls,
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         resp = await provider.complete(_req(), "gemini-2.0-flash")
-
-        # Verify GenerativeModel was called with correct system instruction
-        mock_model_cls.assert_called_once_with("gemini-2.0-flash", system_instruction="sys")
 
     assert isinstance(resp, CompletionResponse)
     assert resp.content == "hello from gemini"
@@ -77,40 +77,46 @@ async def test_google_provider_complete() -> None:
     assert resp.model_used == "gemini-2.0-flash"
     assert resp.latency_ms >= 0
 
+    # Verify generate_content was called with correct model and config
+    call_kwargs = mock_client.aio.models.generate_content.call_args
+    assert call_kwargs.kwargs["model"] == "gemini-2.0-flash"
+    config = call_kwargs.kwargs["config"]
+    assert config.system_instruction == "sys"
+
 
 async def test_google_provider_complete_json_format() -> None:
     """GoogleProvider.complete() passes response_mime_type for JSON format."""
     fake_usage = SimpleNamespace(prompt_token_count=5, candidates_token_count=10)
     fake_response = SimpleNamespace(text='{"answer": "ok"}', usage_metadata=fake_usage)
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_response)
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         resp = await provider.complete(_req(response_format="json"), "gemini-2.0-flash")
 
     assert resp.content == '{"answer": "ok"}'
 
-    # Check that generation_config included response_mime_type
-    call_kwargs = fake_model.generate_content_async.call_args
-    gen_config = call_kwargs.kwargs["generation_config"]
-    assert gen_config.response_mime_type == "application/json"
+    # Check that config included response_mime_type
+    call_kwargs = mock_client.aio.models.generate_content.call_args
+    config = call_kwargs.kwargs["config"]
+    assert config.response_mime_type == "application/json"
 
 
 async def test_google_provider_complete_no_usage_metadata() -> None:
     """GoogleProvider.complete() handles missing usage_metadata gracefully."""
     fake_response = SimpleNamespace(text="no usage", usage_metadata=None)
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_response)
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         resp = await provider.complete(_req(), "gemini-2.0-flash")
@@ -128,8 +134,9 @@ async def test_google_provider_complete_multimodal() -> None:
     """GoogleProvider.complete_multimodal() translates Anthropic content blocks."""
     fake_usage = SimpleNamespace(prompt_token_count=100, candidates_token_count=50)
     fake_response = SimpleNamespace(text="I see a diagram", usage_metadata=fake_usage)
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_response)
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=fake_response)
 
     sample_b64 = base64.b64encode(b"fake-image-data").decode()
 
@@ -146,10 +153,11 @@ async def test_google_provider_complete_multimodal() -> None:
     ]
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
+        patch.object(google_provider_mod.types.Part, "from_bytes") as mock_from_bytes,
     ):
+        mock_from_bytes.return_value = SimpleNamespace(mime_type="image/png")
         provider = GoogleProvider()
         resp = await provider.complete_multimodal(
             system="You are a vision assistant.",
@@ -163,20 +171,25 @@ async def test_google_provider_complete_multimodal() -> None:
     assert resp.input_tokens == 100
     assert resp.output_tokens == 50
 
-    # Verify content format translation
-    call_args = fake_model.generate_content_async.call_args
-    google_parts = call_args.args[0]
+    # Verify types.Part.from_bytes was called for the image
+    mock_from_bytes.assert_called_once_with(
+        data=base64.b64decode(sample_b64),
+        mime_type="image/png",
+    )
+
+    # Verify content format: first is text string, second is the Part
+    call_kwargs = mock_client.aio.models.generate_content.call_args.kwargs
+    google_parts = call_kwargs["contents"]
     assert google_parts[0] == "Describe this image."
-    assert google_parts[1]["mime_type"] == "image/png"
-    assert google_parts[1]["data"] == base64.b64decode(sample_b64)
 
 
 async def test_google_provider_multimodal_text_only() -> None:
     """GoogleProvider.complete_multimodal() works with text-only content."""
     fake_usage = SimpleNamespace(prompt_token_count=10, candidates_token_count=20)
     fake_response = SimpleNamespace(text="text only response", usage_metadata=fake_usage)
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_response)
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(return_value=fake_response)
 
     content_parts = [
         {"type": "text", "text": "First part."},
@@ -184,9 +197,8 @@ async def test_google_provider_multimodal_text_only() -> None:
     ]
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         resp = await provider.complete_multimodal(
@@ -198,8 +210,8 @@ async def test_google_provider_multimodal_text_only() -> None:
     assert resp.content == "text only response"
 
     # All parts should be plain strings
-    call_args = fake_model.generate_content_async.call_args
-    google_parts = call_args.args[0]
+    call_kwargs = mock_client.aio.models.generate_content.call_args.kwargs
+    google_parts = call_kwargs["contents"]
     assert google_parts == ["First part.", "Second part."]
 
 
@@ -223,14 +235,12 @@ async def test_google_provider_stream() -> None:
         yield chunk1
         yield chunk2
 
-    fake_async_response = _fake_stream()
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_async_response)
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content_stream = AsyncMock(return_value=_fake_stream())
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         session = await provider.stream(_req(), "gemini-2.0-flash")
@@ -257,14 +267,12 @@ async def test_google_provider_stream_empty_chunks_skipped() -> None:
         yield chunk2
         yield chunk3
 
-    fake_async_response = _fake_stream()
-    fake_model = MagicMock()
-    fake_model.generate_content_async = AsyncMock(return_value=fake_async_response)
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content_stream = AsyncMock(return_value=_fake_stream())
 
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.genai, "configure"),
-        patch.object(llm_router_mod.genai, "GenerativeModel", return_value=fake_model),
+        patch.object(google_provider_mod, "get_api_key", return_value="key"),
+        patch.object(google_provider_mod.genai, "Client", return_value=mock_client),
     ):
         provider = GoogleProvider()
         session = await provider.stream(_req(), "gemini-2.0-flash")
@@ -280,7 +288,7 @@ async def test_google_provider_stream_empty_chunks_skipped() -> None:
 
 
 def test_anthropic_to_google_content_translation() -> None:
-    """Verify Anthropic-style content blocks translate to Google format correctly."""
+    """Verify Anthropic-style content blocks translate to Google format using types.Part.from_bytes."""
     sample_data = base64.b64encode(b"\x89PNG\r\n").decode()
 
     anthropic_parts = [
@@ -297,6 +305,7 @@ def test_anthropic_to_google_content_translation() -> None:
     ]
 
     # Replicate the translation logic from GoogleProvider.complete_multimodal
+    # using the new google.genai types
     google_parts: list = []
     for part in anthropic_parts:
         if part["type"] == "text":
@@ -305,17 +314,15 @@ def test_anthropic_to_google_content_translation() -> None:
             media_type = part["source"]["media_type"]
             data_b64 = part["source"]["data"]
             google_parts.append(
-                {
-                    "mime_type": media_type,
-                    "data": base64.b64decode(data_b64),
-                }
+                genai_types.Part.from_bytes(
+                    data=base64.b64decode(data_b64),
+                    mime_type=media_type,
+                )
             )
 
     assert len(google_parts) == 3
     assert google_parts[0] == "Describe the image"
-    assert isinstance(google_parts[1], dict)
-    assert google_parts[1]["mime_type"] == "image/png"
-    assert google_parts[1]["data"] == b"\x89PNG\r\n"
+    assert hasattr(google_parts[1], "inline_data")
     assert google_parts[2] == "Also this"
 
 
