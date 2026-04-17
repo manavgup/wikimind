@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
+from wikimind.db_compat import is_sqlite, json_array_contains
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
@@ -304,10 +305,16 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Find an article previously compiled from this source by this provider."""
         if provider is None:
             return None
-        needle = f'"{source_id}"'
-        result = await session.execute(
-            select(Article).where(Article.source_ids.contains(needle))  # type: ignore[union-attr]
-        )
+        settings = get_settings()
+        dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
+        if dialect == "postgresql":
+            clause = json_array_contains(dialect, "source_ids", source_id)
+            result = await session.execute(select(Article).where(clause))  # type: ignore[arg-type]
+        else:
+            needle = f'"{source_id}"'
+            result = await session.execute(
+                select(Article).where(Article.source_ids.contains(needle))  # type: ignore[union-attr]
+            )
         for article in result.scalars().all():
             if article.provider == provider:
                 return article

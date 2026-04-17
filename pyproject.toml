@@ -22,6 +22,8 @@ dependencies = [
     # Database
     "sqlmodel>=0.0.21",
     "aiosqlite>=0.20.0",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
 
     # Job queue
     "arq>=0.26.1",
@@ -190,6 +192,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "e2e: end-to-end tests requiring full stack",
     "external: tests that call external APIs",
+    "postgres: tests that require a running PostgreSQL instance",
 ]
 
 # ---------- Coverage ----------

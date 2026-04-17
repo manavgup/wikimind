@@ -187,6 +187,11 @@ class Settings(BaseSettings):
     )
 
     data_dir: str = str(DEFAULT_DATA_DIR)
+
+    # Database URL — defaults to SQLite in data_dir. Set to a Postgres URL
+    # (postgresql+asyncpg://...) for production. See ADR-021.
+    database_url: str = ""
+
     gateway_port: int = 7842
 
     # Redis URL for the ARQ job queue. When unset, BackgroundCompiler runs
@@ -236,6 +241,13 @@ class Settings(BaseSettings):
     google_api_key: SecretStr | None = None
     aws_access_key_id: SecretStr | None = None
     aws_secret_access_key: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def _default_database_url(self) -> Settings:
+        """Set database_url default after data_dir is resolved."""
+        if not self.database_url:
+            self.database_url = f"sqlite+aiosqlite:///{self.data_dir}/db/wikimind.db"
+        return self
 
     @model_validator(mode="after")
     def _auto_enable_providers_with_keys(self) -> Settings:

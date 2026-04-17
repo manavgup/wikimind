@@ -16,11 +16,12 @@ from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
-from sqlalchemy import literal_column, text
+from sqlalchemy import literal_column
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
+from wikimind.db_compat import is_sqlite, json_array_elements_subquery
 from wikimind.models import (
     Article,
     ArticleResponse,
@@ -242,11 +243,12 @@ class WikiService:
         """
         query = select(Article).offset(offset).limit(limit)
         if concept:
+            settings = get_settings()
+            dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
+            from_clause, value_ref = json_array_elements_subquery(dialect, "article", "concept_ids")
             query = query.where(
                 literal_column("article.id").in_(
-                    select(literal_column("article.id"))
-                    .select_from(text("article, json_each(article.concept_ids)"))
-                    .where(literal_column("json_each.value") == concept)
+                    select(literal_column("article.id")).select_from(from_clause).where(value_ref == concept)
                 )
             )
         if confidence:

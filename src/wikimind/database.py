@@ -1,6 +1,6 @@
-"""Async SQLite database layer via SQLModel and aiosqlite.
+"""Async database layer via SQLModel — supports both SQLite and PostgreSQL.
 
-Metadata (sources, articles, jobs, costs) lives in SQLite.
+Metadata (sources, articles, jobs, costs) lives in the database.
 Article content (.md files) lives in the filesystem under ~/.wikimind/wiki/.
 
 Session lifecycle
@@ -19,16 +19,50 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from slugify import slugify
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text as sa_text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.db_compat import is_postgres, is_sqlite
+
+
+def _create_engine_from_url(url: str):
+    """Create an async engine appropriate for the database URL's dialect.
+
+    SQLite: aiosqlite driver with check_same_thread=False.
+    Postgres: asyncpg driver with connection pool tuning.
+
+    Raises ValueError for unsupported dialects.
+    """
+    if is_sqlite(url):
+        return create_async_engine(
+            url,
+            echo=False,
+            connect_args={"check_same_thread": False},
+        )
+    elif is_postgres(url):
+        return create_async_engine(
+            url,
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+        )
+    else:
+        dialect = url.split("://", maxsplit=1)[0]
+        raise ValueError(f"Unsupported database dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
 
 
 def get_db_path() -> Path:
-    """Return the path to the SQLite database file."""
+    """Return the path to the SQLite database file.
+
+    Only meaningful when using the SQLite backend. Ensures the parent
+    directory exists.
+    """
     settings = get_settings()
     db_dir = Path(settings.data_dir) / "db"
     db_dir.mkdir(parents=True, exist_ok=True)
@@ -36,9 +70,14 @@ def get_db_path() -> Path:
 
 
 def get_engine():
-    """Create a new async database engine."""
-    db_path = get_db_path()
-    return create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False, connect_args={"check_same_thread": False})
+    """Create a new async database engine from settings."""
+    settings = get_settings()
+    url = settings.database_url
+    # Ensure SQLite directory exists
+    if is_sqlite(url):
+        db_dir = Path(settings.data_dir) / "db"
+        db_dir.mkdir(parents=True, exist_ok=True)
+    return _create_engine_from_url(url)
 
 
 _engine = None
@@ -83,17 +122,22 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """Create all tables and run idempotent column migrations.
 
-    `SQLModel.metadata.create_all` creates fresh tables from the current
-    SQLModel definitions but does not add new columns to pre-existing
-    tables. We follow it with `_migrate_added_columns` which inspects the
-    live schema and runs `ALTER TABLE` for any column the model declares
-    that isn't already present. This is the project's lightweight
-    alternative to Alembic and is safe to call on every startup.
+    SQLite (dev/test): Uses create_all() + lightweight migration helpers.
+    Postgres (production): Expects Alembic migrations to be run separately
+    via ``alembic upgrade head``. Only runs backfill helpers.
     """
     engine = get_async_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    await _migrate_added_columns(engine)
+    settings = get_settings()
+
+    if is_sqlite(settings.database_url):
+        # SQLite: create_all + lightweight column migration (fast, no Alembic overhead)
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        await _migrate_added_columns(engine)
+    # else: Postgres uses Alembic — tables must exist before startup.
+    # Run `alembic upgrade head` as part of deployment.
+
+    # Backfill helpers run on both dialects
     await _backfill_conversation_for_legacy_queries(engine)
     await _repair_malformed_json_arrays(engine)
     await _backfill_concepts_from_articles(engine)
@@ -106,11 +150,10 @@ async def init_db():
 async def _migrate_added_columns(engine) -> None:
     """Add missing columns to existing tables (idempotent).
 
-    Inspects each tracked table via `PRAGMA table_info` and runs
-    `ALTER TABLE ... ADD COLUMN` for any column declared in the SQLModel
-    definitions that isn't already on disk. SQLite-specific because the
-    project is single-file SQLite — that assumption is documented in
-    ADR-001.
+    Uses SQLAlchemy's Inspector API to check existing columns, which
+    works on both SQLite and PostgreSQL. Runs ALTER TABLE ADD COLUMN
+    for any column declared in the SQLModel definitions that isn't
+    already on disk.
 
     Currently tracks:
         - source.content_hash (issue #67) + index
@@ -188,13 +231,15 @@ async def _migrate_added_columns(engine) -> None:
         ),
     ]
 
+    def _get_existing_columns(sync_conn, table_name: str) -> set[str]:
+        inspector = sa_inspect(sync_conn)
+        if table_name not in inspector.get_table_names():
+            return set()
+        return {col["name"] for col in inspector.get_columns(table_name)}
+
     async with engine.begin() as conn:
         for table, column, alter_sql in additions:
-            existing = await conn.run_sync(
-                lambda sync_conn, t=table: {
-                    row[1] for row in sync_conn.exec_driver_sql(f"PRAGMA table_info({t})").fetchall()
-                }
-            )
+            existing = await conn.run_sync(lambda sync_conn, t=table: _get_existing_columns(sync_conn, t))
             if column not in existing:
                 await conn.exec_driver_sql(alter_sql)
         for _name, create_sql in indexes:
@@ -219,8 +264,8 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
     async with engine.begin() as conn:
 
         def _select_legacy(sync_conn):
-            return sync_conn.exec_driver_sql(
-                "SELECT id, question, created_at, filed_article_id FROM query WHERE conversation_id IS NULL"
+            return sync_conn.execute(
+                sa_text("SELECT id, question, created_at, filed_article_id FROM query WHERE conversation_id IS NULL")
             ).fetchall()
 
         legacy_rows = await conn.run_sync(_select_legacy)
@@ -232,13 +277,22 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
             # SQLite stores datetimes as strings via SQLModel; reuse the raw value if present
             created_at = created_at_raw or utcnow_naive().isoformat()
 
-            await conn.exec_driver_sql(
-                "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) VALUES (?, ?, ?, ?, ?)",
-                (conv_id, title, created_at, created_at, filed_article_id),
+            await conn.execute(
+                sa_text(
+                    "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) "
+                    "VALUES (:id, :title, :created_at, :updated_at, :filed_article_id)"
+                ),
+                {
+                    "id": conv_id,
+                    "title": title,
+                    "created_at": created_at,
+                    "updated_at": created_at,
+                    "filed_article_id": filed_article_id,
+                },
             )
-            await conn.exec_driver_sql(
-                "UPDATE query SET conversation_id = ?, turn_index = 0 WHERE id = ?",
-                (conv_id, query_id),
+            await conn.execute(
+                sa_text("UPDATE query SET conversation_id = :conv_id, turn_index = 0 WHERE id = :qid"),
+                {"conv_id": conv_id, "qid": query_id},
             )
 
 
@@ -276,9 +330,11 @@ async def _repair_malformed_json_arrays(engine) -> None:
     async with engine.begin() as conn:
 
         def _select_articles(sync_conn):
-            return sync_conn.exec_driver_sql(
-                "SELECT id, concept_ids, source_ids FROM article"
-                " WHERE concept_ids IS NOT NULL OR source_ids IS NOT NULL"
+            return sync_conn.execute(
+                sa_text(
+                    "SELECT id, concept_ids, source_ids FROM article"
+                    " WHERE concept_ids IS NOT NULL OR source_ids IS NOT NULL"
+                )
             ).fetchall()
 
         rows = await conn.run_sync(_select_articles)
@@ -291,9 +347,9 @@ async def _repair_malformed_json_arrays(engine) -> None:
             if repaired_concepts is not None or repaired_sources is not None:
                 new_concepts = repaired_concepts if repaired_concepts is not None else concept_ids
                 new_sources = repaired_sources if repaired_sources is not None else source_ids
-                await conn.exec_driver_sql(
-                    "UPDATE article SET concept_ids = ?, source_ids = ? WHERE id = ?",
-                    (new_concepts, new_sources, article_id),
+                await conn.execute(
+                    sa_text("UPDATE article SET concept_ids = :concepts, source_ids = :sources WHERE id = :id"),
+                    {"concepts": new_concepts, "sources": new_sources, "id": article_id},
                 )
 
 
@@ -359,8 +415,8 @@ async def _backfill_concepts_from_articles(engine) -> None:
     async with engine.begin() as conn:
 
         def _select_articles(sync_conn):
-            return sync_conn.exec_driver_sql(
-                "SELECT id, concept_ids FROM article WHERE concept_ids IS NOT NULL"
+            return sync_conn.execute(
+                sa_text("SELECT id, concept_ids FROM article WHERE concept_ids IS NOT NULL")
             ).fetchall()
 
         rows = await conn.run_sync(_select_articles)
@@ -370,7 +426,7 @@ async def _backfill_concepts_from_articles(engine) -> None:
             return
 
         def _select_existing_concepts(sync_conn):
-            return sync_conn.exec_driver_sql("SELECT name FROM concept").fetchall()
+            return sync_conn.execute(sa_text("SELECT name FROM concept")).fetchall()
 
         existing_rows = await conn.run_sync(_select_existing_concepts)
         existing_names = {row[0] for row in existing_rows}
@@ -378,14 +434,12 @@ async def _backfill_concepts_from_articles(engine) -> None:
         for normalized, raw_name in all_names.items():
             if normalized not in existing_names:
                 concept_id = str(uuid.uuid4())
-                await conn.exec_driver_sql(
-                    "INSERT INTO concept (id, name, description, article_count, created_at) VALUES (?, ?, ?, 0, ?)",
-                    (
-                        concept_id,
-                        normalized,
-                        raw_name,
-                        utcnow_naive().isoformat(),
+                await conn.execute(
+                    sa_text(
+                        "INSERT INTO concept (id, name, description, article_count, created_at) "
+                        "VALUES (:id, :name, :desc, 0, :created_at)"
                     ),
+                    {"id": concept_id, "name": normalized, "desc": raw_name, "created_at": utcnow_naive().isoformat()},
                 )
 
         # Recalculate article counts
@@ -395,16 +449,16 @@ async def _backfill_concepts_from_articles(engine) -> None:
                 counts[name] = counts.get(name, 0) + 1
 
         for normalized, count in counts.items():
-            await conn.exec_driver_sql(
-                "UPDATE concept SET article_count = ? WHERE name = ?",
-                (count, normalized),
+            await conn.execute(
+                sa_text("UPDATE concept SET article_count = :count WHERE name = :name"),
+                {"count": count, "name": normalized},
             )
 
         unreferenced = (existing_names | set(all_names.keys())) - set(counts.keys())
         for name in unreferenced:
-            await conn.exec_driver_sql(
-                "UPDATE concept SET article_count = 0 WHERE name = ?",
-                (name,),
+            await conn.execute(
+                sa_text("UPDATE concept SET article_count = 0 WHERE name = :name"),
+                {"name": name},
             )
 
 

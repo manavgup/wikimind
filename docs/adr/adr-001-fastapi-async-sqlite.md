@@ -68,3 +68,14 @@ read/write patterns. Limited async driver support at the time of this decision.
 **Risks:**
 - WAL mode contention under heavy parallel compilation jobs; mitigated by
   limiting `max_jobs=4` in the ARQ worker configuration
+
+## Amendment (2026-04-17): PostgreSQL support added
+
+As of ADR-021, the database layer is dialect-aware. SQLite remains the default
+for development and testing (zero-dependency startup principle unchanged).
+Production deployments can use PostgreSQL by setting `WIKIMIND_DATABASE_URL` to a
+`postgresql+asyncpg://` URL.
+
+The constraint noted above -- "If WikiMind ever becomes multi-user, SQLite will
+need to be replaced with Postgres" -- is now addressed for the shared-backend
+multi-device use case, though WikiMind remains single-user.
