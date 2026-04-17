@@ -1,0 +1,71 @@
+###############################################################################
+# WikiMind Cloud Dev Infrastructure
+#
+# Starts Postgres + MinIO for local cloud-mode development.
+# The WikiMind app itself runs natively with hot-reload (not containerized).
+#
+# Usage:
+#   make dev-cloud        # starts containers + app
+#   make dev-cloud-stop   # stops containers
+#
+# Credentials come from .env (see .env.example for defaults).
+###############################################################################
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: wikimind-postgres
+    restart: unless-stopped
+    ports:
+      - "${WIKIMIND_PG_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${WIKIMIND_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${WIKIMIND_PG_PASS:-wikimind}
+      POSTGRES_DB: ${WIKIMIND_PG_DB:-wikimind}
+    volumes:
+      - wikimind-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: wikimind-minio
+    restart: unless-stopped
+    ports:
+      - "${WIKIMIND_MINIO_PORT:-9000}:9000"
+      - "${WIKIMIND_MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${WIKIMIND_AWS_ACCESS_KEY_ID:-admin}
+      MINIO_ROOT_PASSWORD: ${WIKIMIND_AWS_SECRET_ACCESS_KEY:-admin123}
+    command: server /data --console-address ":9001"
+    volumes:
+      - wikimind-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # One-shot container to create the bucket on first run
+  minio-init:
+    image: minio/mc
+    container_name: wikimind-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set wikimind http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb wikimind/$${BUCKET} --ignore-existing;
+      "
+    environment:
+      MINIO_ROOT_USER: ${WIKIMIND_AWS_ACCESS_KEY_ID:-admin}
+      MINIO_ROOT_PASSWORD: ${WIKIMIND_AWS_SECRET_ACCESS_KEY:-admin123}
+      BUCKET: ${WIKIMIND_R2_BUCKET:-wikimind}
+
+volumes:
+  wikimind-pgdata:
+  wikimind-minio-data:
