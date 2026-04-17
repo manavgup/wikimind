@@ -19,6 +19,7 @@ import google.generativeai as genai
 import ollama
 import openai
 import structlog
+from google.generativeai.types import GenerationConfig
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -508,16 +509,16 @@ class GoogleProvider:
 
         contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
 
-        generation_config: dict[str, Any] = {
+        gen_cfg_kwargs: dict[str, Any] = {
             "max_output_tokens": request.max_tokens,
             "temperature": request.temperature,
         }
         if request.response_format == "json":
-            generation_config["response_mime_type"] = "application/json"
+            gen_cfg_kwargs["response_mime_type"] = "application/json"
 
         response = await gen_model.generate_content_async(
             contents,
-            generation_config=generation_config,
+            generation_config=GenerationConfig(**gen_cfg_kwargs),
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -580,10 +581,10 @@ class GoogleProvider:
 
         response = await gen_model.generate_content_async(
             google_parts,
-            generation_config={
-                "max_output_tokens": max_tokens,
-                "temperature": temperature,
-            },
+            generation_config=GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+            ),
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -610,12 +611,12 @@ class GoogleProvider:
 
         contents = [{"role": m["role"], "parts": [m["content"]]} for m in request.messages]
 
-        generation_config: dict[str, Any] = {
+        gen_cfg_kwargs: dict[str, Any] = {
             "max_output_tokens": request.max_tokens,
             "temperature": request.temperature,
         }
         if request.response_format == "json":
-            generation_config["response_mime_type"] = "application/json"
+            gen_cfg_kwargs["response_mime_type"] = "application/json"
 
         async def _generate() -> AsyncIterator[str]:
             full_text_parts: list[str] = []
@@ -624,7 +625,7 @@ class GoogleProvider:
 
             response = await gen_model.generate_content_async(
                 contents,
-                generation_config=generation_config,
+                generation_config=GenerationConfig(**gen_cfg_kwargs),
                 stream=True,
             )
             async for chunk in response:
