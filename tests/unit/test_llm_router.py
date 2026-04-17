@@ -22,6 +22,9 @@ from wikimind.engine.llm_router import (
     _calc_cost,
     get_llm_router,
 )
+from wikimind.engine.providers import anthropic as anthropic_provider_mod
+from wikimind.engine.providers import ollama as ollama_provider_mod
+from wikimind.engine.providers import openai as openai_provider_mod
 from wikimind.models import (
     CompilationResult,
     CompletionRequest,
@@ -57,7 +60,7 @@ def test_calc_cost_ollama_wildcard() -> None:
 
 
 def test_anthropic_provider_missing_key() -> None:
-    with patch.object(llm_router_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
+    with patch.object(anthropic_provider_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
         AnthropicProvider()
 
 
@@ -68,8 +71,8 @@ async def test_anthropic_provider_complete() -> None:
     )
     fake_client = SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(return_value=fake_response)))
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.anthropic, "AsyncAnthropic", return_value=fake_client),
+        patch.object(anthropic_provider_mod, "get_api_key", return_value="key"),
+        patch.object(anthropic_provider_mod.anthropic, "AsyncAnthropic", return_value=fake_client),
     ):
         provider = AnthropicProvider()
         resp = await provider.complete(_req(), "claude-sonnet-4-5")
@@ -81,7 +84,7 @@ async def test_anthropic_provider_complete() -> None:
 
 
 def test_openai_provider_missing_key() -> None:
-    with patch.object(llm_router_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
+    with patch.object(openai_provider_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
         OpenAIProvider()
 
 
@@ -94,8 +97,8 @@ async def test_openai_provider_complete_json() -> None:
     create = AsyncMock(return_value=fake_response)
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     with (
-        patch.object(llm_router_mod, "get_api_key", return_value="key"),
-        patch.object(llm_router_mod.openai, "AsyncOpenAI", return_value=fake_client),
+        patch.object(openai_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
     ):
         provider = OpenAIProvider()
         resp = await provider.complete(_req(response_format="json"), "gpt-4o-mini")
@@ -108,7 +111,7 @@ async def test_openai_provider_complete_json() -> None:
 
 async def test_ollama_provider_complete() -> None:
     fake_client = SimpleNamespace(chat=AsyncMock(return_value={"message": {"content": "hi"}}))
-    with patch.object(llm_router_mod.ollama, "AsyncClient", return_value=fake_client):
+    with patch.object(ollama_provider_mod.ollama, "AsyncClient", return_value=fake_client):
         provider = OllamaProvider("http://localhost")
         resp = await provider.complete(_req(), "llama3")
     assert resp.content == "hi"
