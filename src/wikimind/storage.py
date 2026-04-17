@@ -12,7 +12,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+import structlog
+
 from wikimind.config import get_settings
+
+log = structlog.get_logger()
 
 
 @runtime_checkable
@@ -117,10 +121,40 @@ class LocalFileStorage:
         return await asyncio.to_thread(_list)
 
 
+def _make_r2_storage(prefix: str) -> FileStorage:
+    """Create an R2FileStorage instance with the given key prefix.
+
+    Uses lazy import to avoid pulling boto3 when running local.
+    """
+    from wikimind.storage_r2 import R2FileStorage  # noqa: PLC0415
+
+    settings = get_settings()
+    if not settings.r2_bucket:
+        msg = "WIKIMIND_R2_BUCKET must be set when storage_backend=r2"
+        raise ValueError(msg)
+    if not settings.r2_endpoint_url:
+        msg = "WIKIMIND_R2_ENDPOINT_URL must be set when storage_backend=r2"
+        raise ValueError(msg)
+
+    aws_key = settings.aws_access_key_id.get_secret_value() if settings.aws_access_key_id else None
+    aws_secret = settings.aws_secret_access_key.get_secret_value() if settings.aws_secret_access_key else None
+
+    log.info("creating R2 storage", bucket=settings.r2_bucket, prefix=prefix)
+    return R2FileStorage(
+        bucket=settings.r2_bucket,
+        endpoint_url=settings.r2_endpoint_url,
+        prefix=prefix,
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret,
+    )
+
+
 @lru_cache(maxsize=1)
 def get_wiki_storage() -> FileStorage:
     """Return the wiki file storage singleton."""
     settings = get_settings()
+    if settings.storage_backend == "r2":
+        return _make_r2_storage(prefix="wiki")
     return LocalFileStorage(root=Path(settings.data_dir) / "wiki")
 
 
@@ -128,6 +162,8 @@ def get_wiki_storage() -> FileStorage:
 def get_raw_storage() -> FileStorage:
     """Return the raw source file storage singleton."""
     settings = get_settings()
+    if settings.storage_backend == "r2":
+        return _make_r2_storage(prefix="raw")
     return LocalFileStorage(root=Path(settings.data_dir) / "raw")
 
 

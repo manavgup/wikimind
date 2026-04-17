@@ -96,6 +96,21 @@ OPENAI_API_KEY=sk-...
 
 For more advanced configuration (model selection, fallback chain, monthly budget), see `.env.example`.
 
+### Cloud deployment (R2 / S3 storage)
+
+For container-based deployment (Fly.io, Railway, etc.) where the local filesystem is ephemeral, WikiMind can store wiki articles and raw source files in Cloudflare R2 or any S3-compatible object store:
+
+```bash
+# In .env:
+WIKIMIND_STORAGE_BACKEND=r2
+WIKIMIND_R2_BUCKET=my-wikimind-bucket
+WIKIMIND_R2_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+WIKIMIND_AWS_ACCESS_KEY_ID=...
+WIKIMIND_AWS_SECRET_ACCESS_KEY=...
+```
+
+Files are stored with the same key structure as on disk (`wiki/{concept}/{slug}.md`), so R2 objects can be downloaded and browsed as regular markdown. See [ADR-020](docs/adr/adr-020-cloud-storage-abstraction.md) for design details.
+
 ## Tech stack
 
 | Layer | Technology |

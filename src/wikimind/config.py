@@ -194,6 +194,11 @@ class Settings(BaseSettings):
 
     gateway_port: int = 7842
 
+    # Storage backend: "local" (filesystem) or "r2" (Cloudflare R2 / S3-compatible)
+    storage_backend: str = "local"
+    r2_bucket: str | None = None
+    r2_endpoint_url: str | None = None
+
     # Redis URL for the ARQ job queue. When unset, BackgroundCompiler runs
     # compilations in-process (single-user dev mode) and the ARQ worker
     # falls back to localhost (which will fail to connect unless a local

@@ -82,3 +82,12 @@ in. Explicitly rejected by the product vision.
   mid-save could leave the file written but the database not updated (or vice
   versa). Mitigated by writing the file first, then committing the database
   record.
+
+## Amendment (ADR-020): Cloud Storage Support
+
+The storage location for wiki articles is now pluggable via the
+`FileStorage` protocol (`storage.py`). When `storage_backend=r2`, files
+are stored as S3 objects in Cloudflare R2 (or any S3-compatible store)
+with the same key structure (`wiki/{concept}/{slug}.md`). The core
+decision — plain markdown content with SQLite metadata — is unchanged.
+See ADR-020 for details.
