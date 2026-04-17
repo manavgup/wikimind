@@ -96,21 +96,40 @@ dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
 serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842
 
-PG_USER ?= postgres
-PG_PASS ?= wikimind
-PG_HOST ?= localhost
-PG_PORT ?= 5433
-PG_DB   ?= wikimind
-PG_URL  := postgresql+asyncpg://$(PG_USER):$(PG_PASS)@$(PG_HOST):$(PG_PORT)/$(PG_DB)
+.PHONY: dev-minio
+dev-minio: check-venv ## Run dev server with MinIO for R2 storage (SQLite DB)
+	docker compose -f docker-compose.cloud.yml up -d --wait minio
+	docker compose -f docker-compose.cloud.yml run --rm minio-init
+	WIKIMIND_STORAGE_BACKEND=r2 \
+	WIKIMIND_R2_BUCKET=$${WIKIMIND_R2_BUCKET:-wikimind} \
+	WIKIMIND_R2_ENDPOINT_URL=http://localhost:$${WIKIMIND_MINIO_PORT:-9000} \
+	WIKIMIND_AWS_ACCESS_KEY_ID=$${WIKIMIND_AWS_ACCESS_KEY_ID:-admin} \
+	WIKIMIND_AWS_SECRET_ACCESS_KEY=$${WIKIMIND_AWS_SECRET_ACCESS_KEY:-admin123} \
+		$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload \
+			--reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
-.PHONY: dev-postgres
-dev-postgres: check-venv ## Run dev server against local Postgres on :5433
-	@docker ps --format '{{.Names}}' | grep -q wikimind-postgres || \
-		(echo "Starting wikimind-postgres on :$(PG_PORT)…" && \
-		docker run -d -p $(PG_PORT):5432 -e POSTGRES_PASSWORD=$(PG_PASS) -e POSTGRES_DB=$(PG_DB) --name wikimind-postgres postgres:16 && \
-		sleep 2)
-	WIKIMIND_DATABASE_URL=$(PG_URL) $(BIN)/python -m alembic upgrade head
-	WIKIMIND_DATABASE_URL=$(PG_URL) $(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
+.PHONY: dev-cloud
+dev-cloud: check-venv ## Run dev server with Postgres + MinIO (full cloud mode)
+	docker compose -f docker-compose.cloud.yml up -d --wait postgres minio
+	docker compose -f docker-compose.cloud.yml run --rm minio-init
+	@if [ -f alembic.ini ]; then \
+		WIKIMIND_DATABASE_URL=postgresql+asyncpg://$${WIKIMIND_PG_USER:-postgres}:$${WIKIMIND_PG_PASS:-wikimind}@localhost:$${WIKIMIND_PG_PORT:-5433}/$${WIKIMIND_PG_DB:-wikimind} \
+			$(BIN)/python -m alembic upgrade head; \
+	else \
+		echo "⚠ alembic.ini not found — skipping migrations (Postgres tables created via create_all)"; \
+	fi
+	WIKIMIND_DATABASE_URL=postgresql+asyncpg://$${WIKIMIND_PG_USER:-postgres}:$${WIKIMIND_PG_PASS:-wikimind}@localhost:$${WIKIMIND_PG_PORT:-5433}/$${WIKIMIND_PG_DB:-wikimind} \
+	WIKIMIND_STORAGE_BACKEND=r2 \
+	WIKIMIND_R2_BUCKET=$${WIKIMIND_R2_BUCKET:-wikimind} \
+	WIKIMIND_R2_ENDPOINT_URL=http://localhost:$${WIKIMIND_MINIO_PORT:-9000} \
+	WIKIMIND_AWS_ACCESS_KEY_ID=$${WIKIMIND_AWS_ACCESS_KEY_ID:-admin} \
+	WIKIMIND_AWS_SECRET_ACCESS_KEY=$${WIKIMIND_AWS_SECRET_ACCESS_KEY:-admin123} \
+		$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload \
+			--reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
+
+.PHONY: dev-cloud-stop
+dev-cloud-stop: ## Stop and remove Postgres + MinIO containers
+	docker compose -f docker-compose.cloud.yml down
 
 .PHONY: worker
 worker: ## Start ARQ background job worker

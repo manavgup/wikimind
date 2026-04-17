@@ -155,7 +155,9 @@ Files are stored with the same key structure as on disk (`wiki/{concept}/{slug}.
 |--------|-------------|
 | `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
 | `make serve` | Run production server on :7842 (gunicorn) |
-| `make dev-postgres` | Run dev server against local Postgres on :5433 |
+| `make dev-minio` | Run dev server with MinIO for R2 storage (SQLite DB) |
+| `make dev-cloud` | Run dev server with Postgres + MinIO (full cloud mode) |
+| `make dev-cloud-stop` | Stop and remove Postgres + MinIO containers |
 | `make worker` | Start ARQ background job worker |
 
 ### 🔍 QUALITY
