@@ -43,6 +43,16 @@ npm run dev
 # Opens http://localhost:5173
 ```
 
+### Authentication UI
+
+When multi-user mode is enabled (`WIKIMIND_AUTH__ENABLED=true`), the frontend shows:
+
+- **Login page** (`/login`) — Google and GitHub OAuth2 sign-in buttons
+- **Protected routes** — unauthenticated users are redirected to `/login`
+- **User menu** — avatar, name, and logout button in the sidebar
+
+When auth is disabled (default), no login page is shown and all routes are accessible.
+
 ## Production (PostgreSQL)
 
 For shared access across multiple devices, use PostgreSQL instead of SQLite:
