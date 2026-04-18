@@ -449,7 +449,7 @@ Add after the existing Database section:
 # ----------------------------------------------------------------------------
 # Override the default SQLite with a PostgreSQL URL for production.
 # See ADR-021 for design. Run `alembic upgrade head` to create tables.
-# WIKIMIND_DATABASE_URL=postgresql+asyncpg://wikimind:password@localhost:5432/wikimind
+# WIKIMIND_DATABASE_URL=postgresql+asyncpg://wikimind:PASSWORD@localhost:5432/wikimind  # pragma: allowlist secret
 ```
 
 - [ ] **Step 2: Add deployment section to README.md**

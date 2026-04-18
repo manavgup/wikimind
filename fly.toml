@@ -10,7 +10,7 @@
 #   fly deploy
 #
 # Set LLM API key:
-#   fly secrets set ANTHROPIC_API_KEY=sk-ant-...
+#   fly secrets set ANTHROPIC_API_KEY=<your-key>
 
 app = "wikimind"
 primary_region = "ord"
