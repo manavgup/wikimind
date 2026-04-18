@@ -122,6 +122,11 @@ app.include_router(settings_router.router, prefix="/settings", tags=["Settings"]
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
+# Serve built frontend in production (Docker image has static/ dir).
+# In dev, Vite on :5173 serves the frontend — this dir won't exist.
+_frontend_dist = Path(__file__).resolve().parent.parent.parent / "static"
+if _frontend_dist.is_dir():
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
 
 # ---------------------------------------------------------------------------
 # Exception handlers — catch domain errors raised inside route handlers

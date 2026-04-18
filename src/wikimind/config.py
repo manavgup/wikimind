@@ -264,6 +264,28 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _fallback_database_url(self) -> Settings:
+        """Fall back to the unprefixed DATABASE_URL env var for managed Postgres services.
+
+        Fly.io, Railway, Render, and Heroku set DATABASE_URL automatically
+        when attaching a managed Postgres instance. This validator lets those
+        deployments work without requiring WIKIMIND_DATABASE_URL to be set
+        manually. The scheme is rewritten from postgres:// or postgresql://
+        to postgresql+asyncpg:// for SQLAlchemy async compatibility.
+
+        Only activates when the current database_url is NOT already a Postgres
+        URL (i.e., when it's the SQLite default from _default_database_url).
+        """
+        raw = os.environ.get("DATABASE_URL")
+        if raw and not self.database_url.startswith("postgresql"):
+            if raw.startswith("postgres://"):
+                raw = raw.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif raw.startswith("postgresql://"):
+                raw = raw.replace("postgresql://", "postgresql+asyncpg://", 1)
+            self.database_url = raw
+        return self
+
+    @model_validator(mode="after")
     def _auto_enable_providers_with_keys(self) -> Settings:
         """Auto-enable any provider whose API key is configured.
 

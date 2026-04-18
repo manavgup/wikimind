@@ -1,0 +1,165 @@
+# Production stack for WikiMind.
+#
+# All variables sourced from .env or shell environment with sensible defaults.
+# POSTGRES_PASSWORD is required — compose refuses to start without it.
+#
+# Services:
+#   gateway  — FastAPI app (gunicorn) serving API + built frontend
+#   worker   — ARQ background job worker (compilation, sweep)
+#   postgres — PostgreSQL 16 for metadata
+#   redis    — Broker/result store for ARQ background jobs
+#
+# Usage:
+#   make deploy-up       # build and start
+#   make deploy-stop     # stop (preserves data)
+#   make deploy-logs     # tail logs
+
+networks:
+  wikimindnet:
+    driver: bridge
+
+volumes:
+  wikimind-data:
+  wikimind-pgdata:
+  wikimind-redis:
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: ${WIKIMIND_IMAGE:-wikimind:latest}
+    container_name: wikimind-gateway
+    restart: unless-stopped
+    networks: [wikimindnet]
+    ports:
+      - "${WIKIMIND_PORT:-7842}:7842"
+    environment:
+      WIKIMIND_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wikimind}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-wikimind}
+      WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DATA_DIR: /home/wikimind/.wikimind
+      WIKIMIND_SERVER__HOST: "0.0.0.0"
+      WIKIMIND_SERVER__PORT: "7842"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - wikimind-data:/home/wikimind/.wikimind
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: ${WIKIMIND_IMAGE:-wikimind:latest}
+    container_name: wikimind-worker
+    restart: unless-stopped
+    networks: [wikimindnet]
+    command: ["python", "-m", "arq", "wikimind.jobs.worker.WorkerSettings"]
+    environment:
+      WIKIMIND_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wikimind}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-wikimind}
+      WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DATA_DIR: /home/wikimind/.wikimind
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - wikimind-data:/home/wikimind/.wikimind
+    depends_on:
+      gateway:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: wikimind-postgres
+    restart: unless-stopped
+    networks: [wikimindnet]
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "statement_timeout=60s"
+      - "-c"
+      - "idle_in_transaction_session_timeout=120s"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wikimind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-wikimind}
+    volumes:
+      - wikimind-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-wikimind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    container_name: wikimind-redis
+    restart: unless-stopped
+    networks: [wikimindnet]
+    command:
+      - "redis-server"
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    volumes:
+      - wikimind-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
