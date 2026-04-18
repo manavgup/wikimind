@@ -12,8 +12,8 @@ import json
 
 import structlog
 from slugify import slugify
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router

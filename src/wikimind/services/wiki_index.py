@@ -13,8 +13,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings

@@ -33,6 +33,8 @@ from wikimind.models import (
     GraphEdge,
     GraphNode,
     GraphResponse,
+    PageType,
+    RelationType,
     Source,
     SourceResponse,
 )
@@ -160,7 +162,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         summary=article.summary,
         confidence=article.confidence,
         linter_score=article.linter_score,
-        page_type=article.page_type,
+        page_type=PageType(article.page_type),
         sources=[_to_source_summary(s) for s in sources],
         source_count=len(sources),
         backlink_count=backlink_count,
@@ -374,7 +376,7 @@ class WikiService:
                 source=bl.source_article_id,
                 target=bl.target_article_id,
                 context=bl.context,
-                relation_type=bl.relation_type,
+                relation_type=RelationType(bl.relation_type),
                 resolution=bl.resolution if bl.relation_type == "contradicts" else None,
             )
             for bl in all_backlinks

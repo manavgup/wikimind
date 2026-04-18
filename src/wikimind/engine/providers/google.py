@@ -58,7 +58,7 @@ class GoogleProvider:
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
-        content = response.text
+        content = response.text or ""
         usage = response.usage_metadata
         input_tokens = (usage.prompt_token_count or 0) if usage else 0
         output_tokens = (usage.candidates_token_count or 0) if usage else 0
@@ -124,7 +124,7 @@ class GoogleProvider:
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
-        content = response.text
+        content = response.text or ""
         usage = response.usage_metadata
         input_tokens = (usage.prompt_token_count or 0) if usage else 0
         output_tokens = (usage.candidates_token_count or 0) if usage else 0
