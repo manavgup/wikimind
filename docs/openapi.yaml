@@ -1125,6 +1125,81 @@ paths:
           content:
             application/json:
               schema: {}
+  /auth/login/{provider}:
+    get:
+      tags:
+      - Auth
+      summary: Login
+      description: Redirect to OAuth2 provider's authorize URL.
+      operationId: login_auth_login__provider__get
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Provider
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/callback:
+    get:
+      tags:
+      - Auth
+      summary: Auth Callback
+      description: Handle OAuth2 callback — exchange code for token, upsert user,
+        return JWT.
+      operationId: auth_callback_auth_callback_get
+      parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Code
+      - name: state
+        in: query
+        required: true
+        schema:
+          type: string
+          title: State
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/me:
+    get:
+      tags:
+      - Auth
+      summary: Me
+      description: Return current user profile.
+      operationId: me_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Me Auth Me Get
   /health:
     get:
       summary: Health
