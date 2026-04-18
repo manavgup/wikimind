@@ -208,10 +208,10 @@ def resolve_raw_path(relative_path: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def _run_async(coro):  # noqa: ANN001, ANN202
+def _run_async(coro):
     """Run an async coroutine from sync context."""
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
     import concurrent.futures  # noqa: PLC0415

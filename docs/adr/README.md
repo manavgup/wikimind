@@ -28,6 +28,7 @@ considered, and the consequences.
 | [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Unknown |
 | [019](adr-019-runtime-user-preferences.md) | Runtime User Preferences via DB Override Table | Accepted |
 | [020](adr-020-cloud-storage-abstraction.md) | Cloud Storage Abstraction (R2/S3 Backend) | Accepted |
+| [021](adr-021-postgres-compatibility.md) | PostgreSQL compatibility for production deployments | Accepted |
 
 ## ADR Format
 
