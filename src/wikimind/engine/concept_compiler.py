@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import structlog
 from slugify import slugify
@@ -26,7 +25,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import delete_wiki, read_wiki, write_wiki
 
 log = structlog.get_logger()
 
@@ -127,7 +126,7 @@ def _build_source_material(articles: list[Article]) -> str:
         if article.summary:
             section += f"Summary: {article.summary}\n"
         try:
-            fc = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
+            fc = read_wiki(article.file_path)
             if len(fc) > 5000:
                 fc = fc[:5000] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
@@ -235,7 +234,7 @@ class ConceptCompiler:
         existing = await self._find_existing_concept_article(concept.name, session)
         relative_path = self._write_concept_file(compilation, concept, source_articles)
         if existing is not None:
-            resolve_wiki_path(existing.file_path).unlink(missing_ok=True)
+            delete_wiki(existing.file_path)
             existing.title = compilation.title
             existing.summary = compilation.overview
             existing.file_path = relative_path
@@ -284,11 +283,8 @@ class ConceptCompiler:
         self, compilation: ConceptCompilationResult, concept: Concept, source_articles: list[Article]
     ) -> str:
         """Write concept page markdown. Returns wiki-relative path."""
-        wiki_dir = Path(self.settings.data_dir) / "wiki"
         slug = slugify(concept.name)
-        concept_dir = wiki_dir / slug
-        concept_dir.mkdir(parents=True, exist_ok=True)
-        file_path = concept_dir / f"{slug}.md"
+        relative_path = f"{slug}/{slug}.md"
         now = utcnow_naive()
         source_ids = [a.id for a in source_articles]
         sources_lines = [f"- [{a.title}](/wiki/{a.id})" for a in source_articles]
@@ -343,8 +339,8 @@ provider: {self._last_provider_used or "unknown"}
 
 {compilation.sources_summary}
 """
-        file_path.write_text(content, encoding="utf-8")
-        return str(file_path.relative_to(wiki_dir))
+        write_wiki(relative_path, content)
+        return relative_path
 
     async def _create_synthesizes_links(
         self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession

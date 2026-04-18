@@ -22,7 +22,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import read_wiki, write_wiki
 
 log = structlog.get_logger()
 
@@ -45,12 +45,11 @@ async def _sweep_single_article(
     Returns True if any replacement was made (file rewritten + backlinks
     persisted), False if the file was unchanged.
     """
-    file_path = resolve_wiki_path(article.file_path)
-    if not file_path.exists():
-        log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
+    try:
+        content = read_wiki(article.file_path)
+    except (OSError, FileNotFoundError):
+        log.warning("sweep: file not found, skipping", article_id=article.id, path=article.file_path)
         return False
-
-    content = file_path.read_text(encoding="utf-8")
 
     # Collect all unique bracket texts
     matches = _WIKILINK_RE.findall(content)
@@ -85,7 +84,7 @@ async def _sweep_single_article(
         return False  # pragma: no cover — defensive; resolved non-empty implies change
 
     # Write the updated file
-    file_path.write_text(new_content, encoding="utf-8")
+    write_wiki(article.file_path, new_content)
 
     # Persist Backlink rows — use get-or-create to handle duplicates
     # gracefully. The selectin eager loading on Article pre-populates the

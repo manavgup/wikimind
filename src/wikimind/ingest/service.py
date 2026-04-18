@@ -45,7 +45,7 @@ from wikimind.models import (
     SourceType,
     TaskType,
 )
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import read_raw, resolve_raw_path, write_raw, write_raw_bytes
 
 log = structlog.get_logger()
 
@@ -378,7 +378,7 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     """
     if not source.file_path:
         raise ValueError(f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument")
-    clean_text = resolve_raw_path(source.file_path).read_text(encoding="utf-8")
+    clean_text = read_raw(source.file_path)
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,
@@ -450,12 +450,8 @@ class URLAdapter:
 
         # Save clean extracted text (used by the compiler worker) and
         # keep the raw HTML alongside it for reference/reprocessing.
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / f"{source.id}.html").write_text(html, encoding="utf-8")
-        text_path = raw_dir / f"{source.id}.txt"
-        text_path.write_text(downloaded, encoding="utf-8")
+        write_raw(f"{source.id}.html", html)
+        write_raw(f"{source.id}.txt", downloaded)
         source.file_path = f"{source.id}.txt"
 
         # Normalize
@@ -605,11 +601,10 @@ class PDFAdapter:
         # worker only ever reads the .txt file (see issue #59), so file_path
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        raw_pdf_path = raw_dir / f"{source.id}.pdf"
-        raw_pdf_path.write_bytes(file_bytes)
+        # Persist the raw PDF via storage (handles both local and R2).
+        write_raw_bytes(f"{source.id}.pdf", file_bytes)
+        # Docling reads from a local filesystem path; resolve for extraction.
+        raw_pdf_path = resolve_raw_path(f"{source.id}.pdf")
 
         # Extract text — prefer Docling for structured output (markdown with
         # heading hierarchy, table-aware), fall back to fitz plain text when
@@ -633,8 +628,7 @@ class PDFAdapter:
         # back into the extracted text.
         clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
 
-        text_path = raw_dir / f"{source.id}.txt"
-        text_path.write_text(clean_text, encoding="utf-8")
+        write_raw(f"{source.id}.txt", clean_text)
         source.file_path = f"{source.id}.txt"
 
         token_count = estimate_tokens(clean_text)
@@ -1059,11 +1053,7 @@ class TextAdapter:
         # Pasted text is already plain text, so the raw and cleaned files are
         # the same .txt file. file_path always points at the .txt the worker
         # reads (see issue #59).
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        text_path = raw_dir / f"{source.id}.txt"
-        text_path.write_text(content, encoding="utf-8")
+        write_raw(f"{source.id}.txt", content)
         source.file_path = f"{source.id}.txt"
         session.add(source)
         await session.commit()
@@ -1124,11 +1114,7 @@ class YouTubeAdapter:
 
         # YouTube transcripts are already plain text, so the raw and cleaned
         # files are the same .txt. There is no separate raw video payload.
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        text_path = raw_dir / f"{source.id}.txt"
-        text_path.write_text(transcript_text, encoding="utf-8")
+        write_raw(f"{source.id}.txt", transcript_text)
         source.file_path = f"{source.id}.txt"
         session.add(source)
         await session.commit()

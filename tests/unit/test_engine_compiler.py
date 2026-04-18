@@ -28,6 +28,7 @@ from wikimind.models import (
     Source,
     SourceType,
 )
+from wikimind.storage import read_wiki
 
 
 def _result(claims: list[CompiledClaim] | None = None, concepts: list[str] | None = None) -> CompilationResult:
@@ -209,9 +210,7 @@ def test_write_article_file(tmp_path) -> None:
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
     rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
     assert isinstance(rel_path, str)
-    full_path = Path(tmp_path) / "wiki" / rel_path
-    assert full_path.exists()
-    text = full_path.read_text()
+    text = read_wiki(rel_path)
     assert "Test Article" in text
     assert "test-slug" in text
 
@@ -234,8 +233,8 @@ def test_write_article_file_no_concepts(tmp_path) -> None:
     src = Source(source_type=SourceType.TEXT, title=None)
     rel_path = c._write_article_file(r, src, "no-concept", [], [])
     assert isinstance(rel_path, str)
-    full_path = Path(tmp_path) / "wiki" / rel_path
-    assert full_path.exists()
+    text = read_wiki(rel_path)
+    assert text  # file exists and has content
     assert "general" in rel_path
 
 
@@ -252,7 +251,8 @@ async def test_save_article(db_session, tmp_path) -> None:
     article = await c.save_article(_result(), src, db_session)
     assert article.slug
     assert not Path(article.file_path).is_absolute()  # relative path
-    assert (Path(tmp_path) / "wiki" / article.file_path).exists()
+    content = read_wiki(article.file_path)
+    assert content  # file exists and has content
     assert src.status == IngestStatus.COMPILED
 
 
@@ -381,7 +381,7 @@ async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session
     )
     article = await compiler.save_article(result, source, db_session)
 
-    content = (Path(tmp_path) / "wiki" / article.file_path).read_text()
+    content = read_wiki(article.file_path)
     assert f"[Existing Article](/wiki/{target.id})" in content
     assert "[[Nonexistent Topic]]" in content
     assert "- [[Existing Article]]" not in content

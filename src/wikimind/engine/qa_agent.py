@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
@@ -32,7 +31,7 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.activity_log import append_log_entry
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import read_wiki, write_wiki
 
 log = structlog.get_logger()
 
@@ -498,7 +497,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
     def _read_article_content(self, file_path: str) -> str | None:
         try:
-            return resolve_wiki_path(file_path).read_text(encoding="utf-8")
+            return read_wiki(file_path)
         except Exception:
             return None
 
@@ -579,16 +578,9 @@ conversation context contradicts the wiki, prefer the wiki."""
                 conversation.filed_article_id = None
 
         if existing_article is None:
-            # Create path
-            wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
-            wiki_dir.mkdir(parents=True, exist_ok=True)
-
             slug = conversation.id  # UUID — guaranteed unique, no collision possible
-            file_path = wiki_dir / f"{slug}.md"
-            file_path.write_text(markdown, encoding="utf-8")
-
-            # Store wiki-relative path in the DB
             relative_path = f"qa-answers/{slug}.md"
+            write_wiki(relative_path, markdown)
             article = Article(
                 slug=slug,
                 title=conversation.title,
@@ -614,7 +606,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             return article, False
 
         # Update path: overwrite the existing Article's file in place
-        resolve_wiki_path(existing_article.file_path).write_text(markdown, encoding="utf-8")
+        write_wiki(existing_article.file_path, markdown)
         existing_article.updated_at = now
         conversation.updated_at = now
         session.add(existing_article)

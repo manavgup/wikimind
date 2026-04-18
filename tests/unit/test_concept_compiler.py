@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -28,6 +27,7 @@ from wikimind.models import (
     Provider,
     RelationType,
 )
+from wikimind.storage import read_wiki, write_wiki
 
 
 def _fake_resp(name="Test"):
@@ -59,14 +59,12 @@ async def _seed_kind(s, name="topic"):
 
 
 async def _mk_art(s, tp, slug, title, concepts, summary="Sum."):
-    d = tp / "wiki" / "test"
-    d.mkdir(parents=True, exist_ok=True)
-    fp = d / f"{slug}.md"
-    fp.write_text(f"# {title}\n{summary}", encoding="utf-8")
+    relative_path = f"test/{slug}.md"
+    write_wiki(relative_path, f"# {title}\n{summary}")
     a = Article(
         slug=slug,
         title=title,
-        file_path=str(fp),
+        file_path=relative_path,
         summary=summary,
         concept_ids=json.dumps(concepts),
         page_type=PageType.SOURCE,
@@ -101,12 +99,9 @@ class TestCollectSourceArticles:
 
     async def test_excludes_concept(self, db_session, tmp_path):
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
-        d = tmp_path / "wiki" / "ml"
-        d.mkdir(parents=True, exist_ok=True)
-        fp = d / "c.md"
-        fp.write_text("# C", encoding="utf-8")
+        write_wiki("ml/c.md", "# C")
         ca = Article(
-            slug="concept-ml", title="ML", file_path=str(fp), concept_ids=json.dumps(["ml"]), page_type=PageType.CONCEPT
+            slug="concept-ml", title="ML", file_path="ml/c.md", concept_ids=json.dumps(["ml"]), page_type=PageType.CONCEPT
         )
         db_session.add(ca)
         await db_session.commit()
@@ -192,7 +187,7 @@ class TestConceptPageOutput:
         ):
             art = await ConceptCompiler().compile_concept_page(c, db_session)
         assert art is not None
-        content = (Path(tmp_path) / "wiki" / art.file_path).read_text(encoding="utf-8")
+        content = read_wiki(art.file_path)
         assert "page_type: concept" in content
         for s in [
             "## Overview",

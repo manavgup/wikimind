@@ -37,7 +37,7 @@ from wikimind.models import (
     SourceResponse,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import read_wiki
 
 log = structlog.get_logger()
 
@@ -59,16 +59,16 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
 
 
 def _read_article_content(file_path: str) -> str:
-    """Read article markdown content from disk.
+    """Read article markdown content from storage.
 
     Args:
-        file_path: Absolute path to the article markdown file.
+        file_path: Wiki-relative path to the article markdown file.
 
     Returns:
         The file content, or an empty string if the file cannot be read.
     """
     try:
-        return resolve_wiki_path(file_path).read_text(encoding="utf-8")
+        return read_wiki(file_path)
     except Exception:
         return ""
 

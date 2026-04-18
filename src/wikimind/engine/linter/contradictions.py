@@ -42,7 +42,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import read_wiki
 
 log = structlog.get_logger()
 
@@ -61,7 +61,7 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
 def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        content = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
+        content = read_wiki(article.file_path)
     except (OSError, FileNotFoundError):
         return []
 

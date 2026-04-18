@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 
 import structlog
 from slugify import slugify
@@ -50,7 +49,7 @@ from wikimind.services.taxonomy import (
     upsert_concepts,
 )
 from wikimind.services.wiki_index import regenerate_index_md
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import delete_wiki, write_wiki
 
 log = structlog.get_logger()
 
@@ -407,8 +406,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Replace an existing same-source same-provider article in place."""
         old_concept_ids = existing.concept_ids
 
-        old_path = resolve_wiki_path(existing.file_path)
-        old_path.unlink(missing_ok=True)
+        delete_wiki(existing.file_path)
 
         resolved, unresolved = await resolve_backlink_candidates(
             result.backlink_suggestions,
@@ -524,19 +522,14 @@ Compile this into a wiki article following the JSON schema exactly."""
         resolved: list[ResolvedBacklink],
         unresolved: list[str],
     ) -> str:
-        """Write .md file to wiki directory with page_type:source frontmatter.
+        """Write .md file to wiki storage with page_type:source frontmatter.
 
         Returns the wiki-relative path (e.g. ``concept-slug/article.md``)
         for storage in Article.file_path.
         """
-        wiki_dir = Path(self.settings.data_dir) / "wiki"
-
         concept = result.concepts[0] if result.concepts else "general"
         concept_slug = slugify(concept)
-        concept_dir = wiki_dir / concept_slug
-        concept_dir.mkdir(parents=True, exist_ok=True)
-
-        file_path = concept_dir / f"{slug}.md"
+        relative_path = f"{concept_slug}/{slug}.md"
 
         related_lines: list[str] = []
         for rb in resolved:
@@ -593,13 +586,12 @@ provider: {provider_str}
 - {source.title or source.source_url or "Uploaded document"} (ingested {source.ingested_at.strftime("%Y-%m-%d")})
 """
 
-        file_path.write_text(content, encoding="utf-8")
+        write_wiki(relative_path, content)
 
         # Post-write frontmatter validation (best-effort, log warnings)
         validate_frontmatter(content)
 
-        # Return relative path for DB storage instead of absolute Path
-        return str(file_path.relative_to(wiki_dir))
+        return relative_path
 
     def _overall_confidence(self, result: CompilationResult) -> ConfidenceLevel:
         """Determine overall confidence from claims."""

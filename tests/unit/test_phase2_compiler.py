@@ -31,6 +31,7 @@ from wikimind.models import (
     Source,
     SourceType,
 )
+from wikimind.storage import read_wiki
 
 
 def _result(**overrides):
@@ -285,9 +286,8 @@ def test_write_article_file_includes_page_type(tmp_path):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
     rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
-    full_path = Path(tmp_path) / "wiki" / rel_path
-    assert full_path.exists()
-    text = full_path.read_text()
+    text = read_wiki(rel_path)
+    assert text  # file exists and has content
     assert "page_type: source" in text
     assert "source_id:" in text
 

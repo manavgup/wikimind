@@ -10,15 +10,14 @@ from __future__ import annotations
 import contextlib
 import json
 from collections import Counter, defaultdict
-from pathlib import Path
 
 import structlog
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
-from wikimind.config import get_settings
 from wikimind.models import Article, Backlink, Concept, PageType
+from wikimind.storage import write_wiki
 
 log = structlog.get_logger()
 
@@ -81,11 +80,6 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: PLR0912
     Returns:
         The wiki-relative path string of the written file.
     """
-    settings = get_settings()
-    wiki_dir = Path(settings.data_dir) / "wiki"
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    index_path = wiki_dir / "index.md"
-
     # Fetch all articles and concepts
     articles_result = await session.execute(select(Article))
     articles: list[Article] = list(articles_result.scalars().all())
@@ -159,7 +153,7 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: PLR0912
             lines.append(_article_entry(article))
         lines.append("\n")
 
-    index_path.write_text("".join(lines), encoding="utf-8")
+    write_wiki("index.md", "".join(lines))
     log.info("index.md regenerated", article_count=len(articles))
     return "index.md"
 
@@ -177,11 +171,6 @@ async def generate_meta_health_page(session: AsyncSession) -> str:
     Returns:
         The wiki-relative path string of the written meta page file.
     """
-    settings = get_settings()
-    meta_dir = Path(settings.data_dir) / "wiki" / "meta"
-    meta_dir.mkdir(parents=True, exist_ok=True)
-    health_path = meta_dir / "wiki-health.md"
-
     articles_result = await session.execute(select(Article))
     articles: list[Article] = list(articles_result.scalars().all())
 
@@ -237,6 +226,6 @@ async def generate_meta_health_page(session: AsyncSession) -> str:
     lines.append("## Orphan Articles\n\n")
     lines.append(f"**{orphan_count}** articles with no inbound or outbound links.\n")
 
-    health_path.write_text("".join(lines), encoding="utf-8")
+    write_wiki("meta/wiki-health.md", "".join(lines))
     log.info("wiki-health.md generated", article_count=total, orphan_count=orphan_count)
     return "meta/wiki-health.md"

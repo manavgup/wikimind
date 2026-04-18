@@ -172,6 +172,9 @@ def resolve_wiki_path(relative_path: str) -> Path:
 
     Handles backward compatibility: if the path is already absolute,
     returns it as-is.
+
+    NOTE: For local storage only. When ``storage_backend=r2``, use the
+    sync helpers (``read_wiki``, ``write_wiki``, etc.) instead.
     """
     path = Path(relative_path)
     if path.is_absolute():
@@ -185,9 +188,73 @@ def resolve_raw_path(relative_path: str) -> Path:
 
     Handles backward compatibility: if the path is already absolute,
     returns it as-is.
+
+    NOTE: For local storage only. When ``storage_backend=r2``, use the
+    sync helpers (``read_raw``, ``write_raw``, etc.) instead.
     """
     path = Path(relative_path)
     if path.is_absolute():
         return path
     settings = get_settings()
     return Path(settings.data_dir) / "raw" / relative_path
+
+
+# ---------------------------------------------------------------------------
+# Sync helpers — bridge sync callers to the async FileStorage backend.
+# These run the async storage method on the current event loop via
+# asyncio.get_event_loop().run_until_complete(), or fall back to
+# asyncio.run() if no loop is running. Safe to call from sync code
+# inside an async application (FastAPI handlers are already in a loop).
+# ---------------------------------------------------------------------------
+
+
+def _run_async(coro):  # noqa: ANN001, ANN202
+    """Run an async coroutine from sync context."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures  # noqa: PLC0415
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
+def write_wiki(relative_path: str, content: str) -> None:
+    """Write text to wiki storage (sync wrapper)."""
+    _run_async(get_wiki_storage().write(relative_path, content))
+
+
+def write_wiki_bytes(relative_path: str, data: bytes) -> None:
+    """Write bytes to wiki storage (sync wrapper)."""
+    _run_async(get_wiki_storage().write_bytes(relative_path, data))
+
+
+def read_wiki(relative_path: str) -> str:
+    """Read text from wiki storage (sync wrapper)."""
+    return _run_async(get_wiki_storage().read(relative_path))
+
+
+def delete_wiki(relative_path: str) -> None:
+    """Delete a file from wiki storage (sync wrapper)."""
+    _run_async(get_wiki_storage().delete(relative_path))
+
+
+def write_raw(relative_path: str, content: str) -> None:
+    """Write text to raw storage (sync wrapper)."""
+    _run_async(get_raw_storage().write(relative_path, content))
+
+
+def write_raw_bytes(relative_path: str, data: bytes) -> None:
+    """Write bytes to raw storage (sync wrapper)."""
+    _run_async(get_raw_storage().write_bytes(relative_path, data))
+
+
+def read_raw(relative_path: str) -> str:
+    """Read text from raw storage (sync wrapper)."""
+    return _run_async(get_raw_storage().read(relative_path))
+
+
+def delete_raw(relative_path: str) -> None:
+    """Delete a file from raw storage (sync wrapper)."""
+    _run_async(get_raw_storage().delete(relative_path))
