@@ -120,13 +120,19 @@ async def _upsert_user(session: AsyncSession, provider: str, user_info: dict) ->
         name = user_info.get("name") or user_info.get("login")
         avatar_url = user_info.get("avatar_url")
 
+    # Look up by provider identity first, then fall back to email.
+    # This handles the case where a user logs in with Google first and
+    # GitHub second using the same email — they get the same User record.
     result = await session.execute(
         select(User).where(User.auth_provider == provider, User.auth_provider_id == provider_id)
     )
     user = result.scalar_one_or_none()
 
+    if not user and email:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
     if user:
-        user.email = email
         user.name = name
         user.avatar_url = avatar_url
         user.updated_at = datetime.now(UTC).replace(tzinfo=None)
