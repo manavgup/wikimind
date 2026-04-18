@@ -55,6 +55,12 @@ def _hermetic_env() -> Iterator[None]:
         "WIKIMIND_ANTHROPIC_API_KEY",
         "WIKIMIND_OPENAI_API_KEY",
         "WIKIMIND_GOOGLE_API_KEY",
+        "WIKIMIND_AUTH__ENABLED",
+        "WIKIMIND_AUTH__JWT_SECRET_KEY",
+        "WIKIMIND_AUTH__GOOGLE_CLIENT_ID",
+        "WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET",
+        "WIKIMIND_AUTH__GITHUB_CLIENT_ID",
+        "WIKIMIND_AUTH__GITHUB_CLIENT_SECRET",
     ]
     saved = {k: os.environ.pop(k, None) for k in scrubbed}
     try:
@@ -71,6 +77,8 @@ def _isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     data_dir = tmp_path / "wikimind"
     data_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(data_dir))
+    # Force auth disabled — .env may have WIKIMIND_AUTH__ENABLED=true for local dev
+    monkeypatch.setenv("WIKIMIND_AUTH__ENABLED", "false")
     get_settings.cache_clear()
     # Clear storage singletons so they pick up the new data_dir
     get_wiki_storage.cache_clear()
