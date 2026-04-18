@@ -18,7 +18,7 @@ from wikimind.models import User
 def test_create_jwt_contains_expected_claims():
     """JWT payload should contain sub, email, iat, and exp claims."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"
+    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
     settings.auth.jwt_algorithm = "HS256"
     settings.auth.jwt_expiry_minutes = 60
 
@@ -41,7 +41,7 @@ def test_create_jwt_contains_expected_claims():
 def test_create_jwt_expiry():
     """JWT should expire after the configured number of minutes."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"
+    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
     settings.auth.jwt_algorithm = "HS256"
     settings.auth.jwt_expiry_minutes = 30
 
