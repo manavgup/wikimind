@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useAuth } from "../../store/auth";
 import { useWebSocketStore } from "../../store/websocket";
 import { Badge } from "./Badge";
 
@@ -17,6 +18,8 @@ const NAV_ITEMS = [
 ];
 
 export function Layout({ children }: LayoutProps) {
+  const user = useAuth((s) => s.user);
+  const logout = useAuth((s) => s.logout);
   const wsState = useWebSocketStore((s) => s.state);
   const toasts = useWebSocketStore((s) => s.toasts);
   const dismissToast = useWebSocketStore((s) => s.dismissToast);
@@ -47,6 +50,25 @@ export function Layout({ children }: LayoutProps) {
             </NavLink>
           ))}
         </nav>
+
+        {user && (
+          <div className="flex items-center gap-2 border-t border-slate-200 px-4 py-3">
+            {user.avatar_url && (
+              <img src={user.avatar_url} alt="" className="h-7 w-7 rounded-full" />
+            )}
+            <span className="truncate text-sm text-slate-600">{user.name || user.email}</span>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                window.location.href = "/login";
+              }}
+              className="ml-auto text-xs text-slate-400 hover:text-slate-700"
+            >
+              Logout
+            </button>
+          </div>
+        )}
 
         <div className="border-t border-slate-200 px-4 py-3">
           <ConnectionIndicator state={wsState} />
