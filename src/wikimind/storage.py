@@ -241,13 +241,33 @@ def delete_wiki(relative_path: str) -> None:
 
 
 def write_raw(relative_path: str, content: str) -> None:
-    """Write text to raw storage (sync wrapper)."""
+    """Write text to raw storage (sync wrapper).
+
+    When storage_backend is R2, also writes a local copy under
+    ``{data_dir}/raw/`` so that libraries requiring a filesystem path
+    (e.g. Docling, pymupdf) can read the file directly.
+    """
     _run_async(get_raw_storage().write(relative_path, content))
+    settings = get_settings()
+    if settings.storage_backend != "local":
+        local = Path(settings.data_dir) / "raw" / relative_path
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_text(content, encoding="utf-8")
 
 
 def write_raw_bytes(relative_path: str, data: bytes) -> None:
-    """Write bytes to raw storage (sync wrapper)."""
+    """Write bytes to raw storage (sync wrapper).
+
+    When storage_backend is R2, also writes a local copy under
+    ``{data_dir}/raw/`` so that libraries requiring a filesystem path
+    (e.g. Docling, pymupdf) can read the file directly.
+    """
     _run_async(get_raw_storage().write_bytes(relative_path, data))
+    settings = get_settings()
+    if settings.storage_backend != "local":
+        local = Path(settings.data_dir) / "raw" / relative_path
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(data)
 
 
 def read_raw(relative_path: str) -> str:
