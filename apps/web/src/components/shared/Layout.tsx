@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { useWebSocketStore } from "../../store/websocket";
 import { Badge } from "./Badge";
 
@@ -24,10 +24,10 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex h-screen w-screen bg-slate-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-2 px-5 py-5 border-b border-slate-200">
+        <Link to="/" className="flex items-center gap-2 px-5 py-5 border-b border-slate-200 cursor-pointer no-underline">
           <span className="text-xl">🧠</span>
           <span className="text-base font-semibold text-slate-800">WikiMind</span>
-        </div>
+        </Link>
 
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {NAV_ITEMS.map((item) => (
