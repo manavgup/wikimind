@@ -54,7 +54,10 @@ jobs:
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: on-failure
-          allow-ghsas: GHSA-7gcm-g887-7qv7  # protobuf 4.x JSON recursion — pinned by onnxruntime/google-genai, low risk
+          allow-ghsas: GHSA-7gcm-g887-7qv7  # protobuf 4.x — pinned by onnxruntime/google-genai
+          allow-dependencies-licenses: >-
+            pkg:pypi/text-unidecode,
+            pkg:pypi/pylint-pydantic
           deny-licenses: >-
             GPL-1.0-only,
             GPL-2.0-only,
