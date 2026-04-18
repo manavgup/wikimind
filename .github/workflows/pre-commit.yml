@@ -41,26 +41,28 @@ jobs:
           persist-credentials: false
 
       # -----------------------------------------------------------
-      # 1️⃣  Set up Python
+      # 1️⃣  Set up Python + uv
       # -----------------------------------------------------------
       - name: 🐍  Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       # -----------------------------------------------------------
-      # 2️⃣  Install pre-commit AND the wikimind package
+      # 2️⃣  Install wikimind with lint extras (includes pre-commit)
       # -----------------------------------------------------------
       # The local doc-sync hooks (export_openapi, regenerate_adr_index, etc.)
       # import from `wikimind.*`, so the package must be installed in the
       # same Python environment that pre-commit uses for `language: system`
-      # subprocesses. We install with the `[lint]` extras to pull pyyaml,
-      # pathspec, etc. that the doc-sync scripts depend on.
-      - name: 📦  Install pre-commit and wikimind
-        run: |
-          pip install pre-commit
-          pip install -e ".[lint]"
+      # subprocesses. Using `uv run pre-commit` ensures the venv's Python
+      # (with wikimind + pyyaml + pathspec) is on PATH for system hooks.
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra lint
 
       # -----------------------------------------------------------
       # 3️⃣  Cache hook environments
@@ -76,4 +78,4 @@ jobs:
       # 4️⃣  Run all hooks
       # -----------------------------------------------------------
       - name: 🪝  Run pre-commit on all files
-        run: pre-commit run --all-files
+        run: uv run pre-commit run --all-files

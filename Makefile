@@ -33,15 +33,15 @@ ensure-venv:
 	@test -d $(VENV) || (echo "🌱  No .venv found — creating..." && python3 -m venv $(VENV) && $(PIP) install --upgrade pip > /dev/null)
 
 .PHONY: install
-install: ensure-venv ## Install production dependencies
+install: ensure-venv ## Install production dependencies (pinned by uv.lock)
 	@echo "📦  Installing production dependencies..."
-	@$(PIP) install -e . > /dev/null
+	@uv sync --frozen > /dev/null
 	@echo "✅  Install complete."
 
 .PHONY: install-dev
-install-dev: ensure-venv ## Install all dev/test/lint dependencies
+install-dev: ensure-venv ## Install all dev/test/lint dependencies (pinned by uv.lock)
 	@echo "📦  Installing dev dependencies..."
-	@$(PIP) install -e ".[dev]" > /dev/null
+	@uv sync --frozen --extra dev > /dev/null
 	@echo "✅  Install complete."
 
 # Path to the editable install marker file inside the venv. We use this to
