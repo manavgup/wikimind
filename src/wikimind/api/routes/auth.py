@@ -197,15 +197,16 @@ async def login(provider: str, request: Request) -> RedirectResponse:
 
 
 @router.get("/callback", name="auth_callback")
-async def callback(code: str, state: str, session: AsyncSession = Depends(get_session)) -> RedirectResponse:
+async def callback(
+    code: str, state: str, request: Request, session: AsyncSession = Depends(get_session)
+) -> RedirectResponse:
     """Handle OAuth2 callback — exchange code for token, upsert user, return JWT."""
     settings = get_settings()
     provider = state
-    callback_url = ""  # Not needed for token exchange on GitHub
+    # Google requires the exact redirect_uri used in the authorize request
+    callback_url = str(request.url_for("auth_callback"))
 
     if provider == "google":
-        # Google requires redirect_uri in token exchange
-        # We reconstruct it — in practice the request URL is the callback URL
         token_resp = await _exchange_google_token(code, settings, callback_url)
         user_info = await _fetch_google_userinfo(token_resp["access_token"])
     elif provider == "github":
