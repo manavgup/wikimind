@@ -21,6 +21,7 @@ from typing import ClassVar
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from sqlalchemy import distinct
 from sqlmodel import select
 
 import wikimind.ingest.service as _ingest_service
@@ -58,15 +59,26 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 
-async def compile_source(ctx, source_id: str):
-    """Compile a raw source into a wiki article."""
-    log.info("compile_source started", source_id=source_id)
+async def compile_source(ctx, source_id: str, user_id: str | None = None):
+    """Compile a raw source into a wiki article.
+
+    Args:
+        ctx: ARQ context (unused in dev mode).
+        source_id: The source UUID to compile.
+        user_id: Optional owner — used to scope WebSocket broadcasts and
+            verify source ownership.
+    """
+    log.info("compile_source started", source_id=source_id, user_id=user_id)
 
     async with get_session_factory()() as session:
         source = await session.get(Source, source_id)
         if not source:
             log.error("Source not found", source_id=source_id)
             return
+
+        # Inherit user_id from the source record when not explicitly passed.
+        if user_id is None:
+            user_id = source.user_id
 
         # Reset source status so the frontend shows a spinner instead of
         # the stale error from a previous failed attempt (issue #111).
@@ -79,12 +91,13 @@ async def compile_source(ctx, source_id: str):
             job_type=JobType.COMPILE_SOURCE,
             status=JobStatus.RUNNING,
             source_id=source_id,
+            user_id=user_id,
             started_at=utcnow_naive(),
         )
         session.add(job)
         await session.commit()
 
-        await emit_source_progress(source_id, "Reading source...")
+        await emit_source_progress(source_id, "Reading source...", user_id=user_id)
 
         try:
             # Every adapter writes a cleaned .txt and stores its path on the
@@ -96,7 +109,7 @@ async def compile_source(ctx, source_id: str):
             text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
             content = text_path.read_text(encoding="utf-8")
 
-            await emit_source_progress(source_id, "Normalizing content...")
+            await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
 
             doc = NormalizedDocument(
                 raw_source_id=source.id,
@@ -108,10 +121,10 @@ async def compile_source(ctx, source_id: str):
                 chunks=_ingest_service.chunk_text(content, source.id),
             )
 
-            await emit_source_progress(source_id, "Compiling with LLM...")
+            await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
 
             async def _on_chunk_progress(message: str) -> None:
-                await emit_source_progress(source_id, message)
+                await emit_source_progress(source_id, message, user_id=user_id)
 
             compiler = Compiler()
             result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)  # type: ignore[arg-type]
@@ -119,7 +132,7 @@ async def compile_source(ctx, source_id: str):
             if not result:
                 raise ValueError("Compiler returned no result")
 
-            await emit_source_progress(source_id, "Saving article...")
+            await emit_source_progress(source_id, "Saving article...", user_id=user_id)
 
             article = await compiler.save_article(result, source, session)  # type: ignore[arg-type]
 
@@ -130,7 +143,7 @@ async def compile_source(ctx, source_id: str):
             session.add(job)
             await session.commit()
 
-            await emit_compilation_complete(article.slug, article.title)
+            await emit_compilation_complete(article.slug, article.title, user_id=user_id)
 
             log.info("compile_source complete", source_id=source_id, slug=article.slug)
 
@@ -154,7 +167,7 @@ async def compile_source(ctx, source_id: str):
             # Sweep existing articles — a newly compiled article may resolve
             # brackets that were previously unresolvable. Fast (no LLM),
             # idempotent, and safe to fire on every compile.
-            await sweep_wikilinks(ctx)
+            await sweep_wikilinks(ctx, user_id=user_id)
 
         except Exception as e:
             log.error("compile_source failed", source_id=source_id, error=str(e))
@@ -169,28 +182,33 @@ async def compile_source(ctx, source_id: str):
             session.add(job)
 
             await session.commit()
-            await emit_compilation_failed(source_id, str(e))
+            await emit_compilation_failed(source_id, str(e), user_id=user_id)
 
 
-async def lint_wiki(ctx):
+async def lint_wiki(ctx, user_id: str | None = None):
     """Run the wiki linter to find contradictions, orphans, and gaps.
 
     Delegates to the structured ``run_lint`` pipeline. The existing
     ARQ cron and ``POST /jobs/lint`` entry point call this function.
+
+    Args:
+        ctx: ARQ context (unused in dev mode).
+        user_id: Optional owner — scopes the lint to this user's articles.
     """
-    log.info("lint_wiki started")
+    log.info("lint_wiki started", user_id=user_id)
 
     async with get_session_factory()() as session:
         job = Job(
             job_type=JobType.LINT_WIKI,
             status=JobStatus.RUNNING,
+            user_id=user_id,
             started_at=utcnow_naive(),
         )
         session.add(job)
         await session.commit()
 
         try:
-            report = await run_lint(session, job_id=job.id)
+            report = await run_lint(session, job_id=job.id, user_id=user_id)
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
@@ -209,7 +227,7 @@ async def lint_wiki(ctx):
             await session.commit()
 
 
-async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
+async def recompile_article(ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):
     """Recompile an existing article from its source or concept.
 
     Args:
@@ -217,8 +235,15 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
         article_id: The article UUID to recompile.
         mode: "source" or "concept".
         _job_id: Pre-created Job record ID to update.
+        user_id: Optional owner — scopes WebSocket broadcasts.
     """
-    log.info("recompile_article started", article_id=article_id, mode=mode, job_id=_job_id)
+    log.info(
+        "recompile_article started",
+        article_id=article_id,
+        mode=mode,
+        job_id=_job_id,
+        user_id=user_id,
+    )
 
     async with get_session_factory()() as session:
         job = await session.get(Job, _job_id)
@@ -239,8 +264,12 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
             job.error = "Article not found"
             session.add(job)
             await session.commit()
-            await emit_article_recompiled(article_id, "unknown", "failed")
+            await emit_article_recompiled(article_id, "unknown", "failed", user_id=user_id)
             return
+
+        # Inherit user_id from the article record when not explicitly passed.
+        if user_id is None:
+            user_id = article.user_id
 
         try:
             if mode == "source":
@@ -295,7 +324,7 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
             session.add(job)
             await session.commit()
 
-            await emit_article_recompiled(article_id, article.page_type, "complete")
+            await emit_article_recompiled(article_id, article.page_type, "complete", user_id=user_id)
 
             log.info("recompile_article complete", article_id=article_id, mode=mode)
 
@@ -308,7 +337,42 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
             session.add(job)
             await session.commit()
 
-            await emit_article_recompiled(article_id, article.page_type, "failed")
+            await emit_article_recompiled(article_id, article.page_type, "failed", user_id=user_id)
+
+
+# ---------------------------------------------------------------------------
+# Cron wrappers — iterate over all users so per-user scoping is respected
+# ---------------------------------------------------------------------------
+
+
+async def lint_all_users(ctx) -> None:
+    """Weekly lint — runs for each user with data, plus legacy unowned data."""
+    async with get_session_factory()() as session:
+        result = await session.execute(
+            select(distinct(Article.user_id)).where(  # type: ignore[arg-type]
+                Article.user_id.isnot(None)  # type: ignore[union-attr]
+            )
+        )
+        user_ids = [row[0] for row in result]
+    for uid in user_ids:
+        await lint_wiki(ctx, user_id=uid)
+    # Also lint data with no user_id (legacy single-user)
+    await lint_wiki(ctx, user_id=None)
+
+
+async def sweep_all_users(ctx) -> None:
+    """Daily sweep — runs for each user with data, plus legacy unowned data."""
+    async with get_session_factory()() as session:
+        result = await session.execute(
+            select(distinct(Article.user_id)).where(  # type: ignore[arg-type]
+                Article.user_id.isnot(None)  # type: ignore[union-attr]
+            )
+        )
+        user_ids = [row[0] for row in result]
+    for uid in user_ids:
+        await sweep_wikilinks(ctx, user_id=uid)
+    # Also sweep data with no user_id (legacy single-user)
+    await sweep_wikilinks(ctx, user_id=None)
 
 
 # ---------------------------------------------------------------------------
@@ -345,8 +409,8 @@ class WorkerSettings:
     job_timeout = 300  # 5 min max per job
     keep_result = 3600  # Keep results for 1 hour
 
-    # Weekly linter + daily wikilink sweep
+    # Weekly linter + daily wikilink sweep — iterate over all users
     cron_jobs: ClassVar[list] = [
-        cron(lint_wiki, weekday=0, hour=2, minute=0),  # Monday 2am
-        cron(sweep_wikilinks, hour=3, minute=0),  # Daily 3am
+        cron(lint_all_users, weekday=0, hour=2, minute=0),  # Monday 2am
+        cron(sweep_all_users, hour=3, minute=0),  # Daily 3am
     ]

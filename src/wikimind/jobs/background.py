@@ -36,11 +36,12 @@ class BackgroundCompiler:
         """Return True when a real Redis URL is configured."""
         return self._redis_url is not None
 
-    async def schedule_compile(self, source_id: str) -> str:
+    async def schedule_compile(self, source_id: str, user_id: str | None = None) -> str:
         """Schedule a compilation job for the given source.
 
         Args:
             source_id: The source UUID to compile.
+            user_id: Optional owner for user-scoped processing.
 
         Returns:
             A placeholder job ID string.
@@ -48,56 +49,81 @@ class BackgroundCompiler:
         job_id = str(uuid.uuid4())
 
         if self.is_prod:
-            await self._enqueue_arq("compile_source", source_id)
+            await self._enqueue_arq("compile_source", source_id, user_id)
         else:
-            asyncio.create_task(self._run_compile_in_process(source_id))  # noqa: RUF006
+            asyncio.create_task(self._run_compile_in_process(source_id, user_id))  # noqa: RUF006
 
-        log.info("compile scheduled", source_id=source_id, mode="arq" if self.is_prod else "in-process")
+        log.info(
+            "compile scheduled",
+            source_id=source_id,
+            user_id=user_id,
+            mode="arq" if self.is_prod else "in-process",
+        )
         return job_id
 
-    async def schedule_lint(self) -> str:
+    async def schedule_lint(self, user_id: str | None = None) -> str:
         """Schedule a wiki lint job.
 
+        Args:
+            user_id: Optional owner for user-scoped linting.
+
         Returns:
             A placeholder job ID string.
         """
         job_id = str(uuid.uuid4())
 
         if self.is_prod:
-            await self._enqueue_arq("lint_wiki")
+            await self._enqueue_arq("lint_wiki", user_id)
         else:
-            asyncio.create_task(self._run_lint_in_process())  # noqa: RUF006
+            asyncio.create_task(self._run_lint_in_process(user_id))  # noqa: RUF006
 
-        log.info("lint scheduled", mode="arq" if self.is_prod else "in-process")
+        log.info(
+            "lint scheduled",
+            user_id=user_id,
+            mode="arq" if self.is_prod else "in-process",
+        )
         return job_id
 
-    async def schedule_recompile(self, article_id: str, mode: str, job_id: str) -> str:
+    async def schedule_recompile(
+        self,
+        article_id: str,
+        mode: str,
+        job_id: str,
+        user_id: str | None = None,
+    ) -> str:
         """Schedule a recompile job for an article.
 
         Args:
             article_id: The article UUID to recompile.
             mode: "source" or "concept".
             job_id: Pre-created Job record ID.
+            user_id: Optional owner for user-scoped processing.
 
         Returns:
             The job ID string.
         """
         if self.is_prod:
-            await self._enqueue_arq("recompile_article", article_id, mode, job_id)
+            await self._enqueue_arq("recompile_article", article_id, mode, job_id, user_id)
         else:
-            asyncio.create_task(self._run_recompile_in_process(article_id, mode, job_id))  # noqa: RUF006
+            asyncio.create_task(  # noqa: RUF006
+                self._run_recompile_in_process(article_id, mode, job_id, user_id)
+            )
 
         log.info(
             "recompile scheduled",
             article_id=article_id,
             mode=mode,
             job_id=job_id,
+            user_id=user_id,
             dispatch="arq" if self.is_prod else "in-process",
         )
         return job_id
 
-    async def schedule_sweep(self) -> str:
+    async def schedule_sweep(self, user_id: str | None = None) -> str:
         """Schedule a wikilink resolution sweep job.
+
+        Args:
+            user_id: Optional owner for user-scoped sweeping.
 
         Returns:
             A placeholder job ID string.
@@ -105,11 +131,15 @@ class BackgroundCompiler:
         job_id = str(uuid.uuid4())
 
         if self.is_prod:
-            await self._enqueue_arq("sweep_wikilinks")
+            await self._enqueue_arq("sweep_wikilinks", user_id)
         else:
-            asyncio.create_task(self._run_sweep_in_process())  # noqa: RUF006
+            asyncio.create_task(self._run_sweep_in_process(user_id))  # noqa: RUF006
 
-        log.info("sweep scheduled", mode="arq" if self.is_prod else "in-process")
+        log.info(
+            "sweep scheduled",
+            user_id=user_id,
+            mode="arq" if self.is_prod else "in-process",
+        )
         return job_id
 
     async def _enqueue_arq(self, func_name: str, *args: object) -> None:
@@ -122,34 +152,34 @@ class BackgroundCompiler:
             await pool.close()
 
     @staticmethod
-    async def _run_compile_in_process(source_id: str) -> None:
+    async def _run_compile_in_process(source_id: str, user_id: str | None = None) -> None:
         """Run compile_source directly in the current event loop."""
         try:
-            await compile_source({}, source_id)
+            await compile_source({}, source_id, user_id=user_id)
         except Exception:
             log.exception("in-process compilation failed", source_id=source_id)
 
     @staticmethod
-    async def _run_lint_in_process() -> None:
+    async def _run_lint_in_process(user_id: str | None = None) -> None:
         """Run lint_wiki directly in the current event loop."""
         try:
-            await lint_wiki({})
+            await lint_wiki({}, user_id=user_id)
         except Exception:
             log.exception("in-process lint failed")
 
     @staticmethod
-    async def _run_recompile_in_process(article_id: str, mode: str, job_id: str) -> None:
+    async def _run_recompile_in_process(article_id: str, mode: str, job_id: str, user_id: str | None = None) -> None:
         """Run recompile_article directly in the current event loop."""
         try:
-            await recompile_article({}, article_id, mode, job_id)
+            await recompile_article({}, article_id, mode, job_id, user_id=user_id)
         except Exception:
             log.exception("in-process recompile failed", article_id=article_id)
 
     @staticmethod
-    async def _run_sweep_in_process() -> None:
+    async def _run_sweep_in_process(user_id: str | None = None) -> None:
         """Run sweep_wikilinks directly in the current event loop."""
         try:
-            await sweep_wikilinks({})
+            await sweep_wikilinks({}, user_id=user_id)
         except Exception:
             log.exception("in-process sweep failed")
 

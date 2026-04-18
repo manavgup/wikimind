@@ -16,6 +16,7 @@ from wikimind import database as db_mod
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.ws import (
+    _NO_USER,
     ConnectionManager,
     emit_compilation_complete,
     emit_compilation_failed,
@@ -54,7 +55,8 @@ async def test_connection_manager_broadcast_drops_dead() -> None:
     good.send_text = AsyncMock()
     bad = MagicMock()
     bad.send_text = AsyncMock(side_effect=RuntimeError("dead"))
-    cm.active.update({good, bad})
+    # Register connections under the no-user key via internal dict
+    cm._connections.setdefault(_NO_USER, set()).update({good, bad})
     await cm.broadcast({"event": "x"})
     assert bad not in cm.active
     assert good in cm.active
@@ -69,7 +71,7 @@ async def test_connection_manager_send_to_dead_disconnects() -> None:
     cm = ConnectionManager()
     ws = MagicMock()
     ws.send_text = AsyncMock(side_effect=RuntimeError("dead"))
-    cm.active.add(ws)
+    cm._connections.setdefault(_NO_USER, set()).add(ws)
     await cm.send_to(ws, {"e": "x"})
     assert ws not in cm.active
 

@@ -105,12 +105,17 @@ async def _apply_dismiss_suppression(
             finding.dismissed_at = now
 
 
-async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintReport:
+async def run_lint(
+    session: AsyncSession,
+    job_id: str | None = None,
+    user_id: str | None = None,
+) -> LintReport:
     """Run the full lint pipeline: create report, run checks, persist, emit events.
 
     Args:
         session: Async database session.
         job_id: Optional Job ID to link the report to.
+        user_id: Optional user ID to scope the lint to a single user's articles.
 
     Returns:
         The completed LintReport.
@@ -125,14 +130,18 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
 
-    # Snapshot article count
-    count_result = await session.execute(select(func.count()).select_from(Article))
+    # Snapshot article count (scoped to user when provided)
+    count_stmt = select(func.count()).select_from(Article)
+    if user_id is not None:
+        count_stmt = count_stmt.where(Article.user_id == user_id)
+    count_result = await session.execute(count_stmt)
     article_count = count_result.scalar() or 0
 
     # Create report
     report = LintReport(
         status=LintReportStatus.IN_PROGRESS,
         article_count=article_count,
+        user_id=user_id,
         job_id=job_id,
     )
     session.add(report)
@@ -194,7 +203,7 @@ async def run_lint(session: AsyncSession, job_id: str | None = None) -> LintRepo
                 if not c.dismissed:
                     article_titles.append(c.description)
             if article_titles:
-                await emit_linter_alert("contradiction", article_titles)
+                await emit_linter_alert("contradiction", article_titles, user_id=user_id)
 
     except Exception as e:
         log.error("Lint run failed", error=str(e), exc_info=True)
