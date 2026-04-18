@@ -34,6 +34,15 @@ RUN apt-get update \
 WORKDIR /app
 
 # ---------------------------------------------------------------------------
+FROM node:20-alpine AS frontend
+
+WORKDIR /app
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY apps/web/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------------------
 FROM base AS dev
 
 # Install the dev extras (tests + lint + pdf) but NOT `search` by default.
@@ -68,7 +77,18 @@ COPY src ./src
 # Same CVE upgrade as the dev stage — see comment above.
 # Install with [pdf] extra for structured PDF extraction via docling.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]"
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn
+
+# Alembic migrations for Postgres deployments
+COPY alembic.ini ./
+COPY alembic ./alembic
+
+# Built frontend from multi-stage build
+COPY --from=frontend /app/dist ./static/
+
+# Entrypoint: run migrations (Postgres only), then exec CMD
+COPY docker/entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user in production.
 RUN useradd --create-home --uid 1000 wikimind \
@@ -81,7 +101,8 @@ ENV WIKIMIND_DATA_DIR=/home/wikimind/.wikimind \
 
 EXPOSE 7842
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS http://127.0.0.1:7842/health || exit 1
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["gunicorn", "wikimind.main:app", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:7842"]

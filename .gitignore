@@ -34,6 +34,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+.env.make
 
 # WikiMind local data (user data — never commit)
 # ~/.wikimind/ is outside repo, but just in case:

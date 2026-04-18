@@ -1,0 +1,45 @@
+# fly.toml — Fly.io deployment for WikiMind.
+#
+# Prerequisites:
+#   fly auth login
+#   fly apps create wikimind
+#   fly postgres create --name wikimind-db
+#   fly postgres attach wikimind-db
+#
+# Deploy:
+#   fly deploy
+#
+# Set LLM API key:
+#   fly secrets set ANTHROPIC_API_KEY=<your-key>
+
+app = "wikimind"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+  [build.args]
+    TORCH_INDEX = "https://download.pytorch.org/whl/cpu"
+
+[env]
+  WIKIMIND_SERVER__HOST = "0.0.0.0"
+  WIKIMIND_SERVER__PORT = "7842"
+
+[http_service]
+  internal_port = 7842
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 7842
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"

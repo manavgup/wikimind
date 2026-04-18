@@ -43,6 +43,16 @@ npm run dev
 # Opens http://localhost:5173
 ```
 
+### Authentication UI
+
+When multi-user mode is enabled (`WIKIMIND_AUTH__ENABLED=true`), the frontend shows:
+
+- **Login page** (`/login`) — Google and GitHub OAuth2 sign-in buttons
+- **Protected routes** — unauthenticated users are redirected to `/login`
+- **User menu** — avatar, name, and logout button in the sidebar
+
+When auth is disabled (default), no login page is shown and all routes are accessible.
+
 ## Production (PostgreSQL)
 
 For shared access across multiple devices, use PostgreSQL instead of SQLite:
@@ -158,7 +168,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 |--------|-------------|
 | `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
 | `make serve` | Run production server on :7842 (gunicorn) |
-| `make dev-postgres` | Run dev server against local Postgres on :5433 |
+| `make dev-postgres` | Run dev server against Postgres (set WIKIMIND_DATABASE_URL in .env) |
 | `make worker` | Start ARQ background job worker |
 
 ### 🔍 QUALITY
@@ -201,6 +211,15 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make docker-up-build` | Rebuild the image and start the dev stack in the background |
 | `make docker-logs` | Tail logs from all dev stack services |
 | `make docker-down` | Stop and remove the dev stack |
+
+### 🚀 DEPLOY
+
+| Target | Description |
+|--------|-------------|
+| `make deploy-up` | Build and start the production stack |
+| `make deploy-stop` | Stop the production stack |
+| `make deploy-logs` | Tail logs from the production stack |
+| `make deploy-ps` | Show production service status |
 
 ### 🧪 TESTING
 

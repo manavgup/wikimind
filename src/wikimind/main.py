@@ -122,7 +122,6 @@ app.include_router(settings_router.router, prefix="/settings", tags=["Settings"]
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
-
 # ---------------------------------------------------------------------------
 # Exception handlers — catch domain errors raised inside route handlers
 # ---------------------------------------------------------------------------
@@ -148,3 +147,14 @@ async def wikimind_error_handler(request: Request, exc: WikiMindError) -> JSONRe
 async def health():
     """Health check — used by Electron to confirm daemon is ready."""
     return {"status": "ok", "version": "0.1.0"}
+
+
+# ---------------------------------------------------------------------------
+# Frontend static files — MUST be last (catch-all "/" mount)
+# ---------------------------------------------------------------------------
+# Serve built frontend in production (Docker image copies dist to /app/static/).
+# In dev, Vite on :5173 serves the frontend — this dir won't exist.
+for _candidate in [Path("/app/static"), Path(__file__).resolve().parent.parent.parent / "static"]:
+    if _candidate.is_dir():
+        app.mount("/", StaticFiles(directory=str(_candidate), html=True), name="frontend")
+        break
