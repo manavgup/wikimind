@@ -15,12 +15,13 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 
-from wikimind.api.routes import ingest, jobs, lint, query, wiki, ws
+from wikimind.api.routes import auth, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.errors import WikiMindError
 from wikimind.ingest.service import _DOCLING_AVAILABLE, _get_docling_converter
+from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
@@ -85,10 +86,11 @@ app = FastAPI(
 
 # ---------------------------------------------------------------------------
 # Middleware stack — evaluated bottom-to-top.
-# Request flow: Correlation → Logging → SecurityHeaders → ErrorHandling → CORS → routes
+# Request flow: Correlation → Logging → Auth → SecurityHeaders → ErrorHandling → CORS → routes
 # ---------------------------------------------------------------------------
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(ErrorHandlingMiddleware)
+app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
@@ -118,6 +120,7 @@ app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 app.include_router(lint.router, prefix="/lint", tags=["Lint"])
 app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
 app.include_router(ws.router, tags=["WebSocket"])
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
 
 # ---------------------------------------------------------------------------

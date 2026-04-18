@@ -62,6 +62,24 @@ All features work identically on both backends. SQLite is recommended for
 single-device development. PostgreSQL is required for cloud deployments where
 multiple devices share the same database.
 
+## Multi-User Mode
+
+WikiMind supports optional multi-user mode with OAuth2 authentication (Google, GitHub).
+
+### Enable Authentication
+
+Set these in your `.env`:
+
+```env
+WIKIMIND_AUTH__ENABLED=true
+WIKIMIND_AUTH__JWT_SECRET_KEY=your-random-secret-here
+WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
+WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
+# and/or GitHub credentials
+```
+
+When disabled (default), WikiMind runs in single-user mode with no login required.
+
 ## Architecture
 
 ```

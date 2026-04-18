@@ -166,6 +166,19 @@ class EmbeddingConfig(BaseModel):
     min_similarity_score: float = 0.65
 
 
+class AuthConfig(BaseModel):
+    """OAuth2 authentication configuration."""
+
+    enabled: bool = False
+    jwt_secret_key: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_minutes: int = 1440  # 24 hours
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
+
+
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
@@ -212,6 +225,7 @@ class Settings(BaseSettings):
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
     linter: LinterConfig = Field(default_factory=LinterConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
     # PDF extraction: number of pages per Docling batch (issue #117).
     # Smaller values give more frequent progress updates at the cost of

@@ -28,6 +28,7 @@ considered, and the consequences.
 | [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Unknown |
 | [019](adr-019-runtime-user-preferences.md) | Runtime User Preferences via DB Override Table | Accepted |
 | [021](adr-021-postgres-compatibility.md) | PostgreSQL compatibility for production deployments | Accepted |
+| [022](adr-022-multi-user-authentication.md) | Multi-User Authentication via OAuth2 | Accepted |
 
 ## ADR Format
 

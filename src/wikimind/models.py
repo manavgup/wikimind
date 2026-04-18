@@ -118,6 +118,19 @@ class TaskType(StrEnum):
 # ---------------------------------------------------------------------------
 
 
+class User(SQLModel, table=True):
+    """Authenticated user account."""
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    email: str = Field(index=True, unique=True)
+    name: str | None = None
+    avatar_url: str | None = None
+    auth_provider: str  # "google" | "github"
+    auth_provider_id: str  # provider's unique user ID
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
 class Source(SQLModel, table=True):
     """Raw ingested source — before compilation."""
 
