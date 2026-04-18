@@ -77,7 +77,7 @@ COPY src ./src
 # Same CVE upgrade as the dev stage — see comment above.
 # Install with [pdf] extra for structured PDF extraction via docling.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]"
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn
 
 # Alembic migrations for Postgres deployments
 COPY alembic.ini ./
@@ -87,7 +87,7 @@ COPY alembic ./alembic
 COPY --from=frontend /app/dist ./static/
 
 # Entrypoint: run migrations (Postgres only), then exec CMD
-COPY docker/entrypoint.sh ./
+COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user in production.
