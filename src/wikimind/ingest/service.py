@@ -378,7 +378,7 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     """
     if not source.file_path:
         raise ValueError(f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument")
-    clean_text = resolve_raw_path(source.file_path).read_text(encoding="utf-8")
+    clean_text = resolve_raw_path(source.file_path, user_id=source.user_id).read_text(encoding="utf-8")
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,

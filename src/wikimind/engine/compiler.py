@@ -407,7 +407,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Replace an existing same-source same-provider article in place."""
         old_concept_ids = existing.concept_ids
 
-        old_path = resolve_wiki_path(existing.file_path)
+        old_path = resolve_wiki_path(existing.file_path, user_id=source.user_id)
         old_path.unlink(missing_ok=True)
 
         resolved, unresolved = await resolve_backlink_candidates(
@@ -530,6 +530,8 @@ Compile this into a wiki article following the JSON schema exactly."""
         for storage in Article.file_path.
         """
         wiki_dir = Path(self.settings.data_dir) / "wiki"
+        if source.user_id:
+            wiki_dir = wiki_dir / source.user_id
 
         concept = result.concepts[0] if result.concepts else "general"
         concept_slug = slugify(concept)

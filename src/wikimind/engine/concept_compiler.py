@@ -120,14 +120,14 @@ async def _collect_source_articles(concept_name: str, session: AsyncSession) -> 
     return articles
 
 
-def _build_source_material(articles: list[Article]) -> str:
+def _build_source_material(articles: list[Article], user_id: str | None = None) -> str:
     parts: list[str] = []
     for i, article in enumerate(articles, 1):
         section = f"### Source {i}: {article.title}\n"
         if article.summary:
             section += f"Summary: {article.summary}\n"
         try:
-            fc = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
+            fc = resolve_wiki_path(article.file_path, user_id=user_id).read_text(encoding="utf-8")
             if len(fc) > 5000:
                 fc = fc[:5000] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
@@ -187,7 +187,7 @@ class ConceptCompiler:
         min_sources = self.settings.taxonomy.concept_page_min_sources
         if len(source_articles) < min_sources:
             return None
-        source_material = _build_source_material(source_articles)
+        source_material = _build_source_material(source_articles, user_id=concept.user_id)
         source_ids = [a.id for a in source_articles]
         ct = await _collect_contradictions(source_ids, session)
         contradiction_section = ct if ct else "No known contradictions."
@@ -235,7 +235,7 @@ class ConceptCompiler:
         existing = await self._find_existing_concept_article(concept.name, session)
         relative_path = self._write_concept_file(compilation, concept, source_articles)
         if existing is not None:
-            resolve_wiki_path(existing.file_path).unlink(missing_ok=True)
+            resolve_wiki_path(existing.file_path, user_id=concept.user_id).unlink(missing_ok=True)
             existing.title = compilation.title
             existing.summary = compilation.overview
             existing.file_path = relative_path
@@ -285,6 +285,8 @@ class ConceptCompiler:
     ) -> str:
         """Write concept page markdown. Returns wiki-relative path."""
         wiki_dir = Path(self.settings.data_dir) / "wiki"
+        if concept.user_id:
+            wiki_dir = wiki_dir / concept.user_id
         slug = slugify(concept.name)
         concept_dir = wiki_dir / slug
         concept_dir.mkdir(parents=True, exist_ok=True)

@@ -22,7 +22,6 @@ from wikimind.config import Settings, get_settings
 from wikimind.ingest import service as ingest_service
 from wikimind.ingest.service import PDFAdapter
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
-from wikimind.storage import get_raw_storage, get_wiki_storage
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -63,12 +62,8 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # Drop the global lru_cache too in case anything else hits it during the
     # test (defensive — the monkeypatch above is the primary mechanism).
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
     yield tmp_path
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
 
 
 # ---------------------------------------------------------------------------
