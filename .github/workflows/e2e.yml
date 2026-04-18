@@ -58,21 +58,23 @@ jobs:
           persist-credentials: false
 
       # -----------------------------------------------------------
-      # 1️⃣  Set up Python
+      # 1️⃣  Set up Python + uv
       # -----------------------------------------------------------
       - name: 🐍  Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       # -----------------------------------------------------------
-      # 2️⃣  Install Python dependencies
+      # 2️⃣  Install Python dependencies (pinned by uv.lock)
       # -----------------------------------------------------------
       - name: 📦  Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+        run: uv sync --frozen --extra dev
 
       # -----------------------------------------------------------
       # 3️⃣  Set up Node
@@ -103,7 +105,7 @@ jobs:
       # -----------------------------------------------------------
       - name: 🚀  Start backend
         run: |
-          python -m uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 &
+          uv run python -m uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 &
           echo "Waiting for backend to become ready..."
           for i in {1..30}; do
             if curl -sf http://127.0.0.1:7842/docs > /dev/null 2>&1; then

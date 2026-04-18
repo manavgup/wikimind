@@ -146,8 +146,8 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | Target | Description |
 |--------|-------------|
 | `make venv` | Create Python virtual environment |
-| `make install` | Install production dependencies |
-| `make install-dev` | Install all dev/test/lint dependencies |
+| `make install` | Install production dependencies (pinned by uv.lock) |
+| `make install-dev` | Install all dev/test/lint dependencies (pinned by uv.lock) |
 | `make check-venv` | Verify the venv editable install points at this checkout's src/ |
 | `make repair-venv` | Reinstall the editable package so it points at this checkout |
 | `make check-env` | Verify Python version, venv hygiene, and required tools |

@@ -16,6 +16,7 @@ on:
     paths:
       - "src/**"
       - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/lint.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -23,6 +24,7 @@ on:
     paths:
       - "src/**"
       - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/lint.yml"
 
 concurrency:
@@ -44,7 +46,6 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
-      PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
     steps:
       - name: ⬇️  Checkout code
@@ -56,16 +57,20 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
-      - name: 📦  Install ruff
-        run: pip install ruff
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra lint
 
       - name: 🔍  Ruff lint
-        run: ruff check src/
+        run: uv run ruff check src/
 
       - name: 🎨  Ruff format check
-        run: ruff format --check src/
+        run: uv run ruff format --check src/
 
   # -----------------------------------------------------------
   # Job 2 — Mypy: strict type checking
@@ -78,7 +83,6 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
-      PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
     steps:
       - name: ⬇️  Checkout code
@@ -90,12 +94,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: 📦  Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+        run: uv sync --frozen --extra dev
 
       - name: 🔍  Mypy strict
-        run: mypy src/wikimind
+        run: uv run mypy src/wikimind
