@@ -15,8 +15,8 @@ from __future__ import annotations
 import re
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory

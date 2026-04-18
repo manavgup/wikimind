@@ -108,7 +108,7 @@ class OpenAIProvider:
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
-        content = response.choices[0].message.content
+        content = response.choices[0].message.content or ""
         input_tokens = response.usage.prompt_tokens if response.usage else 0
         output_tokens = response.usage.completion_tokens if response.usage else 0
 

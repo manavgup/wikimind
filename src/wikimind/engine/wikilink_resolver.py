@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.engine.title_normalizer import normalize_title
 from wikimind.models import Article
