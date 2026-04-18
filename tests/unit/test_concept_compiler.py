@@ -101,7 +101,11 @@ class TestCollectSourceArticles:
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         write_wiki("ml/c.md", "# C")
         ca = Article(
-            slug="concept-ml", title="ML", file_path="ml/c.md", concept_ids=json.dumps(["ml"]), page_type=PageType.CONCEPT
+            slug="concept-ml",
+            title="ML",
+            file_path="ml/c.md",
+            concept_ids=json.dumps(["ml"]),
+            page_type=PageType.CONCEPT,
         )
         db_session.add(ca)
         await db_session.commit()
