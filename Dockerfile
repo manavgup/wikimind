@@ -69,6 +69,22 @@ EXPOSE 7842
 CMD ["uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port", "7842", "--reload"]
 
 # ---------------------------------------------------------------------------
+# Production stage — slim runtime image.
+#
+# Build flow:
+#   1. "frontend" stage (node:20-alpine) builds React app → /app/dist/
+#   2. "base" stage installs Python + system libs
+#   3. This stage installs production Python deps, then copies in:
+#      - built frontend from stage 1
+#      - Alembic migrations (for Postgres deployments)
+#      - gunicorn.conf.py (auto-tunes workers to CPU)
+#      - docker-entrypoint.sh (runs migrations before starting gunicorn)
+#
+# Worker auto-tuning:
+#   gunicorn.conf.py sets workers = min(2 * CPU + 1, 8).
+#   Override at runtime with WEB_CONCURRENCY env var:
+#     docker run -e WEB_CONCURRENCY=4 wikimind:latest
+# ---------------------------------------------------------------------------
 FROM base AS prod
 
 ARG TORCH_INDEX
@@ -83,10 +99,14 @@ RUN pip install --upgrade pip setuptools wheel \
 COPY alembic.ini ./
 COPY alembic ./alembic
 
-# Built frontend from multi-stage build
+# Built frontend from the "frontend" multi-stage build
 COPY --from=frontend /app/dist ./static/
 
-# Entrypoint: run migrations (Postgres only), then exec CMD
+# Gunicorn config — auto-tunes workers to available CPU cores.
+# See gunicorn.conf.py for formula and WEB_CONCURRENCY override.
+COPY gunicorn.conf.py ./
+
+# Entrypoint: run Alembic migrations (Postgres only), then exec CMD
 COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
@@ -105,4 +125,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS http://127.0.0.1:7842/health || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["gunicorn", "wikimind.main:app", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:7842"]
+CMD ["gunicorn", "wikimind.main:app", "-c", "gunicorn.conf.py"]

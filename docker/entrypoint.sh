@@ -9,5 +9,11 @@ if [[ "${WIKIMIND_DATABASE_URL:-}" == postgresql* ]]; then
     echo "Migrations complete."
 fi
 
+# Gunicorn crashes on empty WEB_CONCURRENCY (int("") fails at import time).
+# Unset it so gunicorn falls through to gunicorn.conf.py auto-tuning.
+if [[ -z "${WEB_CONCURRENCY:-}" ]]; then
+    unset WEB_CONCURRENCY
+fi
+
 # Hand off to CMD (gunicorn in prod, or whatever compose overrides).
 exec "$@"

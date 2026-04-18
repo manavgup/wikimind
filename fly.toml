@@ -23,6 +23,9 @@ primary_region = "ord"
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
+  # Auto-tune gunicorn workers to CPU (see gunicorn.conf.py).
+  # Shared 1-CPU machine → 3 workers by default; set explicitly to override.
+  WEB_CONCURRENCY = "3"
 
 [http_service]
   internal_port = 7842
@@ -30,6 +33,12 @@ primary_region = "ord"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+
+  # Fly spins up additional machines when connections exceed soft_limit.
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
 
 [[vm]]
   memory = "1gb"
