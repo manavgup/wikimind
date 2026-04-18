@@ -60,17 +60,18 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
     return items[0] if items else None
 
 
-def _read_article_content(file_path: str) -> str:
+def _read_article_content(file_path: str, user_id: str | None = None) -> str:
     """Read article markdown content from disk.
 
     Args:
         file_path: Absolute path to the article markdown file.
+        user_id: Optional user ID for storage namespacing.
 
     Returns:
         The file content, or an empty string if the file cannot be read.
     """
     try:
-        return resolve_wiki_path(file_path).read_text(encoding="utf-8")
+        return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
     except Exception:
         return ""
 
@@ -343,7 +344,7 @@ class WikiService:
             concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
-            content=_read_article_content(article.file_path),
+            content=_read_article_content(article.file_path, user_id=article.user_id),
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
             updated_at=article.updated_at,
@@ -484,7 +485,7 @@ class WikiService:
         q_lower = q.lower()
         raw_scores: dict[str, int] = {}
         for article in all_articles:
-            content = _read_article_content(article.file_path)
+            content = _read_article_content(article.file_path, user_id=article.user_id)
             if q_lower in article.title.lower() or q_lower in content.lower():
                 score = 10 if q_lower in article.title.lower() else 0
                 score += content.lower().count(q_lower)

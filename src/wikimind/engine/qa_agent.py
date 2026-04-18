@@ -491,7 +491,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         relevant = []
         for article in all_articles:
-            content = self._read_article_content(article.file_path)
+            content = self._read_article_content(article.file_path, user_id=user_id)
             if not content:
                 continue
 
@@ -510,9 +510,9 @@ conversation context contradicts the wiki, prefer the wiki."""
         relevant.sort(key=lambda x: x["score"], reverse=True)
         return relevant[:5]
 
-    def _read_article_content(self, file_path: str) -> str | None:
+    def _read_article_content(self, file_path: str, user_id: str | None = None) -> str | None:
         try:
-            return resolve_wiki_path(file_path).read_text(encoding="utf-8")
+            return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
         except Exception:
             return None
 
@@ -596,7 +596,10 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         if existing_article is None:
             # Create path
-            wiki_dir = Path(self.settings.data_dir) / "wiki" / "qa-answers"
+            wiki_dir = Path(self.settings.data_dir) / "wiki"
+            if user_id:
+                wiki_dir = wiki_dir / user_id
+            wiki_dir = wiki_dir / "qa-answers"
             wiki_dir.mkdir(parents=True, exist_ok=True)
 
             slug = conversation.id  # UUID — guaranteed unique, no collision possible
@@ -631,7 +634,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             return article, False
 
         # Update path: overwrite the existing Article's file in place
-        resolve_wiki_path(existing_article.file_path).write_text(markdown, encoding="utf-8")
+        resolve_wiki_path(existing_article.file_path, user_id=user_id).write_text(markdown, encoding="utf-8")
         existing_article.updated_at = now
         conversation.updated_at = now
         session.add(existing_article)
