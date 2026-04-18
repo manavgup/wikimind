@@ -60,7 +60,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
         next.toasts = [
           {
             id: makeId(),
-            kind: "success",
+            kind: "success" as const,
             title: "Compilation complete",
             detail: event.article_title,
             createdAt: Date.now(),
@@ -73,7 +73,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
         next.toasts = [
           {
             id: makeId(),
-            kind: "error",
+            kind: "error" as const,
             title: "Compilation failed",
             detail: event.error,
             createdAt: Date.now(),

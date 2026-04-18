@@ -43,10 +43,16 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { method = "GET", body, query, headers = {}, signal } = options;
 
+  const token = localStorage.getItem("wikimind_token");
+  const authHeaders: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+
   const init: RequestInit = {
     method,
     headers: {
       Accept: "application/json",
+      ...authHeaders,
       ...headers,
     },
     signal,
