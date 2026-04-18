@@ -30,7 +30,14 @@ class IngestService:
     def __init__(self) -> None:
         self._adapter = IngestAdapter()
 
-    async def ingest_url(self, url: str, session: AsyncSession, *, auto_compile: bool = True) -> Source:
+    async def ingest_url(
+        self,
+        url: str,
+        session: AsyncSession,
+        *,
+        auto_compile: bool = True,
+        user_id: str | None = None,
+    ) -> Source:
         """Ingest a URL (web page or YouTube) and optionally schedule compilation.
 
         Args:
@@ -39,6 +46,7 @@ class IngestService:
             auto_compile: When ``True`` (default), schedule background compilation
                 immediately after persisting the source. When ``False``, persist
                 only — the caller can compile later via the compile API.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             The persisted Source record.
@@ -51,6 +59,8 @@ class IngestService:
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+        source.user_id = user_id
+        session.add(source)
         self._log_ingest(source)
 
         if auto_compile:
@@ -64,6 +74,7 @@ class IngestService:
         session: AsyncSession,
         *,
         auto_compile: bool = True,
+        user_id: str | None = None,
     ) -> Source:
         """Ingest a PDF file and optionally schedule compilation.
 
@@ -74,11 +85,14 @@ class IngestService:
             auto_compile: When ``True`` (default), schedule background compilation
                 immediately after persisting the source. When ``False``, persist
                 only.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             The persisted Source record.
         """
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
+        source.user_id = user_id
+        session.add(source)
         self._log_ingest(source)
 
         if auto_compile:
@@ -92,6 +106,7 @@ class IngestService:
         session: AsyncSession,
         *,
         auto_compile: bool = True,
+        user_id: str | None = None,
     ) -> Source:
         """Ingest raw text content and optionally schedule compilation.
 
@@ -102,11 +117,14 @@ class IngestService:
             auto_compile: When ``True`` (default), schedule background compilation
                 immediately after persisting the source. When ``False``, persist
                 only.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             The persisted Source record.
         """
         source = await self._adapter.ingest_text(content, title, session)
+        source.user_id = user_id
+        session.add(source)
         self._log_ingest(source)
 
         if auto_compile:
@@ -149,7 +167,12 @@ class IngestService:
         log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(
-        self, session: AsyncSession, status: str | None = None, limit: int = 50, offset: int = 0
+        self,
+        session: AsyncSession,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        user_id: str | None = None,
     ) -> list[Source]:
         """List ingested sources with optional status filtering.
 
@@ -158,11 +181,14 @@ class IngestService:
             status: Optional status filter.
             limit: Maximum number of results.
             offset: Pagination offset.
+            user_id: Optional user ID filter.
 
         Returns:
             List of Source records.
         """
         query = select(Source).offset(offset).limit(limit)
+        if user_id:
+            query = query.where(Source.user_id == user_id)
         if status:
             query = query.where(Source.status == status)
         result = await session.execute(query)

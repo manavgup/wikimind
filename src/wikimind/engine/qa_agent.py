@@ -159,6 +159,7 @@ class QAAgent:
         self,
         request: QueryRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> Conversation:
         """Resolve an existing conversation or create a new one for this question."""
         if request.conversation_id is not None:
@@ -170,6 +171,7 @@ class QAAgent:
         title_max = self.settings.qa.conversation_title_max_chars
         new_conv = Conversation(
             title=request.question[:title_max],
+            user_id=user_id,
         )
         session.add(new_conv)
         await session.flush()  # populate new_conv.id without committing
@@ -190,6 +192,7 @@ class QAAgent:
         self,
         request: QueryRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> _PreparedContext:
         """Prepare everything needed before the LLM call.
 
@@ -200,13 +203,14 @@ class QAAgent:
         Args:
             request: The query request.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             A :class:`_PreparedContext` with all data needed for the LLM call.
         """
         log.info("Q&A query", question=request.question[:100])
 
-        conversation = await self._get_or_create_conversation(request, session)
+        conversation = await self._get_or_create_conversation(request, session, user_id=user_id)
 
         prior_turns: list[Query] = []
         if request.conversation_id is not None:
@@ -217,7 +221,7 @@ class QAAgent:
         else:
             next_turn_index = 0
 
-        wiki_context = await self._retrieve_context(request.question, session)
+        wiki_context = await self._retrieve_context(request.question, session, user_id=user_id)
 
         if not wiki_context:
             return _PreparedContext(
@@ -306,6 +310,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         result: QueryResult,
         ctx: _PreparedContext,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Query, Conversation]:
         """Persist the Query row and handle file-back.
 
@@ -316,6 +321,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             result: Parsed QA result from the LLM.
             ctx: Prepared context from ``_prepare_context()``.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             Tuple of (the new Query row, the parent Conversation).
@@ -328,6 +334,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             related_article_ids=json.dumps(result.related_articles),
             conversation_id=ctx.conversation.id,
             turn_index=ctx.next_turn_index,
+            user_id=user_id,
         )
         session.add(query_record)
 
@@ -337,7 +344,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         filed_article: Article | None = None
         if request.file_back and result.confidence in ("high", "medium"):
             await session.flush()
-            article, _ = await self._file_back_thread(ctx.conversation.id, session)
+            article, _ = await self._file_back_thread(ctx.conversation.id, session, user_id=user_id)
             query_record.filed_back = True
             query_record.filed_article_id = article.id
             filed_article = article
@@ -365,6 +372,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         self,
         request: QueryRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Query, Conversation]:
         """Answer a question against the wiki.
 
@@ -376,23 +384,25 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             request: The QueryRequest with question and optional conversation_id.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             Tuple of (the new Query row, the parent Conversation).
         """
-        ctx = await self._prepare_context(request, session)
+        ctx = await self._prepare_context(request, session, user_id=user_id)
 
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
         else:
             result = await self._query_llm(request.question, ctx.wiki_context, ctx.prior_turns, session)
 
-        return await self._persist_query(request, result, ctx, session)
+        return await self._persist_query(request, result, ctx, session, user_id=user_id)
 
     async def answer_stream(
         self,
         request: QueryRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> AsyncIterator[str | tuple[Query, Conversation]]:
         """Stream LLM tokens, then yield the persisted (Query, Conversation) tuple.
 
@@ -410,16 +420,17 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             request: The query request.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Yields:
             ``str`` text chunks, then a final ``tuple[Query, Conversation]``.
         """
-        ctx = await self._prepare_context(request, session)
+        ctx = await self._prepare_context(request, session, user_id=user_id)
 
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
             yield result.answer
-            query_record, conversation = await self._persist_query(request, result, ctx, session)
+            query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
             yield (query_record, conversation)
             return
 
@@ -464,15 +475,18 @@ conversation context contradicts the wiki, prefer the wiki."""
                 related_articles=[],
             )
 
-        query_record, conversation = await self._persist_query(request, result, ctx, session)
+        query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
         yield (query_record, conversation)
 
-    async def _retrieve_context(self, question: str, session: AsyncSession) -> list[dict]:
+    async def _retrieve_context(self, question: str, session: AsyncSession, user_id: str | None = None) -> list[dict]:
         """Retrieve relevant wiki articles for the question."""
         # Extract key terms from question (simple approach for Phase 1)
         terms = [t for t in question.lower().split() if len(t) > 3]
 
-        result = await session.execute(select(Article))
+        ctx_stmt = select(Article)
+        if user_id:
+            ctx_stmt = ctx_stmt.where(Article.user_id == user_id)
+        result = await session.execute(ctx_stmt)
         all_articles = result.scalars().all()
 
         relevant = []
@@ -530,6 +544,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         self,
         conversation_id: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Article, bool]:
         """File a whole conversation back to the wiki as a single article.
 
@@ -548,6 +563,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             conversation_id: The conversation to file back.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             Tuple of (article, was_update). was_update is True when an
@@ -598,6 +614,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 page_type=PageType.ANSWER,
                 created_at=now,
                 updated_at=now,
+                user_id=user_id,
             )
             session.add(article)
             await session.flush()  # populate article.id before the caller commits

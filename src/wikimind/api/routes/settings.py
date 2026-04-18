@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_api_key, get_settings, set_api_key
 from wikimind.database import get_session_factory
 from wikimind.engine.llm_router import get_llm_router
@@ -176,29 +177,38 @@ async def test_llm_connection(provider: str):
 
 
 @router.get("/llm/cost/breakdown")
-async def get_llm_cost_breakdown():
+async def get_llm_cost_breakdown(
+    user_id: str | None = Depends(get_current_user_id),
+):
     """Cost breakdown by provider and task type for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
     settings = get_settings()
 
     async with get_session_factory()() as session:
-        total_result = await session.execute(
-            select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
-        )
+        total_stmt = select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
+        if user_id:
+            total_stmt = total_stmt.where(CostLog.user_id == user_id)
+        total_result = await session.execute(total_stmt)
         total = total_result.scalar() or 0.0
 
-        provider_result = await session.execute(
+        provider_stmt = (
             select(CostLog.provider, func.sum(CostLog.cost_usd), func.count())
             .where(CostLog.created_at >= start_of_month)
             .group_by(CostLog.provider)
         )
+        if user_id:
+            provider_stmt = provider_stmt.where(CostLog.user_id == user_id)
+        provider_result = await session.execute(provider_stmt)
         provider_rows = provider_result.all()
 
-        task_result = await session.execute(
+        task_stmt = (
             select(CostLog.task_type, func.sum(CostLog.cost_usd), func.count())
             .where(CostLog.created_at >= start_of_month)
             .group_by(CostLog.task_type)
         )
+        if user_id:
+            task_stmt = task_stmt.where(CostLog.user_id == user_id)
+        task_result = await session.execute(task_stmt)
         task_rows = task_result.all()
 
     budget = settings.llm.monthly_budget_usd
@@ -231,12 +241,17 @@ async def get_llm_cost_breakdown():
 
 
 @router.get("/llm/cost")
-async def get_llm_cost():
+async def get_llm_cost(
+    user_id: str | None = Depends(get_current_user_id),
+):
     """Cost summary for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
 
     async with get_session_factory()() as session:
-        result = await session.execute(select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month))
+        cost_stmt = select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
+        if user_id:
+            cost_stmt = cost_stmt.where(CostLog.user_id == user_id)
+        result = await session.execute(cost_stmt)
         total = result.scalar() or 0.0
 
     settings = get_settings()

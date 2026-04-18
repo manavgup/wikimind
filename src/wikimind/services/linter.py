@@ -39,21 +39,27 @@ class LinterService:
         await bg.schedule_lint()
         return {"status": "in_progress"}
 
-    async def list_reports(self, session: AsyncSession, limit: int = 20) -> list[LintReport]:
+    async def list_reports(
+        self, session: AsyncSession, limit: int = 20, user_id: str | None = None
+    ) -> list[LintReport]:
         """List lint reports ordered by generated_at DESC.
 
         Args:
             session: Async database session.
             limit: Maximum number of reports to return.
+            user_id: Optional user ID filter.
 
         Returns:
             List of LintReport records.
         """
-        result = await session.execute(
+        stmt = (
             select(LintReport)
             .order_by(LintReport.generated_at.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
+        if user_id:
+            stmt = stmt.where(LintReport.user_id == user_id)
+        result = await session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_report(
@@ -136,8 +142,12 @@ class LinterService:
                     break
         return resolutions
 
-    async def get_latest(self, session: AsyncSession) -> LintReportDetail:
+    async def get_latest(self, session: AsyncSession, user_id: str | None = None) -> LintReportDetail:
         """Get the most recent lint report with findings.
+
+        Args:
+            session: Async database session.
+            user_id: Optional user ID filter.
 
         Returns:
             LintReportDetail for the latest report.
@@ -145,11 +155,14 @@ class LinterService:
         Raises:
             HTTPException: 404 if no reports exist.
         """
-        result = await session.execute(
+        latest_stmt = (
             select(LintReport)
             .order_by(LintReport.generated_at.desc())  # type: ignore[attr-defined]
             .limit(1)
         )
+        if user_id:
+            latest_stmt = latest_stmt.where(LintReport.user_id == user_id)
+        result = await session.execute(latest_stmt)
         report = result.scalars().first()
         if not report:
             raise HTTPException(status_code=404, detail="No lint reports exist yet")

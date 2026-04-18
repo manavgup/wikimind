@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import LintFindingKind, LintReport, LintReportDetail
 from wikimind.services.linter import LinterService, get_linter_service
@@ -25,18 +26,20 @@ async def list_reports(
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """List lint reports ordered by most recent first."""
-    return await service.list_reports(session, limit=limit)
+    return await service.list_reports(session, limit=limit, user_id=user_id)
 
 
 @router.get("/reports/latest", response_model=LintReportDetail)
 async def get_latest_report(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Get the most recent lint report with all non-dismissed findings."""
-    return await service.get_latest(session)
+    return await service.get_latest(session, user_id=user_id)
 
 
 @router.get("/reports/{report_id}", response_model=LintReportDetail)
