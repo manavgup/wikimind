@@ -72,7 +72,7 @@ class TestForkConversation:
 
         with patch.object(service._qa_agent, "answer", new_callable=AsyncMock) as mock_answer:
             # Make the mock return a Query and Conversation
-            async def _fake_answer(request, session):
+            async def _fake_answer(request, session, user_id=None):
                 # Find the fork conversation that was just created
                 result = await session.execute(
                     select(Conversation).where(Conversation.parent_conversation_id == parent.id)

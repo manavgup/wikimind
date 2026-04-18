@@ -431,7 +431,7 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
     assert result["was_update"] is False
     assert result["article"]["id"] == "art-1"
     assert result["article"]["slug"] == "conv-fb"
-    svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session)
+    svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session, user_id=None)
 
 
 async def test_query_service_file_back_conversation_not_found(db_session) -> None:

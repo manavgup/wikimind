@@ -7,6 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
@@ -47,10 +48,17 @@ async def list_articles(
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """List wiki articles with optional filtering and source provenance."""
     return await service.list_articles(
-        session, concept=concept, confidence=confidence, page_type=page_type, limit=limit, offset=offset
+        session,
+        concept=concept,
+        confidence=confidence,
+        page_type=page_type,
+        limit=limit,
+        offset=offset,
+        user_id=user_id,
     )
 
 
@@ -59,18 +67,20 @@ async def get_article(
     id_or_slug: str,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Get full article by ID or slug, with content, backlinks, and source provenance."""
-    return await service.get_article(id_or_slug, session)
+    return await service.get_article(id_or_slug, session, user_id=user_id)
 
 
 @router.get("/graph", response_model=GraphResponse)
 async def get_graph(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Full knowledge graph -- nodes and edges."""
-    return await service.get_graph(session)
+    return await service.get_graph(session, user_id=user_id)
 
 
 @router.get("/search", response_model=list[ArticleSummaryResponse])
@@ -79,9 +89,10 @@ async def search(
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Full-text search across wiki articles with source provenance."""
-    return await service.search(q, session, limit=limit)
+    return await service.search(q, session, limit=limit, user_id=user_id)
 
 
 @router.get("/concepts")
@@ -89,9 +100,10 @@ async def get_concepts(
     include_empty: bool = True,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Concept taxonomy tree."""
-    return await service.get_concepts(session, include_empty=include_empty)
+    return await service.get_concepts(session, include_empty=include_empty, user_id=user_id)
 
 
 @router.post("/concepts/rebuild")

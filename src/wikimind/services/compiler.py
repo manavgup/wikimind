@@ -14,18 +14,27 @@ from wikimind.models import Job
 class CompilerService:
     """Coordinate compilation job management and status tracking."""
 
-    async def list_jobs(self, session: AsyncSession, status: str | None = None, limit: int = 20) -> list[Job]:
+    async def list_jobs(
+        self,
+        session: AsyncSession,
+        status: str | None = None,
+        limit: int = 20,
+        user_id: str | None = None,
+    ) -> list[Job]:
         """List jobs with optional status filtering.
 
         Args:
             session: Async database session.
             status: Optional status filter (queued, running, complete, failed).
             limit: Maximum number of results.
+            user_id: Optional user ID filter.
 
         Returns:
             List of Job records ordered by queue time descending.
         """
         query = select(Job).order_by(Job.queued_at.desc()).limit(limit)  # type: ignore[attr-defined]
+        if user_id:
+            query = query.where(Job.user_id == user_id)
         if status:
             query = query.where(Job.status == status)
         result = await session.execute(query)
