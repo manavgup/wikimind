@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
       target: prod
     image: ${WIKIMIND_IMAGE:-wikimind:latest}
-    container_name: wikimind-gateway
+    # No container_name — allows `docker compose up --scale gateway=N`.
     restart: unless-stopped
     networks: [wikimindnet]
     ports:
@@ -41,6 +41,10 @@ services:
       WIKIMIND_DATA_DIR: /home/wikimind/.wikimind
       WIKIMIND_SERVER__HOST: "0.0.0.0"
       WIKIMIND_SERVER__PORT: "7842"
+      # Gunicorn workers auto-tune to CPU by default (see gunicorn.conf.py).
+      # Override: WEB_CONCURRENCY=4 make deploy-up
+      # Empty string is safe — entrypoint.sh unsets it before gunicorn starts.
+      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-}"
     env_file:
       - path: .env
         required: false
@@ -53,10 +57,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 10s
     deploy:
       resources:
         limits:

@@ -53,9 +53,39 @@ When multi-user mode is enabled (`WIKIMIND_AUTH__ENABLED=true`), the frontend sh
 
 When auth is disabled (default), no login page is shown and all routes are accessible.
 
-## Production (PostgreSQL)
+## Production deployment
 
-For shared access across multiple devices, use PostgreSQL instead of SQLite:
+### Docker Compose (self-hosted)
+
+```bash
+# Start the full stack: gateway + worker + Postgres + Redis
+POSTGRES_PASSWORD=changeme make deploy-up
+
+# Tail logs / check status / stop
+make deploy-logs
+make deploy-ps
+make deploy-stop
+```
+
+Gunicorn workers auto-tune to available CPU cores (see `gunicorn.conf.py`).
+Override with `WEB_CONCURRENCY`:
+
+```bash
+WEB_CONCURRENCY=4 POSTGRES_PASSWORD=changeme make deploy-up
+```
+
+### Fly.io (cloud)
+
+```bash
+fly deploy
+fly secrets set ANTHROPIC_API_KEY=sk-...
+```
+
+Fly.io auto-scales machines based on connection count (see `fly.toml`).
+
+### PostgreSQL without Docker
+
+For shared access across multiple devices without the full Docker stack:
 
 ```bash
 # 1. Set the database URL in .env

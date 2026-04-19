@@ -30,6 +30,7 @@ considered, and the consequences.
 | [021](adr-021-postgres-compatibility.md) | PostgreSQL compatibility for production deployments | Accepted |
 | [022](adr-022-multi-user-authentication.md) | Multi-User Authentication via OAuth2 | Accepted |
 | [023](adr-023-production-container-architecture.md) | Production Container Architecture | Unknown |
+| [024](adr-024-gunicorn-autoscaling-horizontal-readiness.md) | Gunicorn Auto-Scaling and Horizontal Scaling Readiness | Unknown |
 
 ## ADR Format
 
