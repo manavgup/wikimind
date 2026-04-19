@@ -97,7 +97,7 @@ export function ArticleReader({ article }: ArticleReaderProps) {
             </Badge>
           ))}
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">{article.title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{article.title}</h1>
         {article.summary ? (
           <p className="mt-2 text-base text-slate-600">{article.summary}</p>
         ) : null}

@@ -33,7 +33,7 @@ export function CostDashboard({ warningThresholdPct = 80 }: CostDashboardProps) 
   const pct = Math.min(data.budget_pct, 100);
   const gaugeColor =
     data.budget_pct >= 100
-      ? "bg-red-500"
+      ? "bg-rose-500"
       : data.budget_pct >= warningThresholdPct
         ? "bg-amber-500"
         : "bg-emerald-500";

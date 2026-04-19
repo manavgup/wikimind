@@ -296,7 +296,7 @@ function AskViewInner() {
             isSavingSelection={fileBackSel.isPending}
           />
           {pendingError && (
-            <div className="mt-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+            <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
               {pendingError}
             </div>
           )}

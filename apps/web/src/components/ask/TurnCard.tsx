@@ -64,9 +64,9 @@ export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, 
 
   return (
     <article
-      className={`group rounded-lg border p-5 shadow-sm ${
+      className={`group rounded-lg border p-5 shadow-sm transition ${
         selectionMode && isSelected
-          ? "border-blue-400 bg-blue-50"
+          ? "border-brand-400 bg-brand-50"
           : "border-slate-200 bg-white"
       }`}
     >
@@ -76,7 +76,7 @@ export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, 
             type="checkbox"
             checked={isSelected ?? false}
             onChange={onToggleSelect}
-            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             aria-label={`Select turn Q${query.turn_index + 1}`}
           />
         )}
@@ -124,14 +124,14 @@ export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, 
                 onChange={(e) => setEditText(e.target.value)}
                 onKeyDown={handleEditKeyDown}
                 rows={2}
-                className="w-full resize-none rounded border border-blue-300 bg-blue-50 p-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full resize-none rounded-md border border-brand-300 bg-brand-50 p-2 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               />
               <div className="mt-1 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleEditSubmit}
                   disabled={!editText.trim() || editText.trim() === query.question}
-                  className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   Fork
                 </button>
@@ -164,7 +164,7 @@ export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, 
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-2 text-sm font-medium text-blue-600 hover:underline"
+          className="mt-2 text-sm font-medium text-brand-600 hover:underline"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -181,7 +181,7 @@ export function TurnCard({ query, onEdit, forkCount, selectionMode, isSelected, 
               <Link
                 key={`${title}-${i}`}
                 to={`/wiki/${encodeURIComponent(slug)}`}
-                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 hover:underline"
+                className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100 hover:underline"
               >
                 {title}
               </Link>
