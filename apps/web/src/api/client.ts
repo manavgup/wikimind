@@ -29,7 +29,10 @@ interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(`${BASE_URL}${path}`);
+  // When BASE_URL is empty (production same-origin), use window.location.origin
+  // as the base for URL construction.
+  const base = BASE_URL || window.location.origin;
+  const url = new URL(`${base}${path}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) {
@@ -106,5 +109,6 @@ export function getBaseUrl(): string {
 
 export function getWebSocketUrl(): string {
   // Convert http(s):// → ws(s)://
-  return BASE_URL.replace(/^http/, "ws") + "/ws";
+  const base = BASE_URL || window.location.origin;
+  return base.replace(/^http/, "ws") + "/ws";
 }
