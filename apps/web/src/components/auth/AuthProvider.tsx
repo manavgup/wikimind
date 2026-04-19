@@ -5,10 +5,22 @@ import { ApiError } from "../../api/client";
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const token = useAuth((s) => s.token);
+  const setToken = useAuth((s) => s.setToken);
   const setUser = useAuth((s) => s.setUser);
   const setAuthDisabled = useAuth((s) => s.setAuthDisabled);
   const logout = useAuth((s) => s.logout);
   const [ready, setReady] = useState(false);
+
+  // Extract token from URL query string (OAuth callback redirects to /?token=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    if (urlToken) {
+      setToken(urlToken);
+      // Clean the URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [setToken]);
 
   useEffect(() => {
     if (!token) {

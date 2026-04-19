@@ -224,6 +224,8 @@ async def callback(
     user = await _upsert_user(session, provider, user_info)
     jwt_token = _create_jwt(user, settings)
 
+    # Redirect to the frontend root with the token. The SPA's index.html
+    # loads, then AuthCallback (or App) extracts the token from the query.
     return RedirectResponse(url=f"/?token={jwt_token}")
 
 
