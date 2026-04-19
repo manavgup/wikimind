@@ -222,9 +222,20 @@ async def _migrate_added_columns(engine) -> None:
         *[
             (table, "user_id", f"ALTER TABLE {table} ADD COLUMN user_id TEXT REFERENCES user(id)")
             for table in [
-                "source", "article", "concept", "backlink", "conversation", "query",
-                "job", "costlog", "synclog", "userpreference", "lintreport",
-                "contradictionfinding", "orphanfinding", "structuralfinding",
+                "source",
+                "article",
+                "concept",
+                "backlink",
+                "conversation",
+                "query",
+                "job",
+                "costlog",
+                "synclog",
+                "userpreference",
+                "lintreport",
+                "contradictionfinding",
+                "orphanfinding",
+                "structuralfinding",
             ]
         ],
     ]
@@ -242,9 +253,20 @@ async def _migrate_added_columns(engine) -> None:
         *[
             (f"ix_{table}_user_id", f"CREATE INDEX IF NOT EXISTS ix_{table}_user_id ON {table} (user_id)")
             for table in [
-                "source", "article", "concept", "backlink", "conversation", "query",
-                "job", "costlog", "synclog", "userpreference", "lintreport",
-                "contradictionfinding", "orphanfinding", "structuralfinding",
+                "source",
+                "article",
+                "concept",
+                "backlink",
+                "conversation",
+                "query",
+                "job",
+                "costlog",
+                "synclog",
+                "userpreference",
+                "lintreport",
+                "contradictionfinding",
+                "orphanfinding",
+                "structuralfinding",
             ]
         ],
     ]
