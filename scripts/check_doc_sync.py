@@ -86,19 +86,18 @@ def load_config(path: Path) -> tuple[list[Rule], dict[str, Any]]:
     raw_rules = data.get("rules", []) or []
     escape = data.get("escape_hatches", {}) or {}
 
-    rules: list[Rule] = []
-    for raw in raw_rules:
-        rules.append(
-            Rule(
-                name=raw["name"],
-                when_changed=list(raw.get("when_changed", [])),
-                when_diff_contains=list(raw.get("when_diff_contains", [])),
-                require_changed=list(raw.get("require_changed", [])),
-                require_one_of=list(raw.get("require_one_of", [])),
-                severity=raw.get("severity", "error"),
-                fix_hint=raw.get("fix_hint", ""),
-            )
+    rules: list[Rule] = [
+        Rule(
+            name=raw["name"],
+            when_changed=list(raw.get("when_changed", [])),
+            when_diff_contains=list(raw.get("when_diff_contains", [])),
+            require_changed=list(raw.get("require_changed", [])),
+            require_one_of=list(raw.get("require_one_of", [])),
+            severity=raw.get("severity", "error"),
+            fix_hint=raw.get("fix_hint", ""),
         )
+        for raw in raw_rules
+    ]
     return rules, escape
 
 
