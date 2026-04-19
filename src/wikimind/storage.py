@@ -155,3 +155,27 @@ def resolve_raw_path(relative_path: str) -> Path:
         return path
     settings = get_settings()
     return Path(settings.data_dir) / "raw" / relative_path
+
+
+def find_original_sibling(txt_path: Path) -> Path | None:
+    """Return the non-.txt sibling of a .txt file in raw/, or None.
+
+    When a PDF or HTML is ingested, the raw directory contains both a
+    ``.txt`` extracted-text file and the original binary (e.g. ``.pdf``
+    or ``.html``).  This function returns the first sibling that is *not*
+    the ``.txt`` file itself, or ``None`` if only the ``.txt`` exists.
+
+    Args:
+        txt_path: Absolute path to the extracted-text file (must end in ``.txt``).
+
+    Returns:
+        Absolute path to the original document, or ``None`` if not found.
+    """
+    parent = txt_path.parent
+    stem = txt_path.stem
+    if not parent.exists():
+        return None
+    for sibling in parent.iterdir():
+        if sibling.stem == stem and sibling.suffix != ".txt" and sibling.is_file():
+            return sibling
+    return None
