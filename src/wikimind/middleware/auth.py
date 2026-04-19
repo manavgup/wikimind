@@ -21,6 +21,9 @@ EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
 EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/assets/")
 # Static frontend files that must load without auth so users can see the login page.
 _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
+# API route prefixes that require auth. Everything else is a frontend SPA route
+# (served as index.html by the static file mount) and must be exempt.
+_API_PREFIXES = ("/ingest/", "/wiki/", "/query/", "/jobs/", "/lint/", "/settings", "/images/", "/auth/")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -36,11 +39,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
+        is_api = any(path.startswith(p) for p in _API_PREFIXES)
         is_exempt = (
-            path in EXEMPT_PATHS
+            not is_api
+            or path in EXEMPT_PATHS
             or any(path.startswith(p) for p in EXEMPT_PREFIXES)
             or any(path.endswith(ext) for ext in _STATIC_EXTENSIONS)
-            or path == "/"
         )
         if is_exempt:
             request.state.user_id = None
