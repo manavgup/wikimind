@@ -1,24 +1,12 @@
 # fly.toml — Fly.io deployment for WikiMind.
 #
-# Prerequisites:
-#   fly auth login
-#   fly apps create wikimind
-#   fly postgres create --name wikimind-db
-#   fly postgres attach wikimind-db
+# First-time setup (creates app, volume, Postgres, secrets):
+#   ./scripts/fly-setup.sh
 #
 # Deploy:
 #   fly deploy
 #
-# Set LLM API key:
-#   fly secrets set ANTHROPIC_API_KEY=<your-key>
-#
-# Auth secrets are set via `fly secrets set`:
-#   fly secrets set WIKIMIND_AUTH__ENABLED=true
-#   fly secrets set WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
-#   fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
-#   fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
-#   fly secrets set WIKIMIND_AUTH__GITHUB_CLIENT_ID=...
-#   fly secrets set WIKIMIND_AUTH__GITHUB_CLIENT_SECRET=...
+# CI auto-deploys on merge to main (see .github/workflows/deploy.yml).
 
 app = "wikimind"
 primary_region = "ord"

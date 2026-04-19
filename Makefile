@@ -245,6 +245,10 @@ deploy-logs: ## Tail logs from the production stack
 deploy-ps: ## Show production service status
 	$(COMPOSE_CMD) -f $(COMPOSE_PROD_FILE) ps
 
+.PHONY: fly-setup
+fly-setup: ## Set up Fly.io infrastructure (app, volume, Postgres, secrets)
+	./scripts/fly-setup.sh
+
 ##@ 🧪 TESTING
 
 .PHONY: test
