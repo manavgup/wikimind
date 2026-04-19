@@ -92,8 +92,10 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 # Same CVE upgrade as the dev stage — see comment above.
 # Install with [pdf] extra for structured PDF extraction via docling.
+# Playwright is needed by docling's HTML backend for URL ingestion.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright \
+    && playwright install --with-deps chromium
 
 # Alembic migrations for Postgres deployments
 COPY alembic.ini ./
