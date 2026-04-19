@@ -281,7 +281,7 @@ class TestAskStream:
 
         service = QueryService()
 
-        async def _fake_stream(request, session):
+        async def _fake_stream(request, session, user_id=None):
             yield "hello "
             yield "world"
             yield (q, conv)
@@ -308,7 +308,7 @@ class TestAskStream:
         """ask_stream() emits an error event when the agent raises."""
         service = QueryService()
 
-        async def _failing_stream(request, session):
+        async def _failing_stream(request, session, user_id=None):
             raise RuntimeError("provider dead")
             yield  # make it a generator  # pragma: no cover
 

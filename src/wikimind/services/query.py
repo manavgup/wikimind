@@ -239,7 +239,7 @@ class QueryService:
     def __init__(self) -> None:
         self._qa_agent = QAAgent()
 
-    async def ask(self, request: QueryRequest, session: AsyncSession) -> AskResponse:
+    async def ask(self, request: QueryRequest, session: AsyncSession, user_id: str | None = None) -> AskResponse:
         """Ask a question against the wiki and persist the result.
 
         Conversation-aware: passes request.conversation_id to the agent.
@@ -249,11 +249,12 @@ class QueryService:
         Args:
             request: The query request with question and options.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             :class:`AskResponse` with the new query and its parent conversation.
         """
-        query, conversation = await self._qa_agent.answer(request, session)
+        query, conversation = await self._qa_agent.answer(request, session, user_id=user_id)
         citations = await _build_citations(query, session)
         return AskResponse(
             query=_to_query_response(query, citations),
@@ -264,6 +265,7 @@ class QueryService:
         self,
         request: QueryRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream an answer token-by-token via SSE events.
 
@@ -278,12 +280,13 @@ class QueryService:
         Args:
             request: The query request.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Yields:
             SSE-formatted event strings.
         """
         try:
-            async for item in self._qa_agent.answer_stream(request, session):
+            async for item in self._qa_agent.answer_stream(request, session, user_id=user_id):
                 if isinstance(item, str):
                     yield (f"event: chunk\ndata: {json.dumps({'text': item})}\n\n")
                 else:
@@ -300,25 +303,28 @@ class QueryService:
             error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
             yield f"event: error\ndata: {error_payload}\n\n"
 
-    async def query_history(self, session: AsyncSession, limit: int = 50) -> list[Query]:
+    async def query_history(self, session: AsyncSession, limit: int = 50, user_id: str | None = None) -> list[Query]:
         """List past queries ordered by most recent first.
 
         Args:
             session: Async database session.
             limit: Maximum number of results.
+            user_id: Optional user ID filter.
 
         Returns:
             List of Query records.
         """
-        result = await session.execute(
-            select(Query).order_by(Query.created_at.desc()).limit(limit)  # type: ignore[attr-defined]
-        )
+        stmt = select(Query).order_by(Query.created_at.desc()).limit(limit)  # type: ignore[attr-defined]
+        if user_id:
+            stmt = stmt.where(Query.user_id == user_id)
+        result = await session.execute(stmt)
         return list(result.scalars().all())
 
     async def list_conversations(
         self,
         session: AsyncSession,
         limit: int = 50,
+        user_id: str | None = None,
     ) -> list[ConversationSummary]:
         """List conversations ordered by most-recently-updated first.
 
@@ -327,15 +333,19 @@ class QueryService:
         Args:
             session: Async database session.
             limit: Maximum number of results.
+            user_id: Optional user ID filter.
 
         Returns:
             List of :class:`ConversationSummary` ordered by updated_at descending.
         """
-        result = await session.execute(
+        conv_stmt = (
             select(Conversation)
             .order_by(Conversation.updated_at.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
+        if user_id:
+            conv_stmt = conv_stmt.where(Conversation.user_id == user_id)
+        result = await session.execute(conv_stmt)
         conversations = list(result.scalars().all())
 
         if not conversations:
@@ -379,6 +389,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> ConversationDetail:
         """Return a single conversation with all its queries ordered by turn_index.
 
@@ -388,6 +399,7 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to retrieve.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             :class:`ConversationDetail` with conversation metadata and ordered queries.
@@ -425,6 +437,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> dict[str, object]:
         """File a whole conversation back to the wiki.
 
@@ -436,11 +449,12 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to file back.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             Dict with article metadata (id, slug, title) and a was_update flag.
         """
-        article, was_update = await self._qa_agent._file_back_thread(conversation_id, session)
+        article, was_update = await self._qa_agent._file_back_thread(conversation_id, session, user_id=user_id)
         return {
             "article": {"id": article.id, "slug": article.slug, "title": article.title},
             "was_update": was_update,
@@ -451,6 +465,7 @@ class QueryService:
         conversation_id: str,
         fork_request: ForkRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> AskResponse:
         """Fork a conversation at a specific turn and ask a new question.
 
@@ -463,6 +478,7 @@ class QueryService:
             conversation_id: The parent conversation UUID to fork from.
             fork_request: Contains turn_index (fork point) and new_question.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             :class:`AskResponse` with the new query and the forked conversation.
@@ -486,6 +502,7 @@ class QueryService:
             title=fork_request.new_question[:title_max],
             parent_conversation_id=conversation_id,
             forked_at_turn_index=fork_request.turn_index,
+            user_id=user_id,
         )
         session.add(fork_conv)
         await session.flush()
@@ -495,7 +512,7 @@ class QueryService:
             question=fork_request.new_question,
             conversation_id=fork_conv.id,
         )
-        query, conversation = await self._qa_agent.answer(ask_request, session)
+        query, conversation = await self._qa_agent.answer(ask_request, session, user_id=user_id)
         citations = await _build_citations(query, session)
         fork_count = await _count_forks(fork_conv.id, session)
         return AskResponse(
@@ -507,6 +524,7 @@ class QueryService:
         self,
         request: FileBackSelectionRequest,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> dict[str, object]:
         """File selected turns from one or more conversations back to the wiki.
 
@@ -517,6 +535,7 @@ class QueryService:
         Args:
             request: The file-back selection request with turn selections and optional title.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             Dict with article metadata (id, slug, title).
@@ -585,6 +604,7 @@ class QueryService:
             page_type=PageType.ANSWER,
             created_at=now,
             updated_at=now,
+            user_id=user_id,
         )
         session.add(article)
 

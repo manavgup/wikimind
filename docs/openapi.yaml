@@ -1521,6 +1521,11 @@ components:
         id:
           type: string
           title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
         report_id:
           type: string
           title: Report Id
@@ -1874,6 +1879,11 @@ components:
         id:
           type: string
           title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
         generated_at:
           type: string
           format: date-time
@@ -1996,6 +2006,11 @@ components:
         id:
           type: string
           title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
         report_id:
           type: string
           title: Report Id
@@ -2195,6 +2210,11 @@ components:
         id:
           type: string
           title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
         source_type:
           $ref: '#/components/schemas/SourceType'
         source_url:
@@ -2318,6 +2338,11 @@ components:
         id:
           type: string
           title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
         report_id:
           type: string
           title: Report Id

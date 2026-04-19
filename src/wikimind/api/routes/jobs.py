@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.services.compiler import CompilerService, get_compiler_service
 from wikimind.services.linter import LinterService, get_linter_service
@@ -18,9 +19,10 @@ async def list_jobs(
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """List jobs with optional status filter."""
-    return await service.list_jobs(session, status=status, limit=limit)
+    return await service.list_jobs(session, status=status, limit=limit, user_id=user_id)
 
 
 @router.get("/{job_id}")

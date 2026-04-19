@@ -222,6 +222,7 @@ class WikiService:
         page_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        user_id: str | None = None,
     ) -> list[ArticleSummaryResponse]:
         """List wiki articles with optional filtering by concept, confidence, or page_type.
 
@@ -238,12 +239,15 @@ class WikiService:
             page_type: Optional page type filter (source, concept, answer, index, meta).
             limit: Maximum number of results.
             offset: Pagination offset.
+            user_id: Optional user ID filter.
 
         Returns:
             List of :class:`ArticleSummaryResponse` records with sources
             populated.
         """
         query = select(Article).offset(offset).limit(limit)
+        if user_id:
+            query = query.where(Article.user_id == user_id)
         if concept:
             settings = get_settings()
             dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
@@ -261,7 +265,7 @@ class WikiService:
         articles = list(result.scalars().all())
         return [await _build_article_summary(a, session) for a in articles]
 
-    async def get_article(self, id_or_slug: str, session: AsyncSession) -> ArticleResponse:
+    async def get_article(self, id_or_slug: str, session: AsyncSession, user_id: str | None = None) -> ArticleResponse:
         """Retrieve a full article by ID or slug.
 
         Tries the article's UUID first (resolved wikilinks travel by ID
@@ -277,6 +281,7 @@ class WikiService:
         Args:
             id_or_slug: Either an ``Article.id`` UUID or an ``Article.slug``.
             session: Async database session.
+            user_id: Optional user ID filter.
 
         Returns:
             :class:`ArticleResponse` with content, backlink, and source data.
@@ -285,11 +290,17 @@ class WikiService:
             HTTPException: If no article matches either lookup.
         """
         # Try ID first
-        result = await session.execute(select(Article).where(Article.id == id_or_slug))
+        id_stmt = select(Article).where(Article.id == id_or_slug)
+        if user_id:
+            id_stmt = id_stmt.where(Article.user_id == user_id)
+        result = await session.execute(id_stmt)
         article = result.scalar_one_or_none()
         if article is None:
             # Fall back to slug
-            result = await session.execute(select(Article).where(Article.slug == id_or_slug))
+            slug_stmt = select(Article).where(Article.slug == id_or_slug)
+            if user_id:
+                slug_stmt = slug_stmt.where(Article.user_id == user_id)
+            result = await session.execute(slug_stmt)
             article = result.scalar_one_or_none()
         if not article:
             raise HTTPException(status_code=404, detail="Article not found")
@@ -338,17 +349,21 @@ class WikiService:
             updated_at=article.updated_at,
         )
 
-    async def get_graph(self, session: AsyncSession) -> GraphResponse:
+    async def get_graph(self, session: AsyncSession, user_id: str | None = None) -> GraphResponse:
         """Build the full knowledge graph from articles and backlinks.
 
         Args:
             session: Async database session.
+            user_id: Optional user ID filter.
 
         Returns:
             GraphResponse containing nodes and edges.
         """
         # Backlinks are eager-loaded via selectin on Article.backlinks_out
-        articles_result = await session.execute(select(Article))
+        graph_stmt = select(Article)
+        if user_id:
+            graph_stmt = graph_stmt.where(Article.user_id == user_id)
+        articles_result = await session.execute(graph_stmt)
         articles = articles_result.scalars().all()
 
         all_backlinks: list[Backlink] = []
@@ -389,6 +404,7 @@ class WikiService:
         q: str,
         session: AsyncSession,
         limit: int = 20,
+        user_id: str | None = None,
     ) -> list[ArticleSummaryResponse]:
         """Hybrid search across wiki article titles and content.
 
@@ -404,12 +420,13 @@ class WikiService:
             q: Search query string (minimum 2 characters).
             session: Async database session.
             limit: Maximum number of results.
+            user_id: Optional user ID filter.
 
         Returns:
             Matching articles as :class:`ArticleSummaryResponse` records,
             ordered by relevance score.
         """
-        keyword_scores = self._keyword_search(q, session)
+        keyword_scores = self._keyword_search(q, session, user_id=user_id)
         keyword_scores_map = await keyword_scores
 
         if _SEARCH_AVAILABLE:
@@ -443,6 +460,7 @@ class WikiService:
         self,
         q: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> dict[str, float]:
         """Run keyword substring matching and return normalised scores by article id.
 
@@ -452,11 +470,15 @@ class WikiService:
         Args:
             q: Search query string.
             session: Async database session.
+            user_id: Optional user ID filter.
 
         Returns:
             Mapping of article_id to normalised keyword score.
         """
-        result = await session.execute(select(Article))
+        kw_stmt = select(Article)
+        if user_id:
+            kw_stmt = kw_stmt.where(Article.user_id == user_id)
+        result = await session.execute(kw_stmt)
         all_articles = result.scalars().all()
 
         q_lower = q.lower()
@@ -481,17 +503,21 @@ class WikiService:
         self,
         session: AsyncSession,
         include_empty: bool = True,
+        user_id: str | None = None,
     ) -> list[Concept]:
         """Retrieve the concept taxonomy tree.
 
         Args:
             session: Async database session.
             include_empty: If False, exclude concepts with article_count == 0.
+            user_id: Optional user ID filter.
 
         Returns:
             List of Concept records.
         """
         query = select(Concept)
+        if user_id:
+            query = query.where(Concept.user_id == user_id)
         if not include_empty:
             query = query.where(Concept.article_count > 0)
         result = await session.execute(query)
