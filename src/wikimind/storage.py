@@ -155,3 +155,24 @@ def resolve_raw_path(relative_path: str) -> Path:
         return path
     settings = get_settings()
     return Path(settings.data_dir) / "raw" / relative_path
+
+
+def find_original_sibling(txt_path: Path) -> Path | None:
+    """Find the non-.txt sibling of a raw source file.
+
+    During ingest, adapters store both the cleaned text ({id}.txt) and the
+    original binary ({id}.pdf, {id}.html).  This function locates the
+    original by scanning the same directory for a file with the same stem
+    but a different extension.
+
+    Returns None if only the .txt exists (text/YouTube sources) or if
+    the txt_path itself does not exist.
+    """
+    if not txt_path.exists():
+        return None
+    stem = txt_path.stem
+    parent = txt_path.parent
+    for sibling in parent.iterdir():
+        if sibling.stem == stem and sibling.suffix != ".txt" and sibling.is_file():
+            return sibling
+    return None
