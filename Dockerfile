@@ -94,7 +94,7 @@ COPY src ./src
 # Install with [pdf] extra for structured PDF extraction via docling.
 # Playwright is needed by docling's HTML backend for URL ingestion.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright \
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright onnxruntime \
     && playwright install --with-deps chromium
 
 # Alembic migrations for Postgres deployments
