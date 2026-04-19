@@ -11,6 +11,14 @@
 #
 # Set LLM API key:
 #   fly secrets set ANTHROPIC_API_KEY=<your-key>
+#
+# Auth secrets are set via `fly secrets set`:
+#   fly secrets set WIKIMIND_AUTH__ENABLED=true
+#   fly secrets set WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
+#   fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
+#   fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
+#   fly secrets set WIKIMIND_AUTH__GITHUB_CLIENT_ID=...
+#   fly secrets set WIKIMIND_AUTH__GITHUB_CLIENT_SECRET=...
 
 app = "wikimind"
 primary_region = "ord"
@@ -23,9 +31,10 @@ primary_region = "ord"
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
-  # Auto-tune gunicorn workers to CPU (see gunicorn.conf.py).
-  # Shared 1-CPU machine → 3 workers by default; set explicitly to override.
-  WEB_CONCURRENCY = "3"
+  # Gunicorn workers (see gunicorn.conf.py).
+  # Each worker loads Docling/PyTorch models (~250-400 MB RSS).
+  # 2 workers fits safely in 2 GB; async handles concurrency within each.
+  WEB_CONCURRENCY = "2"
 
 [http_service]
   internal_port = 7842
@@ -40,8 +49,15 @@ primary_region = "ord"
     hard_limit = 100
     soft_limit = 80
 
+[deploy]
+  strategy = "rolling"
+
+[mounts]
+  source = "wikimind_data"
+  destination = "/home/wikimind/.wikimind"
+
 [[vm]]
-  memory = "1gb"
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
 
