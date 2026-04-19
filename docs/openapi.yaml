@@ -189,6 +189,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/sources/{source_id}/original:
+    get:
+      tags:
+      - Ingest
+      summary: Get Source Original
+      description: 'Stream the original source document (PDF, HTML, etc.).
+
+
+        Returns the raw binary stored during ingest — not the extracted text.
+
+        Sources that have no original (text, YouTube) return 404.'
+      operationId: get_source_original_ingest_sources__source_id__original_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/contradiction-resolutions:
     get:
       tags:
@@ -2220,9 +2251,16 @@ components:
           - type: string
           - type: 'null'
           title: Content Hash
+        has_original:
+          type: boolean
+          title: Has Original
+          description: Whether the original document (PDF, HTML) exists alongside
+            the .txt.
+          readOnly: true
       type: object
       required:
       - source_type
+      - has_original
       title: Source
       description: Raw ingested source — before compilation.
     SourceResponse:

@@ -1,11 +1,15 @@
 """Endpoints for ingesting sources (URLs, PDFs, text) into the knowledge base."""
 
+import mimetypes
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.database import get_session
 from wikimind.models import IngestTextRequest, IngestURLRequest, Source
 from wikimind.services.ingest import IngestService, get_ingest_service
+from wikimind.storage import find_original_sibling, resolve_raw_path
 
 router = APIRouter()
 
@@ -78,3 +82,39 @@ async def delete_source(
 ):
     """Delete a source by ID."""
     return await service.delete_source(source_id, session)
+
+
+@router.get("/sources/{source_id}/original")
+async def get_source_original(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+):
+    """Stream the original source document (PDF, HTML, etc.).
+
+    Returns the raw binary stored during ingest — not the extracted text.
+    Sources that have no original (text, YouTube) return 404.
+    """
+    source = await service.get_source(source_id, session)
+    if not source.file_path:
+        raise HTTPException(status_code=404, detail="No original document available")
+
+    txt_path = resolve_raw_path(source.file_path)
+    original = find_original_sibling(txt_path)
+    if original is None:
+        raise HTTPException(status_code=404, detail="No original document available")
+
+    content_type, _ = mimetypes.guess_type(original.name)
+    if content_type is None:
+        content_type = "application/octet-stream"
+
+    def iter_file():
+        with open(original, "rb") as f:
+            while chunk := f.read(64 * 1024):
+                yield chunk
+
+    return StreamingResponse(
+        iter_file(),
+        media_type=content_type,
+        headers={"Content-Disposition": "inline"},
+    )

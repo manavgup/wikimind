@@ -49,6 +49,7 @@ export interface Source {
   token_count: number | null;
   error_message: string | null;
   file_path: string | null;
+  has_original: boolean;
 }
 
 export interface Article {
