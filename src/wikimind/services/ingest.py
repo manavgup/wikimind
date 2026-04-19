@@ -127,6 +127,7 @@ class IngestService:
         source = await self._adapter.ingest_text(content, title, session)
         source.user_id = user_id
         session.add(source)
+        await session.commit()
         self._log_ingest(source)
 
         if auto_compile:

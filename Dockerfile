@@ -95,8 +95,11 @@ COPY src ./src
 # Playwright is needed by docling's HTML backend for URL ingestion.
 RUN pip install --upgrade pip setuptools wheel \
     && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright onnxruntime \
-    && playwright install --with-deps chromium \
-    && python -c "from rapidocr import RapidOCR; RapidOCR()" \
+    && playwright install --with-deps chromium
+
+# Pre-download RapidOCR models so they don't need to be fetched at runtime
+# from modelscope.cn (unreliable from US datacenters). Non-fatal if it fails.
+RUN python -c "from rapidocr import RapidOCR; RapidOCR()" \
     || echo "WARN: RapidOCR model pre-download failed (non-fatal)"
 
 # Alembic migrations for Postgres deployments

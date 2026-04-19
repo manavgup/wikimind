@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 from starlette.responses import FileResponse, HTMLResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from wikimind.api.routes import auth, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
@@ -97,8 +98,8 @@ app.add_middleware(CorrelationIdMiddleware)
 
 # Trust X-Forwarded-Proto from reverse proxies (Fly.io, nginx) so that
 # request.url_for() generates https:// URLs for OAuth redirect URIs.
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware  # noqa: E402
-
+# trusted_hosts=["*"] is acceptable because Fly.io's edge proxy strips/overrides
+# X-Forwarded-* headers before forwarding to the app.
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Allow Electron renderer and web dev server to connect
@@ -179,7 +180,7 @@ if _static_dir is not None:
     async def spa_fallback(path: str):
         """Serve index.html for all SPA routes (catch-all)."""
         # Check if the path matches a real static file
-        static_file = _static_dir / path  # type: ignore[operator]
-        if static_file.is_file() and ".." not in path:
+        static_file = (_static_dir / path).resolve()  # type: ignore[operator]
+        if static_file.is_file() and static_file.is_relative_to(_static_dir):
             return FileResponse(str(static_file))
         return HTMLResponse(_index_html)
