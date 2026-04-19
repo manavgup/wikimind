@@ -38,8 +38,7 @@ export function PdfViewer({ url }: PdfViewerProps) {
           canvas.style.display = "block";
           canvas.style.margin = "0 auto 16px auto";
           container.appendChild(canvas);
-          const ctx = canvas.getContext("2d")!;
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          await page.render({ canvas, viewport }).promise;
         }
         setLoading(false);
       } catch (err) {
