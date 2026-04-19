@@ -218,6 +218,15 @@ async def _migrate_added_columns(engine) -> None:
             "ALTER TABLE lintreport ADD COLUMN structural_count INTEGER NOT NULL DEFAULT 0",
         ),
         ("lintreport", "checked_articles", "ALTER TABLE lintreport ADD COLUMN checked_articles INTEGER"),
+        # PR #206 — multi-user data isolation: nullable user_id FK on all data tables
+        *[
+            (table, "user_id", f"ALTER TABLE {table} ADD COLUMN user_id TEXT REFERENCES user(id)")
+            for table in [
+                "source", "article", "concept", "backlink", "conversation", "query",
+                "job", "costlog", "synclog", "userpreference", "lintreport",
+                "contradictionfinding", "orphanfinding", "structuralfinding",
+            ]
+        ],
     ]
     indexes: list[tuple[str, str]] = [
         # (index name, CREATE fragment)
@@ -229,6 +238,15 @@ async def _migrate_added_columns(engine) -> None:
             "ix_conversation_parent_id",
             "CREATE INDEX IF NOT EXISTS ix_conversation_parent_id ON conversation (parent_conversation_id)",
         ),
+        # PR #206 — user_id indexes for multi-user queries
+        *[
+            (f"ix_{table}_user_id", f"CREATE INDEX IF NOT EXISTS ix_{table}_user_id ON {table} (user_id)")
+            for table in [
+                "source", "article", "concept", "backlink", "conversation", "query",
+                "job", "costlog", "synclog", "userpreference", "lintreport",
+                "contradictionfinding", "orphanfinding", "structuralfinding",
+            ]
+        ],
     ]
 
     def _get_existing_columns(sync_conn, table_name: str) -> set[str]:
