@@ -18,7 +18,9 @@ from starlette.responses import JSONResponse, Response
 from wikimind.config import get_settings
 
 EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
-EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback")
+EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/assets/")
+# Static frontend files that must load without auth so users can see the login page.
+_STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -34,7 +36,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if path in EXEMPT_PATHS or any(path.startswith(p) for p in EXEMPT_PREFIXES):
+        is_exempt = (
+            path in EXEMPT_PATHS
+            or any(path.startswith(p) for p in EXEMPT_PREFIXES)
+            or any(path.endswith(ext) for ext in _STATIC_EXTENSIONS)
+            or path == "/"
+        )
+        if is_exempt:
             request.state.user_id = None
             request.state.user_email = None
             return await call_next(request)
