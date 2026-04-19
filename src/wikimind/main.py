@@ -94,6 +94,12 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
+# Trust X-Forwarded-Proto from reverse proxies (Fly.io, nginx) so that
+# request.url_for() generates https:// URLs for OAuth redirect URIs.
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware  # noqa: E402
+
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+
 # Allow Electron renderer and web dev server to connect
 app.add_middleware(
     CORSMiddleware,
