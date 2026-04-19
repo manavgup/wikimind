@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { IngestStatus, Source, SourceType } from "../../types/api";
+import { getOriginalUrl } from "../../api/sources";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
+import { DocumentViewerModal } from "../viewers/DocumentViewerModal";
 import { useWebSocketStore } from "../../store/websocket";
 
 interface SourceCardProps {
@@ -51,6 +53,8 @@ function formatTimestamp(iso: string): string {
 }
 
 export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   const statusMessage = useWebSocketStore(
     (s) => s.sourceStatus[source.id] ?? null,
   );
@@ -117,6 +121,28 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
             </Button>
           ) : null}
         </div>
+      ) : null}
+
+      {source.has_original ? (
+        <>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setViewerOpen(true)}
+            >
+              View Original
+            </Button>
+          </div>
+          {viewerOpen ? (
+            <DocumentViewerModal
+              sourceType={source.source_type}
+              title={source.title ?? "Source document"}
+              url={getOriginalUrl(source.id)}
+              onClose={() => setViewerOpen(false)}
+            />
+          ) : null}
+        </>
       ) : null}
     </Card>
   );
