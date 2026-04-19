@@ -77,7 +77,7 @@ def _extract_claims(article: Article) -> list[str]:
         if in_claims_section:
             if stripped.startswith("## "):
                 break
-            if stripped.startswith("- ") or stripped.startswith("* "):
+            if stripped.startswith(("- ", "* ")):
                 claims.append(stripped[2:].strip())
 
     if not claims:

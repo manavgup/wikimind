@@ -29,12 +29,12 @@ class OpenAIProvider:
         messages = [{"role": "system", "content": request.system}]
         messages.extend(request.messages)
 
-        kwargs: dict[str, object] = dict(
-            model=model,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            messages=messages,
-        )
+        kwargs: dict[str, object] = {
+            "model": model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "messages": messages,
+        }
         if request.response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
 
@@ -128,14 +128,14 @@ class OpenAIProvider:
         messages.extend(request.messages)
         start = time.monotonic()
 
-        kwargs: dict[str, object] = dict(
-            model=model,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
+        kwargs: dict[str, object] = {
+            "model": model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
         if request.response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
 
