@@ -113,9 +113,11 @@ COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user in production.
+# Pre-create model cache dirs so rapidocr/docling can write model files at runtime.
 RUN useradd --create-home --uid 1000 wikimind \
     && mkdir -p /home/wikimind/.wikimind \
-    && chown -R wikimind:wikimind /home/wikimind /app
+    && chown -R wikimind:wikimind /home/wikimind /app \
+    && chown -R wikimind:wikimind /usr/local/lib/python3.11/site-packages/rapidocr/models/ 2>/dev/null || true
 USER wikimind
 
 ENV WIKIMIND_DATA_DIR=/home/wikimind/.wikimind \
