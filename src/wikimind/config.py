@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import keyring
 import keyring.errors
@@ -282,6 +283,12 @@ class Settings(BaseSettings):
                 raw = raw.replace("postgres://", "postgresql+asyncpg://", 1)
             elif raw.startswith("postgresql://"):
                 raw = raw.replace("postgresql://", "postgresql+asyncpg://", 1)
+            # asyncpg doesn't accept sslmode (a libpq/psycopg2 parameter).
+            # Fly.io sets DATABASE_URL with ?sslmode=disable — strip it.
+            parsed = urlparse(raw)
+            params = parse_qs(parsed.query)
+            params.pop("sslmode", None)
+            raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
             self.database_url = raw
         return self
 
