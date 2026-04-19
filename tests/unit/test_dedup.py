@@ -42,7 +42,7 @@ from wikimind.models import (
 )
 from wikimind.services import ingest as svc_ingest
 from wikimind.services.ingest import IngestService
-from wikimind.storage import get_raw_storage, get_wiki_storage, resolve_raw_path
+from wikimind.storage import resolve_raw_path
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -69,12 +69,8 @@ def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
     yield tmp_path
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
 
 
 def _sample_compilation_result(title: str = "Sample") -> CompilationResult:

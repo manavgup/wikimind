@@ -82,3 +82,14 @@ in. Explicitly rejected by the product vision.
   mid-save could leave the file written but the database not updated (or vice
   versa). Mitigated by writing the file first, then committing the database
   record.
+
+## Amendment — Per-User File Namespacing (April 2026)
+
+With multi-user support, file paths are namespaced by user_id:
+
+- **Single-user (default):** `~/.wikimind/wiki/article-slug.md` (unchanged)
+- **Multi-user:** `~/.wikimind/wiki/{user_id}/article-slug.md`
+
+Storage factories (`get_wiki_storage()`, `get_raw_storage()`) accept an optional `user_id` parameter. When provided, the storage root includes a user_id subdirectory. The `resolve_wiki_path()` and `resolve_raw_path()` helpers follow the same pattern.
+
+This namespacing applies to both local filesystem storage and future R2/S3 cloud storage (via S3 key prefix).

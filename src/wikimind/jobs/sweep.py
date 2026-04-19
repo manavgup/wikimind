@@ -45,7 +45,7 @@ async def _sweep_single_article(
     Returns True if any replacement was made (file rewritten + backlinks
     persisted), False if the file was unchanged.
     """
-    file_path = resolve_wiki_path(article.file_path)
+    file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
     if not file_path.exists():
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
         return False

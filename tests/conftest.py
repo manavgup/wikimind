@@ -18,7 +18,6 @@ import wikimind.database as _db_mod
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.main import app
-from wikimind.storage import get_raw_storage, get_wiki_storage
 
 # ---------------------------------------------------------------------------
 # Hermetic environment — runs once per session, applied before any test
@@ -80,13 +79,8 @@ def _isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Itera
     # Force auth disabled — .env may have WIKIMIND_AUTH__ENABLED=true for local dev
     monkeypatch.setenv("WIKIMIND_AUTH__ENABLED", "false")
     get_settings.cache_clear()
-    # Clear storage singletons so they pick up the new data_dir
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
     yield data_dir
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
-    get_raw_storage.cache_clear()
 
 
 # ---------------------------------------------------------------------------

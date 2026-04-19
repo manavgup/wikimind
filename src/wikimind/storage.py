@@ -8,7 +8,6 @@ in via configuration without changing application code.
 from __future__ import annotations
 
 import asyncio
-from functools import lru_cache
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -117,21 +116,25 @@ class LocalFileStorage:
         return await asyncio.to_thread(_list)
 
 
-@lru_cache(maxsize=1)
-def get_wiki_storage() -> FileStorage:
-    """Return the wiki file storage singleton."""
+def get_wiki_storage(user_id: str | None = None) -> FileStorage:
+    """Return wiki file storage, optionally scoped to a user."""
     settings = get_settings()
-    return LocalFileStorage(root=Path(settings.data_dir) / "wiki")
+    root = Path(settings.data_dir) / "wiki"
+    if user_id:
+        root = root / user_id
+    return LocalFileStorage(root=root)
 
 
-@lru_cache(maxsize=1)
-def get_raw_storage() -> FileStorage:
-    """Return the raw source file storage singleton."""
+def get_raw_storage(user_id: str | None = None) -> FileStorage:
+    """Return raw source file storage, optionally scoped to a user."""
     settings = get_settings()
-    return LocalFileStorage(root=Path(settings.data_dir) / "raw")
+    root = Path(settings.data_dir) / "raw"
+    if user_id:
+        root = root / user_id
+    return LocalFileStorage(root=root)
 
 
-def resolve_wiki_path(relative_path: str) -> Path:
+def resolve_wiki_path(relative_path: str, user_id: str | None = None) -> Path:
     """Resolve a wiki-relative path to an absolute filesystem path.
 
     Handles backward compatibility: if the path is already absolute,
@@ -141,10 +144,13 @@ def resolve_wiki_path(relative_path: str) -> Path:
     if path.is_absolute():
         return path
     settings = get_settings()
-    return Path(settings.data_dir) / "wiki" / relative_path
+    root = Path(settings.data_dir) / "wiki"
+    if user_id:
+        root = root / user_id
+    return root / relative_path
 
 
-def resolve_raw_path(relative_path: str) -> Path:
+def resolve_raw_path(relative_path: str, user_id: str | None = None) -> Path:
     """Resolve a raw-relative path to an absolute filesystem path.
 
     Handles backward compatibility: if the path is already absolute,
@@ -154,7 +160,10 @@ def resolve_raw_path(relative_path: str) -> Path:
     if path.is_absolute():
         return path
     settings = get_settings()
-    return Path(settings.data_dir) / "raw" / relative_path
+    root = Path(settings.data_dir) / "raw"
+    if user_id:
+        root = root / user_id
+    return root / relative_path
 
 
 def find_original_sibling(txt_path: Path) -> Path | None:

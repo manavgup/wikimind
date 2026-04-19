@@ -113,24 +113,40 @@ def test_get_wiki_storage_returns_local(tmp_path, monkeypatch):
     """get_wiki_storage() returns a LocalFileStorage rooted at wiki_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
     storage = get_wiki_storage()
     assert isinstance(storage, LocalFileStorage)
     assert storage.root == tmp_path / "wiki"
     get_settings.cache_clear()
-    get_wiki_storage.cache_clear()
+
+
+def test_get_wiki_storage_with_user_id(tmp_path, monkeypatch):
+    """get_wiki_storage(user_id=...) returns storage rooted at wiki/{user_id}."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    storage = get_wiki_storage(user_id="user-123")
+    assert isinstance(storage, LocalFileStorage)
+    assert storage.root == tmp_path / "wiki" / "user-123"
+    get_settings.cache_clear()
 
 
 def test_get_raw_storage_returns_local(tmp_path, monkeypatch):
     """get_raw_storage() returns a LocalFileStorage rooted at raw_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    get_raw_storage.cache_clear()
     storage = get_raw_storage()
     assert isinstance(storage, LocalFileStorage)
     assert storage.root == tmp_path / "raw"
     get_settings.cache_clear()
-    get_raw_storage.cache_clear()
+
+
+def test_get_raw_storage_with_user_id(tmp_path, monkeypatch):
+    """get_raw_storage(user_id=...) returns storage rooted at raw/{user_id}."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    storage = get_raw_storage(user_id="user-456")
+    assert isinstance(storage, LocalFileStorage)
+    assert storage.root == tmp_path / "raw" / "user-456"
+    get_settings.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -151,11 +167,27 @@ def test_resolve_wiki_path_absolute():
     assert result == Path("/absolute/path/article.md")
 
 
+def test_resolve_wiki_path_with_user_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    result = resolve_wiki_path("concept/article.md", user_id="user-abc")
+    assert result == tmp_path / "wiki" / "user-abc" / "concept" / "article.md"
+    get_settings.cache_clear()
+
+
 def test_resolve_raw_path_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
     result = resolve_raw_path("source-id.txt")
     assert result == tmp_path / "raw" / "source-id.txt"
+    get_settings.cache_clear()
+
+
+def test_resolve_raw_path_with_user_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    result = resolve_raw_path("source-id.txt", user_id="user-xyz")
+    assert result == tmp_path / "raw" / "user-xyz" / "source-id.txt"
     get_settings.cache_clear()
 
 

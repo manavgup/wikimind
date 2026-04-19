@@ -93,7 +93,7 @@ async def compile_source(ctx, source_id: str):
             if not source.file_path:
                 raise ValueError("No cleaned text file path for source")
 
-            text_path = resolve_raw_path(source.file_path)
+            text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
             content = text_path.read_text(encoding="utf-8")
 
             await emit_source_progress(source_id, "Normalizing content...")
@@ -139,7 +139,9 @@ async def compile_source(ctx, source_id: str):
                 try:
                     embedding_service = get_embedding_service()
                     if embedding_service is not None:
-                        content = resolve_wiki_path(article.file_path).read_text(encoding="utf-8")
+                        content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(
+                            encoding="utf-8"
+                        )
                         embedding_service.embed_article(article.id, article.title, content)
                         log.info("Article embedded", article_id=article.id)
                 except Exception as embed_err:
@@ -250,7 +252,7 @@ async def recompile_article(ctx, article_id: str, mode: str, _job_id: str):
                 if not source or not source.file_path:
                     raise ValueError("Source or source file_path not found")
 
-                content = resolve_raw_path(source.file_path).read_text(encoding="utf-8")
+                content = resolve_raw_path(source.file_path, user_id=source.user_id).read_text(encoding="utf-8")
 
                 doc = NormalizedDocument(
                     raw_source_id=source.id,
