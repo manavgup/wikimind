@@ -115,8 +115,8 @@ async def _sweep_single_article(
     return True
 
 
-async def sweep_wikilinks(ctx) -> None:
-    """Walk every article's .md file, promote unresolved [[brackets]] to real links.
+async def sweep_wikilinks(ctx, user_id: str | None = None) -> None:
+    """Walk articles' .md files, promote unresolved [[brackets]] to real links.
 
     For each article:
     1. Read the file from disk.
@@ -135,8 +135,13 @@ async def sweep_wikilinks(ctx) -> None:
 
     Idempotent: running the sweep on a wiki with no unresolved brackets
     is a no-op (no file writes, no DB changes).
+
+    Args:
+        ctx: ARQ context (unused in dev mode).
+        user_id: Optional owner — when provided, only that user's articles
+            are swept. ``None`` sweeps articles with no user_id (legacy).
     """
-    log.info("sweep_wikilinks started")
+    log.info("sweep_wikilinks started", user_id=user_id)
 
     session_factory = get_session_factory()
 
@@ -145,13 +150,17 @@ async def sweep_wikilinks(ctx) -> None:
         job = Job(
             job_type=JobType.SWEEP_WIKILINKS,
             status=JobStatus.RUNNING,
+            user_id=user_id,
             started_at=utcnow_naive(),
         )
         job_session.add(job)
         await job_session.commit()
 
         try:
-            result = await job_session.execute(select(Article))
+            stmt = select(Article)
+            if user_id is not None:
+                stmt = stmt.where(Article.user_id == user_id)
+            result = await job_session.execute(stmt)
             articles = list(result.scalars().all())
 
             if not articles:
