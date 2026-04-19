@@ -10,6 +10,7 @@ from wikimind.config import get_settings
 from wikimind.storage import (
     FileStorage,
     LocalFileStorage,
+    find_original_sibling,
     get_raw_storage,
     get_wiki_storage,
     resolve_raw_path,
@@ -156,3 +157,40 @@ def test_resolve_raw_path_relative(tmp_path, monkeypatch):
     result = resolve_raw_path("source-id.txt")
     assert result == tmp_path / "raw" / "source-id.txt"
     get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# find_original_sibling tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_original_sibling_finds_pdf(tmp_path: Path) -> None:
+    """When a .pdf sibling exists alongside the .txt, return it."""
+    (tmp_path / "abc.txt").write_text("extracted text")
+    (tmp_path / "abc.pdf").write_bytes(b"%PDF-fake")
+    result = find_original_sibling(tmp_path / "abc.txt")
+    assert result is not None
+    assert result.suffix == ".pdf"
+    assert result.name == "abc.pdf"
+
+
+def test_find_original_sibling_finds_html(tmp_path: Path) -> None:
+    """When an .html sibling exists alongside the .txt, return it."""
+    (tmp_path / "xyz.txt").write_text("extracted text")
+    (tmp_path / "xyz.html").write_text("<html>hello</html>")
+    result = find_original_sibling(tmp_path / "xyz.txt")
+    assert result is not None
+    assert result.suffix == ".html"
+
+
+def test_find_original_sibling_returns_none_for_text_only(tmp_path: Path) -> None:
+    """When only the .txt exists (text/YouTube sources), return None."""
+    (tmp_path / "zzz.txt").write_text("plain text source")
+    result = find_original_sibling(tmp_path / "zzz.txt")
+    assert result is None
+
+
+def test_find_original_sibling_returns_none_for_missing_file(tmp_path: Path) -> None:
+    """When the txt file itself doesn't exist, return None."""
+    result = find_original_sibling(tmp_path / "nonexistent.txt")
+    assert result is None
