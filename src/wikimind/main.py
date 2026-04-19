@@ -180,7 +180,8 @@ if _static_dir is not None:
     async def spa_fallback(path: str):
         """Serve index.html for all SPA routes (catch-all)."""
         # Check if the path matches a real static file
-        static_file = (_static_dir / path).resolve()  # type: ignore[operator]
+        assert _static_dir is not None  # guarded by outer `if`
+        static_file = (_static_dir / path).resolve()
         if static_file.is_file() and static_file.is_relative_to(_static_dir):
             return FileResponse(str(static_file))
         return HTMLResponse(_index_html)
