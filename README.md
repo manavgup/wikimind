@@ -250,6 +250,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make deploy-stop` | Stop the production stack |
 | `make deploy-logs` | Tail logs from the production stack |
 | `make deploy-ps` | Show production service status |
+| `make fly-setup` | Set up Fly.io infrastructure (app, volume, Postgres, secrets) |
 
 ### 🧪 TESTING
 
