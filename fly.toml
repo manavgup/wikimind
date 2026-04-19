@@ -37,11 +37,6 @@ primary_region = "ord"
     hard_limit = 100
     soft_limit = 80
 
-  # Machine-level checks during deploy. The app takes ~45s to start
-  # (Alembic migrations + Docling model warmup), so give it 60s.
-  [[http_service.machine_checks]]
-    grace_period = "60s"
-    port = 7842
 
 [deploy]
   strategy = "rolling"
