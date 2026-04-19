@@ -44,7 +44,9 @@ services:
       # Gunicorn workers auto-tune to CPU by default (see gunicorn.conf.py).
       # Override: WEB_CONCURRENCY=4 make deploy-up
       # Empty string is safe — entrypoint.sh unsets it before gunicorn starts.
-      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-}"
+      # Default to 1 worker — Docling + OCR models consume ~500MB per worker.
+      # Override: WEB_CONCURRENCY=2 make deploy-up (needs ≥3GB memory limit).
+      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-1}"
     env_file:
       - path: .env
         required: false

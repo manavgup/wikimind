@@ -22,7 +22,9 @@ primary_region = "ord"
   # Gunicorn workers (see gunicorn.conf.py).
   # Each worker loads Docling/PyTorch models (~250-400 MB RSS).
   # 2 workers fits safely in 2 GB; async handles concurrency within each.
-  WEB_CONCURRENCY = "2"
+  # 1 worker — Docling + OCR models consume ~500MB per worker.
+  # Async handles concurrency within the single worker.
+  WEB_CONCURRENCY = "1"
 
 [http_service]
   internal_port = 7842
