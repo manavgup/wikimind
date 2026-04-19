@@ -1,16 +1,12 @@
 # fly.toml — Fly.io deployment for WikiMind.
 #
-# Prerequisites:
-#   fly auth login
-#   fly apps create wikimind
-#   fly postgres create --name wikimind-db
-#   fly postgres attach wikimind-db
+# First-time setup (creates app, volume, Postgres, secrets):
+#   ./scripts/fly-setup.sh
 #
 # Deploy:
 #   fly deploy
 #
-# Set LLM API key:
-#   fly secrets set ANTHROPIC_API_KEY=<your-key>
+# CI auto-deploys on merge to main (see .github/workflows/deploy.yml).
 
 app = "wikimind"
 primary_region = "ord"
@@ -23,9 +19,12 @@ primary_region = "ord"
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
-  # Auto-tune gunicorn workers to CPU (see gunicorn.conf.py).
-  # Shared 1-CPU machine → 3 workers by default; set explicitly to override.
-  WEB_CONCURRENCY = "3"
+  # Gunicorn workers (see gunicorn.conf.py).
+  # Each worker loads Docling/PyTorch models (~250-400 MB RSS).
+  # 2 workers fits safely in 2 GB; async handles concurrency within each.
+  # 1 worker — Docling + OCR models consume ~500MB per worker.
+  # Async handles concurrency within the single worker.
+  WEB_CONCURRENCY = "1"
 
 [http_service]
   internal_port = 7842
@@ -40,10 +39,18 @@ primary_region = "ord"
     hard_limit = 100
     soft_limit = 80
 
+
+[deploy]
+  strategy = "rolling"
+
+[mounts]
+  source = "wikimind_data"
+  destination = "/home/wikimind/.wikimind"
+
 [[vm]]
-  memory = "1gb"
+  memory = "4gb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2
 
 [checks]
   [checks.health]
@@ -52,3 +59,4 @@ primary_region = "ord"
     path = "/health"
     interval = "30s"
     timeout = "5s"
+    grace_period = "60s"

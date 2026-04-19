@@ -419,7 +419,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
         # Capture every schedule_compile call so we can assert it never happens.
         calls: list[str] = []
 
-        async def fake_schedule(source_id: str) -> str:
+        async def fake_schedule(source_id: str, user_id: str | None = None) -> str:
             calls.append(source_id)
             return "fake-job"
 
@@ -445,7 +445,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
         """Sanity check: a NEW (non-dedup) ingest still schedules a compile."""
         calls: list[str] = []
 
-        async def fake_schedule(source_id: str) -> str:
+        async def fake_schedule(source_id: str, user_id: str | None = None) -> str:
             calls.append(source_id)
             return "fake-job"
 

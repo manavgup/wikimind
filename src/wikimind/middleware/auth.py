@@ -18,7 +18,15 @@ from starlette.responses import JSONResponse, Response
 from wikimind.config import get_settings
 
 EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
-EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback")
+EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/assets/")
+# Static frontend files that must load without auth so users can see the login page.
+_STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
+# API route prefixes that require auth. Everything else is a frontend SPA route
+# (served as index.html by the static file mount) and must be exempt.
+# Paths that are always exempt from auth regardless of method.
+# Non-API paths (SPA routes) are also exempt — they serve index.html.
+# Auth is enforced on API routes by checking Accept header: API clients
+# send Accept: application/json, browsers loading SPA pages send text/html.
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -34,7 +42,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        if path in EXEMPT_PATHS or any(path.startswith(p) for p in EXEMPT_PREFIXES):
+        # Check if this is an API request (Accept: application/json) or a
+        # browser page load (Accept: text/html). SPA routes should never
+        # be auth-blocked — they need to load index.html so the frontend
+        # can handle auth client-side.
+        accept = request.headers.get("accept", "")
+        is_html_request = "text/html" in accept and "application/json" not in accept
+        is_exempt = (
+            is_html_request
+            or path in EXEMPT_PATHS
+            or any(path.startswith(p) for p in EXEMPT_PREFIXES)
+            or any(path.endswith(ext) for ext in _STATIC_EXTENSIONS)
+        )
+        if is_exempt:
             request.state.user_id = None
             request.state.user_email = None
             return await call_next(request)

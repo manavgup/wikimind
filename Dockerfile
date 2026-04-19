@@ -92,8 +92,15 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 # Same CVE upgrade as the dev stage — see comment above.
 # Install with [pdf] extra for structured PDF extraction via docling.
+# Playwright is needed by docling's HTML backend for URL ingestion.
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn
+    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright onnxruntime \
+    && playwright install --with-deps chromium
+
+# Pre-download RapidOCR models so they don't need to be fetched at runtime
+# from modelscope.cn (unreliable from US datacenters). Non-fatal if it fails.
+RUN python -c "from rapidocr import RapidOCR; RapidOCR()" \
+    || echo "WARN: RapidOCR model pre-download failed (non-fatal)"
 
 # Alembic migrations for Postgres deployments
 COPY alembic.ini ./
@@ -111,9 +118,11 @@ COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user in production.
+# Pre-create model cache dirs so rapidocr/docling can write model files at runtime.
 RUN useradd --create-home --uid 1000 wikimind \
     && mkdir -p /home/wikimind/.wikimind \
-    && chown -R wikimind:wikimind /home/wikimind /app
+    && chown -R wikimind:wikimind /home/wikimind /app \
+    && chown -R wikimind:wikimind /usr/local/lib/python3.11/site-packages/rapidocr/models/ 2>/dev/null || true
 USER wikimind
 
 ENV WIKIMIND_DATA_DIR=/home/wikimind/.wikimind \

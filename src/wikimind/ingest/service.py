@@ -415,8 +415,12 @@ class URLAdapter:
         content_hash = compute_hash(html.encode("utf-8"))
         existing = await find_source_by_hash(session, content_hash)
         if existing is not None:
-            log.info("Source dedup hit (URL)", source_id=existing.id, hash=content_hash[:16])
-            return existing, reconstruct_normalized_doc(existing)
+            if existing.file_path:
+                log.info("Source dedup hit (URL)", source_id=existing.id, hash=content_hash[:16])
+                return existing, reconstruct_normalized_doc(existing)
+            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
+            await session.delete(existing)
+            await session.commit()
 
         # Extract article text
         downloaded = trafilatura.extract(
@@ -580,8 +584,13 @@ class PDFAdapter:
         content_hash = compute_hash(file_bytes)
         existing = await find_source_by_hash(session, content_hash)
         if existing is not None:
-            log.info("Source dedup hit (PDF)", source_id=existing.id, hash=content_hash[:16])
-            return existing, reconstruct_normalized_doc(existing)
+            if existing.file_path:
+                log.info("Source dedup hit (PDF)", source_id=existing.id, hash=content_hash[:16])
+                return existing, reconstruct_normalized_doc(existing)
+            # Zombie source from a previous failed extraction — delete and re-ingest.
+            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
+            await session.delete(existing)
+            await session.commit()
 
         # Extract metadata (title, author, date) from the PDF info dictionary.
         # This is an instant fitz dict lookup — no ML processing.
@@ -631,7 +640,10 @@ class PDFAdapter:
         # describe them via the multimodal LLM. This is a post-processing
         # step that merges LLM descriptions for diagrams/charts/covers
         # back into the extracted text.
-        clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
+        try:
+            clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
+        except Exception:
+            log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
         text_path = raw_dir / f"{source.id}.txt"
         text_path.write_text(clean_text, encoding="utf-8")
@@ -1042,8 +1054,12 @@ class TextAdapter:
         content_hash = compute_hash(content.encode("utf-8"))
         existing = await find_source_by_hash(session, content_hash)
         if existing is not None:
-            log.info("Source dedup hit (text)", source_id=existing.id, hash=content_hash[:16])
-            return existing, reconstruct_normalized_doc(existing)
+            if existing.file_path:
+                log.info("Source dedup hit (text)", source_id=existing.id, hash=content_hash[:16])
+                return existing, reconstruct_normalized_doc(existing)
+            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
+            await session.delete(existing)
+            await session.commit()
 
         source = Source(
             source_type=SourceType.TEXT,
@@ -1107,8 +1123,12 @@ class YouTubeAdapter:
         content_hash = compute_hash(transcript_text.encode("utf-8"))
         existing = await find_source_by_hash(session, content_hash)
         if existing is not None:
-            log.info("Source dedup hit (YouTube)", source_id=existing.id, hash=content_hash[:16])
-            return existing, reconstruct_normalized_doc(existing)
+            if existing.file_path:
+                log.info("Source dedup hit (YouTube)", source_id=existing.id, hash=content_hash[:16])
+                return existing, reconstruct_normalized_doc(existing)
+            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
+            await session.delete(existing)
+            await session.commit()
 
         source = Source(
             source_type=SourceType.YOUTUBE,

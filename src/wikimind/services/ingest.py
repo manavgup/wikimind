@@ -61,6 +61,7 @@ class IngestService:
 
         source.user_id = user_id
         session.add(source)
+        await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
@@ -93,6 +94,7 @@ class IngestService:
         source = await self._adapter.ingest_pdf(file_bytes, filename, session)
         source.user_id = user_id
         session.add(source)
+        await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
@@ -125,6 +127,7 @@ class IngestService:
         source = await self._adapter.ingest_text(content, title, session)
         source.user_id = user_id
         session.add(source)
+        await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
@@ -163,7 +166,7 @@ class IngestService:
             )
             return
         compiler = get_background_compiler()
-        await compiler.schedule_compile(source.id)
+        await compiler.schedule_compile(source.id, user_id=source.user_id)
         log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(

@@ -1,9 +1,12 @@
 // Thin fetch wrapper around the WikiMind gateway API.
 // Reads base URL from VITE_API_URL with a localhost fallback.
 
+// In production the frontend is served by the same origin as the API,
+// so an empty BASE_URL uses relative paths. In development, VITE_API_URL
+// points to the local gateway (e.g. http://localhost:7842).
 const BASE_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ??
-  "http://localhost:7842";
+  "";
 
 export class ApiError extends Error {
   status: number;
@@ -26,7 +29,10 @@ interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(`${BASE_URL}${path}`);
+  // When BASE_URL is empty (production same-origin), use window.location.origin
+  // as the base for URL construction.
+  const base = BASE_URL || window.location.origin;
+  const url = new URL(`${base}${path}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) {
@@ -103,5 +109,6 @@ export function getBaseUrl(): string {
 
 export function getWebSocketUrl(): string {
   // Convert http(s):// → ws(s)://
-  return BASE_URL.replace(/^http/, "ws") + "/ws";
+  const base = BASE_URL || window.location.origin;
+  return base.replace(/^http/, "ws") + "/ws";
 }

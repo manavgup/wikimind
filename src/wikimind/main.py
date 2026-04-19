@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
+from starlette.responses import FileResponse, HTMLResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from wikimind.api.routes import auth, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
@@ -94,6 +96,12 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
+# Trust X-Forwarded-Proto from reverse proxies (Fly.io, nginx) so that
+# request.url_for() generates https:// URLs for OAuth redirect URIs.
+# trusted_hosts=["*"] is acceptable because Fly.io's edge proxy strips/overrides
+# X-Forwarded-* headers before forwarding to the app.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+
 # Allow Electron renderer and web dev server to connect
 app.add_middleware(
     CORSMiddleware,
@@ -154,7 +162,26 @@ async def health():
 # ---------------------------------------------------------------------------
 # Serve built frontend in production (Docker image copies dist to /app/static/).
 # In dev, Vite on :5173 serves the frontend — this dir won't exist.
+#
+# StaticFiles(html=True) serves index.html for "/" but NOT for SPA routes
+# like /inbox, /wiki, /ask. The catch-all route below handles those by
+# returning index.html for any path that doesn't match a static file.
+_static_dir: Path | None = None
 for _candidate in [Path("/app/static"), Path(__file__).resolve().parent.parent.parent / "static"]:
     if _candidate.is_dir():
-        app.mount("/", StaticFiles(directory=str(_candidate), html=True), name="frontend")
+        _static_dir = _candidate
+        app.mount("/assets", StaticFiles(directory=str(_candidate / "assets")), name="assets")
         break
+
+if _static_dir is not None:
+    _index_html = (_static_dir / "index.html").read_text()
+
+    @app.get("/{path:path}")
+    async def spa_fallback(path: str):
+        """Serve index.html for all SPA routes (catch-all)."""
+        # Check if the path matches a real static file
+        assert _static_dir is not None  # guarded by outer `if`
+        static_file = (_static_dir / path).resolve()
+        if static_file.is_file() and static_file.is_relative_to(_static_dir):
+            return FileResponse(str(static_file))
+        return HTMLResponse(_index_html)

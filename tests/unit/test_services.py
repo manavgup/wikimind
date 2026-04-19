@@ -129,7 +129,7 @@ async def test_ingest_service_text_auto_compile_default_schedules(db_session) ->
         schedule_compile = AsyncMock(return_value="job-4")
         gbc.return_value.schedule_compile = schedule_compile
         await svc.ingest_text("hello", "t", db_session)
-    schedule_compile.assert_awaited_once_with("src-default")
+    schedule_compile.assert_awaited_once_with("src-default", user_id=None)
 
 
 async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> None:
