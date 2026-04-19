@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -150,6 +150,17 @@ class Source(SQLModel, table=True):
     # layer to detect duplicates: re-ingesting the same content returns the
     # existing source instead of creating a second row.
     content_hash: str | None = Field(default=None, index=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_original(self) -> bool:
+        """Whether the original document (PDF, HTML) exists alongside the .txt."""
+        if not self.file_path:
+            return False
+        from wikimind.storage import find_original_sibling, resolve_raw_path  # noqa: PLC0415
+
+        txt_path = resolve_raw_path(self.file_path)
+        return find_original_sibling(txt_path) is not None
 
 
 class Article(SQLModel, table=True):

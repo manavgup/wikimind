@@ -1,5 +1,9 @@
 """Tests for core data models — enums, SQLModel tables, Pydantic schemas."""
 
+from pathlib import Path
+
+import pytest
+
 from wikimind.models import (
     Article,
     ConfidenceLevel,
@@ -70,3 +74,26 @@ class TestJobModel:
         assert job.job_type == JobType.COMPILE_SOURCE
         assert job.status == JobStatus.QUEUED
         assert job.priority == 5
+
+
+def test_source_has_original_true_when_pdf_sibling_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """has_original is True when a non-.txt sibling exists in raw/."""
+    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p: tmp_path / p)
+    (tmp_path / "src-1.txt").write_text("text")
+    (tmp_path / "src-1.pdf").write_bytes(b"%PDF")
+    source = Source(id="src-1", source_type=SourceType.PDF, file_path="src-1.txt")
+    assert source.has_original is True
+
+
+def test_source_has_original_false_for_text_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """has_original is False when only the .txt exists."""
+    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p: tmp_path / p)
+    (tmp_path / "src-2.txt").write_text("text")
+    source = Source(id="src-2", source_type=SourceType.TEXT, file_path="src-2.txt")
+    assert source.has_original is False
+
+
+def test_source_has_original_false_when_no_file_path() -> None:
+    """has_original is False when file_path is None."""
+    source = Source(id="src-3", source_type=SourceType.TEXT)
+    assert source.has_original is False
