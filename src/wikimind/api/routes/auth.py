@@ -232,7 +232,12 @@ async def callback(
 @router.get("/me")
 async def me(request: Request, session: AsyncSession = Depends(get_session)) -> dict:
     """Return current user profile."""
+    settings = get_settings()
     if not request.state.user_id:
+        if not settings.auth.enabled:
+            # Auth disabled — return a stub user so the frontend knows
+            # it can skip the login flow.
+            return {"id": "anonymous", "email": "", "name": "Anonymous", "avatar_url": None}
         raise HTTPException(status_code=401)
     user = await session.get(User, request.state.user_id)
     if not user:

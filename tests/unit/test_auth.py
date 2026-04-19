@@ -228,10 +228,22 @@ async def test_auth_me_returns_user_profile(client, db_session: AsyncSession, mo
 
 
 @pytest.mark.asyncio
-async def test_auth_me_returns_401_when_no_user(client, monkeypatch):
-    """GET /auth/me without auth should return 401."""
+async def test_auth_me_returns_anonymous_when_auth_disabled(client, monkeypatch):
+    """GET /auth/me with auth disabled returns anonymous stub user."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", False)
+
+    response = await client.get("/auth/me")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "anonymous"
+
+
+async def test_auth_me_returns_401_when_auth_enabled_no_token(client, monkeypatch):
+    """GET /auth/me with auth enabled but no token returns 401."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret-key-32chars-long!!")
 
     response = await client.get("/auth/me")
     assert response.status_code == 401
