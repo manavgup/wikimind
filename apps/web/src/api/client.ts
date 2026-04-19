@@ -1,9 +1,12 @@
 // Thin fetch wrapper around the WikiMind gateway API.
 // Reads base URL from VITE_API_URL with a localhost fallback.
 
+// In production the frontend is served by the same origin as the API,
+// so an empty BASE_URL uses relative paths. In development, VITE_API_URL
+// points to the local gateway (e.g. http://localhost:7842).
 const BASE_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ??
-  "http://localhost:7842";
+  "";
 
 export class ApiError extends Error {
   status: number;
