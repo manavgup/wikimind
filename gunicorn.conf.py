@@ -18,3 +18,8 @@ workers = int(_concurrency) if _concurrency else min(2 * multiprocessing.cpu_cou
 
 worker_class = "uvicorn.workers.UvicornWorker"
 bind = "0.0.0.0:7842"
+
+# Docling PDF processing can take 5-10 minutes on shared CPU.
+# Default 30s timeout kills the worker mid-extraction.
+timeout = 600
+graceful_timeout = 60
