@@ -160,7 +160,29 @@ async def health():
 # ---------------------------------------------------------------------------
 # Serve built frontend in production (Docker image copies dist to /app/static/).
 # In dev, Vite on :5173 serves the frontend — this dir won't exist.
+#
+# StaticFiles(html=True) serves index.html for "/" but NOT for SPA routes
+# like /inbox, /wiki, /ask. The catch-all route below handles those by
+# returning index.html for any path that doesn't match a static file.
+_static_dir: Path | None = None
 for _candidate in [Path("/app/static"), Path(__file__).resolve().parent.parent.parent / "static"]:
     if _candidate.is_dir():
-        app.mount("/", StaticFiles(directory=str(_candidate), html=True), name="frontend")
+        _static_dir = _candidate
+        app.mount("/assets", StaticFiles(directory=str(_candidate / "assets")), name="assets")
         break
+
+if _static_dir is not None:
+    _index_html = (_static_dir / "index.html").read_text()
+
+    @app.get("/{path:path}")
+    async def spa_fallback(path: str):
+        """Serve index.html for all SPA routes (catch-all)."""
+        # Check if the path matches a real static file
+        static_file = _static_dir / path  # type: ignore[operator]
+        if static_file.is_file() and ".." not in path:
+            from starlette.responses import FileResponse
+
+            return FileResponse(str(static_file))
+        from starlette.responses import HTMLResponse
+
+        return HTMLResponse(_index_html)

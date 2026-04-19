@@ -23,7 +23,10 @@ EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/assets/")
 _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
 # API route prefixes that require auth. Everything else is a frontend SPA route
 # (served as index.html by the static file mount) and must be exempt.
-_API_PREFIXES = ("/ingest/", "/wiki/", "/query/", "/jobs/", "/lint/", "/settings", "/images/", "/auth/")
+# Paths that are always exempt from auth regardless of method.
+# Non-API paths (SPA routes) are also exempt — they serve index.html.
+# Auth is enforced on API routes by checking Accept header: API clients
+# send Accept: application/json, browsers loading SPA pages send text/html.
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -39,9 +42,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        is_api = any(path.startswith(p) for p in _API_PREFIXES)
+        # Check if this is an API request (Accept: application/json) or a
+        # browser page load (Accept: text/html). SPA routes should never
+        # be auth-blocked — they need to load index.html so the frontend
+        # can handle auth client-side.
+        accept = request.headers.get("accept", "")
+        is_html_request = "text/html" in accept and "application/json" not in accept
         is_exempt = (
-            not is_api
+            is_html_request
             or path in EXEMPT_PATHS
             or any(path.startswith(p) for p in EXEMPT_PREFIXES)
             or any(path.endswith(ext) for ext in _STATIC_EXTENSIONS)
