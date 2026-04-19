@@ -283,11 +283,13 @@ class Settings(BaseSettings):
                 raw = raw.replace("postgres://", "postgresql+asyncpg://", 1)
             elif raw.startswith("postgresql://"):
                 raw = raw.replace("postgresql://", "postgresql+asyncpg://", 1)
-            # asyncpg doesn't accept sslmode (a libpq/psycopg2 parameter).
-            # Fly.io sets DATABASE_URL with ?sslmode=disable — strip it.
+            # asyncpg uses `ssl` not `sslmode` (a libpq/psycopg2 parameter).
+            # Fly.io sets DATABASE_URL with ?sslmode=disable — convert it.
             parsed = urlparse(raw)
             params = parse_qs(parsed.query)
-            params.pop("sslmode", None)
+            sslmode = params.pop("sslmode", [None])[0]
+            if sslmode == "disable" and "ssl" not in params:
+                params["ssl"] = ["disable"]
             raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
             self.database_url = raw
         return self

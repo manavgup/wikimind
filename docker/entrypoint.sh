@@ -3,7 +3,9 @@ set -euo pipefail
 
 # Run Alembic migrations when using PostgreSQL.
 # SQLite uses create_all() at startup — no Alembic needed.
-if [[ "${WIKIMIND_DATABASE_URL:-}" == postgresql* ]]; then
+# Check both WIKIMIND_DATABASE_URL (explicit) and DATABASE_URL (Fly.io/Railway auto-set).
+_db_url="${WIKIMIND_DATABASE_URL:-${DATABASE_URL:-}}"
+if [[ "$_db_url" == postgres* ]]; then
     echo "Running Alembic migrations..."
     python -m alembic upgrade head
     echo "Migrations complete."
