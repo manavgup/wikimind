@@ -9,9 +9,11 @@ Changes Article.slug and Concept.name from globally unique to composite
 unique on (user_id, slug) and (user_id, name) respectively.
 """
 
+import contextlib
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from sqlalchemy import inspect as sa_inspect
 
 from alembic import op
 
@@ -41,8 +43,6 @@ _DATA_TABLES = [
 
 def _column_exists(conn, table: str, column: str) -> bool:
     """Check if a column exists (works on both SQLite and PostgreSQL)."""
-    from sqlalchemy import inspect as sa_inspect
-
     inspector = sa_inspect(conn)
     columns = {c["name"] for c in inspector.get_columns(table)}
     return column in columns
@@ -50,13 +50,8 @@ def _column_exists(conn, table: str, column: str) -> bool:
 
 def _constraint_exists(conn, table: str, constraint: str) -> bool:
     """Check if a unique constraint exists."""
-    from sqlalchemy import inspect as sa_inspect
-
     inspector = sa_inspect(conn)
-    for uc in inspector.get_unique_constraints(table):
-        if uc["name"] == constraint:
-            return True
-    return False
+    return any(uc["name"] == constraint for uc in inspector.get_unique_constraints(table))
 
 
 def upgrade() -> None:
@@ -74,27 +69,21 @@ def upgrade() -> None:
         op.create_index(f"ix_{table}_user_id", table, ["user_id"], if_not_exists=True)
         # FK creation is not idempotent in all dialects, but on a fresh DB
         # the column was created by 0001 with the FK already defined.
-        try:
+        with contextlib.suppress(Exception):
             op.create_foreign_key(f"fk_{table}_user_id", table, "user", ["user_id"], ["id"])
-        except Exception:
-            pass  # FK already exists
 
     # Replace Article.slug global unique with composite (user_id, slug)
     if not _constraint_exists(conn, "article", "uq_article_user_slug"):
         with op.batch_alter_table("article") as batch_op:
-            try:
+            with contextlib.suppress(Exception):
                 batch_op.drop_constraint("uq_article_slug", type_="unique")
-            except Exception:
-                pass  # Constraint doesn't exist on fresh DB
             batch_op.create_unique_constraint("uq_article_user_slug", ["user_id", "slug"])
 
     # Replace Concept.name global unique with composite (user_id, name)
     if not _constraint_exists(conn, "concept", "uq_concept_user_name"):
         with op.batch_alter_table("concept") as batch_op:
-            try:
+            with contextlib.suppress(Exception):
                 batch_op.drop_constraint("uq_concept_name", type_="unique")
-            except Exception:
-                pass  # Constraint doesn't exist on fresh DB
             batch_op.create_unique_constraint("uq_concept_user_name", ["user_id", "name"])
 
 

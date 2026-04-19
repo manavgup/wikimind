@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
+from starlette.responses import FileResponse, HTMLResponse
 
 from wikimind.api.routes import auth, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
@@ -180,9 +181,5 @@ if _static_dir is not None:
         # Check if the path matches a real static file
         static_file = _static_dir / path  # type: ignore[operator]
         if static_file.is_file() and ".." not in path:
-            from starlette.responses import FileResponse
-
             return FileResponse(str(static_file))
-        from starlette.responses import HTMLResponse
-
         return HTMLResponse(_index_html)
