@@ -48,9 +48,9 @@ primary_region = "ord"
   destination = "/home/wikimind/.wikimind"
 
 [[vm]]
-  memory = "2gb"
+  memory = "4gb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2
 
 [checks]
   [checks.health]
