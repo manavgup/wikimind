@@ -67,7 +67,7 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> str:
+async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
