@@ -22,7 +22,11 @@ export function PdfViewer({ url }: PdfViewerProps) {
 
     async function render() {
       try {
-        const pdf = await pdfjsLib.getDocument(url).promise;
+        const token = localStorage.getItem("wikimind_token");
+        const pdf = await pdfjsLib.getDocument({
+          url,
+          httpHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }).promise;
         if (cancelled) return;
         setPageCount(pdf.numPages);
         const container = containerRef.current;
