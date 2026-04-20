@@ -119,6 +119,18 @@ class TaskType(StrEnum):
 # ---------------------------------------------------------------------------
 
 
+class MigrationHistory(SQLModel, table=True):
+    """Tracks which data migrations have been applied.
+
+    Each row records a unique migration version string and when it ran.
+    init_db() checks this table to skip already-applied migrations,
+    turning O(n) startup scans into a constant-time version check.
+    """
+
+    version: str = Field(primary_key=True)
+    applied_at: datetime = Field(default_factory=utcnow_naive)
+
+
 class User(SQLModel, table=True):
     """Authenticated user account."""
 

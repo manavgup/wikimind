@@ -229,6 +229,10 @@ class Settings(BaseSettings):
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
 
+    # Storage backend: "local" creates wiki/ and raw/ on the local filesystem;
+    # "r2" delegates to Cloudflare R2 (wiki_dir / raw_dir are not needed).
+    storage_backend: str = "local"
+
     # PDF extraction: number of pages per Docling batch (issue #117).
     # Smaller values give more frequent progress updates at the cost of
     # slightly higher overhead from repeated converter calls.
@@ -393,8 +397,16 @@ class Settings(BaseSettings):
         return Path(self.data_dir) / "db"
 
     def ensure_dirs(self) -> None:
-        """Create all required directories."""
-        for d in [self.wiki_dir, self.raw_dir, self.db_dir, Path(self.data_dir) / "config"]:
+        """Create all required directories.
+
+        Always creates db_dir and config dir (needed regardless of storage
+        backend). wiki_dir and raw_dir are only created when the storage
+        backend is "local" — remote backends (e.g. R2) don't use them.
+        """
+        dirs: list[Path] = [self.db_dir, Path(self.data_dir) / "config"]
+        if self.storage_backend == "local":
+            dirs.extend([self.wiki_dir, self.raw_dir])
+        for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
 
     def get_security_status(self) -> dict[str, object]:

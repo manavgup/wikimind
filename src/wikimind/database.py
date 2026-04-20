@@ -18,6 +18,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+import structlog
 from slugify import slugify
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text as sa_text
@@ -28,6 +29,8 @@ from sqlmodel import SQLModel, select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres, is_sqlite
+
+log = structlog.get_logger()
 
 
 def _create_engine_from_url(url: str):
@@ -118,12 +121,42 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+async def _migration_applied(engine, version: str) -> bool:
+    """Check whether the given migration version has already been recorded."""
+    async with engine.begin() as conn:
+
+        def _check(sync_conn):
+            inspector = sa_inspect(sync_conn)
+            if "migrationhistory" not in inspector.get_table_names():
+                return False
+            row = sync_conn.execute(
+                sa_text("SELECT 1 FROM migrationhistory WHERE version = :v"),
+                {"v": version},
+            ).fetchone()
+            return row is not None
+
+        return await conn.run_sync(_check)
+
+
+async def _record_migration(engine, version: str) -> None:
+    """Record a migration version as applied."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            sa_text("INSERT INTO migrationhistory (version, applied_at) VALUES (:v, :ts)"),
+            {"v": version, "ts": utcnow_naive().isoformat()},
+        )
+    log.info("migration applied", version=version)
+
+
 async def init_db():
     """Create all tables and run idempotent column migrations.
 
     SQLite (dev/test): Uses create_all() + lightweight migration helpers.
     Postgres (production): Expects Alembic migrations to be run separately
     via ``alembic upgrade head``. Only runs backfill helpers.
+
+    Each data migration is guarded by a MigrationHistory version check so
+    it runs at most once, avoiding O(n) startup scans on subsequent boots.
     """
     engine = get_async_engine()
     settings = get_settings()
@@ -136,14 +169,23 @@ async def init_db():
     # else: Postgres uses Alembic — tables must exist before startup.
     # Run `alembic upgrade head` as part of deployment.
 
-    # Backfill helpers run on both dialects
-    await _backfill_conversation_for_legacy_queries(engine)
-    await _repair_malformed_json_arrays(engine)
-    await _backfill_concepts_from_articles(engine)
+    # Versioned data migrations — each runs at most once
+    _versioned_migrations: list[tuple[str, object]] = [
+        ("0001_backfill_conversations", _backfill_conversation_for_legacy_queries),
+        ("0002_repair_json_arrays", _repair_malformed_json_arrays),
+        ("0003_backfill_concepts", _backfill_concepts_from_articles),
+        ("0004_relative_paths", None),  # handled separately (needs session)
+    ]
 
-    # Convert absolute file paths to relative (idempotent)
-    async with get_session_factory()() as session:
-        await _migrate_to_relative_paths(session)
+    for version, migration_fn in _versioned_migrations:
+        if await _migration_applied(engine, version):
+            continue
+        if version == "0004_relative_paths":
+            async with get_session_factory()() as session:
+                await _migrate_to_relative_paths(session)
+        else:
+            await migration_fn(engine)  # type: ignore[operator]
+        await _record_migration(engine, version)
 
 
 async def _migrate_added_columns(engine) -> None:
