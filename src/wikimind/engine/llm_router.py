@@ -109,6 +109,7 @@ class LLMRouter:
         self._budget_exceeded_sent: tuple[int, int] | None = None
         self._cached_spend: float | None = None
         self._cache_expires_at: float = 0.0
+        self._provider_cache: dict[Provider, object] = {}
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
         """Return ordered list of providers to try."""
@@ -139,18 +140,25 @@ class LLMRouter:
         return bool(get_api_key(provider.value))
 
     async def _get_provider_instance(self, provider: Provider):
-        """Create and return a provider instance."""
+        """Return a cached provider instance, creating it on first use."""
+        if provider in self._provider_cache:
+            return self._provider_cache[provider]
+
         if provider == Provider.ANTHROPIC:
-            return AnthropicProvider()
-        if provider == Provider.OPENAI:
-            return OpenAIProvider()
-        if provider == Provider.GOOGLE:
-            return GoogleProvider()
-        if provider == Provider.OLLAMA:
-            return OllamaProvider(self.settings.llm.ollama_base_url)
-        if provider == Provider.MOCK:
-            return MockProvider()
-        raise ValueError(f"Provider {provider} not implemented yet")
+            instance = AnthropicProvider()
+        elif provider == Provider.OPENAI:
+            instance = OpenAIProvider()
+        elif provider == Provider.GOOGLE:
+            instance = GoogleProvider()
+        elif provider == Provider.OLLAMA:
+            instance = OllamaProvider(self.settings.llm.ollama_base_url)
+        elif provider == Provider.MOCK:
+            instance = MockProvider()
+        else:
+            raise ValueError(f"Provider {provider} not implemented yet")
+
+        self._provider_cache[provider] = instance
+        return instance
 
     def _get_model(self, provider: Provider) -> str:
         """Return the configured model name for a provider."""
@@ -204,10 +212,31 @@ class LLMRouter:
             await emit_budget_exceeded(spend, budget)
             self._budget_exceeded_sent = month_key
 
+    async def _log_cost(
+        self,
+        provider: Provider,
+        model: str,
+        task_type: TaskType,
+        response: CompletionResponse,
+    ) -> None:
+        """Write a CostLog entry in an independent session."""
+        cost_entry = CostLog(
+            provider=provider,
+            model=model,
+            task_type=task_type,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            cost_usd=response.cost_usd,
+            latency_ms=response.latency_ms,
+        )
+        async with get_session_factory()() as cost_session:
+            cost_session.add(cost_entry)
+            await cost_session.commit()
+
     async def complete(
         self,
         request: CompletionRequest,
-        session=None,  # AsyncSession for cost logging
+        session=None,  # kept for backward compat
     ) -> CompletionResponse:
         """Execute LLM completion with provider selection and fallback."""
         provider_order = self._get_provider_order(request.preferred_provider)
@@ -223,19 +252,8 @@ class LLMRouter:
                 instance = await self._get_provider_instance(provider)
                 response = await instance.complete(request, model)
 
-                # Log cost
-                if session:
-                    cost_entry = CostLog(
-                        provider=provider,
-                        model=model,
-                        task_type=request.task_type,
-                        input_tokens=response.input_tokens,
-                        output_tokens=response.output_tokens,
-                        cost_usd=response.cost_usd,
-                        latency_ms=response.latency_ms,
-                    )
-                    session.add(cost_entry)
-                    await session.commit()
+                # Log cost in independent session
+                await self._log_cost(provider, model, request.task_type, response)
 
                 log.info(
                     "LLM call complete",
@@ -270,7 +288,7 @@ class LLMRouter:
         max_tokens: int = 4096,
         temperature: float = 0.3,
         preferred_provider: Provider | None = None,
-        session=None,
+        session=None,  # kept for backward compat
     ) -> CompletionResponse:
         """Execute a multimodal LLM completion with images and text.
 
@@ -285,7 +303,7 @@ class LLMRouter:
             max_tokens: Maximum output tokens.
             temperature: Sampling temperature.
             preferred_provider: Optional provider preference.
-            session: Optional AsyncSession for cost logging.
+            session: Deprecated -- cost logging now uses an independent session.
 
         Returns:
             CompletionResponse with the LLM's text output.
@@ -317,19 +335,8 @@ class LLMRouter:
                     temperature=temperature,
                 )
 
-                # Log cost
-                if session:
-                    cost_entry = CostLog(
-                        provider=provider,
-                        model=model,
-                        task_type=task_type,
-                        input_tokens=response.input_tokens,
-                        output_tokens=response.output_tokens,
-                        cost_usd=response.cost_usd,
-                        latency_ms=response.latency_ms,
-                    )
-                    session.add(cost_entry)
-                    await session.commit()
+                # Log cost in independent session
+                await self._log_cost(provider, model, task_type, response)
 
                 log.info(
                     "LLM multimodal call complete",
