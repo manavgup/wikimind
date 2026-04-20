@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,6 +12,9 @@ from sqlmodel import select
 from wikimind.engine.linter.runner import run_lint
 from wikimind.models import Article, Backlink, LintReportStatus, PageType, RelationType, StructuralFinding
 from wikimind.services.linter import LinterService
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _make_article(

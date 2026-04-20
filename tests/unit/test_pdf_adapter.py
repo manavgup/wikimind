@@ -12,7 +12,7 @@ per batch and that ``emit_source_progress`` fires between batches.
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, call
 
 import fitz
@@ -22,6 +22,9 @@ from wikimind.config import Settings, get_settings
 from wikimind.ingest import service as ingest_service
 from wikimind.ingest.service import PDFAdapter
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

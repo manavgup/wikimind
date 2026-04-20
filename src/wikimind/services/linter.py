@@ -7,8 +7,9 @@ job system.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -24,6 +25,9 @@ from wikimind.models import (
     RelationType,
     StructuralFinding,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class LinterService:

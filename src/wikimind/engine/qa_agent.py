@@ -7,14 +7,13 @@ Every answer can be filed back to make the wiki smarter.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import HTTPException
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -33,6 +32,11 @@ from wikimind.models import (
 )
 from wikimind.services.activity_log import append_log_entry
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 

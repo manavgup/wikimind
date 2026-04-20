@@ -8,17 +8,21 @@ until issue #95 populates the Backlink table.
 from __future__ import annotations
 
 import hashlib
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from wikimind.config import Settings
 from wikimind.models import (
     LintFindingKind,
     LintSeverity,
     OrphanFinding,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from wikimind.config import Settings
 
 log = structlog.get_logger()
 

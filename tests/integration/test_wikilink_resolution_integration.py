@@ -14,12 +14,10 @@ Steps:
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-from httpx import AsyncClient
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.engine.compiler import Compiler
@@ -34,6 +32,12 @@ from wikimind.models import (
     SourceType,
 )
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from httpx import AsyncClient
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.mark.asyncio

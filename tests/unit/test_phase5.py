@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
@@ -24,6 +25,9 @@ from wikimind.services.wiki_index import (
     regenerate_index_md,
 )
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # ---------------------------------------------------------------------------
 # _page_type_label

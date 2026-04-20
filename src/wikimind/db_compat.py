@@ -11,10 +11,12 @@ PostgreSQL uses jsonb_array_elements_text() and the @> operator.
 from __future__ import annotations
 
 import json as json_mod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import literal_column, text
-from sqlalchemy.sql import ClauseElement
+
+if TYPE_CHECKING:
+    from sqlalchemy.sql import ClauseElement
 
 
 def get_dialect_name(url: str) -> str:

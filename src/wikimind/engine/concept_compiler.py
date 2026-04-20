@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -27,6 +27,9 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.storage import LocalFileStorage, resolve_wiki_path
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 

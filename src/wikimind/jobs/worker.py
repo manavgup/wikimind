@@ -137,14 +137,14 @@ async def compile_source(
                 await emit_source_progress(source_id, message, user_id=user_id)
 
             compiler = Compiler()
-            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)  # type: ignore[arg-type]
+            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
 
             if not result:
                 raise ValueError("Compiler returned no result")
 
             await emit_source_progress(source_id, "Saving article...", user_id=user_id)
 
-            article = await compiler.save_article(result, source, session)  # type: ignore[arg-type]
+            article = await compiler.save_article(result, source, session)
 
             # Update job
             job.status = JobStatus.COMPLETE

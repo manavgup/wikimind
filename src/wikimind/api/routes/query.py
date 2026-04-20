@@ -58,7 +58,7 @@ async def ask_stream(
     async def _event_generator() -> AsyncIterator[str]:
         async with get_session_factory()() as session:
             try:
-                async for event in service.ask_stream(request, session, user_id=user_id):  # type: ignore[arg-type]
+                async for event in service.ask_stream(request, session, user_id=user_id):
                     yield event
             except asyncio.CancelledError:
                 log.info("SSE client disconnected, aborting stream")

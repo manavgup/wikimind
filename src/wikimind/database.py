@@ -555,7 +555,7 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
     raw_prefix = str(Path(settings.data_dir) / "raw") + "/"
 
     # Migrate Article.file_path (wiki-relative)
-    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))  # type: ignore[union-attr]
+    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))
     for article in result.scalars().all():
         if article.file_path.startswith(wiki_prefix):
             article.file_path = article.file_path[len(wiki_prefix) :]

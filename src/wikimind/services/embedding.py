@@ -29,7 +29,7 @@ try:
     _SEARCH_AVAILABLE = True
 except ImportError:
     _chromadb = None  # type: ignore[assignment]
-    _SentenceTransformer = None  # type: ignore[assignment,misc]
+    _SentenceTransformer = None  # type: ignore[misc]
     _SEARCH_AVAILABLE = False
 
 
@@ -135,7 +135,7 @@ class EmbeddingService:
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
         chroma_path.mkdir(parents=True, exist_ok=True)
 
-        self._client: Any = _chromadb.PersistentClient(path=str(chroma_path))  # type: ignore[union-attr]
+        self._client: Any = _chromadb.PersistentClient(path=str(chroma_path))
         self._collection: Any = self._client.get_or_create_collection(
             name="wikimind_chunks",
             metadata={"hnsw:space": "cosine"},
@@ -156,14 +156,14 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            self._model = _SentenceTransformer(self._model_name)  # type: ignore[misc]
+            self._model = _SentenceTransformer(self._model_name)
         return self._model
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
         """Encode texts into embedding vectors."""
         model = self._get_model()
-        embeddings = model.encode(texts, show_progress_bar=False)  # type: ignore[union-attr]
-        return [e.tolist() for e in embeddings]  # type: ignore[union-attr]
+        embeddings = model.encode(texts, show_progress_bar=False)
+        return [e.tolist() for e in embeddings]
 
     def embed_article(self, article_id: str, title: str, content: str) -> int:
         """Chunk and embed an article's content into ChromaDB.
@@ -238,24 +238,24 @@ class EmbeddingService:
             return search_results
 
         for i, _id in enumerate(results["ids"][0]):
-            distance = results["distances"][0][i] if results["distances"] else 0.0  # type: ignore[index]
+            distance = results["distances"][0][i] if results["distances"] else 0.0
             # ChromaDB cosine distance is in [0, 2]; convert to similarity score [0, 1]
-            score = 1.0 - (distance / 2.0)  # type: ignore[operator]
+            score = 1.0 - (distance / 2.0)
 
             # Filter out low-relevance results — ChromaDB always returns top N
             # regardless of actual similarity.
             if score < self._min_score:
                 continue
 
-            metadata = results["metadatas"][0][i] if results["metadatas"] else {}  # type: ignore[index]
-            document = results["documents"][0][i] if results["documents"] else ""  # type: ignore[index]
+            metadata = results["metadatas"][0][i] if results["metadatas"] else {}
+            document = results["documents"][0][i] if results["documents"] else ""
 
             search_results.append(
                 SemanticSearchResult(
-                    article_id=metadata.get("article_id", ""),  # type: ignore[union-attr]
+                    article_id=metadata.get("article_id", ""),
                     score=score,
-                    chunk_text=document,  # type: ignore[arg-type]
-                    chunk_index=metadata.get("chunk_index", 0),  # type: ignore[union-attr]
+                    chunk_text=document,
+                    chunk_index=metadata.get("chunk_index", 0),
                 )
             )
 

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
-from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from wikimind.models import Article, PageType, Source, SourceType
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSession) -> None:

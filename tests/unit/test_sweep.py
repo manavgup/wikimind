@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.jobs.sweep import _sweep_single_article
 from wikimind.models import Article, Backlink, ConfidenceLevel
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def _make_article(

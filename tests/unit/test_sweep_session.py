@@ -11,7 +11,7 @@ Verifies that:
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +21,9 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.jobs.sweep import _sweep_single_article, sweep_wikilinks
 from wikimind.models import Article, Backlink, ConfidenceLevel
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 async def _make_article(

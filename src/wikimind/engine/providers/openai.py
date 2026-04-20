@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import openai
 
 from wikimind.config import get_api_key
 from wikimind.engine.llm_router import StreamSession, _calc_cost
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class OpenAIProvider:
@@ -146,7 +148,7 @@ class OpenAIProvider:
             response_stream = await self.client.chat.completions.create(
                 **kwargs  # type: ignore[call-overload]
             )
-            async for chunk in response_stream:  # type: ignore[union-attr]
+            async for chunk in response_stream:
                 if chunk.usage:
                     input_tokens = chunk.usage.prompt_tokens or 0
                     output_tokens = chunk.usage.completion_tokens or 0
