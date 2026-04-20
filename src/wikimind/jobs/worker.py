@@ -59,7 +59,12 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 
-async def compile_source(ctx, source_id: str, user_id: str | None = None):
+async def compile_source(
+    ctx,
+    source_id: str,
+    user_id: str | None = None,
+    doc: NormalizedDocument | None = None,
+):
     """Compile a raw source into a wiki article.
 
     Args:
@@ -67,6 +72,9 @@ async def compile_source(ctx, source_id: str, user_id: str | None = None):
         source_id: The source UUID to compile.
         user_id: Optional owner — used to scope WebSocket broadcasts and
             verify source ownership.
+        doc: Pre-built NormalizedDocument from the ingest adapter. When
+            provided, the worker skips re-reading and re-chunking the source
+            file. ``None`` in the ARQ (Redis) path or for recompilation.
     """
     log.info("compile_source started", source_id=source_id, user_id=user_id)
 
@@ -100,26 +108,28 @@ async def compile_source(ctx, source_id: str, user_id: str | None = None):
         await emit_source_progress(source_id, "Reading source...", user_id=user_id)
 
         try:
-            # Every adapter writes a cleaned .txt and stores its path on the
-            # Source record (see issue #59). The worker is format-agnostic and
-            # just reads UTF-8 text — no PDF/HTML re-extraction here.
-            if not source.file_path:
-                raise ValueError("No cleaned text file path for source")
+            if doc is None:
+                # Fallback: re-read from disk (ARQ path or recompile).
+                # Every adapter writes a cleaned .txt and stores its path on
+                # the Source record (see issue #59). The worker is
+                # format-agnostic and just reads UTF-8 text.
+                if not source.file_path:
+                    raise ValueError("No cleaned text file path for source")
 
-            text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
-            content = text_path.read_text(encoding="utf-8")
+                text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+                content = text_path.read_text(encoding="utf-8")
 
-            await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
+                await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
 
-            doc = NormalizedDocument(
-                raw_source_id=source.id,
-                clean_text=content,
-                title=source.title or "Untitled",
-                author=source.author,
-                published_date=source.published_date,
-                estimated_tokens=_ingest_service.estimate_tokens(content),
-                chunks=_ingest_service.chunk_text(content, source.id),
-            )
+                doc = NormalizedDocument(
+                    raw_source_id=source.id,
+                    clean_text=content,
+                    title=source.title or "Untitled",
+                    author=source.author,
+                    published_date=source.published_date,
+                    estimated_tokens=_ingest_service.estimate_tokens(content),
+                    chunks=_ingest_service.chunk_text(content, source.id),
+                )
 
             await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
 

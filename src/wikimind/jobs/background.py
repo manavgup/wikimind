@@ -21,6 +21,7 @@ from arq.connections import RedisSettings
 
 from wikimind.config import get_settings
 from wikimind.jobs.worker import compile_source, lint_wiki, recompile_article, sweep_wikilinks
+from wikimind.models import NormalizedDocument
 
 log = structlog.get_logger()
 
@@ -36,12 +37,21 @@ class BackgroundCompiler:
         """Return True when a real Redis URL is configured."""
         return self._redis_url is not None
 
-    async def schedule_compile(self, source_id: str, user_id: str | None = None) -> str:
+    async def schedule_compile(
+        self,
+        source_id: str,
+        user_id: str | None = None,
+        doc: NormalizedDocument | None = None,
+    ) -> str:
         """Schedule a compilation job for the given source.
 
         Args:
             source_id: The source UUID to compile.
             user_id: Optional owner for user-scoped processing.
+            doc: Pre-built NormalizedDocument from the ingest adapter. Passed
+                to the in-process worker to avoid re-reading and re-chunking
+                the source file. Ignored in the ARQ (Redis) path because
+                Pydantic models are not ARQ-serializable.
 
         Returns:
             A placeholder job ID string.
@@ -51,7 +61,9 @@ class BackgroundCompiler:
         if self.is_prod:
             await self._enqueue_arq("compile_source", source_id, user_id)
         else:
-            asyncio.create_task(self._run_compile_in_process(source_id, user_id))  # noqa: RUF006
+            asyncio.create_task(  # noqa: RUF006
+                self._run_compile_in_process(source_id, user_id, doc)
+            )
 
         log.info(
             "compile scheduled",
@@ -152,10 +164,14 @@ class BackgroundCompiler:
             await pool.close()
 
     @staticmethod
-    async def _run_compile_in_process(source_id: str, user_id: str | None = None) -> None:
+    async def _run_compile_in_process(
+        source_id: str,
+        user_id: str | None = None,
+        doc: NormalizedDocument | None = None,
+    ) -> None:
         """Run compile_source directly in the current event loop."""
         try:
-            await compile_source({}, source_id, user_id=user_id)
+            await compile_source({}, source_id, user_id=user_id, doc=doc)
         except Exception:
             log.exception("in-process compilation failed", source_id=source_id)
 

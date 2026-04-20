@@ -88,6 +88,7 @@ from wikimind.engine.providers import (  # noqa: E402
     MockProvider,
     OllamaProvider,
     OpenAIProvider,
+    ProviderProtocol,
 )
 from wikimind.engine.providers.mock import (  # noqa: E402, F401 -- backward compat re-exports
     _MOCK_COMPILE_RESPONSE,
@@ -109,10 +110,7 @@ class LLMRouter:
         self._budget_exceeded_sent: tuple[int, int] | None = None
         self._cached_spend: float | None = None
         self._cache_expires_at: float = 0.0
-        self._provider_cache: dict[
-            Provider,
-            AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider,
-        ] = {}
+        self._provider_cache: dict[Provider, ProviderProtocol] = {}
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
         """Return ordered list of providers to try."""
@@ -142,14 +140,12 @@ class LLMRouter:
             return True  # No API key needed
         return bool(get_api_key(provider.value))
 
-    async def _get_provider_instance(
-        self, provider: Provider
-    ) -> AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider:
+    async def _get_provider_instance(self, provider: Provider) -> ProviderProtocol:
         """Return a cached provider instance, creating it on first use."""
         if provider in self._provider_cache:
             return self._provider_cache[provider]
 
-        instance: AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider
+        instance: ProviderProtocol
         if provider == Provider.ANTHROPIC:
             instance = AnthropicProvider()
         elif provider == Provider.OPENAI:

@@ -55,7 +55,7 @@ async def test_ingest_service_url_success(db_session) -> None:
     svc = IngestService()
     src = Source(source_type=SourceType.URL, source_url="http://x", id="src1")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_url = AsyncMock(return_value=src)
+    svc._adapter.ingest_url = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         gbc.return_value.schedule_compile = AsyncMock(return_value="job-1")
         result = await svc.ingest_url("http://x", db_session)
@@ -66,8 +66,8 @@ async def test_ingest_service_pdf_and_text(db_session) -> None:
     svc = IngestService()
     src = Source(source_type=SourceType.PDF, id="s1")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_pdf = AsyncMock(return_value=src)
-    svc._adapter.ingest_text = AsyncMock(return_value=src)
+    svc._adapter.ingest_pdf = AsyncMock(return_value=(src, None))
+    svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         gbc.return_value.schedule_compile = AsyncMock(return_value="j")
         await svc.ingest_pdf(b"x", "f.pdf", db_session)
@@ -82,7 +82,7 @@ async def test_ingest_service_url_auto_compile_false_skips_schedule(db_session) 
     svc = IngestService()
     src = Source(source_type=SourceType.URL, source_url="http://x", id="src-url")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_url = AsyncMock(return_value=src)
+    svc._adapter.ingest_url = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-1")
         gbc.return_value.schedule_compile = schedule_compile
@@ -96,7 +96,7 @@ async def test_ingest_service_pdf_auto_compile_false_skips_schedule(db_session) 
     svc = IngestService()
     src = Source(source_type=SourceType.PDF, id="src-pdf")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_pdf = AsyncMock(return_value=src)
+    svc._adapter.ingest_pdf = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-2")
         gbc.return_value.schedule_compile = schedule_compile
@@ -110,7 +110,7 @@ async def test_ingest_service_text_auto_compile_false_skips_schedule(db_session)
     svc = IngestService()
     src = Source(source_type=SourceType.TEXT, id="src-text")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_text = AsyncMock(return_value=src)
+    svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-3")
         gbc.return_value.schedule_compile = schedule_compile
@@ -124,12 +124,12 @@ async def test_ingest_service_text_auto_compile_default_schedules(db_session) ->
     svc = IngestService()
     src = Source(source_type=SourceType.TEXT, id="src-default")
     svc._adapter = MagicMock()
-    svc._adapter.ingest_text = AsyncMock(return_value=src)
+    svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-4")
         gbc.return_value.schedule_compile = schedule_compile
         await svc.ingest_text("hello", "t", db_session)
-    schedule_compile.assert_awaited_once_with("src-default", user_id=None)
+    schedule_compile.assert_awaited_once_with("src-default", user_id=None, doc=None)
 
 
 async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> None:
@@ -140,7 +140,7 @@ async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> No
         patch.object(svc, "_adapter") as adapter,
         patch("wikimind.services.ingest.get_background_compiler") as gbc,
     ):
-        adapter.ingest_text = AsyncMock(return_value=fake_src)
+        adapter.ingest_text = AsyncMock(return_value=(fake_src, None))
         schedule_compile = AsyncMock(return_value="job-r1")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
@@ -159,7 +159,7 @@ async def test_ingest_route_url_auto_compile_false_skips_schedule(client) -> Non
         patch.object(svc, "_adapter") as adapter,
         patch("wikimind.services.ingest.get_background_compiler") as gbc,
     ):
-        adapter.ingest_url = AsyncMock(return_value=fake_src)
+        adapter.ingest_url = AsyncMock(return_value=(fake_src, None))
         schedule_compile = AsyncMock(return_value="job-r2")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
@@ -178,7 +178,7 @@ async def test_ingest_route_pdf_auto_compile_false_skips_schedule(client) -> Non
         patch.object(svc, "_adapter") as adapter,
         patch("wikimind.services.ingest.get_background_compiler") as gbc,
     ):
-        adapter.ingest_pdf = AsyncMock(return_value=fake_src)
+        adapter.ingest_pdf = AsyncMock(return_value=(fake_src, None))
         schedule_compile = AsyncMock(return_value="job-r3")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
