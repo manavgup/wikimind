@@ -271,10 +271,10 @@ async def test_compiler_service_triggers() -> None:
         gbc.return_value.schedule_lint = AsyncMock(return_value="j2")
         a = await svc.trigger_compile("src")
         b = await svc.trigger_lint()
-    assert a["status"] == "queued"
-    assert b["status"] == "queued"
+    assert a.status == "queued"
+    assert b.status == "queued"
     r = await svc.trigger_reindex()
-    assert r["status"] == "queued"
+    assert r.status == "queued"
 
 
 def test_compiler_service_singleton() -> None:

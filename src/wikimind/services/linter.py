@@ -18,9 +18,11 @@ from wikimind.models import (
     Backlink,
     ContradictionFinding,
     DismissedFinding,
+    DismissFindingResponse,
     LintFindingKind,
     LintReport,
     LintReportDetail,
+    LintRunResponse,
     OrphanFinding,
     RelationType,
     StructuralFinding,
@@ -33,15 +35,15 @@ if TYPE_CHECKING:
 class LinterService:
     """Coordinate lint report queries, finding dismissal, and run triggers."""
 
-    async def trigger_run(self, user_id: str | None = None) -> dict[str, str]:
+    async def trigger_run(self, user_id: str | None = None) -> LintRunResponse:
         """Schedule a lint run via the background job system.
 
         Returns:
-            Dict with status indicating the run was scheduled.
+            LintRunResponse with status indicating the run was scheduled.
         """
         bg = get_background_compiler()
         await bg.schedule_lint(user_id=user_id)
-        return {"status": "in_progress"}
+        return LintRunResponse(status="in_progress")
 
     async def list_reports(
         self, session: AsyncSession, limit: int = 20, user_id: str | None = None
@@ -178,7 +180,7 @@ class LinterService:
         session: AsyncSession,
         kind: LintFindingKind,
         finding_id: str,
-    ) -> dict[str, object]:
+    ) -> DismissFindingResponse:
         """Dismiss a finding and record it for cross-run suppression.
 
         Args:
@@ -187,7 +189,7 @@ class LinterService:
             finding_id: The finding UUID.
 
         Returns:
-            Dict confirming dismissal.
+            DismissFindingResponse confirming dismissal.
 
         Raises:
             HTTPException: 404 if finding not found.
@@ -236,11 +238,11 @@ class LinterService:
 
         await session.commit()
 
-        return {
-            "dismissed": True,
-            "kind": kind,
-            "finding_id": finding_id,
-        }
+        return DismissFindingResponse(
+            dismissed=True,
+            kind=kind.value,
+            finding_id=finding_id,
+        )
 
 
 _linter_service: LinterService | None = None

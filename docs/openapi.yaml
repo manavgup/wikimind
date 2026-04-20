@@ -232,7 +232,12 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                items:
+                  $ref: '#/components/schemas/ContradictionResolutionOption'
+                type: array
+                title: Response List Contradiction Resolutions Wiki Contradiction
+                  Resolutions Get
   /wiki/articles:
     get:
       tags:
@@ -317,6 +322,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArticleResponse'
+        '404':
+          description: Article not found
         '422':
           description: Validation Error
           content:
@@ -414,7 +421,81 @@ paths:
           description: Successful Response
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/RebuildConceptsResponse'
+  /wiki/concepts/{name}:
+    get:
+      tags:
+      - Wiki
+      summary: Get Concept
+      description: Concept detail with linked articles.
+      operationId: get_concept_wiki_concepts__name__get
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
               schema: {}
+        '404':
+          description: Concept not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/concepts/{name}/articles:
+    get:
+      tags:
+      - Wiki
+      summary: Get Concept Articles
+      description: Articles tagged with this concept.
+      operationId: get_concept_articles_wiki_concepts__name__articles_get
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArticleSummaryResponse'
+                title: Response Get Concept Articles Wiki Concepts  Name  Articles
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/health:
     get:
       tags:
@@ -432,7 +513,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/HealthSummaryResponse'
   /wiki/backlinks/{source_id}/{target_id}/resolve:
     post:
       tags:
@@ -464,7 +546,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ResolveContradictionResponse'
         '422':
           description: Validation Error
           content:
@@ -498,7 +581,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/RecompileResponse'
         '422':
           description: Validation Error
           content:
@@ -801,7 +885,11 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+                title: Response List Jobs Jobs Get
         '422':
           description: Validation Error
           content:
@@ -827,7 +915,11 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/Job'
+                - type: 'null'
+                title: Response Get Job Jobs  Job Id  Get
         '422':
           description: Validation Error
           content:
@@ -853,7 +945,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/JobTriggerResponse'
         '422':
           description: Validation Error
           content:
@@ -877,7 +970,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/JobTriggerResponse'
   /jobs/reindex:
     post:
       tags:
@@ -890,7 +984,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/JobTriggerResponse'
   /lint/run:
     post:
       tags:
@@ -903,7 +998,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/LintRunResponse'
   /lint/reports:
     get:
       tags:
@@ -1010,7 +1106,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/DismissFindingResponse'
         '422':
           description: Validation Error
           content:
@@ -1029,7 +1126,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/AllSettingsResponse'
     patch:
       tags:
       - Settings
@@ -1047,7 +1145,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/SettingsUpdateResponse'
         '422':
           description: Validation Error
           content:
@@ -1072,7 +1171,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/DefaultProviderResponse'
         '422':
           description: Validation Error
           content:
@@ -1097,7 +1197,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ProviderKeyResponse'
         '422':
           description: Validation Error
           content:
@@ -1123,7 +1224,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/LLMTestResponse'
         '422':
           description: Validation Error
           content:
@@ -1142,7 +1244,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/CostBreakdownResponse'
   /settings/llm/cost:
     get:
       tags:
@@ -1155,7 +1258,8 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/CostSummaryResponse'
   /auth/login/{provider}:
     get:
       tags:
@@ -1244,6 +1348,71 @@ paths:
           content:
             application/json:
               schema: {}
+  /admin/stats:
+    get:
+      tags:
+      - Admin
+      summary: Get Stats
+      description: Aggregate system statistics.
+      operationId: get_stats_admin_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /admin/orphans:
+    get:
+      tags:
+      - Admin
+      summary: Get Orphans
+      description: Articles with missing wiki files.
+      operationId: get_orphans_admin_orphans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /admin/concepts/eligible:
+    get:
+      tags:
+      - Admin
+      summary: Get Eligible Concepts
+      description: Concepts eligible for page generation.
+      operationId: get_eligible_concepts_admin_concepts_eligible_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /admin/sweep:
+    post:
+      tags:
+      - Admin
+      summary: Trigger Sweep
+      description: Trigger wikilink sweep manually.
+      operationId: trigger_sweep_admin_sweep_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /admin/reindex:
+    post:
+      tags:
+      - Admin
+      summary: Trigger Reindex
+      description: Rebuild search index.
+      operationId: trigger_reindex_admin_reindex_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /health:
     get:
       summary: Health
@@ -1271,6 +1440,26 @@ components:
       - api_key
       title: APIKeyRequest
       description: Request to set an API key.
+    AllSettingsResponse:
+      properties:
+        data_dir:
+          type: string
+          title: Data Dir
+        gateway_port:
+          type: integer
+          title: Gateway Port
+        llm:
+          $ref: '#/components/schemas/LLMSettingsResponse'
+        sync:
+          $ref: '#/components/schemas/SyncSettingsResponse'
+      type: object
+      required:
+      - data_dir
+      - gateway_port
+      - llm
+      - sync
+      title: AllSettingsResponse
+      description: Full application settings response.
     ArticleResponse:
       properties:
         id:
@@ -1421,6 +1610,23 @@ components:
         page_type:
           $ref: '#/components/schemas/PageType'
           default: source
+        concepts:
+          items:
+            type: string
+          type: array
+          title: Concepts
+          default: []
+        source_ids:
+          items:
+            type: string
+          type: array
+          title: Source Ids
+          default: []
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
       type: object
       required:
       - id
@@ -1601,6 +1807,20 @@ components:
       title: ContradictionFinding
       description: A contradiction between key claims of two articles that share a
         concept.
+    ContradictionResolutionOption:
+      properties:
+        value:
+          type: string
+          title: Value
+        label:
+          type: string
+          title: Label
+      type: object
+      required:
+      - value
+      - label
+      title: ContradictionResolutionOption
+      description: A valid resolution option for contradictions.
     ConversationDetail:
       properties:
         conversation:
@@ -1706,6 +1926,72 @@ components:
       - turn_count
       title: ConversationSummary
       description: Conversation summary for the history sidebar — adds turn count.
+    CostBreakdownEntry:
+      properties:
+        cost_usd:
+          type: number
+          title: Cost Usd
+        call_count:
+          type: integer
+          title: Call Count
+      type: object
+      required:
+      - cost_usd
+      - call_count
+      title: CostBreakdownEntry
+      description: Cost and call count for a single category.
+    CostBreakdownResponse:
+      properties:
+        month:
+          type: string
+          title: Month
+        total_usd:
+          type: number
+          title: Total Usd
+        budget_usd:
+          type: number
+          title: Budget Usd
+        budget_pct:
+          type: number
+          title: Budget Pct
+        by_provider:
+          additionalProperties:
+            $ref: '#/components/schemas/CostBreakdownEntry'
+          type: object
+          title: By Provider
+        by_task_type:
+          additionalProperties:
+            $ref: '#/components/schemas/CostBreakdownEntry'
+          type: object
+          title: By Task Type
+      type: object
+      required:
+      - month
+      - total_usd
+      - budget_usd
+      - budget_pct
+      - by_provider
+      - by_task_type
+      title: CostBreakdownResponse
+      description: Full cost breakdown for current month.
+    CostSummaryResponse:
+      properties:
+        cost_this_month_usd:
+          type: number
+          title: Cost This Month Usd
+        budget_usd:
+          type: number
+          title: Budget Usd
+        budget_remaining_usd:
+          type: number
+          title: Budget Remaining Usd
+      type: object
+      required:
+      - cost_this_month_usd
+      - budget_usd
+      - budget_remaining_usd
+      title: CostSummaryResponse
+      description: Simple cost summary for current month.
     DefaultProviderRequest:
       properties:
         provider:
@@ -1716,6 +2002,38 @@ components:
       - provider
       title: DefaultProviderRequest
       description: Request to set the default LLM provider.
+    DefaultProviderResponse:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - provider
+      - status
+      title: DefaultProviderResponse
+      description: Response after setting default provider.
+    DismissFindingResponse:
+      properties:
+        dismissed:
+          type: boolean
+          title: Dismissed
+        kind:
+          type: string
+          title: Kind
+        finding_id:
+          type: string
+          title: Finding Id
+      type: object
+      required:
+      - dismissed
+      - kind
+      - finding_id
+      title: DismissFindingResponse
+      description: Response after dismissing a lint finding.
     FileBackSelectionRequest:
       properties:
         selections:
@@ -1831,6 +2149,46 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    HealthSummaryResponse:
+      properties:
+        generated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Generated At
+        total_articles:
+          type: integer
+          title: Total Articles
+          default: 0
+        total_findings:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Total Findings
+        contradictions_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Contradictions Count
+        orphans_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Orphans Count
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      type: object
+      title: HealthSummaryResponse
+      description: Lightweight health summary from latest lint report.
     IngestStatus:
       type: string
       enum:
@@ -1873,6 +2231,156 @@ components:
       - url
       title: IngestURLRequest
       description: Request to ingest a URL.
+    Job:
+      properties:
+        id:
+          type: string
+          title: Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
+        job_type:
+          $ref: '#/components/schemas/JobType'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+          default: queued
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+        article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Article Id
+        priority:
+          type: integer
+          title: Priority
+          default: 5
+        queued_at:
+          type: string
+          format: date-time
+          title: Queued At
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        completed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completed At
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        result_summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result Summary
+      type: object
+      required:
+      - job_type
+      title: Job
+      description: Async job record.
+    JobStatus:
+      type: string
+      enum:
+      - queued
+      - running
+      - complete
+      - failed
+      title: JobStatus
+      description: Status of an async job.
+    JobTriggerResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      type: object
+      required:
+      - status
+      title: JobTriggerResponse
+      description: Response after triggering an async job.
+    JobType:
+      type: string
+      enum:
+      - compile_source
+      - lint_wiki
+      - sweep_wikilinks
+      - reindex
+      - embed_chunks
+      - recompile_article
+      - sync_push
+      - sync_pull
+      title: JobType
+      description: Type of async job.
+    LLMSettingsResponse:
+      properties:
+        default_provider:
+          type: string
+          title: Default Provider
+        fallback_enabled:
+          type: boolean
+          title: Fallback Enabled
+        monthly_budget_usd:
+          type: number
+          title: Monthly Budget Usd
+        providers:
+          additionalProperties:
+            $ref: '#/components/schemas/ProviderDetail'
+          type: object
+          title: Providers
+      type: object
+      required:
+      - default_provider
+      - fallback_enabled
+      - monthly_budget_usd
+      - providers
+      title: LLMSettingsResponse
+      description: LLM configuration section.
+    LLMTestResponse:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        status:
+          type: string
+          title: Status
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - provider
+      - status
+      title: LLMTestResponse
+      description: Response from LLM connection test.
     LintFindingKind:
       type: string
       enum:
@@ -2006,6 +2514,16 @@ components:
       - failed
       title: LintReportStatus
       description: Lifecycle of a lint report.
+    LintRunResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: LintRunResponse
+      description: Response after triggering a lint run.
     LintSeverity:
       type: string
       enum:
@@ -2079,6 +2597,38 @@ components:
       title: PageType
       description: Type of wiki page — determines compilation pipeline and validation
         rules.
+    ProviderDetail:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+        model:
+          type: string
+          title: Model
+        configured:
+          type: boolean
+          title: Configured
+      type: object
+      required:
+      - enabled
+      - model
+      - configured
+      title: ProviderDetail
+      description: Provider status.
+    ProviderKeyResponse:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        configured:
+          type: boolean
+          title: Configured
+      type: object
+      required:
+      - provider
+      - configured
+      title: ProviderKeyResponse
+      description: Response after setting a provider API key.
     QueryRequest:
       properties:
         question:
@@ -2172,6 +2722,30 @@ components:
         resolved ``citations`` list so clients can see which articles were
 
         used and which original sources those articles came from.'
+    RebuildConceptsResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: RebuildConceptsResponse
+      description: Response after triggering taxonomy rebuild.
+    RecompileResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        job_id:
+          type: string
+          title: Job Id
+      type: object
+      required:
+      - status
+      - job_id
+      title: RecompileResponse
+      description: Response after scheduling an article recompile.
     RelationType:
       type: string
       enum:
@@ -2198,6 +2772,28 @@ components:
       - resolution
       title: ResolveContradictionRequest
       description: Request to resolve a contradiction between two articles.
+    ResolveContradictionResponse:
+      properties:
+        resolved:
+          type: boolean
+          title: Resolved
+        source_id:
+          type: string
+          title: Source Id
+        target_id:
+          type: string
+          title: Target Id
+        resolution:
+          type: string
+          title: Resolution
+      type: object
+      required:
+      - resolved
+      - source_id
+      - target_id
+      - resolution
+      title: ResolveContradictionResponse
+      description: Response after resolving a contradiction.
     SettingsUpdateRequest:
       properties:
         monthly_budget_usd:
@@ -2218,6 +2814,16 @@ components:
       type: object
       title: SettingsUpdateRequest
       description: Request to update settings.
+    SettingsUpdateResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: SettingsUpdateResponse
+      description: Response after updating settings.
     Source:
       properties:
         id:
@@ -2408,6 +3014,26 @@ components:
       - violation_type
       title: StructuralFinding
       description: A structural integrity violation detected by the backlink enforcer.
+    SyncSettingsResponse:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+        interval_minutes:
+          type: integer
+          title: Interval Minutes
+        bucket:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Bucket
+      type: object
+      required:
+      - enabled
+      - interval_minutes
+      - bucket
+      title: SyncSettingsResponse
+      description: Cloud sync configuration section.
     TurnSelection:
       properties:
         conversation_id:
@@ -2450,3 +3076,22 @@ components:
       - msg
       - type
       title: ValidationError
+tags:
+- name: Wiki
+  description: Browse wiki articles, knowledge graph, and search
+- name: Ingest
+  description: Ingest sources (URLs, PDFs, text, YouTube)
+- name: Query
+  description: Ask questions against the wiki
+- name: Jobs
+  description: Manage async compilation and linting jobs
+- name: Lint
+  description: Wiki health audit reports and findings
+- name: Settings
+  description: LLM provider configuration and cost tracking
+- name: Admin
+  description: System diagnostics and maintenance
+- name: Auth
+  description: OAuth2 authentication
+- name: WebSocket
+  description: Real-time progress streams

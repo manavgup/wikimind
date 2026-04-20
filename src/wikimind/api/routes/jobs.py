@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
+from wikimind.models import Job, JobTriggerResponse
 from wikimind.services.compiler import CompilerService, get_compiler_service
 from wikimind.services.linter import LinterService, get_linter_service
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", response_model=list[Job])
 async def list_jobs(
     status: str | None = None,
     limit: int = 20,
@@ -29,7 +30,7 @@ async def list_jobs(
     return await service.list_jobs(session, status=status, limit=limit, user_id=user_id)
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=Job | None)
 async def get_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
@@ -39,7 +40,7 @@ async def get_job(
     return await service.get_job(job_id, session)
 
 
-@router.post("/compile/{source_id}")
+@router.post("/compile/{source_id}", response_model=JobTriggerResponse)
 async def trigger_compile(
     source_id: str,
     service: CompilerService = Depends(get_compiler_service),
@@ -48,7 +49,7 @@ async def trigger_compile(
     return await service.trigger_compile(source_id)
 
 
-@router.post("/lint")
+@router.post("/lint", response_model=JobTriggerResponse)
 async def trigger_lint(
     service: LinterService = Depends(get_linter_service),
 ):
@@ -60,7 +61,7 @@ async def trigger_lint(
     return await service.trigger_run()
 
 
-@router.post("/reindex")
+@router.post("/reindex", response_model=JobTriggerResponse)
 async def trigger_reindex(
     service: CompilerService = Depends(get_compiler_service),
 ):

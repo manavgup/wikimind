@@ -37,6 +37,95 @@ class DefaultProviderRequest(BaseModel):
     provider: str
 
 
+class ProviderDetail(BaseModel):
+    """Provider status."""
+
+    enabled: bool
+    model: str
+    configured: bool
+
+
+class LLMSettingsResponse(BaseModel):
+    """LLM configuration section."""
+
+    default_provider: str
+    fallback_enabled: bool
+    monthly_budget_usd: float
+    providers: dict[str, ProviderDetail]
+
+
+class SyncSettingsResponse(BaseModel):
+    """Cloud sync configuration section."""
+
+    enabled: bool
+    interval_minutes: int
+    bucket: str | None
+
+
+class AllSettingsResponse(BaseModel):
+    """Full application settings response."""
+
+    data_dir: str
+    gateway_port: int
+    llm: LLMSettingsResponse
+    sync: SyncSettingsResponse
+
+
+class SettingsUpdateResponse(BaseModel):
+    """Response after updating settings."""
+
+    status: str
+
+
+class ProviderKeyResponse(BaseModel):
+    """Response after setting a provider API key."""
+
+    provider: str
+    configured: bool
+
+
+class DefaultProviderResponse(BaseModel):
+    """Response after setting default provider."""
+
+    provider: str
+    status: str
+
+
+class LLMTestResponse(BaseModel):
+    """Response from LLM connection test."""
+
+    provider: str
+    status: str
+    latency_ms: float | None = None
+    error: str | None = None
+
+
+class CostBreakdownEntry(BaseModel):
+    """Cost and call count for a single category."""
+
+    cost_usd: float
+    call_count: int
+
+
+class CostBreakdownResponse(BaseModel):
+    """Full cost breakdown for current month."""
+
+    month: str
+    total_usd: float
+    budget_usd: float
+    budget_pct: float
+    by_provider: dict[str, CostBreakdownEntry]
+    by_task_type: dict[str, CostBreakdownEntry]
+
+
+class CostSummaryResponse(BaseModel):
+    """Simple cost summary for current month."""
+
+    cost_this_month_usd: float
+    budget_usd: float
+    budget_remaining_usd: float
+
+
 # ---------------------------------------------------------------------------
 # DB preference helpers
 # ---------------------------------------------------------------------------
@@ -60,7 +149,7 @@ async def _set_preference(key: str, value: str) -> None:
         await session.commit()
 
 
-@router.get("")
+@router.get("", response_model=AllSettingsResponse)
 async def get_all_settings():
     """Return all application settings, with DB overrides applied."""
     settings = get_settings()
@@ -72,52 +161,66 @@ async def get_all_settings():
     fallback_pref = await _get_preference("llm.fallback_enabled")
     fallback_enabled = (fallback_pref.lower() == "true") if fallback_pref else settings.llm.fallback_enabled
 
-    return {
-        "data_dir": settings.data_dir,
-        "gateway_port": settings.gateway_port,
-        "llm": {
-            "default_provider": default_provider,
-            "fallback_enabled": fallback_enabled,
-            "monthly_budget_usd": monthly_budget,
-            "providers": {
-                p.value: {
-                    "enabled": getattr(settings.llm, p.value).enabled,
-                    "model": getattr(settings.llm, p.value).model,
-                    "configured": bool(get_api_key(p.value)),
-                }
-                for p in Provider
-            },
-        },
-        "sync": {
-            "enabled": settings.sync.enabled,
-            "interval_minutes": settings.sync.interval_minutes,
-            "bucket": settings.sync.bucket,
-        },
+    providers = {
+        p.value: ProviderDetail(
+            enabled=getattr(settings.llm, p.value).enabled,
+            model=getattr(settings.llm, p.value).model,
+            configured=bool(get_api_key(p.value)),
+        )
+        for p in Provider
     }
 
+    return AllSettingsResponse(
+        data_dir=settings.data_dir,
+        gateway_port=settings.gateway_port,
+        llm=LLMSettingsResponse(
+            default_provider=default_provider,
+            fallback_enabled=fallback_enabled,
+            monthly_budget_usd=monthly_budget,
+            providers=providers,
+        ),
+        sync=SyncSettingsResponse(
+            enabled=settings.sync.enabled,
+            interval_minutes=settings.sync.interval_minutes,
+            bucket=settings.sync.bucket,
+        ),
+    )
 
-@router.post("/llm/default-provider")
+
+@router.post(
+    "/llm/default-provider",
+    response_model=DefaultProviderResponse,
+)
 async def set_default_provider(request: DefaultProviderRequest):
     """Set the default LLM provider. Persists to DB, survives restarts."""
     valid_providers = [p.value for p in Provider]
     if request.provider not in valid_providers:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown provider: {request.provider}",
+        )
 
     settings = get_settings()
     provider_cfg = getattr(settings.llm, request.provider, None)
     if not provider_cfg or not provider_cfg.enabled:
-        raise HTTPException(status_code=400, detail=f"Provider {request.provider} is not enabled")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider {request.provider} is not enabled",
+        )
 
     # Providers that need API keys
     if request.provider not in ("ollama", "mock") and not get_api_key(request.provider):
-        raise HTTPException(status_code=400, detail=f"Provider {request.provider} has no API key configured")
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Provider {request.provider} has no API key configured"),
+        )
 
     await _set_preference("llm.default_provider", request.provider)
     settings.llm.default_provider = request.provider
-    return {"provider": request.provider, "status": "ok"}
+    return DefaultProviderResponse(provider=request.provider, status="ok")
 
 
-@router.patch("")
+@router.patch("", response_model=SettingsUpdateResponse)
 async def update_settings(request: SettingsUpdateRequest):
     """Update runtime settings. Changes persist to DB across restarts."""
     settings = get_settings()
@@ -125,35 +228,47 @@ async def update_settings(request: SettingsUpdateRequest):
     if request.monthly_budget_usd is not None:
         if request.monthly_budget_usd <= 0:
             raise HTTPException(status_code=400, detail="Budget must be positive")
-        await _set_preference("llm.monthly_budget_usd", str(request.monthly_budget_usd))
+        await _set_preference(
+            "llm.monthly_budget_usd",
+            str(request.monthly_budget_usd),
+        )
         settings.llm.monthly_budget_usd = request.monthly_budget_usd
 
     if request.fallback_enabled is not None:
-        await _set_preference("llm.fallback_enabled", str(request.fallback_enabled).lower())
+        await _set_preference(
+            "llm.fallback_enabled",
+            str(request.fallback_enabled).lower(),
+        )
         settings.llm.fallback_enabled = request.fallback_enabled
 
     if request.default_provider is not None:
         valid_providers = [p.value for p in Provider]
         if request.default_provider not in valid_providers:
-            raise HTTPException(status_code=400, detail=f"Unknown provider: {request.default_provider}")
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Unknown provider: {request.default_provider}"),
+            )
         await _set_preference("llm.default_provider", request.default_provider)
         settings.llm.default_provider = request.default_provider
 
-    return {"status": "ok"}
+    return SettingsUpdateResponse(status="ok")
 
 
-@router.post("/llm/api-key")
+@router.post("/llm/api-key", response_model=ProviderKeyResponse)
 async def set_provider_api_key(request: APIKeyRequest):
     """Store API key in OS keychain."""
     valid_providers = [p.value for p in Provider]
     if request.provider not in valid_providers:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown provider: {request.provider}",
+        )
 
     set_api_key(request.provider, request.api_key)
-    return {"provider": request.provider, "configured": True}
+    return ProviderKeyResponse(provider=request.provider, configured=True)
 
 
-@router.post("/llm/test")
+@router.post("/llm/test", response_model=LLMTestResponse)
 async def test_llm_connection(provider: str):
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
@@ -163,20 +278,36 @@ async def test_llm_connection(provider: str):
     try:
         request = CompletionRequest(
             system="You are a test assistant.",
-            messages=[{"role": "user", "content": 'Respond with the json object: {"status": "ok"}'}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": ('Respond with the json object: {"status": "ok"}'),
+                }
+            ],
             max_tokens=10,
             task_type=TaskType.QA,
             preferred_provider=Provider(provider),
         )
         response = await router_instance.complete(request)
-        return {"provider": provider, "status": "ok", "latency_ms": response.latency_ms}
+        return LLMTestResponse(
+            provider=provider,
+            status="ok",
+            latency_ms=response.latency_ms,
+        )
     except Exception as e:
-        return {"provider": provider, "status": "error", "error": str(e)}
+        return LLMTestResponse(
+            provider=provider,
+            status="error",
+            error=str(e),
+        )
     finally:
         router_instance.settings.llm.fallback_enabled = original_fallback
 
 
-@router.get("/llm/cost/breakdown")
+@router.get(
+    "/llm/cost/breakdown",
+    response_model=CostBreakdownResponse,
+)
 async def get_llm_cost_breakdown(
     user_id: str | None = Depends(get_current_user_id),
 ):
@@ -192,7 +323,11 @@ async def get_llm_cost_breakdown(
         total = total_result.scalar() or 0.0
 
         provider_stmt = (
-            select(CostLog.provider, func.sum(CostLog.cost_usd), func.count())
+            select(
+                CostLog.provider,
+                func.sum(CostLog.cost_usd),
+                func.count(),
+            )
             .where(CostLog.created_at >= start_of_month)
             .group_by(CostLog.provider)
         )
@@ -202,7 +337,11 @@ async def get_llm_cost_breakdown(
         provider_rows = provider_result.all()
 
         task_stmt = (
-            select(CostLog.task_type, func.sum(CostLog.cost_usd), func.count())
+            select(
+                CostLog.task_type,
+                func.sum(CostLog.cost_usd),
+                func.count(),
+            )
             .where(CostLog.created_at >= start_of_month)
             .group_by(CostLog.task_type)
         )
@@ -216,31 +355,31 @@ async def get_llm_cost_breakdown(
     month = utcnow_naive().strftime("%Y-%m")
 
     by_provider = {
-        row[0].value if hasattr(row[0], "value") else str(row[0]): {
-            "cost_usd": round(row[1] or 0.0, 4),
-            "call_count": row[2],
-        }
+        row[0].value if hasattr(row[0], "value") else str(row[0]): CostBreakdownEntry(
+            cost_usd=round(row[1] or 0.0, 4),
+            call_count=row[2],
+        )
         for row in provider_rows
     }
     by_task_type = {
-        row[0].value if hasattr(row[0], "value") else str(row[0]): {
-            "cost_usd": round(row[1] or 0.0, 4),
-            "call_count": row[2],
-        }
+        row[0].value if hasattr(row[0], "value") else str(row[0]): CostBreakdownEntry(
+            cost_usd=round(row[1] or 0.0, 4),
+            call_count=row[2],
+        )
         for row in task_rows
     }
 
-    return {
-        "month": month,
-        "total_usd": round(total, 4),
-        "budget_usd": budget,
-        "budget_pct": budget_pct,
-        "by_provider": by_provider,
-        "by_task_type": by_task_type,
-    }
+    return CostBreakdownResponse(
+        month=month,
+        total_usd=round(total, 4),
+        budget_usd=budget,
+        budget_pct=budget_pct,
+        by_provider=by_provider,
+        by_task_type=by_task_type,
+    )
 
 
-@router.get("/llm/cost")
+@router.get("/llm/cost", response_model=CostSummaryResponse)
 async def get_llm_cost(
     user_id: str | None = Depends(get_current_user_id),
 ):
@@ -255,8 +394,8 @@ async def get_llm_cost(
         total = result.scalar() or 0.0
 
     settings = get_settings()
-    return {
-        "cost_this_month_usd": round(total, 4),
-        "budget_usd": settings.llm.monthly_budget_usd,
-        "budget_remaining_usd": round(settings.llm.monthly_budget_usd - total, 4),
-    }
+    return CostSummaryResponse(
+        cost_this_month_usd=round(total, 4),
+        budget_usd=settings.llm.monthly_budget_usd,
+        budget_remaining_usd=round(settings.llm.monthly_budget_usd - total, 4),
+    )

@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, Query
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import LintFindingKind, LintReport, LintReportDetail
+from wikimind.models import (
+    DismissFindingResponse,
+    LintFindingKind,
+    LintReport,
+    LintReportDetail,
+    LintRunResponse,
+)
 from wikimind.services.linter import LinterService, get_linter_service
 
 if TYPE_CHECKING:
@@ -17,7 +23,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@router.post("/run")
+@router.post("/run", response_model=LintRunResponse)
 async def run_lint(
     service: LinterService = Depends(get_linter_service),
     user_id: str | None = Depends(get_current_user_id),
@@ -58,7 +64,10 @@ async def get_report(
     return await service.get_report(session, report_id, include_dismissed=include_dismissed)
 
 
-@router.post("/findings/{kind}/{finding_id}/dismiss")
+@router.post(
+    "/findings/{kind}/{finding_id}/dismiss",
+    response_model=DismissFindingResponse,
+)
 async def dismiss_finding(
     kind: LintFindingKind,
     finding_id: str,

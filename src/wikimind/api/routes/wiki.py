@@ -16,13 +16,18 @@ from wikimind.models import (
     ArticleSummaryResponse,
     Backlink,
     ContradictionResolution,
+    ContradictionResolutionOption,
     GraphResponse,
+    HealthSummaryResponse,
     Job,
     JobStatus,
     JobType,
     PageType,
+    RebuildConceptsResponse,
+    RecompileResponse,
     RelationType,
     ResolveContradictionRequest,
+    ResolveContradictionResponse,
 )
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
@@ -33,10 +38,16 @@ log = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("/contradiction-resolutions")
+@router.get(
+    "/contradiction-resolutions",
+    response_model=list[ContradictionResolutionOption],
+)
 async def list_contradiction_resolutions():
     """Return the valid contradiction resolution options."""
-    return [{"value": r.value, "label": r.value.replace("_", " ").title()} for r in ContradictionResolution]
+    return [
+        ContradictionResolutionOption(value=r.value, label=r.value.replace("_", " ").title())
+        for r in ContradictionResolution
+    ]
 
 
 @router.get("/articles", response_model=list[ArticleSummaryResponse])
@@ -62,7 +73,11 @@ async def list_articles(
     )
 
 
-@router.get("/articles/{id_or_slug}", response_model=ArticleResponse)
+@router.get(
+    "/articles/{id_or_slug}",
+    response_model=ArticleResponse,
+    responses={404: {"description": "Article not found"}},
+)
 async def get_article(
     id_or_slug: str,
     session: AsyncSession = Depends(get_session),
@@ -106,16 +121,43 @@ async def get_concepts(
     return await service.get_concepts(session, include_empty=include_empty, user_id=user_id)
 
 
-@router.post("/concepts/rebuild")
+@router.post("/concepts/rebuild", response_model=RebuildConceptsResponse)
 async def rebuild_concepts(
     session: AsyncSession = Depends(get_session),
 ):
     """Trigger LLM-powered taxonomy hierarchy rebuild."""
     await rebuild_taxonomy(session)
-    return {"status": "ok"}
+    return RebuildConceptsResponse(status="ok")
 
 
-@router.get("/health")
+@router.get(
+    "/concepts/{name}",
+    responses={404: {"description": "Concept not found"}},
+)
+async def get_concept(
+    name: str,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """Concept detail with linked articles."""
+    return await service.get_concept(name, session, user_id=user_id)
+
+
+@router.get("/concepts/{name}/articles", response_model=list[ArticleSummaryResponse])
+async def get_concept_articles(
+    name: str,
+    limit: int = 50,
+    offset: int = 0,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """Articles tagged with this concept."""
+    return await service.get_concept_articles(name, session, limit=limit, offset=offset, user_id=user_id)
+
+
+@router.get("/health", response_model=HealthSummaryResponse)
 async def get_health(
     session: AsyncSession = Depends(get_session),
     linter_service: LinterService = Depends(get_linter_service),
@@ -127,24 +169,26 @@ async def get_health(
     """
     try:
         detail = await linter_service.get_latest(session)
-        return {
-            "generated_at": detail.report.generated_at.isoformat() if detail.report.generated_at else None,
-            "total_articles": detail.report.article_count,
-            "total_findings": detail.report.total_findings,
-            "contradictions_count": detail.report.contradictions_count,
-            "orphans_count": detail.report.orphans_count,
-            "status": detail.report.status,
-        }
+        return HealthSummaryResponse(
+            generated_at=detail.report.generated_at,
+            total_articles=detail.report.article_count,
+            total_findings=detail.report.total_findings,
+            contradictions_count=detail.report.contradictions_count,
+            orphans_count=detail.report.orphans_count,
+            status=detail.report.status,
+        )
     except Exception:
         count_result = await session.execute(select(func.count()).select_from(Article))
-        return {
-            "generated_at": None,
-            "total_articles": count_result.scalar() or 0,
-            "message": "Run the linter to generate a health report",
-        }
+        return HealthSummaryResponse(
+            total_articles=count_result.scalar() or 0,
+            message="Run the linter to generate a health report",
+        )
 
 
-@router.post("/backlinks/{source_id}/{target_id}/resolve")
+@router.post(
+    "/backlinks/{source_id}/{target_id}/resolve",
+    response_model=ResolveContradictionResponse,
+)
 async def resolve_contradiction(
     source_id: str,
     target_id: str,
@@ -186,12 +230,12 @@ async def resolve_contradiction(
 
     await session.commit()
 
-    return {
-        "resolved": True,
-        "source_id": source_id,
-        "target_id": target_id,
-        "resolution": body.resolution,
-    }
+    return ResolveContradictionResponse(
+        resolved=True,
+        source_id=source_id,
+        target_id=target_id,
+        resolution=body.resolution,
+    )
 
 
 _VALID_RECOMPILE_MODES = {"source", "concept"}
@@ -205,7 +249,10 @@ _PAGE_TYPE_TO_MODE = {
 }
 
 
-@router.post("/articles/{article_id}/recompile")
+@router.post(
+    "/articles/{article_id}/recompile",
+    response_model=RecompileResponse,
+)
 async def recompile_article(
     article_id: str,
     mode: str | None = Query(default=None),
@@ -236,4 +283,4 @@ async def recompile_article(
     compiler = get_background_compiler()
     await compiler.schedule_recompile(article_id, effective_mode, job.id)
 
-    return {"status": "scheduled", "job_id": job.id}
+    return RecompileResponse(status="scheduled", job_id=job.id)

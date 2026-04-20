@@ -417,7 +417,7 @@ async def test_dismiss_finding_persists_and_suppresses_on_next_run(db_session, _
     svc = LinterService()
     result = await svc.dismiss_finding(db_session, LintFindingKind.CONTRADICTION, "f1")
 
-    assert result["dismissed"] is True
+    assert result.dismissed is True
 
     # Check DismissedFinding was created
     dismissed = await db_session.get(DismissedFinding, "hash123")

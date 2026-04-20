@@ -18,7 +18,7 @@ from sqlmodel import select
 from starlette.responses import FileResponse, HTMLResponse
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from wikimind.api.routes import auth, ingest, jobs, lint, query, wiki, ws
+from wikimind.api.routes import admin, auth, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
@@ -121,6 +121,17 @@ app = FastAPI(
     description="Local LLM Knowledge OS — Personal API",
     version="0.1.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "Wiki", "description": "Browse wiki articles, knowledge graph, and search"},
+        {"name": "Ingest", "description": "Ingest sources (URLs, PDFs, text, YouTube)"},
+        {"name": "Query", "description": "Ask questions against the wiki"},
+        {"name": "Jobs", "description": "Manage async compilation and linting jobs"},
+        {"name": "Lint", "description": "Wiki health audit reports and findings"},
+        {"name": "Settings", "description": "LLM provider configuration and cost tracking"},
+        {"name": "Admin", "description": "System diagnostics and maintenance"},
+        {"name": "Auth", "description": "OAuth2 authentication"},
+        {"name": "WebSocket", "description": "Real-time progress streams"},
+    ],
 )
 
 # ---------------------------------------------------------------------------
@@ -166,6 +177,7 @@ app.include_router(lint.router, prefix="/lint", tags=["Lint"])
 app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 
 # ---------------------------------------------------------------------------
 # Exception handlers — catch domain errors raised inside route handlers

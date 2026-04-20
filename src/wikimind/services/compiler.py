@@ -8,7 +8,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.jobs.background import get_background_compiler
-from wikimind.models import Job
+from wikimind.models import Job, JobTriggerResponse
 
 
 class CompilerService:
@@ -52,36 +52,36 @@ class CompilerService:
         """
         return await session.get(Job, job_id)
 
-    async def trigger_compile(self, source_id: str) -> dict[str, str]:
+    async def trigger_compile(self, source_id: str) -> JobTriggerResponse:
         """Schedule a compilation job for a source.
 
         Args:
             source_id: The source UUID to compile.
 
         Returns:
-            Dict with job_id and status.
+            JobTriggerResponse with job_id and status.
         """
         bg = get_background_compiler()
         job_id = await bg.schedule_compile(source_id)
-        return {"job_id": job_id, "status": "queued"}
+        return JobTriggerResponse(job_id=job_id, status="queued")
 
-    async def trigger_lint(self) -> dict[str, str]:
+    async def trigger_lint(self) -> JobTriggerResponse:
         """Schedule a wiki linting job.
 
         Returns:
-            Dict with job_id and status.
+            JobTriggerResponse with job_id and status.
         """
         bg = get_background_compiler()
         job_id = await bg.schedule_lint()
-        return {"job_id": job_id, "status": "queued"}
+        return JobTriggerResponse(job_id=job_id, status="queued")
 
-    async def trigger_reindex(self) -> dict[str, str]:
+    async def trigger_reindex(self) -> JobTriggerResponse:
         """Enqueue a wiki reindexing job.
 
         Returns:
-            Dict with status and message.
+            JobTriggerResponse with status and message.
         """
-        return {"status": "queued", "message": "Reindex job enqueued"}
+        return JobTriggerResponse(status="queued", message="Reindex job enqueued")
 
 
 _compiler_service: CompilerService | None = None
