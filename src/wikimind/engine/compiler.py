@@ -50,7 +50,7 @@ from wikimind.services.taxonomy import (
     upsert_concepts,
 )
 from wikimind.services.wiki_index import regenerate_index_md
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import LocalFileStorage, resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -336,7 +336,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             relation_types=self._last_typed_suggestions,
         )
 
-        relative_path = self._write_article_file(result, source, slug, resolved, unresolved)
+        relative_path = await self._write_article_file(result, source, slug, resolved, unresolved)
 
         article = Article(
             slug=slug,
@@ -416,7 +416,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             relation_types=self._last_typed_suggestions,
         )
 
-        relative_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
+        relative_path = await self._write_article_file(result, source, existing.slug, resolved, unresolved)
 
         # Delete old file only after new file is written successfully to
         # avoid data loss if the write fails (issue #183).
@@ -532,7 +532,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             candidate = f"{base}-{suffix}"
             suffix += 1
 
-    def _write_article_file(
+    async def _write_article_file(
         self,
         result: CompilationResult,
         source: Source,
@@ -545,16 +545,9 @@ Compile this into a wiki article following the JSON schema exactly."""
         Returns the wiki-relative path (e.g. ``concept-slug/article.md``)
         for storage in Article.file_path.
         """
-        wiki_dir = Path(self.settings.data_dir) / "wiki"
-        if source.user_id:
-            wiki_dir = wiki_dir / source.user_id
-
         concept = result.concepts[0] if result.concepts else "general"
         concept_slug = slugify(concept)
-        concept_dir = wiki_dir / concept_slug
-        concept_dir.mkdir(parents=True, exist_ok=True)
-
-        file_path = concept_dir / f"{slug}.md"
+        relative_path = f"{concept_slug}/{slug}.md"
 
         related_lines: list[str] = [f"- [{rb.candidate_text}](/wiki/{rb.target_id})" for rb in resolved]
         related_lines.extend(f"- [[{text}]]" for text in unresolved)
@@ -608,13 +601,16 @@ provider: {provider_str}
 - {source.title or source.source_url or "Uploaded document"} (ingested {source.ingested_at.strftime("%Y-%m-%d")})
 """
 
-        file_path.write_text(content, encoding="utf-8")
+        wiki_root = Path(self.settings.data_dir) / "wiki"
+        if source.user_id:
+            wiki_root = wiki_root / source.user_id
+        storage = LocalFileStorage(root=wiki_root)
+        await storage.write(relative_path, content)
 
         # Post-write frontmatter validation (best-effort, log warnings)
         validate_frontmatter(content)
 
-        # Return relative path for DB storage instead of absolute Path
-        return str(file_path.relative_to(wiki_dir))
+        return relative_path
 
     def _overall_confidence(self, result: CompilationResult) -> ConfidenceLevel:
         """Determine overall confidence from claims."""

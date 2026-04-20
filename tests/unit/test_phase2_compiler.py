@@ -277,14 +277,14 @@ def test_parse_frontmatter_extracts_yaml():
     assert data["page_type"] == "source"
 
 
-def test_write_article_file_includes_page_type(tmp_path):
+async def test_write_article_file_includes_page_type(tmp_path):
     with (
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
-    rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
+    rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
     full_path = Path(tmp_path) / "wiki" / rel_path
     assert full_path.exists()
     text = full_path.read_text()

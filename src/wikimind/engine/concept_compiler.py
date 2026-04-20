@@ -26,7 +26,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import LocalFileStorage, resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -283,7 +283,7 @@ class ConceptCompiler:
             await session.refresh(article)
         # Write the file AFTER DB commit — prevents orphaned DB rows
         # pointing at files that were never written (#169).
-        self._write_concept_file(compilation, concept, source_articles)
+        await self._write_concept_file(compilation, concept, source_articles)
         await self._create_synthesizes_links(article.id, source_ids, session)
         await self._create_related_to_links(article, compilation.related_concepts, session)
         return article
@@ -295,17 +295,12 @@ class ConceptCompiler:
         )
         return result.scalar_one_or_none()
 
-    def _write_concept_file(
+    async def _write_concept_file(
         self, compilation: ConceptCompilationResult, concept: Concept, source_articles: list[Article]
     ) -> str:
         """Write concept page markdown. Returns wiki-relative path."""
-        wiki_dir = Path(self.settings.data_dir) / "wiki"
-        if concept.user_id:
-            wiki_dir = wiki_dir / concept.user_id
         slug = slugify(concept.name)
-        concept_dir = wiki_dir / slug
-        concept_dir.mkdir(parents=True, exist_ok=True)
-        file_path = concept_dir / f"{slug}.md"
+        relative_path = f"{slug}/{slug}.md"
         now = utcnow_naive()
         source_ids = [a.id for a in source_articles]
         sources_lines = [f"- [{a.title}](/wiki/{a.id})" for a in source_articles]
@@ -360,8 +355,12 @@ provider: {self._last_provider_used or "unknown"}
 
 {compilation.sources_summary}
 """
-        file_path.write_text(content, encoding="utf-8")
-        return str(file_path.relative_to(wiki_dir))
+        wiki_root = Path(self.settings.data_dir) / "wiki"
+        if concept.user_id:
+            wiki_root = wiki_root / concept.user_id
+        storage = LocalFileStorage(root=wiki_root)
+        await storage.write(relative_path, content)
+        return relative_path
 
     async def _create_synthesizes_links(
         self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession
