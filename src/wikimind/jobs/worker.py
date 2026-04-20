@@ -185,7 +185,7 @@ async def compile_source(ctx, source_id: str, user_id: str | None = None):
             await emit_compilation_failed(source_id, str(e), user_id=user_id)
 
 
-async def lint_wiki(ctx, user_id: str | None = None):
+async def lint_wiki(_ctx, user_id: str | None = None):
     """Run the wiki linter to find contradictions, orphans, and gaps.
 
     Delegates to the structured ``run_lint`` pipeline. The existing
@@ -227,7 +227,7 @@ async def lint_wiki(ctx, user_id: str | None = None):
             await session.commit()
 
 
-async def recompile_article(ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):
+async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):  # noqa: C901
     """Recompile an existing article from its source or concept.
 
     Args:

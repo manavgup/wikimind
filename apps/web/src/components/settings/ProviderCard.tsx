@@ -58,9 +58,7 @@ export function ProviderCard({ name, info, isDefault, onSetKey }: ProviderCardPr
   }
 
   return (
-    <Card
-      className={`p-4 ${isDefault ? "border-l-4 border-l-brand-300" : ""}`}
-    >
+    <Card className="p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-800 capitalize">{name}</span>

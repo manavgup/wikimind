@@ -115,7 +115,7 @@ async def _sweep_single_article(
     return True
 
 
-async def sweep_wikilinks(ctx, user_id: str | None = None) -> None:
+async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
     """Walk articles' .md files, promote unresolved [[brackets]] to real links.
 
     For each article:

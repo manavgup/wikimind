@@ -1,21 +1,22 @@
 import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/auth";
 
 export default function AuthCallback() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const setToken = useAuth((s) => s.setToken);
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const token = params.get("token");
     if (token) {
       setToken(token);
       navigate("/", { replace: true });
     } else {
       navigate("/login", { replace: true });
     }
-  }, [searchParams, setToken, navigate]);
+  }, [setToken, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950">

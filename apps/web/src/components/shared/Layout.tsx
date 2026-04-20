@@ -25,7 +25,7 @@ export function Layout({ children }: LayoutProps) {
   const dismissToast = useWebSocketStore((s) => s.dismissToast);
 
   return (
-    <div className="flex h-screen w-screen bg-slate-50">
+    <div className="flex h-screen w-screen bg-slate-50 text-slate-900 antialiased">
       <aside className="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
         <Link to="/" className="flex items-center gap-2 px-5 py-5 border-b border-slate-200 cursor-pointer no-underline">
           <span className="text-xl">🧠</span>

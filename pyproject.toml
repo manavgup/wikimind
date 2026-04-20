@@ -90,6 +90,7 @@ lint = [
     "types-toml>=0.10.0",
     "bandit[toml]>=1.7",
     "vulture>=2.11",
+    "interrogate>=1.7.0",
     # Doc-sync scripts (export_openapi, check_doc_sync, etc.)
     "pyyaml>=6.0",
     "pathspec>=0.12",
@@ -115,7 +116,22 @@ select = [
     "SIM",    # flake8-simplify
     "RUF",    # ruff-specific rules
     "PL",     # pylint rules (via ruff)
+    "PLC0415", # import-outside-top-level (not enabled by default under PL)
     "D",      # pydocstyle
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "PERF",   # perflint
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "T20",    # flake8-print
+    "ISC",    # flake8-implicit-str-concat
+    "S",      # flake8-bandit (security)
+    "A",      # flake8-builtins (shadowing)
+    "DTZ",    # flake8-datetimez (naive datetime)
+    "N",      # pep8-naming
+    "PT",     # flake8-pytest-style
+    "ARG",    # flake8-unused-arguments
+    "C90",    # mccabe — cyclomatic complexity
 ]
 ignore = [
     "E501",   # line too long — handled by formatter
@@ -131,10 +147,23 @@ ignore = [
     "PLR2004", # magic value comparison — too noisy for early stage
     "PLR0915", # too many statements — some functions are legitimately long
     "PLW0603", # global statement — acceptable for singleton patterns (engine, session factory)
+    "PIE804",  # unnecessary-dict-kwargs — Pydantic uses **{"alias": ...} patterns intentionally
+    "RET504",  # unnecessary-assign — readability-first over short-circuit returns
+    "ISC001",  # single-line-implicit-string-concat — conflicts with formatter
+    "S101",   # assert — mirror [tool.bandit] skip
+    "S105",   # hardcoded password — false positives on key-name mappings (mirror bandit)
+    "A002",   # builtin-argument-shadowing — FastAPI route params named `id`/`type` are common
+    "A003",   # builtin-attribute-shadowing — SQLModel/Pydantic models define `id`/`type` fields
+    "PT011",   # pytest.raises too broad — Polars ignores this; false positives on ValueError etc.
+    "PT018",   # composite-assertion — splitting compound asserts hurts readability in tests
+    "PT019",   # fixture-param-without-value — `usefixtures` is equivalent; stylistic preference only
+    "ARG002",  # unused method argument — common for FastAPI deps and abstract method signatures
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ", "ARG"]
+"scripts/**/*.py" = ["T20", "S"]
+"alembic/**/*.py" = ["N"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]
@@ -144,6 +173,9 @@ quote-style = "double"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
 
 # ---------- Pylint ----------
 [tool.pylint.main]
@@ -175,8 +207,10 @@ match-dir = "(?!tests).*"
 [tool.mypy]
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
-warn_return_any = false
+warn_return_any = false         # Surfaces 17 legitimate `Any` propagations (SQLModel queries etc.);
+                                # deferred to a dedicated strict-mode PR that fixes them with cast().
 warn_unused_configs = true
+warn_redundant_casts = true     # Step toward strict mode (issue #217 phase 3)
 disallow_untyped_defs = false
 ignore_missing_imports = true
 check_untyped_defs = true
@@ -217,3 +251,19 @@ exclude_lines = [
 [tool.bandit]
 exclude_dirs = ["tests", "build", "dist"]
 skips = ["B101", "B105"]  # B101: assert ok; B105: false positives on key-name mappings
+
+# ---------- Interrogate (docstring coverage) ----------
+[tool.interrogate]
+# Start at 80% — ratchet up over time (issue #217 phase 4). Matches
+# pydocstyle's scope (src/wikimind only, excluding tests + migrations).
+fail-under = 80
+exclude = ["tests", "alembic", "scripts", "build", "dist"]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-private = false
+ignore-semiprivate = true
+ignore-property-decorators = false
+ignore-module = true
+quiet = false
+verbose = 1

@@ -140,7 +140,7 @@ async def test_error_handling_wikimind_error() -> None:
 
     @app.get("/boom")
     async def boom():
-        raise _MyErr()
+        raise _MyErr
 
     @app.get("/crash")
     async def crash():
