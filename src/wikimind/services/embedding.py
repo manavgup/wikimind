@@ -28,8 +28,8 @@ try:
 
     _SEARCH_AVAILABLE = True
 except ImportError:
-    _chromadb = None  # type: ignore[assignment]
-    _SentenceTransformer = None  # type: ignore[misc]
+    _chromadb = None
+    _SentenceTransformer = None
     _SEARCH_AVAILABLE = False
 
 
