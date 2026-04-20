@@ -16,6 +16,7 @@ import re
 
 import structlog
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -145,12 +146,13 @@ async def _cleanup_orphaned_concept_pages(
         # SQLAlchemy cascade conflicts with the Article delete below.
         await session.execute(
             sa_delete(Backlink).where(
-                (Backlink.source_article_id == article.id) | (Backlink.target_article_id == article.id)
+                or_(
+                    Backlink.source_article_id == article.id,
+                    Backlink.target_article_id == article.id,
+                )
             )
         )
-        await session.execute(
-            sa_delete(Article).where(Article.id == article.id)
-        )
+        await session.execute(sa_delete(Article).where(Article.id == article.id))
         cleaned += 1
         log.warning(
             "sweep: removed orphaned concept page (file missing)",
