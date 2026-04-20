@@ -19,7 +19,11 @@ workers = int(_concurrency) if _concurrency else min(2 * multiprocessing.cpu_cou
 worker_class = "uvicorn.workers.UvicornWorker"
 bind = "0.0.0.0:7842"
 
-# Docling PDF processing can take 5-10 minutes on shared CPU.
-# Default 30s timeout kills the worker mid-extraction.
-timeout = 600
-graceful_timeout = 60
+# Request timeout — balances between letting long operations complete
+# and preventing a single slow request from blocking a worker.
+# Default gunicorn timeout is 30s; we raise it to accommodate PDF
+# ingestion that can take 1-2 minutes for large documents.
+# TODO(#225): move PDF extraction to ARQ background worker so the
+# HTTP handler never blocks for more than a few seconds.
+timeout = 120
+graceful_timeout = 30
