@@ -178,6 +178,7 @@ class AuthConfig(BaseModel):
     google_client_secret: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
+    frontend_url: str = ""  # Dev override, e.g. "http://localhost:5173"
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).

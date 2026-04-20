@@ -224,9 +224,12 @@ async def callback(
     user = await _upsert_user(session, provider, user_info)
     jwt_token = _create_jwt(user, settings)
 
-    # Redirect to the frontend root with the token. The SPA's index.html
-    # loads, then AuthCallback (or App) extracts the token from the query.
-    return RedirectResponse(url=f"/#token={jwt_token}")
+    # Redirect to the frontend with the token in the URL fragment.
+    # In production the backend serves the SPA so a relative redirect works.
+    # In dev mode, the Vite server is on a different port — set
+    # WIKIMIND_AUTH__FRONTEND_URL=http://localhost:5173 to redirect there.
+    base = settings.auth.frontend_url or ""
+    return RedirectResponse(url=f"{base}/#token={jwt_token}")
 
 
 @router.get("/me")
