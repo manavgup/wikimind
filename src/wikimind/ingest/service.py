@@ -1198,7 +1198,7 @@ class IngestService:
         self.text_adapter = TextAdapter()
         self.youtube_adapter = YouTubeAdapter()
 
-    async def ingest_url(self, url: str, session: AsyncSession) -> Source:
+    async def ingest_url(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
         """Ingest a URL, routing to the appropriate adapter.
 
         Routing order:
@@ -1208,8 +1208,7 @@ class IngestService:
         3. Everything else -> URLAdapter (trafilatura HTML extraction)
         """
         if "youtube.com" in url or "youtu.be" in url:
-            source, _doc = await self.youtube_adapter.ingest(url, session)
-            return source
+            return await self.youtube_adapter.ingest(url, session)
 
         if self._looks_like_pdf_url(url):
             return await self._ingest_pdf_url(url, session)
@@ -1229,7 +1228,7 @@ class IngestService:
         path = urlparse(url).path
         return path.lower().endswith(".pdf")
 
-    async def _ingest_pdf_url(self, url: str, session: AsyncSession) -> Source:
+    async def _ingest_pdf_url(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
         """Download a PDF from *url* and delegate to :class:`PDFAdapter`."""
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
             response = await client.get(
@@ -1239,13 +1238,15 @@ class IngestService:
             response.raise_for_status()
 
         filename = Path(urlparse(url).path).name or "download.pdf"
-        source, _doc = await self.pdf_adapter.ingest(response.content, filename, session)
+        source, doc = await self.pdf_adapter.ingest(response.content, filename, session)
         source.source_url = url
         session.add(source)
         await session.commit()
-        return source
+        return source, doc
 
-    async def _ingest_html_url_with_pdf_fallback(self, url: str, session: AsyncSession) -> Source:
+    async def _ingest_html_url_with_pdf_fallback(
+        self, url: str, session: AsyncSession
+    ) -> tuple[Source, NormalizedDocument]:
         """Fetch a URL; if the response is a PDF, fall back to the PDF adapter.
 
         Some PDF URLs lack a ``.pdf`` extension (e.g. behind a CDN or
@@ -1264,26 +1265,27 @@ class IngestService:
             filename = Path(urlparse(url).path).name or "download.pdf"
             if not filename.lower().endswith(".pdf"):
                 filename += ".pdf"
-            source, _doc = await self.pdf_adapter.ingest(response.content, filename, session)
+            source, doc = await self.pdf_adapter.ingest(response.content, filename, session)
             source.source_url = url
             session.add(source)
             await session.commit()
-            return source
+            return source, doc
 
         # Normal HTML path — delegate to the URL adapter which does its
         # own fetch. We cannot easily reuse the response we already have
         # because URLAdapter.ingest() encapsulates the full fetch+extract
         # pipeline. The overhead of a second fetch is acceptable for the
         # non-PDF case.
-        source, _doc = await self.url_adapter.ingest(url, session)
-        return source
+        return await self.url_adapter.ingest(url, session)
 
-    async def ingest_pdf(self, file_bytes: bytes, filename: str, session: AsyncSession) -> Source:
+    async def ingest_pdf(
+        self, file_bytes: bytes, filename: str, session: AsyncSession
+    ) -> tuple[Source, NormalizedDocument]:
         """Ingest a PDF file."""
-        source, _doc = await self.pdf_adapter.ingest(file_bytes, filename, session)
-        return source
+        return await self.pdf_adapter.ingest(file_bytes, filename, session)
 
-    async def ingest_text(self, content: str, title: str | None, session: AsyncSession) -> Source:
+    async def ingest_text(
+        self, content: str, title: str | None, session: AsyncSession
+    ) -> tuple[Source, NormalizedDocument]:
         """Ingest raw text content."""
-        source, _doc = await self.text_adapter.ingest(content, title, session)
-        return source
+        return await self.text_adapter.ingest(content, title, session)

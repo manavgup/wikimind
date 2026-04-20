@@ -18,7 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.config import get_settings
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
-from wikimind.models import Source
+from wikimind.models import NormalizedDocument, Source
 from wikimind.services.activity_log import append_log_entry
 
 log = structlog.get_logger()
@@ -55,7 +55,7 @@ class IngestService:
             HTTPException: If ingestion fails due to invalid input or network error.
         """
         try:
-            source = await self._adapter.ingest_url(url, session)
+            source, doc = await self._adapter.ingest_url(url, session)
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -65,7 +65,7 @@ class IngestService:
         self._log_ingest(source)
 
         if auto_compile:
-            await self._schedule_compile(source)
+            await self._schedule_compile(source, doc)
         return source
 
     async def ingest_pdf(
@@ -91,14 +91,14 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        source = await self._adapter.ingest_pdf(file_bytes, filename, session)
+        source, doc = await self._adapter.ingest_pdf(file_bytes, filename, session)
         source.user_id = user_id
         session.add(source)
         await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
-            await self._schedule_compile(source)
+            await self._schedule_compile(source, doc)
         return source
 
     async def ingest_text(
@@ -124,14 +124,14 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        source = await self._adapter.ingest_text(content, title, session)
+        source, doc = await self._adapter.ingest_text(content, title, session)
         source.user_id = user_id
         session.add(source)
         await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
-            await self._schedule_compile(source)
+            await self._schedule_compile(source, doc)
         return source
 
     @staticmethod
@@ -147,7 +147,10 @@ class IngestService:
             log.warning("activity log write failed", op="ingest", source_id=source.id)
 
     @staticmethod
-    async def _schedule_compile(source: Source) -> None:
+    async def _schedule_compile(
+        source: Source,
+        doc: NormalizedDocument | None = None,
+    ) -> None:
         """Schedule background compilation, unless the source is already compiled.
 
         A content-hash dedup hit (#67) returns a Source whose ``compiled_at``
@@ -155,8 +158,14 @@ class IngestService:
         output and burn LLM tokens. We skip the enqueue in that case so the
         whole point of dedup (no wasted work) actually holds end-to-end.
 
+        When *doc* is provided, it is forwarded to the in-process compiler
+        so the worker does not need to re-read and re-chunk the source file.
+        In the ARQ (Redis) path, *doc* is not serializable and is ignored —
+        the worker falls back to reading from disk.
+
         Args:
             source: The Source returned by an adapter (new or dedup hit).
+            doc: The NormalizedDocument already produced by the adapter.
         """
         if source.compiled_at is not None:
             log.info(
@@ -166,7 +175,7 @@ class IngestService:
             )
             return
         compiler = get_background_compiler()
-        await compiler.schedule_compile(source.id, user_id=source.user_id)
+        await compiler.schedule_compile(source.id, user_id=source.user_id, doc=doc)
         log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(
