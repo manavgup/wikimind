@@ -20,9 +20,10 @@ router = APIRouter()
 @router.post("/run")
 async def run_lint(
     service: LinterService = Depends(get_linter_service),
+    user_id: str | None = Depends(get_current_user_id),
 ):
     """Trigger a new lint run. Returns immediately with status."""
-    return await service.trigger_run()
+    return await service.trigger_run(user_id=user_id)
 
 
 @router.get("/reports", response_model=list[LintReport])

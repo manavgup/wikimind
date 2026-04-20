@@ -45,7 +45,10 @@ def _make_article(
     claims: list[str] | None = None,
 ) -> Article:
     """Create an Article with a real .md file containing claims."""
-    file_path = tmp_path / f"{slug}.md"
+    # Write into the wiki directory so resolve_wiki_path can find it.
+    wiki_dir = tmp_path / "wikimind" / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    file_path = wiki_dir / f"{slug}.md"
     body_lines = [f"# {title}", ""]
     if claims:
         body_lines.append("## Key Claims")
@@ -59,7 +62,7 @@ def _make_article(
         id=article_id,
         slug=slug,
         title=title,
-        file_path=str(file_path),
+        file_path=f"{slug}.md",
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
     )
 
@@ -201,6 +204,43 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
 
     # 5 articles = 10 pairs, capped at 2
     assert mock_router.complete.call_count <= 2
+
+
+@pytest.mark.asyncio
+async def test_detect_contradictions_batch_single_dict_response(db_session, _isolated_data_dir, tmp_path) -> None:
+    """Batch parser handles an LLM response that is a bare dict with pair_index."""
+    concept = Concept(id="c1", name="testing", article_count=3)
+    db_session.add(concept)
+
+    # 3 articles → 3 pairs → triggers batch mode (len > 1)
+    for i in range(3):
+        art = _make_article(
+            tmp_path,
+            article_id=f"a{i}",
+            slug=f"article-{i}",
+            title=f"Article {i}",
+            concept_ids=["testing"],
+            claims=[f"Claim {i}"],
+        )
+        db_session.add(art)
+    await db_session.commit()
+
+    # LLM returns a single dict instead of a list — the bug scenario
+    mock_router = MagicMock()
+    mock_router.complete = AsyncMock(return_value=MagicMock())
+    mock_router.parse_json_response = MagicMock(return_value={"pair_index": 0, "contradictions": []})
+
+    settings = get_settings()
+    settings.linter.contradiction_batch_enabled = True
+    settings.linter.enable_pair_cache = False
+
+    report = LintReport(id="r1")
+    db_session.add(report)
+    await db_session.flush()
+    findings = await detect_contradictions(db_session, mock_router, settings, report)
+
+    # No contradictions returned, but the important thing is no ValueError raised
+    assert isinstance(findings, list)
 
 
 # ---------------------------------------------------------------------------
