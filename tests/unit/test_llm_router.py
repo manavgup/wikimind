@@ -36,12 +36,12 @@ from wikimind.models import (
 
 
 def _req(**kw) -> CompletionRequest:
-    base = dict(
-        system="sys",
-        messages=[{"role": "user", "content": "hi"}],
-        max_tokens=64,
-        task_type=TaskType.QA,
-    )
+    base = {
+        "system": "sys",
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 64,
+        "task_type": TaskType.QA,
+    }
     base.update(kw)
     return CompletionRequest(**base)
 

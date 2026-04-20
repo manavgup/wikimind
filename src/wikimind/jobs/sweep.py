@@ -164,7 +164,7 @@ async def _cleanup_orphaned_concept_pages(
     return cleaned
 
 
-async def sweep_wikilinks(ctx, user_id: str | None = None) -> None:
+async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
     """Walk articles' .md files, promote unresolved [[brackets]] to real links.
 
     For each article:

@@ -109,16 +109,16 @@ export function ConversationThread({
             type="button"
             onClick={onExport}
             disabled={isExporting}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
             {isExporting ? "Exporting..." : "Export markdown"}
           </button>
           <button
             type="button"
             onClick={handleToggleSelectionMode}
-            className={`rounded-lg border px-4 py-2 text-sm font-medium ${
+            className={`rounded-md border px-4 py-2 text-sm font-medium transition ${
               selectionMode
-                ? "border-blue-400 bg-blue-50 text-blue-700"
+                ? "border-brand-400 bg-brand-50 text-brand-700"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
@@ -129,7 +129,7 @@ export function ConversationThread({
               type="button"
               onClick={onSaveSelection}
               disabled={isSavingSelection}
-              className="rounded-lg border border-blue-500 bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+              className="rounded-md border border-brand-500 bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50"
             >
               {isSavingSelection
                 ? "Saving..."
@@ -170,7 +170,7 @@ function PendingTurnCard({
       </header>
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <div
-          className="h-2 w-2 animate-pulse rounded-full bg-blue-500"
+          className="h-2 w-2 animate-pulse rounded-full bg-brand-500"
           aria-hidden
         />
         <span>{isStreaming ? "Generating answer..." : "Thinking..."}</span>

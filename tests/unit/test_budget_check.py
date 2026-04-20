@@ -59,8 +59,8 @@ async def test_budget_warning_fires_at_threshold() -> None:
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_not_awaited()
-    assert router._budget_warning_sent is True
-    assert router._budget_exceeded_sent is False
+    assert router._budget_warning_sent is not None
+    assert router._budget_exceeded_sent is None
 
 
 async def test_budget_exceeded_fires_at_100pct() -> None:
@@ -76,8 +76,8 @@ async def test_budget_exceeded_fires_at_100pct() -> None:
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_awaited_once()
-    assert router._budget_warning_sent is True
-    assert router._budget_exceeded_sent is True
+    assert router._budget_warning_sent is not None
+    assert router._budget_exceeded_sent is not None
 
 
 async def test_warning_fires_only_once() -> None:
@@ -128,7 +128,7 @@ async def test_cache_prevents_requery_within_ttl() -> None:
         first_call_count = session.execute.await_count
         # Reset warning flag so second call doesn't short-circuit at the top,
         # but cache is still valid so no DB query should happen.
-        router._budget_warning_sent = False
+        router._budget_warning_sent = None
         await router._check_budget()
 
     # session.execute should not have been called again
@@ -148,14 +148,14 @@ async def test_below_threshold_no_events() -> None:
 
     mock_warn.assert_not_awaited()
     mock_exceeded.assert_not_awaited()
-    assert router._budget_warning_sent is False
-    assert router._budget_exceeded_sent is False
+    assert router._budget_warning_sent is None
+    assert router._budget_exceeded_sent is None
 
 
 async def test_both_flags_set_returns_early_without_query() -> None:
     router = _make_router()
-    router._budget_warning_sent = True
-    router._budget_exceeded_sent = True
+    router._budget_warning_sent = (2026, 4)
+    router._budget_exceeded_sent = (2026, 4)
     factory = _mock_session_factory(spend=999.0)
 
     with patch.object(llm_router_mod, "get_session_factory", return_value=factory):

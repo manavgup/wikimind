@@ -15,7 +15,7 @@ export function ConversationHistory({ conversations, activeId }: Props) {
         </h2>
         <Link
           to="/ask"
-          className="text-xs font-medium text-blue-600 hover:underline"
+          className="text-xs font-medium text-brand-600 hover:underline"
         >
           + New
         </Link>
@@ -28,8 +28,10 @@ export function ConversationHistory({ conversations, activeId }: Props) {
             <li key={c.id}>
               <Link
                 to={`/ask/${c.id}`}
-                className={`block rounded px-2 py-2 text-sm hover:bg-slate-100 ${
-                  c.id === activeId ? "bg-slate-100 font-medium" : ""
+                className={`block rounded-md px-2 py-2 text-sm transition ${
+                  c.id === activeId
+                    ? "bg-brand-50 font-medium"
+                    : "hover:bg-slate-100"
                 }`}
               >
                 <div className="flex items-center gap-1.5 truncate">

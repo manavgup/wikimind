@@ -113,7 +113,7 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
     if article.page_type == "source":
         concept_ids: list[str] = []
         if article.concept_ids:
-            with contextlib.suppress(TypeError, ValueError):
+            with contextlib.suppress(TypeError, json.JSONDecodeError):
                 concept_ids = json.loads(article.concept_ids)
         if not concept_ids:
             msg = f"Source page '{article.title}' has no concepts in concept_ids"

@@ -77,7 +77,7 @@ export function PdfViewer({ url }: PdfViewerProps) {
       )}
       <div ref={containerRef} className="p-4" />
       {!loading && pageCount > 0 && (
-        <div className="sticky bottom-0 bg-white/80 px-4 py-2 text-center text-xs text-slate-500 backdrop-blur">
+        <div className="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-2 text-center text-xs text-slate-500">
           {pageCount} page{pageCount !== 1 ? "s" : ""}
         </div>
       )}

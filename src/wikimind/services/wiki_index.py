@@ -67,7 +67,7 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: PLR0912
+async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
@@ -141,22 +141,21 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: PLR0912
     concept_page_articles = [a for a in articles if a.page_type == PageType.CONCEPT]
     if concept_page_articles:
         lines.append("## Concept Pages\n\n")
-        for article in sorted(concept_page_articles, key=lambda a: a.slug):
-            lines.append(_article_entry(article))
+        lines.extend(_article_entry(article) for article in sorted(concept_page_articles, key=lambda a: a.slug))
         lines.append("\n")
 
     # Concepts sorted alphabetically
     for concept_name in sorted(concept_articles):
         lines.append(f"## {concept_name}\n\n")
-        for article in sorted(concept_articles[concept_name], key=lambda a: a.slug):
-            lines.append(_article_entry(article))
+        lines.extend(
+            _article_entry(article) for article in sorted(concept_articles[concept_name], key=lambda a: a.slug)
+        )
         lines.append("\n")
 
     # Uncategorized section at the bottom
     if uncategorized:
         lines.append("## Uncategorized\n\n")
-        for article in sorted(uncategorized, key=lambda a: a.slug):
-            lines.append(_article_entry(article))
+        lines.extend(_article_entry(article) for article in sorted(uncategorized, key=lambda a: a.slug))
         lines.append("\n")
 
     index_path.write_text("".join(lines), encoding="utf-8")

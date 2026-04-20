@@ -54,7 +54,7 @@ class AnthropicConfig(LLMProviderConfig):
     """Anthropic provider defaults."""
 
     model: str = "claude-sonnet-4-5"
-    enabled: bool = True
+    enabled: bool = False
 
 
 class OpenAIConfig(LLMProviderConfig):
@@ -178,6 +178,7 @@ class AuthConfig(BaseModel):
     google_client_secret: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
+    frontend_url: str = ""  # Dev override, e.g. "http://localhost:5173"
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
@@ -288,8 +289,17 @@ class Settings(BaseSettings):
             parsed = urlparse(raw)
             params = parse_qs(parsed.query)
             sslmode = params.pop("sslmode", [None])[0]
-            if sslmode == "disable" and "ssl" not in params:
-                params["ssl"] = ["disable"]
+            if sslmode is not None and "ssl" not in params:
+                if sslmode == "disable":
+                    pass  # no ssl param needed — asyncpg default is no-SSL
+                elif sslmode in ("require", "verify-ca", "verify-full"):
+                    params["ssl"] = [sslmode]
+                else:
+                    log.warning(
+                        "Unhandled sslmode value — passing through as ssl",
+                        sslmode=sslmode,
+                    )
+                    params["ssl"] = [sslmode]
             raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
             self.database_url = raw
         return self
