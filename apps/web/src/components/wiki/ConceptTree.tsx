@@ -76,6 +76,19 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
           <div className="text-xs text-rose-600">Failed to load concepts</div>
         ) : (
           <>
+            {/* All articles link — always visible at top */}
+            <button
+              type="button"
+              onClick={() => { onSelectConcept(null); navigate("/wiki"); }}
+              className={`mb-3 w-full rounded px-2 py-1.5 text-left text-sm font-medium transition ${
+                activeConcept === null
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              All articles
+            </button>
+
             {/* Concept Pages section */}
             {conceptPages.length > 0 && (
               <div className="mb-3">
@@ -114,20 +127,6 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
               <div className="text-xs text-slate-400">No matching concepts</div>
             ) : (
               <ul className="space-y-0.5">
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => { onSelectConcept(null); navigate("/wiki"); }}
-                    className={`w-full rounded px-2 py-1 text-left text-sm transition ${
-                      activeConcept === null
-                        ? "bg-brand-50 font-medium text-brand-700"
-                        : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    All articles
-                  </button>
-                </li>
-                <li className="my-1 border-t border-slate-200" />
                 {filtered.map((node) => (
                   <ConceptItem
                     key={node.id}

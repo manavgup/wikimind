@@ -46,49 +46,10 @@ export function SettingsView() {
     );
   }
 
-  const providerCount = Object.keys(settings.llm.providers).length;
-  const configuredCount = Object.values(settings.llm.providers).filter(
-    (p) => p.configured,
-  ).length;
-
   return (
     <div className="h-full overflow-y-auto">
-      {/* Gradient header */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-6">
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <div className="mt-3 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg bg-white/10 px-4 py-3 backdrop-blur">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-300">
-              Providers
-            </p>
-            <p className="mt-0.5 text-xl font-bold text-white">
-              {configuredCount}
-              <span className="text-sm font-normal text-slate-400">
-                {" "}/ {providerCount}
-              </span>
-            </p>
-          </div>
-          <div className="rounded-lg bg-white/10 px-4 py-3 backdrop-blur">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-300">
-              Default
-            </p>
-            <p className="mt-0.5 text-xl font-bold capitalize text-white">
-              {settings.llm.default_provider}
-            </p>
-          </div>
-          <div className="rounded-lg bg-white/10 px-4 py-3 backdrop-blur">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-300">
-              Budget
-            </p>
-            <p className="mt-0.5 text-xl font-bold text-white">
-              ${settings.llm.monthly_budget_usd.toFixed(2)}
-              <span className="text-sm font-normal text-slate-400"> /mo</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="p-6">
+        <h1 className="mb-6 text-2xl font-bold text-slate-900">Settings</h1>
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">LLM Providers</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
