@@ -119,12 +119,12 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
 /*  RecompileButton                                                    */
 /* ------------------------------------------------------------------ */
 
-function RecompileButton({ articleId }: { articleId: string }) {
+function RecompileButton({ articleId, mode }: { articleId: string; mode?: "source" | "concept" }) {
   const [scheduled, setScheduled] = useState(false);
   const lastEvent = useWebSocketStore((s) => s.lastEvent);
 
   const recompile = useMutation({
-    mutationFn: () => recompileArticle(articleId),
+    mutationFn: () => recompileArticle(articleId, mode),
     onSuccess: () => setScheduled(true),
   });
 
@@ -206,6 +206,10 @@ function ContradictionActions({
   finding: LintContradictionFinding;
   resolution?: string;
 }) {
+  // When resolved, target the concept page for recompile since that is where
+  // the resolution is synthesized.
+  const recompileMode = resolution ? "concept" as const : undefined;
+
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <Link
@@ -220,7 +224,7 @@ function ContradictionActions({
       >
         View Article B
       </Link>
-      <RecompileButton articleId={finding.article_a_id} />
+      <RecompileButton articleId={finding.article_a_id} mode={recompileMode} />
       <ResolveDropdown finding={finding} resolution={resolution} />
     </div>
   );

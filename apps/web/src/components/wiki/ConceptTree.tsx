@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useConcepts } from "../../hooks/useArticles";
+import { Link, useNavigate } from "react-router-dom";
+import { useConcepts, useArticles } from "../../hooks/useArticles";
 import type { Concept } from "../../types/api";
 import { Spinner } from "../shared/Spinner";
 
@@ -35,6 +35,7 @@ interface ConceptTreeProps {
 export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps) {
   const navigate = useNavigate();
   const conceptsQuery = useConcepts();
+  const conceptPagesQuery = useArticles({ page_type: "concept" });
   const [search, setSearch] = useState("");
 
   const tree = useMemo(
@@ -48,12 +49,14 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
     [tree, query],
   );
 
+  const conceptPages = useMemo(() => {
+    const pages = conceptPagesQuery.data ?? [];
+    if (!query) return pages;
+    return pages.filter((p) => p.title.toLowerCase().includes(query));
+  }, [conceptPagesQuery.data, query]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden p-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Concepts
-      </h2>
-
       <div className="mb-3">
         <input
           type="search"
@@ -71,37 +74,72 @@ export function ConceptTree({ activeConcept, onSelectConcept }: ConceptTreeProps
           </div>
         ) : conceptsQuery.isError ? (
           <div className="text-xs text-rose-600">Failed to load concepts</div>
-        ) : filtered.length === 0 && !query ? (
-          <div className="text-xs text-slate-400">No concepts yet</div>
-        ) : filtered.length === 0 && query ? (
-          <div className="text-xs text-slate-400">No matching concepts</div>
         ) : (
-          <ul className="space-y-0.5">
-            <li>
-              <button
-                type="button"
-                onClick={() => { onSelectConcept(null); navigate("/wiki"); }}
-                className={`w-full rounded px-2 py-1 text-left text-sm transition ${
-                  activeConcept === null
-                    ? "bg-brand-50 font-medium text-brand-700"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                All articles
-              </button>
-            </li>
-            <li className="my-1 border-t border-slate-200" />
-            {filtered.map((node) => (
-              <ConceptItem
-                key={node.id}
-                node={node}
-                activeConcept={activeConcept}
-                onSelect={onSelectConcept}
-                depth={0}
-                searchQuery={query}
-              />
-            ))}
-          </ul>
+          <>
+            {/* All articles link — always visible at top */}
+            <button
+              type="button"
+              onClick={() => { onSelectConcept(null); navigate("/wiki"); }}
+              className={`mb-3 w-full rounded px-2 py-1.5 text-left text-sm font-medium transition ${
+                activeConcept === null
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              All articles
+            </button>
+
+            {/* Concept Pages section */}
+            {conceptPages.length > 0 && (
+              <div className="mb-3">
+                <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                  </svg>
+                  Concept Pages
+                </h2>
+                <ul className="space-y-0.5">
+                  {conceptPages.map((page) => (
+                    <li key={page.id}>
+                      <Link
+                        to={`/wiki/${encodeURIComponent(page.slug)}`}
+                        className="flex items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-brand-700 transition hover:bg-brand-50"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-brand-100 text-xs text-brand-600">
+                          C
+                        </span>
+                        <span className="truncate">{page.title}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <div className="my-3 border-t border-slate-200" />
+              </div>
+            )}
+
+            {/* Concept taxonomy tree */}
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Topics
+            </h2>
+            {filtered.length === 0 && !query ? (
+              <div className="text-xs text-slate-400">No concepts yet</div>
+            ) : filtered.length === 0 && query ? (
+              <div className="text-xs text-slate-400">No matching concepts</div>
+            ) : (
+              <ul className="space-y-0.5">
+                {filtered.map((node) => (
+                  <ConceptItem
+                    key={node.id}
+                    node={node}
+                    activeConcept={activeConcept}
+                    onSelect={onSelectConcept}
+                    depth={0}
+                    searchQuery={query}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </div>
