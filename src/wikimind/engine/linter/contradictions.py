@@ -540,8 +540,8 @@ async def detect_contradictions(
 
     tasks = [
         _check_concept(
-            concept_id,  # type: ignore[arg-type]
-            concept_name,  # type: ignore[arg-type]
+            concept_id,
+            concept_name,
             pairs,
             session,
             router,

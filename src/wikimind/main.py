@@ -114,7 +114,7 @@ app.add_middleware(CorrelationIdMiddleware)
 # request.url_for() generates https:// URLs for OAuth redirect URIs.
 # trusted_hosts=["*"] is acceptable because Fly.io's edge proxy strips/overrides
 # X-Forwarded-* headers before forwarding to the app.
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])  # type: ignore[arg-type]
 
 # Allow Electron renderer and web dev server to connect
 app.add_middleware(

@@ -1124,7 +1124,7 @@ class YouTubeAdapter:
         # Fetch transcript — offload the synchronous HTTP call to a thread
         # so it doesn't block the uvicorn event loop (issue #181).
         transcript_list = await asyncio.to_thread(
-            YouTubeTranscriptApi.get_transcript,  # type: ignore[attr-defined]
+            YouTubeTranscriptApi.get_transcript,
             video_id,
         )
         transcript_text = " ".join([t["text"] for t in transcript_list])
