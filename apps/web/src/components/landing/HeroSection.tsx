@@ -4,191 +4,237 @@ interface HeroSectionProps {
 
 export function HeroSection({ onSignIn }: HeroSectionProps) {
   return (
-    <section className="relative overflow-hidden px-4 pb-24 pt-16 sm:px-6 lg:px-8">
-      {/* Grid background pattern */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, #71717a 1px, transparent 1px), linear-gradient(to bottom, #71717a 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
-      {/* Radial gradient overlay */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(70,115,173,0.12)_0%,_transparent_70%)]" />
+    <header className="border-b border-slate-200 py-[80px] pb-[64px]" id="top">
+      <div className="mx-auto max-w-[1120px] px-8">
+        <div
+          className="mt-[56px] grid items-start gap-12"
+          style={{ gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)" }}
+        >
+          {/* Left column */}
+          <div>
+            <span
+              className="inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-2.5 py-[5px] text-[11px] font-semibold uppercase text-brand-700"
+              style={{ letterSpacing: "0.08em" }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              v0.4 · the LLM maintains it
+            </span>
 
-      <div className="relative mx-auto max-w-5xl text-center">
-        {/* Tag line */}
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-4 py-1.5 text-xs font-medium text-zinc-400">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-500" />
-          Personal knowledge OS
-        </div>
+            <h1
+              className="mt-6 font-bold text-slate-900"
+              style={{
+                fontSize: "clamp(40px, 6.4vw, 76px)",
+                lineHeight: "1.02",
+                letterSpacing: "-0.025em",
+                textWrap: "balance",
+                maxWidth: "14ch",
+              }}
+            >
+              you never write the wiki.
+              <br />
+              you <em className="font-serif-italic font-normal text-brand-700">feed</em> it.
+            </h1>
 
-        <h1 className="text-4xl font-bold leading-tight tracking-tight text-zinc-50 sm:text-5xl lg:text-6xl">
-          Your second brain,
-          <br />
-          <span className="bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent">
-            compiled by AI
-          </span>
-        </h1>
+            <p
+              className="mt-6 text-[19px] text-slate-700"
+              style={{ lineHeight: "1.55", maxWidth: "58ch", textWrap: "pretty" }}
+            >
+              WikiMind is a personal knowledge OS. Drop in articles, papers, PDFs, YouTube links,
+              or podcasts — an LLM compiles them into a living, cross&#x2011;linked wiki that keeps
+              getting richer as you read. Ask anything. File good answers back.
+            </p>
 
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400 sm:text-xl">
-          Ingest any source. The LLM compiler distills it into a structured wiki.
-          Ask questions answered from your knowledge, not the internet.
-        </p>
+            <div className="mt-8 flex flex-wrap gap-3 text-[13px] text-slate-500">
+              <span className="neg-mark inline-flex items-center">not a note app</span>
+              <span className="text-slate-300 mx-0.5">·</span>
+              <span className="neg-mark inline-flex items-center">not a chatbot</span>
+              <span className="text-slate-300 mx-0.5">·</span>
+              <span className="neg-mark inline-flex items-center">not a RAG tool</span>
+            </div>
 
-        {/* CTA buttons */}
-        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <button
-            type="button"
-            onClick={onSignIn}
-            className="rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onSignIn}
+                className="inline-flex items-center gap-1.5 rounded-md border border-transparent bg-brand-700 px-[18px] py-2.5 text-[14px] font-medium text-white transition-colors duration-100 hover:bg-brand-800"
+              >
+                Open the wiki
+                <span className="transition-transform duration-100 group-hover:translate-x-0.5">
+                  →
+                </span>
+              </button>
+              <a
+                href="#how"
+                className="inline-flex items-center rounded-md border border-slate-300 bg-white px-[18px] py-2.5 text-[14px] font-medium text-slate-700 transition-colors duration-100 hover:border-brand-300 hover:text-slate-900"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById("how")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                See how it works
+              </a>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-6 text-[12px] text-slate-500">
+              <div className="flex items-center gap-1.5">
+                local&#x2011;first · your data stays on disk
+              </div>
+              <div className="flex items-center gap-1.5">
+                bring your own LLM ·{" "}
+                <code
+                  className="rounded bg-slate-100 px-1.5 py-[1px] text-[11px] text-slate-900"
+                  style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+                >
+                  GPT
+                </code>{" "}
+                <code
+                  className="rounded bg-slate-100 px-1.5 py-[1px] text-[11px] text-slate-900"
+                  style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+                >
+                  Claude
+                </code>{" "}
+                <code
+                  className="rounded bg-slate-100 px-1.5 py-[1px] text-[11px] text-slate-900"
+                  style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+                >
+                  Ollama
+                </code>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column — three-layer architecture diagram */}
+          <div
+            className="rounded-xl border border-slate-200 bg-white p-4"
+            style={{ boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 16px -8px rgb(31 50 81 / 0.10)" }}
+            aria-label="Three layers of WikiMind"
           >
-            Sign in
-          </button>
-          <button
-            type="button"
-            onClick={onSignIn}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-3 text-sm font-semibold text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 focus:ring-offset-2 focus:ring-offset-zinc-950"
-          >
-            Open the wiki
-          </button>
-        </div>
+            {/* Diagram header */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-1 pb-3.5">
+              <span
+                className="text-[11px] font-medium uppercase text-slate-400"
+                style={{ letterSpacing: "0.04em" }}
+              >
+                Architecture · three layers
+              </span>
+              <span className="flex gap-1.5">
+                <span className="h-[9px] w-[9px] rounded-full bg-slate-200" />
+                <span className="h-[9px] w-[9px] rounded-full bg-slate-200" />
+                <span className="h-[9px] w-[9px] rounded-full bg-slate-200" />
+              </span>
+            </div>
 
-        {/* Architecture diagram */}
-        <div className="mx-auto mt-16 max-w-3xl">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur sm:p-8">
-            <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-0">
-              {/* Sources */}
-              <div className="flex-1 text-center">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Sources
+            {/* Layer stack */}
+            <div className="flex flex-col gap-2.5 px-1 pt-4 pb-1">
+              {/* Layer 01 — Raw sources */}
+              <div className="flex items-center gap-3.5 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
+                <span
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] font-semibold text-slate-600"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  01
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold leading-snug text-slate-900">
+                    Raw sources
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-slate-500" style={{ lineHeight: "1.45" }}>
+                    PDFs, URLs, videos, transcripts. Immutable. Never modified.
+                  </div>
                 </div>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {["PDF", "URL", "YouTube", "Text"].map((src) => (
-                    <span
-                      key={src}
-                      className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-mono text-zinc-300"
+                <span
+                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}
+                >
+                  you own
+                </span>
+              </div>
+
+              {/* Arrow */}
+              <div className="-my-1 flex items-center justify-center text-slate-300">
+                <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
+                  <path
+                    d="M6 1v12m-4-4l4 4 4-4"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              {/* Layer 02 — The wiki */}
+              <div className="flex items-center gap-3.5 rounded-lg border border-brand-100 bg-brand-50 px-4 py-3.5">
+                <span
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-brand-100 text-[10px] font-semibold text-brand-700"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  02
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold leading-snug text-slate-900">
+                    The wiki · the compounding artifact
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-slate-500" style={{ lineHeight: "1.45" }}>
+                    Markdown pages: summaries, entities, concepts, comparisons. Rewritten with every
+                    ingest.
+                  </div>
+                </div>
+                <span
+                  className="rounded border border-brand-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-brand-700"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}
+                >
+                  LLM owns
+                </span>
+              </div>
+
+              {/* Arrow */}
+              <div className="-my-1 flex items-center justify-center text-slate-300">
+                <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
+                  <path
+                    d="M6 1v12m-4-4l4 4 4-4"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              {/* Layer 03 — The schema */}
+              <div className="flex items-center gap-3.5 rounded-lg border border-slate-200 bg-white px-4 py-3.5">
+                <span
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] font-semibold text-slate-600"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  03
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold leading-snug text-slate-900">
+                    The schema
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-slate-500" style={{ lineHeight: "1.45" }}>
+                    A{" "}
+                    <code
+                      className="rounded bg-slate-100 px-[5px] py-[1px] text-[11px] text-slate-900"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
                     >
-                      {src}
-                    </span>
-                  ))}
+                      CLAUDE.md
+                    </code>{" "}
+                    that tells the LLM how your wiki is organised. You co&#x2011;evolve it.
+                  </div>
                 </div>
-              </div>
-
-              {/* Arrow */}
-              <div className="flex items-center px-4 text-zinc-600">
-                <svg
-                  className="hidden h-5 w-12 sm:block"
-                  viewBox="0 0 48 20"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+                <span
+                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.02em" }}
                 >
-                  <path
-                    d="M0 10H44M44 10L36 2M44 10L36 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <svg
-                  className="block h-12 w-5 sm:hidden"
-                  viewBox="0 0 20 48"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M10 0V44M10 44L2 36M10 44L18 36"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-
-              {/* Compiler */}
-              <div className="flex-1 text-center">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  LLM Compiler
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-lg border border-brand-800/50 bg-brand-900/30 px-4 py-2 text-sm font-semibold text-brand-400">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
-                    />
-                  </svg>
-                  Compile
-                </div>
-              </div>
-
-              {/* Arrow */}
-              <div className="flex items-center px-4 text-zinc-600">
-                <svg
-                  className="hidden h-5 w-12 sm:block"
-                  viewBox="0 0 48 20"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M0 10H44M44 10L36 2M44 10L36 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <svg
-                  className="block h-12 w-5 sm:hidden"
-                  viewBox="0 0 20 48"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M10 0V44M10 44L2 36M10 44L18 36"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-
-              {/* Wiki */}
-              <div className="flex-1 text-center">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Knowledge Wiki
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-800/50 bg-emerald-900/30 px-4 py-2 text-sm font-semibold text-emerald-400">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
-                    />
-                  </svg>
-                  Wiki
-                </div>
+                  co&#x2011;owned
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </header>
   );
 }

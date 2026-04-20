@@ -1,205 +1,161 @@
-import { useEffect, useRef } from "react";
-
-interface GraphNode {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  label: string;
-  radius: number;
-}
-
-interface GraphEdge {
-  from: number;
-  to: number;
-}
-
-const NODE_LABELS = [
-  "Attention",
-  "Transformer",
-  "BERT",
-  "GPT",
-  "Embedding",
-  "Self-Attention",
-  "Tokenizer",
-  "Fine-tuning",
-  "Loss",
-  "Gradient",
-  "Backprop",
-  "ReLU",
-];
-
-const EDGES: GraphEdge[] = [
-  { from: 0, to: 1 },
-  { from: 0, to: 5 },
-  { from: 1, to: 2 },
-  { from: 1, to: 3 },
-  { from: 1, to: 4 },
-  { from: 2, to: 7 },
-  { from: 3, to: 7 },
-  { from: 4, to: 6 },
-  { from: 7, to: 8 },
-  { from: 8, to: 9 },
-  { from: 9, to: 10 },
-  { from: 10, to: 11 },
-  { from: 5, to: 4 },
-  { from: 3, to: 6 },
-];
-
-function KnowledgeGraphCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nodesRef = useRef<GraphNode[]>([]);
-  const frameRef = useRef<number>(0);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-
-    // Initialize nodes in a rough circle
-    if (nodesRef.current.length === 0) {
-      nodesRef.current = NODE_LABELS.map((label, i) => {
-        const angle = (i / NODE_LABELS.length) * Math.PI * 2;
-        const r = Math.min(w, h) * 0.3;
-        return {
-          x: w / 2 + Math.cos(angle) * r + (Math.random() - 0.5) * 40,
-          y: h / 2 + Math.sin(angle) * r + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          label,
-          radius: 4 + Math.random() * 2,
-        };
-      });
-    }
-
-    const nodes = nodesRef.current;
-
-    function animate() {
-      if (!ctx) return;
-      ctx.clearRect(0, 0, w, h);
-
-      // Gentle drift
-      for (const node of nodes) {
-        node.x += node.vx;
-        node.y += node.vy;
-
-        // Bounce off edges
-        if (node.x < 30 || node.x > w - 30) node.vx *= -1;
-        if (node.y < 20 || node.y > h - 20) node.vy *= -1;
-
-        // Keep in bounds
-        node.x = Math.max(30, Math.min(w - 30, node.x));
-        node.y = Math.max(20, Math.min(h - 20, node.y));
-      }
-
-      // Draw edges
-      for (const edge of EDGES) {
-        const a = nodes[edge.from];
-        const b = nodes[edge.to];
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = "rgba(70, 115, 173, 0.15)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      // Draw nodes
-      for (const node of nodes) {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(70, 115, 173, 0.6)";
-        ctx.fill();
-
-        ctx.font = "10px 'JetBrains Mono', monospace";
-        ctx.fillStyle = "rgba(161, 161, 170, 0.7)";
-        ctx.textAlign = "center";
-        ctx.fillText(node.label, node.x, node.y + node.radius + 12);
-      }
-
-      frameRef.current = requestAnimationFrame(animate);
-    }
-
-    frameRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="h-full w-full"
-      style={{ width: "100%", height: "100%" }}
-    />
-  );
-}
-
-const LINEAGE = [
-  { year: "1945", name: "Memex", detail: "Vannevar Bush" },
-  { year: "1963", name: "Hypertext", detail: "Ted Nelson" },
-  { year: "1995", name: "Wiki", detail: "Ward Cunningham" },
-  { year: "2024", name: "WikiMind", detail: "LLM-compiled" },
-];
-
 export function MemexSection() {
   return (
-    <section className="border-t border-zinc-900 bg-zinc-900/40 px-4 py-20 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-4 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Lineage
-        </div>
-        <h2 className="mb-4 text-center text-2xl font-bold text-zinc-100 sm:text-3xl">
-          From Memex to WikiMind
-        </h2>
-        <p className="mx-auto mb-12 max-w-2xl text-center text-sm leading-relaxed text-zinc-400">
-          In 1945, Vannevar Bush imagined the Memex &mdash; a device for storing and
-          cross-referencing all human knowledge. Eight decades later, the LLM compiler
-          makes that vision real: ingest anything, link everything, retrieve instantly.
-        </p>
-
-        {/* Timeline */}
-        <div className="mb-12 flex flex-wrap items-center justify-center gap-4">
-          {LINEAGE.map((item, i) => (
-            <div key={item.year} className="flex items-center gap-4">
-              <div className="text-center">
-                <div className="font-mono text-xs text-zinc-500">{item.year}</div>
-                <div className="text-sm font-semibold text-zinc-300">{item.name}</div>
-                <div className="text-xs text-zinc-500">{item.detail}</div>
-              </div>
-              {i < LINEAGE.length - 1 && (
-                <svg
-                  className="h-4 w-4 text-zinc-700"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                  />
-                </svg>
-              )}
+    <section className="border-b border-slate-200 bg-slate-50 py-20" id="memex">
+      <div className="mx-auto max-w-[1120px] px-8">
+        <div className="grid items-start gap-16" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+          {/* Left — text */}
+          <div>
+            <div
+              className="text-[11px] font-semibold uppercase text-brand-700"
+              style={{ letterSpacing: "0.08em" }}
+            >
+              the lineage
             </div>
-          ))}
-        </div>
+            <h2
+              className="mt-3 font-bold text-slate-900"
+              style={{
+                fontSize: "clamp(28px, 3.6vw, 42px)",
+                lineHeight: "1.1",
+                letterSpacing: "-0.02em",
+                textWrap: "balance",
+                maxWidth: "18ch",
+              }}
+            >
+              A Memex that maintains itself.
+            </h2>
+            <p className="mt-5 text-[16px] text-slate-700" style={{ lineHeight: "1.65", maxWidth: "58ch" }}>
+              In 1945 Vannevar Bush described the Memex — a personal, curated store of documents
+              linked by associative trails. Private. Actively maintained. With the connections
+              between documents as valuable as the documents themselves.
+            </p>
+            <p className="text-[16px] text-slate-700" style={{ lineHeight: "1.65", maxWidth: "58ch" }}>
+              The part he couldn&#x2019;t solve was{" "}
+              <em>who does the maintenance.</em> Wikis answered it with volunteers, and fizzled at
+              personal scale. WikiMind answers it differently: the LLM does it. The cost of upkeep
+              falls to near zero. The wiki stays alive.
+            </p>
+            <p
+              className="mt-6 text-[13px] text-slate-400"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              → bush, 1945 · &#x201c;as we may think&#x201d; · atlantic monthly
+            </p>
+          </div>
 
-        {/* Knowledge graph canvas */}
-        <div className="mx-auto h-64 max-w-2xl overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80 sm:h-72">
-          <KnowledgeGraphCanvas />
+          {/* Right — knowledge graph SVG */}
+          <div>
+            <svg
+              viewBox="0 0 420 340"
+              xmlns="http://www.w3.org/2000/svg"
+              className="block w-full"
+              style={{
+                height: "auto",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                background: "#fff",
+                padding: "12px",
+                boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
+              }}
+              aria-label="Knowledge graph sketch"
+            >
+              <defs>
+                <marker
+                  id="arr"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L10,5 L0,10 Z" fill="#cbd5e1" />
+                </marker>
+              </defs>
+              {/* Edges */}
+              <g stroke="#cbd5e1" strokeWidth="1" fill="none">
+                <line x1="110" y1="90" x2="210" y2="70" />
+                <line x1="210" y1="70" x2="320" y2="110" />
+                <line x1="210" y1="70" x2="170" y2="180" />
+                <line x1="170" y1="180" x2="80" y2="230" />
+                <line x1="170" y1="180" x2="290" y2="200" />
+                <line x1="290" y1="200" x2="320" y2="110" />
+                <line x1="290" y1="200" x2="340" y2="280" />
+                <line x1="80" y1="230" x2="150" y2="290" />
+                <line x1="150" y1="290" x2="280" y2="300" />
+                <line x1="280" y1="300" x2="340" y2="280" />
+                <line x1="110" y1="90" x2="170" y2="180" />
+              </g>
+              {/* Nodes */}
+              <g fontFamily="Inter, sans-serif" fontSize="11" fill="#1e293b">
+                <g>
+                  <circle cx="110" cy="90" r="22" fill="#e6eef7" stroke="#9bb7d8" />
+                  <text x="110" y="94" textAnchor="middle">
+                    Rust
+                  </text>
+                </g>
+                <g>
+                  <circle cx="210" cy="70" r="26" fill="#4673ad" stroke="#2b4876" />
+                  <text x="210" y="74" textAnchor="middle" fill="#fff" fontWeight="600">
+                    Borrow checker
+                  </text>
+                </g>
+                <g>
+                  <circle cx="320" cy="110" r="20" fill="#fff" stroke="#cbd5e1" />
+                  <text x="320" y="114" textAnchor="middle">
+                    Send/Sync
+                  </text>
+                </g>
+                <g>
+                  <circle cx="170" cy="180" r="24" fill="#e6eef7" stroke="#9bb7d8" />
+                  <text x="170" y="184" textAnchor="middle">
+                    Concurrency
+                  </text>
+                </g>
+                <g>
+                  <circle cx="80" cy="230" r="18" fill="#fff" stroke="#cbd5e1" />
+                  <text x="80" y="234" textAnchor="middle">
+                    Raft
+                  </text>
+                </g>
+                <g>
+                  <circle cx="290" cy="200" r="20" fill="#fff" stroke="#cbd5e1" />
+                  <text x="290" y="204" textAnchor="middle">
+                    Arc/Mutex
+                  </text>
+                </g>
+                <g>
+                  <circle cx="150" cy="290" r="18" fill="#fff" stroke="#cbd5e1" />
+                  <text x="150" y="294" textAnchor="middle">
+                    Paxos
+                  </text>
+                </g>
+                <g>
+                  <circle cx="280" cy="300" r="20" fill="#fff" stroke="#cbd5e1" />
+                  <text x="280" y="304" textAnchor="middle">
+                    Data race
+                  </text>
+                </g>
+                <g>
+                  <circle cx="340" cy="280" r="16" fill="#fff" stroke="#cbd5e1" />
+                  <text x="340" y="284" textAnchor="middle">
+                    RAII
+                  </text>
+                </g>
+              </g>
+              {/* Caption */}
+              <text
+                x="210"
+                y="328"
+                textAnchor="middle"
+                fontFamily="Inter, sans-serif"
+                fontSize="10"
+                fill="#94a3b8"
+                letterSpacing="1"
+              >
+                KNOWLEDGE GRAPH · LIVE VIEW
+              </text>
+            </svg>
+          </div>
         </div>
       </div>
     </section>

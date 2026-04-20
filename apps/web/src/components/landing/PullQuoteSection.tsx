@@ -1,26 +1,27 @@
 export function PullQuoteSection() {
   return (
-    <section className="border-t border-zinc-900 px-4 py-20 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl text-center">
-        <blockquote className="relative">
-          <svg
-            className="mx-auto mb-4 h-8 w-8 text-zinc-800"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z" />
-          </svg>
-          <p className="text-xl leading-relaxed text-zinc-300 sm:text-2xl">
-            The hottest new programming language is English.
-          </p>
-          <footer className="mt-6">
-            <cite className="not-italic">
-              <span className="text-sm font-semibold text-zinc-400">Andrej Karpathy</span>
-              <span className="mx-2 text-zinc-700">&middot;</span>
-              <span className="text-sm text-zinc-500">former Director of AI at Tesla</span>
-            </cite>
-          </footer>
-        </blockquote>
+    <section className="border-b border-slate-200 bg-brand-50 py-20" id="quote">
+      <div className="mx-auto max-w-[760px] px-8 text-center">
+        <div
+          className="font-serif-italic text-slate-900"
+          style={{
+            fontSize: "clamp(26px, 3.4vw, 38px)",
+            lineHeight: "1.25",
+            letterSpacing: "-0.005em",
+            maxWidth: "24ch",
+            textWrap: "balance",
+            margin: "0 auto",
+          }}
+        >
+          &#x201c;The tedious part of maintaining a knowledge base is not the reading or the
+          thinking — it&#x2019;s the bookkeeping.&#x201d;
+        </div>
+        <div
+          className="mt-6 text-[12px] font-medium uppercase text-slate-500"
+          style={{ fontFamily: "Inter, sans-serif", fontStyle: "normal", letterSpacing: "0.04em" }}
+        >
+          — Andrej Karpathy · the original LLM Wiki gist
+        </div>
       </div>
     </section>
   );

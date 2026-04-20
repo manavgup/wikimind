@@ -1,86 +1,121 @@
-const USE_CASES = [
+const CASES = [
   {
-    title: "Research & Academia",
+    eye: "personal",
+    title: "Self\u2011knowledge",
     description:
-      "Compile papers into a personal knowledge base. Cross-reference findings across dozens of sources without losing track.",
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342"
-        />
-      </svg>
-    ),
+      "Journal entries, podcast notes, health logs. Over months, a structured picture of yourself compounds \u2014 goals, psychology, patterns.",
+    tags: ["journal", "health", "habits"],
   },
   {
-    title: "Engineering Teams",
+    eye: "research",
+    title: "Topic deep\u2011dive",
     description:
-      "Onboard to codebases by ingesting docs, ADRs, and runbooks. Ask the wiki instead of interrupting senior engineers.",
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"
-        />
-      </svg>
-    ),
+      "Go deep on a subject over weeks \u2014 papers, reports, blog posts. The wiki becomes the running thesis. New evidence updates older claims.",
+    tags: ["papers", "thesis", "citations"],
   },
   {
-    title: "Content Creators",
+    eye: "reading",
+    title: "Book companion",
     description:
-      "Organize research for writing. Ingest interviews, articles, and raw notes, then query the compiled wiki for structured outlines.",
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-        />
-      </svg>
-    ),
+      "Feed each chapter as you go. Pages accrue for characters, places, arcs, themes. By the last chapter you\u2019ve built a Tolkien\u2011gateway\u2011style fan wiki of one.",
+    tags: ["chapters", "characters", "themes"],
   },
   {
-    title: "Personal Learning",
+    eye: "team",
+    title: "Team memory",
     description:
-      "Build deep understanding across topics. Feed courses, books, and articles into one wiki that connects the dots for you.",
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
-        />
-      </svg>
-    ),
+      "Feed Slack threads, meeting transcripts, customer calls. The wiki stays current because the LLM does the maintenance nobody else wants to do.",
+    tags: ["slack", "meetings", "decisions"],
+  },
+  {
+    eye: "work",
+    title: "Due diligence",
+    description:
+      "Competitive analysis, M&A evaluation, market landscape. Structured rather than scattered across a dozen Google Docs.",
+    tags: ["competitors", "markets", "sources"],
+  },
+  {
+    eye: "play",
+    title: "Hobby archives",
+    description:
+      "Trip planning, course notes, a long hobby deep\u2011dive. Anything accumulating over time that deserves more than a Notes app.",
+    tags: ["trips", "courses", "hobbies"],
   },
 ];
 
 export function UseCasesSection() {
   return (
-    <section className="border-t border-zinc-900 px-4 py-20 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-4 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Who it is for
+    <section className="border-b border-slate-200 py-20" id="cases">
+      <div className="mx-auto max-w-[1120px] px-8">
+        <div className="mb-12">
+          <div
+            className="text-[11px] font-semibold uppercase text-brand-700"
+            style={{ letterSpacing: "0.08em" }}
+          >
+            where it helps
+          </div>
+          <h2
+            className="mt-3 font-bold text-slate-900"
+            style={{
+              fontSize: "clamp(28px, 3.6vw, 42px)",
+              lineHeight: "1.1",
+              letterSpacing: "-0.02em",
+              textWrap: "balance",
+              maxWidth: "20ch",
+            }}
+          >
+            Anywhere knowledge accumulates over time.
+          </h2>
+          <p
+            className="mt-4 text-[17px] text-slate-700"
+            style={{ lineHeight: "1.55", maxWidth: "58ch", textWrap: "pretty" }}
+          >
+            WikiMind works wherever you&#x2019;re building up a body of understanding across many
+            sources — personal, academic, professional.
+          </p>
         </div>
-        <h2 className="mb-12 text-center text-2xl font-bold text-zinc-100 sm:text-3xl">
-          Use cases
-        </h2>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          {USE_CASES.map((uc) => (
+        {/* 3-column grid with 1px gap lines */}
+        <div
+          className="grid overflow-hidden rounded-xl border border-slate-200"
+          style={{
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "1px",
+            background: "#e2e8f0",
+          }}
+        >
+          {CASES.map((c) => (
             <div
-              key={uc.title}
-              className="group rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 transition hover:border-zinc-700"
+              key={c.title}
+              className="flex flex-col gap-2.5 bg-white p-6"
+              style={{ minHeight: "180px" }}
             >
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 transition group-hover:border-brand-700 group-hover:text-brand-400">
-                  {uc.icon}
-                </div>
-                <h3 className="font-semibold text-zinc-200">{uc.title}</h3>
+              <div
+                className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase text-brand-700"
+                style={{ letterSpacing: "0.08em" }}
+              >
+                {c.eye}
               </div>
-              <p className="text-sm leading-relaxed text-zinc-400">{uc.description}</p>
+              <h3
+                className="m-0 text-[18px] font-semibold text-slate-900"
+                style={{ letterSpacing: "-0.01em" }}
+              >
+                {c.title}
+              </h3>
+              <p className="m-0 text-[13px] text-slate-700" style={{ lineHeight: "1.55" }}>
+                {c.description}
+              </p>
+              <div className="mt-auto flex flex-wrap gap-1">
+                {c.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-[3px] border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
         </div>

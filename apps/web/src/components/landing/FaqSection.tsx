@@ -1,82 +1,88 @@
-import { useState } from "react";
-
-interface FaqItem {
-  question: string;
-  answer: string;
-}
-
-const FAQ_ITEMS: FaqItem[] = [
+const FAQ_ITEMS = [
   {
-    question: "Is my data private?",
+    question: "Where does my data live?",
     answer:
-      "Yes. WikiMind is designed to run locally or on your own infrastructure. Your sources, compiled wiki, and conversations never leave your machine unless you explicitly configure a remote LLM provider. Even then, only the content sent to the LLM for compilation passes through the provider API.",
+      "Locally. Raw sources and the wiki are plain files on your disk \u2014 a git repo, if you want version history. WikiMind never phones home. LLM calls go to whichever provider you\u2019ve configured.",
   },
   {
-    question: "Which LLM providers are supported?",
+    question: "Which LLM does it use?",
+    answerHtml: true,
     answer:
-      "WikiMind supports OpenAI (GPT-4o, GPT-4), Anthropic (Claude), and local models via Ollama or any OpenAI-compatible endpoint. You can switch providers at any time through the settings.",
+      'Bring your own. Configure any combination of <code>OpenAI</code>, <code>Anthropic</code>, <code>Google</code>, or a local <code>Ollama</code> model in Settings. You\u2019ll see the per\u2011source cost before and after ingest.',
   },
   {
-    question: "Can I self-host?",
+    question: "How is this different from NotebookLM or ChatGPT file upload?",
     answer:
-      "Absolutely. WikiMind is a Python FastAPI application with a React frontend. You can run it on any machine with Python 3.11+ and Node.js. Docker images are also available. The default storage is SQLite, so there is no database server to set up.",
+      "Those are retrieval systems. The LLM re\u2011reads your files on every query and never builds anything persistent. WikiMind compiles your sources into a wiki you can actually browse, edit, and version \u2014 and the LLM reads the wiki, not the raw files.",
   },
   {
-    question: "How does compilation work?",
+    question: "What if I disagree with what the LLM wrote?",
     answer:
-      "When you ingest a source, WikiMind extracts the content, normalizes it, and sends it to the configured LLM with instructions to synthesize it into structured wiki articles. If an article on the topic already exists, the compiler merges new information into the existing article, creating a continuously refined knowledge base.",
+      "Every claim has a confidence tag: sourced \u00b7 mixed \u00b7 inferred \u00b7 opinion. Edits are first\u2011class \u2014 you can revise any page and the LLM will respect your version on the next compile. The wiki is yours.",
   },
   {
-    question: "Is it free?",
+    question: "Does it scale?",
+    answerHtml: true,
     answer:
-      "WikiMind itself is open source and free. The only cost is your LLM provider usage. If you run a local model via Ollama, there is no cost at all. Cloud LLM costs depend on the provider and how much content you ingest.",
+      'To a few thousand sources, comfortably. At small scale the <code>index.md</code> catalog is enough for the LLM to navigate. As the wiki grows, an on\u2011disk BM25 + vector search kicks in automatically so the LLM always gets the right pages into context.',
+  },
+  {
+    question: "Is it open source?",
+    answerHtml: true,
+    answer:
+      'Yes. Everything \u2014 the compiler, the schema format, the web app \u2014 ships as <code>MIT</code> on GitHub. The desktop version is an Electron shell around the same bundle.',
   },
 ];
 
-function FaqAccordionItem({ item }: { item: FaqItem }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="border-b border-zinc-800">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-5 text-left transition hover:text-zinc-200"
-      >
-        <span className="text-sm font-medium text-zinc-200 sm:text-base">{item.question}</span>
-        <svg
-          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-200 ${
-          open ? "max-h-96 pb-5" : "max-h-0"
-        }`}
-      >
-        <p className="text-sm leading-relaxed text-zinc-400">{item.answer}</p>
-      </div>
-    </div>
-  );
-}
-
 export function FaqSection() {
   return (
-    <section className="border-t border-zinc-900 px-4 py-20 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-2xl">
-        <h2 className="mb-8 text-center text-2xl font-bold text-zinc-100 sm:text-3xl">
-          Frequently asked questions
-        </h2>
-        <div className="divide-y divide-zinc-800 border-t border-zinc-800">
+    <section className="border-b border-slate-200 py-20" id="faq">
+      <div className="mx-auto max-w-[760px] px-8">
+        <div className="mb-6">
+          <div
+            className="text-[11px] font-semibold uppercase text-brand-700"
+            style={{ letterSpacing: "0.08em" }}
+          >
+            questions
+          </div>
+          <h2
+            className="mt-3 font-bold text-slate-900"
+            style={{
+              fontSize: "clamp(28px, 3.6vw, 42px)",
+              lineHeight: "1.1",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Before you ask.
+          </h2>
+        </div>
+
+        <div className="border-t border-slate-200">
           {FAQ_ITEMS.map((item) => (
-            <FaqAccordionItem key={item.question} item={item} />
+            <details key={item.question} className="qa-item border-b border-slate-200">
+              <summary className="flex cursor-pointer items-center justify-between gap-4 py-[22px] text-[17px] font-semibold text-slate-900 transition-colors duration-100 hover:text-brand-700">
+                {item.question}
+              </summary>
+              {item.answerHtml ? (
+                <div
+                  className="pb-[22px] text-[15px] text-slate-700"
+                  style={{ lineHeight: "1.65", maxWidth: "70ch" }}
+                  dangerouslySetInnerHTML={{
+                    __html: item.answer.replace(
+                      /<code>/g,
+                      '<code style="font-family:\'JetBrains Mono\',monospace;font-size:13px;background:#f1f5f9;padding:1px 5px;border-radius:4px;color:#0f172a;">'
+                    ),
+                  }}
+                />
+              ) : (
+                <div
+                  className="pb-[22px] text-[15px] text-slate-700"
+                  style={{ lineHeight: "1.65", maxWidth: "70ch" }}
+                >
+                  {item.answer}
+                </div>
+              )}
+            </details>
           ))}
         </div>
       </div>
