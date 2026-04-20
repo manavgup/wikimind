@@ -226,7 +226,7 @@ async def callback(
 
     # Redirect to the frontend root with the token. The SPA's index.html
     # loads, then AuthCallback (or App) extracts the token from the query.
-    return RedirectResponse(url=f"/?token={jwt_token}")
+    return RedirectResponse(url=f"/#token={jwt_token}")
 
 
 @router.get("/me")
