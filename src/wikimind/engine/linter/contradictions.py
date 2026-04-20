@@ -257,6 +257,8 @@ async def _run_batch(
                 batch_results = data
             elif isinstance(data, dict) and "results" in data:
                 batch_results = data["results"]
+            elif isinstance(data, dict) and "pair_index" in data:
+                batch_results = [data]
             else:
                 raise ValueError(f"Unexpected batch response shape: {type(data)}")
 
