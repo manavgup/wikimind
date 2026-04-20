@@ -71,7 +71,7 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
 
   if (resolution) {
     return (
-      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
         {resolution.replace(/_/g, " ")}
       </span>
     );
@@ -107,7 +107,7 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
             placeholder="Optional note..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-sky-300 focus:outline-none"
+            className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-brand-300 focus:outline-none"
           />
         </div>
       )}
@@ -210,13 +210,13 @@ function ContradictionActions({
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <Link
         to={`/wiki/${finding.article_a_id}`}
-        className="rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+        className="rounded-md border border-brand-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
       >
         View Article A
       </Link>
       <Link
         to={`/wiki/${finding.article_b_id}`}
-        className="rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+        className="rounded-md border border-brand-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
       >
         View Article B
       </Link>
@@ -231,7 +231,7 @@ function OrphanActions({ finding }: { finding: LintOrphanFinding }) {
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <Link
         to={`/wiki/${finding.article_id}`}
-        className="rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+        className="rounded-md border border-brand-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
       >
         View Article
       </Link>
@@ -242,9 +242,9 @@ function OrphanActions({ finding }: { finding: LintOrphanFinding }) {
 
 function StructuralDetail({ finding }: { finding: LintStructuralFinding }) {
   const typeColors: Record<string, string> = {
-    source_no_concepts: "bg-red-100 text-red-700",
-    concept_insufficient_synthesizes: "bg-amber-100 text-amber-700",
-    missing_inverse_link: "bg-blue-100 text-blue-700",
+    source_no_concepts: "bg-rose-50 text-rose-700",
+    concept_insufficient_synthesizes: "bg-amber-50 text-amber-700",
+    missing_inverse_link: "bg-sky-50 text-sky-700",
   };
   const color =
     typeColors[finding.violation_type] ?? "bg-slate-100 text-slate-700";
@@ -258,7 +258,7 @@ function StructuralDetail({ finding }: { finding: LintStructuralFinding }) {
           {finding.violation_type.replace(/_/g, " ")}
         </span>
         {finding.auto_repaired && (
-          <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+          <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
             Auto-fixed
           </span>
         )}
@@ -273,7 +273,7 @@ function StructuralActions({ finding }: { finding: LintStructuralFinding }) {
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <Link
         to={`/wiki/${finding.article_id}`}
-        className="rounded border border-sky-300 px-2 py-1 text-xs text-sky-700 hover:bg-sky-50"
+        className="rounded-md border border-brand-200 px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"
       >
         View Article
       </Link>

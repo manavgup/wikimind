@@ -17,6 +17,20 @@ export default {
           900: "#1f3251",
         },
       },
+      fontFamily: {
+        sans: ['"Inter"', "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: [
+          '"JetBrains Mono"',
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Consolas",
+          "monospace",
+        ],
+      },
+      transitionDuration: {
+        DEFAULT: "180ms",
+      },
     },
   },
   plugins: [require("@tailwindcss/typography")],
