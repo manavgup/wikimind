@@ -16,10 +16,10 @@ Article so retrieval has something to find, and runs the full
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.engine import qa_agent as qa_mod
@@ -31,6 +31,9 @@ from wikimind.models import (
     Query,
     QueryRequest,
 )
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 _FAKE_QA_SETTINGS = SimpleNamespace(
     data_dir="/tmp",

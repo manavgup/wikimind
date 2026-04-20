@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from typing import TYPE_CHECKING
 
 import structlog
 from arq import create_pool
@@ -21,7 +22,9 @@ from arq.connections import RedisSettings
 
 from wikimind.config import get_settings
 from wikimind.jobs.worker import compile_source, lint_wiki, recompile_article, sweep_wikilinks
-from wikimind.models import NormalizedDocument
+
+if TYPE_CHECKING:
+    from wikimind.models import NormalizedDocument
 
 log = structlog.get_logger()
 

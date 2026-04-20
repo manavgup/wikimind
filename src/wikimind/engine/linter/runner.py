@@ -8,10 +8,10 @@ event on completion.
 from __future__ import annotations
 
 import hashlib
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import func
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -32,6 +32,9 @@ from wikimind.models import (
     OrphanFinding,
     StructuralFinding,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 

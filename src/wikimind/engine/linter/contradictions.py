@@ -15,13 +15,12 @@ import hashlib
 import itertools
 import json
 import random
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from wikimind.config import LinterConfig, Settings
 from wikimind.engine.linter.prompts import (
     CONTRADICTION_BATCH_SYSTEM,
     CONTRADICTION_BATCH_USER,
@@ -29,7 +28,6 @@ from wikimind.engine.linter.prompts import (
     CONTRADICTION_USER_TEMPLATE,
     format_batch_pair_section,
 )
-from wikimind.engine.llm_router import LLMRouter
 from wikimind.models import (
     Article,
     Backlink,
@@ -44,6 +42,12 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from wikimind.config import LinterConfig, Settings
+    from wikimind.engine.llm_router import LLMRouter
 
 log = structlog.get_logger()
 
@@ -536,8 +540,8 @@ async def detect_contradictions(
 
     tasks = [
         _check_concept(
-            concept_id,  # type: ignore[arg-type]
-            concept_name,  # type: ignore[arg-type]
+            concept_id,
+            concept_name,
             pairs,
             session,
             router,

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import base64
 import time
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from google import genai
 from google.genai import types
@@ -13,6 +12,9 @@ from google.genai import types
 from wikimind.config import get_api_key
 from wikimind.engine.llm_router import StreamSession, _calc_cost
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class GoogleProvider:

@@ -14,8 +14,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from wikimind.models import Conversation, Query
+if TYPE_CHECKING:
+    from wikimind.models import Conversation, Query
 
 # Match a line that starts with 1-4 # characters followed by a space.
 # Capped at H4 because downshifting H5/H6 by 2 levels would yield H7/H8

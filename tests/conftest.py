@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator, Iterator
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import keyring
 import pytest
@@ -18,6 +16,10 @@ import wikimind.database as _db_mod
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.main import app
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Iterator
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Hermetic environment — runs once per session, applied before any test

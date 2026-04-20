@@ -15,7 +15,7 @@ PROMPT_TEMPLATES: dict[str, str] = {
     "concept_synthesis_paper": "",
 }
 
-_BUILTIN_KINDS: list[dict[str, str | None]] = [
+_BUILTIN_KINDS: list[dict[str, str]] = [
     {
         "name": "topic",
         "prompt_template_key": "concept_synthesis_topic",
@@ -63,7 +63,7 @@ async def seed_builtin_kinds(session: AsyncSession) -> None:
         result = await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == name))
         existing = result.scalar_one_or_none()
         if existing is None:
-            kind = ConceptKindDef(**kind_data)  # type: ignore[arg-type]
+            kind = ConceptKindDef(**kind_data)
             session.add(kind)
     await session.commit()
 

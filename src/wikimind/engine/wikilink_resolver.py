@@ -20,12 +20,15 @@ There is NO fuzzy matching. See the design spec for rationale
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind.engine.title_normalizer import normalize_title
 from wikimind.models import Article
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass(frozen=True)

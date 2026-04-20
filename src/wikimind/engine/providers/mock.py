@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from wikimind.engine.llm_router import StreamSession
 from wikimind.models import CompletionRequest, CompletionResponse, Provider, TaskType
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class MockProvider:

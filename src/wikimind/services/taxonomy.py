@@ -9,10 +9,10 @@ while the DB key is ``machine-learning``.
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind.config import get_settings
@@ -24,6 +24,9 @@ from wikimind.models import (
     PageType,
     TaskType,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 

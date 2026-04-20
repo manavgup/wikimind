@@ -13,11 +13,11 @@ promote is a no-op.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import or_
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -25,6 +25,9 @@ from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType, PageType
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 

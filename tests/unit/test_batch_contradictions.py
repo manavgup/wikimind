@@ -7,7 +7,7 @@ _parse_batch_response, and _run_batch (retry + fallback behavior).
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +18,9 @@ from wikimind.engine.linter.contradictions import (
     _run_batch,
 )
 from wikimind.models import Article, PageType
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers

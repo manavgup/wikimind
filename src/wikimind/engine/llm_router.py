@@ -9,9 +9,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy import func
@@ -22,6 +21,9 @@ from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session_factory
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 log = structlog.get_logger()
 

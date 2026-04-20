@@ -354,7 +354,7 @@ class QueryService:
         # Compute turn counts in one query
         ids = [c.id for c in conversations]
         count_rows = await session.execute(
-            select(Query.conversation_id, Query.id).where(Query.conversation_id.in_(ids))  # type: ignore[arg-type, union-attr]
+            select(Query.conversation_id, Query.id).where(Query.conversation_id.in_(ids))  # type: ignore[union-attr]
         )
         counts: dict[str, int] = {}
         for conv_id, _qid in count_rows.all():

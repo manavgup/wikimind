@@ -23,8 +23,9 @@ from slugify import slugify
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -98,7 +99,7 @@ def get_session_factory():
     """Return the singleton session factory."""
     global _session_factory
     if _session_factory is None:
-        _session_factory = async_sessionmaker(get_async_engine(), expire_on_commit=False)
+        _session_factory = async_sessionmaker(get_async_engine(), class_=AsyncSession, expire_on_commit=False)
     return _session_factory
 
 
@@ -555,14 +556,14 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
     raw_prefix = str(Path(settings.data_dir) / "raw") + "/"
 
     # Migrate Article.file_path (wiki-relative)
-    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))  # type: ignore[union-attr]
+    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))
     for article in result.scalars().all():
         if article.file_path.startswith(wiki_prefix):
             article.file_path = article.file_path[len(wiki_prefix) :]
             session.add(article)
 
     # Migrate Source.file_path (raw-relative)
-    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr,arg-type]
+    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr]
     for source in result.scalars().all():
         if source.file_path and source.file_path.startswith(raw_prefix):
             source.file_path = source.file_path[len(raw_prefix) :]

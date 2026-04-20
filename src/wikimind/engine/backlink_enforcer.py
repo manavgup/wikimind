@@ -16,12 +16,15 @@ from __future__ import annotations
 import contextlib
 import json
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from wikimind.models import Article, Backlink, RelationType
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 

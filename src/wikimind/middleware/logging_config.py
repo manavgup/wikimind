@@ -15,10 +15,12 @@ from __future__ import annotations
 import logging
 import os
 import re
-from collections.abc import MutableMapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from collections.abc import MutableMapping
 
 _SENSITIVE_KEYS: frozenset[str] = frozenset(
     {

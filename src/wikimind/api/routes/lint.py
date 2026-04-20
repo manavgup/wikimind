@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, Depends, Query
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import LintFindingKind, LintReport, LintReportDetail
 from wikimind.services.linter import LinterService, get_linter_service
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 

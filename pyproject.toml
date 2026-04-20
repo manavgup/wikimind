@@ -132,6 +132,7 @@ select = [
     "PT",     # flake8-pytest-style
     "ARG",    # flake8-unused-arguments
     "C90",    # mccabe — cyclomatic complexity
+    "TCH",    # flake8-type-checking
 ]
 ignore = [
     "E501",   # line too long — handled by formatter
@@ -211,6 +212,7 @@ warn_return_any = false         # Surfaces 17 legitimate `Any` propagations (SQL
                                 # deferred to a dedicated strict-mode PR that fixes them with cast().
 warn_unused_configs = true
 warn_redundant_casts = true     # Step toward strict mode (issue #217 phase 3)
+warn_unused_ignores = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 check_untyped_defs = true

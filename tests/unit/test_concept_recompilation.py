@@ -9,8 +9,8 @@ Verifies that:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,6 +29,9 @@ from wikimind.models import (
     Source,
 )
 from wikimind.services.taxonomy import _concept_source_set_changed, maybe_trigger_concept_pages
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _fake_concept_resp(name: str = "Test") -> str:

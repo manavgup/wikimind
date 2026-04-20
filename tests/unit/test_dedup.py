@@ -9,7 +9,7 @@ Covers:
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import fitz
@@ -43,6 +43,9 @@ from wikimind.models import (
 from wikimind.services import ingest as svc_ingest
 from wikimind.services.ingest import IngestService
 from wikimind.storage import resolve_raw_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

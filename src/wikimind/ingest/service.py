@@ -23,7 +23,7 @@ import hashlib
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlparse
 
 import fitz
@@ -31,7 +31,6 @@ import httpx
 import structlog
 import trafilatura
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 from youtube_transcript_api import YouTubeTranscriptApi
 
 from wikimind.api.routes.ws import emit_source_progress
@@ -46,6 +45,9 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.storage import resolve_raw_path
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
