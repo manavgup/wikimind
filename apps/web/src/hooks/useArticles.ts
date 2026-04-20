@@ -5,6 +5,7 @@ import type { Article, Concept, ConfidenceLevel, GraphResponse } from "../types/
 export interface UseArticlesParams {
   concept?: string;
   confidence?: ConfidenceLevel;
+  page_type?: string;
 }
 
 export function useArticles(

@@ -12,6 +12,7 @@ import type {
 export interface ListArticlesParams {
   concept?: string;
   confidence?: ConfidenceLevel;
+  page_type?: string;
   limit?: number;
   offset?: number;
 }
