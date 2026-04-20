@@ -7,7 +7,7 @@ name = "wikimind"
 version = "0.1.0"
 description = "WikiMind Local Gateway — Personal LLM Knowledge OS"
 requires-python = ">=3.11"
-license = "MIT"
+license = {text = "MIT"}
 
 dependencies = [
     # Web framework
