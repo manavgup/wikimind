@@ -99,7 +99,17 @@ async def _get_articles_for_concept(session: AsyncSession, concept_name: str) ->
     """Load articles whose concept_ids JSON array contains the given concept name."""
     result = await session.execute(select(Article))
     all_articles = list(result.scalars().all())
-    return [a for a in all_articles if concept_name in (a.concept_ids or [])]
+    matched: list[Article] = []
+    for a in all_articles:
+        if not a.concept_ids:
+            continue
+        try:
+            ids = json.loads(a.concept_ids)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(ids, list) and concept_name in ids:
+            matched.append(a)
+    return matched
 
 
 async def _check_pair_cache(session: AsyncSession, article_a: Article, article_b: Article) -> list[dict] | None:

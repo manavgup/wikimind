@@ -45,7 +45,10 @@ def _make_article(
     claims: list[str] | None = None,
 ) -> Article:
     """Create an Article with a real .md file containing claims."""
-    file_path = tmp_path / f"{slug}.md"
+    # Write into the wiki directory so resolve_wiki_path can find it.
+    wiki_dir = tmp_path / "wikimind" / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    file_path = wiki_dir / f"{slug}.md"
     body_lines = [f"# {title}", ""]
     if claims:
         body_lines.append("## Key Claims")
@@ -59,7 +62,7 @@ def _make_article(
         id=article_id,
         slug=slug,
         title=title,
-        file_path=str(file_path),
+        file_path=f"{slug}.md",
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
     )
 
