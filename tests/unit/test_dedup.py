@@ -20,14 +20,11 @@ from wikimind._datetime import utcnow_naive
 from wikimind.config import Settings, get_settings
 from wikimind.engine import compiler as compiler_module
 from wikimind.engine.compiler import Compiler
-from wikimind.ingest import service as ingest_service
-from wikimind.ingest.service import (
-    PDFAdapter,
-    TextAdapter,
-    compute_hash,
-    find_source_by_hash,
-    reconstruct_normalized_doc,
-)
+from wikimind.ingest.adapters import pdf as pdf_adapter_mod
+from wikimind.ingest.adapters import text as text_adapter_mod
+from wikimind.ingest.adapters.pdf import PDFAdapter
+from wikimind.ingest.adapters.text import TextAdapter
+from wikimind.ingest.utils import compute_hash, find_source_by_hash, reconstruct_normalized_doc
 from wikimind.jobs import background as bg
 from wikimind.models import (
     Article,
@@ -67,7 +64,8 @@ def _build_pdf_bytes(pages: list[str]) -> bytes:
 def isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point `get_settings().data_dir` at a tmp directory for one test."""
     fake_settings = Settings(data_dir=str(tmp_path), vision_enabled=False)
-    monkeypatch.setattr(ingest_service, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(pdf_adapter_mod, "get_settings", lambda: fake_settings)
+    monkeypatch.setattr(text_adapter_mod, "get_settings", lambda: fake_settings)
     monkeypatch.setattr(compiler_module, "get_settings", lambda: fake_settings)
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     (tmp_path / "raw").mkdir(parents=True, exist_ok=True)
@@ -201,7 +199,7 @@ class TestPDFAdapterDedup:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", False)
+        monkeypatch.setattr(pdf_adapter_mod, "_DOCLING_AVAILABLE", False)
         adapter = PDFAdapter()
         pdf_bytes = _build_pdf_bytes(["Identical PDF content"])
 
@@ -217,7 +215,7 @@ class TestPDFAdapterDedup:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", False)
+        monkeypatch.setattr(pdf_adapter_mod, "_DOCLING_AVAILABLE", False)
         adapter = PDFAdapter()
         first_pdf = _build_pdf_bytes(["Page A"])
         second_pdf = _build_pdf_bytes(["Page B"])
