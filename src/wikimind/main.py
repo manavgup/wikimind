@@ -22,7 +22,7 @@ from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.errors import WikiMindError
-from wikimind.ingest.service import _DOCLING_AVAILABLE, _get_docling_converter
+from wikimind.ingest.adapters.pdf import _DOCLING_AVAILABLE, _get_docling_converter
 from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware

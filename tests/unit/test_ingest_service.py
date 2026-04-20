@@ -8,19 +8,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from wikimind.ingest import service as ingest_mod
-from wikimind.ingest.service import (
-    IngestService,
+from wikimind.ingest import service as svc_mod
+from wikimind.ingest.adapters import pdf as pdf_mod
+from wikimind.ingest.adapters import url as url_mod
+from wikimind.ingest.adapters import youtube as yt_mod
+from wikimind.ingest.adapters.pdf import (
     PDFAdapter,
-    TextAdapter,
-    URLAdapter,
-    YouTubeAdapter,
     _extract_pdf_metadata,
     _first_markdown_heading,
     _parse_pdf_date,
-    chunk_text,
-    estimate_tokens,
 )
+from wikimind.ingest.adapters.text import TextAdapter
+from wikimind.ingest.adapters.url import URLAdapter
+from wikimind.ingest.adapters.youtube import YouTubeAdapter
+from wikimind.ingest.service import IngestService
+from wikimind.ingest.utils import chunk_text, estimate_tokens
 from wikimind.models import IngestStatus, Source, SourceType
 
 
@@ -51,9 +53,13 @@ async def test_url_adapter_ingest(db_session, tmp_path) -> None:
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
-        patch.object(ingest_mod.trafilatura, "extract", return_value="# Hello\n\nWorld"),
-        patch.object(ingest_mod.trafilatura, "extract_metadata", return_value=SimpleNamespace(title="T", author="A")),
+        patch.object(url_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(url_mod.trafilatura, "extract", return_value="# Hello\n\nWorld"),
+        patch.object(
+            url_mod.trafilatura,
+            "extract_metadata",
+            return_value=SimpleNamespace(title="T", author="A"),
+        ),
     ):
         adapter = URLAdapter()
         source, doc = await adapter.ingest("http://example.com", db_session)
@@ -71,8 +77,8 @@ async def test_url_adapter_no_content_raises(db_session) -> None:
     fake_client.__aexit__ = AsyncMock(return_value=None)
     fake_client.get = AsyncMock(return_value=fake_response)
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
-        patch.object(ingest_mod.trafilatura, "extract", return_value=None),
+        patch.object(url_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(url_mod.trafilatura, "extract", return_value=None),
     ):
         adapter = URLAdapter()
         with pytest.raises(ValueError):
@@ -97,8 +103,8 @@ async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", mock_enhance)
 
     with (
-        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
-        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
         source, doc = await adapter.ingest(b"%PDF-1.4...", "test.pdf", db_session)
@@ -129,7 +135,7 @@ async def test_youtube_adapter_invalid_url(db_session) -> None:
 async def test_youtube_adapter_success(db_session) -> None:
     a = YouTubeAdapter()
     with patch.object(
-        ingest_mod.YouTubeTranscriptApi,
+        yt_mod.YouTubeTranscriptApi,
         "get_transcript",
         return_value=[{"text": "hello"}, {"text": "world"}],
         create=True,
@@ -160,7 +166,7 @@ async def test_ingest_service_routes_url(db_session) -> None:
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(svc.url_adapter, "ingest", AsyncMock(return_value=(MagicMock(), MagicMock()))) as u,
     ):
         await svc.ingest_url("https://example.com", db_session)
@@ -208,7 +214,7 @@ async def test_ingest_service_routes_pdf_url(db_session) -> None:
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(
             svc.pdf_adapter,
             "ingest",
@@ -238,7 +244,7 @@ async def test_ingest_service_routes_pdf_url_case_insensitive(db_session) -> Non
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(
             svc.pdf_adapter,
             "ingest",
@@ -262,7 +268,7 @@ async def test_ingest_service_routes_pdf_url_with_query_params(db_session) -> No
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(
             svc.pdf_adapter,
             "ingest",
@@ -291,7 +297,7 @@ async def test_ingest_service_normal_url_still_uses_url_adapter(db_session) -> N
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(
             svc.url_adapter,
             "ingest",
@@ -328,7 +334,7 @@ async def test_ingest_service_content_type_pdf_fallback(db_session) -> None:
     fake_client.get = AsyncMock(return_value=fake_response)
 
     with (
-        patch.object(ingest_mod.httpx, "AsyncClient", return_value=fake_client),
+        patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(
             svc.pdf_adapter,
             "ingest",
@@ -351,10 +357,10 @@ def test_looks_like_pdf_url() -> None:
 
 
 def test_get_docling_converter_unavailable() -> None:
-    with patch.object(ingest_mod, "_DocumentConverter", None):
-        ingest_mod._docling_converter = None
+    with patch.object(pdf_mod, "_DocumentConverter", None):
+        pdf_mod._docling_converter = None
         with pytest.raises(RuntimeError):
-            ingest_mod._get_docling_converter()
+            pdf_mod._get_docling_converter()
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +377,7 @@ def test_extract_pdf_metadata_with_title() -> None:
         "creationDate": "D:20170612120000",
     }
     fake_doc.close = MagicMock()
-    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+    with patch.object(pdf_mod.fitz, "open", return_value=fake_doc):
         meta = _extract_pdf_metadata(b"fake-pdf-bytes")
     assert meta.title == "Attention Is All You Need"
     assert meta.author == "Vaswani et al."
@@ -386,7 +392,7 @@ def test_extract_pdf_metadata_empty_title() -> None:
     fake_doc = MagicMock()
     fake_doc.metadata = {"title": "  ", "author": "", "creationDate": ""}
     fake_doc.close = MagicMock()
-    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+    with patch.object(pdf_mod.fitz, "open", return_value=fake_doc):
         meta = _extract_pdf_metadata(b"fake-pdf-bytes")
     assert meta.title is None
     assert meta.author is None
@@ -398,7 +404,7 @@ def test_extract_pdf_metadata_no_metadata_dict() -> None:
     fake_doc = MagicMock()
     fake_doc.metadata = None
     fake_doc.close = MagicMock()
-    with patch.object(ingest_mod.fitz, "open", return_value=fake_doc):
+    with patch.object(pdf_mod.fitz, "open", return_value=fake_doc):
         meta = _extract_pdf_metadata(b"fake-pdf-bytes")
     assert meta.title is None
     assert meta.author is None
@@ -468,8 +474,8 @@ async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
     fake_text_doc.close = MagicMock()
 
     with (
-        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
-        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
         source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
@@ -493,8 +499,8 @@ async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
     fake_text_doc.close = MagicMock()
 
     with (
-        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
-        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
         source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
@@ -515,8 +521,8 @@ async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
     fake_text_doc.close = MagicMock()
 
     with (
-        patch.object(ingest_mod, "_DOCLING_AVAILABLE", False),
-        patch.object(ingest_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
+        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
         source, _ = await adapter.ingest(b"%PDF-1.4...", "report.pdf", db_session)

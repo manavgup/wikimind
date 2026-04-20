@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from wikimind.ingest.service import chunk_text, estimate_tokens
+from wikimind.ingest.utils import chunk_text, estimate_tokens
 
 
 def _join_chunk_content(chunks: list) -> str:

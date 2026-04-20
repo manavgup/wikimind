@@ -17,8 +17,8 @@ import fitz
 import pytest
 
 from wikimind.config import Settings, get_settings
-from wikimind.ingest import service as ingest_service
-from wikimind.ingest.service import PDFAdapter
+from wikimind.ingest.adapters import pdf as ingest_service
+from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import CompletionResponse, Provider
 
 if TYPE_CHECKING:
