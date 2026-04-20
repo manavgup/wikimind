@@ -258,6 +258,7 @@ class ConceptCompiler:
             existing.provider = self._last_provider_used
             existing.updated_at = now
             existing.page_type = PageType.CONCEPT
+            existing.user_id = concept.user_id
             session.add(existing)
             old_links = await session.execute(
                 select(Backlink).where(
@@ -280,6 +281,7 @@ class ConceptCompiler:
                 source_ids=json.dumps(source_ids),
                 provider=self._last_provider_used,
                 page_type=PageType.CONCEPT,
+                user_id=concept.user_id,
             )
             session.add(article)
             await session.commit()
