@@ -49,7 +49,7 @@ async def _apply_db_preferences() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """Startup and shutdown lifecycle."""
     configure_logging()
 
