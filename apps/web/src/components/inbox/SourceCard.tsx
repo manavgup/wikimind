@@ -61,6 +61,13 @@ export function SourceCard({ source, onRetry, retrying, onDelete, deleting }: So
     (s) => s.sourceStatus[source.id] ?? null,
   );
 
+  const isStuck = useMemo(() => {
+    if (source.status !== "processing") return false;
+    const STUCK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const elapsed = Date.now() - new Date(source.ingested_at).getTime();
+    return elapsed > STUCK_THRESHOLD_MS;
+  }, [source.status, source.ingested_at]);
+
   const titleText = useMemo(() => {
     if (source.title && source.title.trim().length > 0) return source.title;
     if (source.source_url) return source.source_url;
@@ -106,9 +113,11 @@ export function SourceCard({ source, onRetry, retrying, onDelete, deleting }: So
         <p className="mt-2 text-xs text-slate-500">{statusMessage}</p>
       ) : null}
 
-      {source.status === "failed" ? (
+      {source.status === "failed" || isStuck ? (
         <div className="mt-3 space-y-2">
-          {source.error_message ? (
+          {isStuck && source.status !== "failed" ? (
+            <p className="text-xs text-amber-700">Appears stuck — you can retry or delete</p>
+          ) : source.error_message ? (
             <p className="text-xs text-rose-700">{source.error_message}</p>
           ) : null}
           <div className="flex gap-2">

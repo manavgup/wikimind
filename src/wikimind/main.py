@@ -29,7 +29,7 @@ from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
-from wikimind.models import UserPreference
+from wikimind.models import IngestStatus, Source, UserPreference
 
 log = structlog.get_logger()
 
@@ -60,6 +60,20 @@ async def lifespan(_app: FastAPI):
     await init_db()
     await _apply_db_preferences()
     log.info("Database initialized")
+
+    # Reset sources stuck in PROCESSING from a prior crash/restart.
+    # If the server is starting, no worker is mid-compilation, so any
+    # source still in PROCESSING was interrupted.
+    async with get_session_factory()() as session:
+        result = await session.execute(select(Source).where(Source.status == IngestStatus.PROCESSING))
+        stuck = list(result.scalars().all())
+        for source in stuck:
+            source.status = IngestStatus.FAILED
+            source.error_message = "Compilation interrupted — retry when ready"
+            session.add(source)
+        if stuck:
+            await session.commit()
+            log.info("Reset stuck processing sources", count=len(stuck))
 
     # Warm up the Docling converter in a background thread so ML model
     # weights (~500 MB) are downloaded and loaded before the first PDF
