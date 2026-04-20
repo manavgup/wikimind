@@ -184,7 +184,7 @@ async def init_db():
             async with get_session_factory()() as session:
                 await _migrate_to_relative_paths(session)
         else:
-            await migration_fn(engine)  # type: ignore[misc]
+            await migration_fn(engine)  # type: ignore[operator]
         await _record_migration(engine, version)
 
 
