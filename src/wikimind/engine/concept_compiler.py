@@ -210,11 +210,21 @@ class ConceptCompiler:
             response = await self.router.complete(request, session=session)
             self._last_provider_used = response.provider_used
         except Exception:
+            log.warning(
+                "Concept page LLM call failed",
+                concept=concept.name,
+                exc_info=True,
+            )
             return None
         try:
             data = self.router.parse_json_response(response)
             compilation = ConceptCompilationResult(**data)
         except Exception:
+            log.warning(
+                "Concept page response parsing failed",
+                concept=concept.name,
+                exc_info=True,
+            )
             return None
         return await self._save_concept_page(compilation, concept, source_articles, session)
 
@@ -233,9 +243,10 @@ class ConceptCompiler:
         now = utcnow_naive()
         source_ids = [a.id for a in source_articles]
         existing = await self._find_existing_concept_article(concept.name, session)
-        relative_path = self._write_concept_file(compilation, concept, source_articles)
+        # Compute the relative path that _write_concept_file will produce,
+        # but defer writing until after the DB commit succeeds (#169).
+        relative_path = f"{slug}/{slug}.md"
         if existing is not None:
-            resolve_wiki_path(existing.file_path, user_id=concept.user_id).unlink(missing_ok=True)
             existing.title = compilation.title
             existing.summary = compilation.overview
             existing.file_path = relative_path
@@ -247,7 +258,8 @@ class ConceptCompiler:
             session.add(existing)
             old_links = await session.execute(
                 select(Backlink).where(
-                    Backlink.source_article_id == existing.id, Backlink.relation_type == RelationType.SYNTHESIZES
+                    Backlink.source_article_id == existing.id,
+                    Backlink.relation_type == RelationType.SYNTHESIZES,
                 )
             )
             for bl in old_links.scalars().all():
@@ -269,6 +281,9 @@ class ConceptCompiler:
             session.add(article)
             await session.commit()
             await session.refresh(article)
+        # Write the file AFTER DB commit — prevents orphaned DB rows
+        # pointing at files that were never written (#169).
+        self._write_concept_file(compilation, concept, source_articles)
         await self._create_synthesizes_links(article.id, source_ids, session)
         await self._create_related_to_links(article, compilation.related_concepts, session)
         return article

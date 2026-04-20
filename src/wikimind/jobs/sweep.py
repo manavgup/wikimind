@@ -21,7 +21,7 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
-from wikimind.models import Article, Backlink, Job, JobStatus, JobType
+from wikimind.models import Article, Backlink, Job, JobStatus, JobType, PageType
 from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
@@ -115,6 +115,55 @@ async def _sweep_single_article(
     return True
 
 
+async def _cleanup_orphaned_concept_pages(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> int:
+    """Delete concept-page Article rows whose markdown files are missing on disk.
+
+    When a concept page's file disappears (e.g. interrupted write, manual
+    deletion, or failed recompilation), the DB row becomes orphaned.  This
+    removes the Article and its Backlink rows so downstream code no longer
+    warns about missing files (#169).
+
+    Returns the number of orphaned rows cleaned up.
+    """
+    stmt = select(Article).where(Article.page_type == PageType.CONCEPT)
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
+    concept_articles = list(result.scalars().all())
+
+    cleaned = 0
+    for article in concept_articles:
+        file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
+        if file_path.exists():
+            continue
+
+        # Remove backlinks referencing the orphaned article
+        bl_result = await session.execute(
+            select(Backlink).where(
+                (Backlink.source_article_id == article.id) | (Backlink.target_article_id == article.id)
+            )
+        )
+        for bl in bl_result.scalars().all():
+            await session.delete(bl)
+
+        await session.delete(article)
+        cleaned += 1
+        log.warning(
+            "sweep: removed orphaned concept page (file missing)",
+            article_id=article.id,
+            slug=article.slug,
+            path=str(file_path),
+        )
+
+    if cleaned:
+        await session.commit()
+
+    return cleaned
+
+
 async def sweep_wikilinks(ctx, user_id: str | None = None) -> None:
     """Walk articles' .md files, promote unresolved [[brackets]] to real links.
 
@@ -157,6 +206,12 @@ async def sweep_wikilinks(ctx, user_id: str | None = None) -> None:
         await job_session.commit()
 
         try:
+            # Clean up orphaned concept pages before sweeping (#169).
+            async with session_factory() as cleanup_session:
+                orphan_count = await _cleanup_orphaned_concept_pages(cleanup_session, user_id=user_id)
+            if orphan_count:
+                log.info("sweep: cleaned orphaned concept pages", count=orphan_count)
+
             stmt = select(Article)
             if user_id is not None:
                 stmt = stmt.where(Article.user_id == user_id)
