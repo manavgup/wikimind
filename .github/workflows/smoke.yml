@@ -1,0 +1,119 @@
+# ===============================================================
+# Docker Smoke Tests — Production Image Verification
+# ===============================================================
+#
+#   - builds the prod Docker image
+#   - runs it with mock LLM config (no API keys, no Redis)
+#   - hits key endpoints to catch runtime failures:
+#     * import errors / missing libraries
+#     * sslmode crashes
+#     * frontend URL issues
+#     * auth blocking static files
+#   - runs on PRs that touch Docker/src files and on push to main
+# ---------------------------------------------------------------
+
+name: Docker smoke tests
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "src/**"
+      - "apps/web/**"
+      - "docker/**"
+      - "gunicorn.conf.py"
+      - ".github/workflows/smoke.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "src/**"
+      - "apps/web/**"
+      - "docker/**"
+      - "gunicorn.conf.py"
+      - ".github/workflows/smoke.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Docker smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      # -----------------------------------------------------------
+      # 0. Checkout
+      # -----------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1. Set up Python + uv (for running pytest)
+      # -----------------------------------------------------------
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # -----------------------------------------------------------
+      # 2. Install test dependencies
+      # -----------------------------------------------------------
+      - name: Install test dependencies
+        run: uv sync --frozen --extra test
+
+      # -----------------------------------------------------------
+      # 3. Set up Docker Buildx (layer caching for faster builds)
+      # -----------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # -----------------------------------------------------------
+      # 4. Run smoke tests
+      # -----------------------------------------------------------
+      # The test suite builds the Docker image as a fixture, starts
+      # a container, and hits endpoints. We pass --timeout=600 to
+      # allow for the Docker build step within the test.
+      - name: Run Docker smoke tests
+        run: |
+          uv run pytest tests/smoke/ \
+            -m e2e \
+            -v \
+            --timeout=600 \
+            -x
+
+      # -----------------------------------------------------------
+      # 5. Capture container logs on failure
+      # -----------------------------------------------------------
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          docker logs wikimind-smoke-test 2>&1 || echo "No container logs available"
+          docker logs wikimind-smoke-test-auth 2>&1 || echo "No auth container logs available"
