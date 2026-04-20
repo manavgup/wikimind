@@ -127,6 +127,7 @@ class ServerConfig(BaseModel):
 
     host: str = "127.0.0.1"
     port: int = 7842
+    ws_keepalive_seconds: float = 30.0
 
 
 class QAConfig(BaseModel):
@@ -135,6 +136,7 @@ class QAConfig(BaseModel):
     max_prior_turns_in_context: int = 5
     prior_answer_truncate_chars: int = 500
     conversation_title_max_chars: int = 120
+    max_tokens: int = 2048
 
 
 class TaxonomyConfig(BaseModel):
@@ -143,6 +145,20 @@ class TaxonomyConfig(BaseModel):
     rebuild_threshold: int = 5
     max_hierarchy_depth: int = 3
     concept_page_min_sources: int = 2
+
+
+class IngestConfig(BaseModel):
+    """Ingestion configuration."""
+
+    http_timeout_seconds: int = 30
+
+
+class CompilerConfig(BaseModel):
+    """Compiler configuration."""
+
+    max_tokens: int = 8192
+    source_text_max_chars: int = 60000
+    concept_source_max_chars: int = 5000
 
 
 class LinterConfig(BaseModel):
@@ -229,6 +245,8 @@ class Settings(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
+    ingest: IngestConfig = Field(default_factory=IngestConfig)
+    compiler: CompilerConfig = Field(default_factory=CompilerConfig)
     linter: LinterConfig = Field(default_factory=LinterConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)

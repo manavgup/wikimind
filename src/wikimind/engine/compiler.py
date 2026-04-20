@@ -176,10 +176,11 @@ class Compiler:
                 sorted(existing_concepts)
             )
 
+        settings = get_settings()
         request = CompletionRequest(
             system=COMPILER_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
-            max_tokens=8192,
+            max_tokens=settings.compiler.max_tokens,
             temperature=0.2,
             response_format="json",
             task_type=TaskType.COMPILE,
@@ -215,6 +216,7 @@ class Compiler:
 
     def _build_user_prompt(self, doc: NormalizedDocument) -> str:
         """Build the user prompt for the LLM compiler."""
+        max_chars = get_settings().compiler.source_text_max_chars
         meta = f"Title: {doc.title}"
         if doc.author:
             meta += f"\nAuthor: {doc.author}"
@@ -225,7 +227,7 @@ class Compiler:
 
 ---
 
-{doc.clean_text[:60000]}
+{doc.clean_text[:max_chars]}
 
 ---
 

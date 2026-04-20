@@ -14,6 +14,8 @@ import json
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from wikimind.config import get_settings
+
 log = structlog.get_logger()
 
 router = APIRouter()
@@ -105,7 +107,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         # Keep connection alive, handle pings
         while True:
             try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                keepalive = get_settings().server.ws_keepalive_seconds
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=keepalive)
                 msg = json.loads(data)
                 if msg.get("type") == "ping":
                     await manager.send_to(websocket, {"event": "pong"})

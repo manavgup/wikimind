@@ -124,6 +124,7 @@ async def _collect_source_articles(concept_name: str, session: AsyncSession) -> 
 
 
 def _build_source_material(articles: list[Article], user_id: str | None = None) -> str:
+    max_chars = get_settings().compiler.concept_source_max_chars
     parts: list[str] = []
     for i, article in enumerate(articles, 1):
         section = f"### Source {i}: {article.title}\n"
@@ -131,8 +132,8 @@ def _build_source_material(articles: list[Article], user_id: str | None = None) 
             section += f"Summary: {article.summary}\n"
         try:
             fc = resolve_wiki_path(article.file_path, user_id=user_id).read_text(encoding="utf-8")
-            if len(fc) > 5000:
-                fc = fc[:5000] + "\n[...truncated...]"
+            if len(fc) > max_chars:
+                fc = fc[:max_chars] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
         except (OSError, ValueError):
             pass
@@ -204,7 +205,7 @@ class ConceptCompiler:
         request = CompletionRequest(
             system=prompt,
             messages=[{"role": "user", "content": "Synthesize a concept page from these sources."}],
-            max_tokens=8192,
+            max_tokens=self.settings.compiler.max_tokens,
             temperature=0.3,
             response_format="json",
             task_type=TaskType.COMPILE,
