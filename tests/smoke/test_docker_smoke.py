@@ -86,7 +86,7 @@ def _wait_for_health(base_url: str, timeout: int = STARTUP_TIMEOUT_SECONDS) -> E
             resp = httpx.get(f"{base_url}/health", timeout=5)
             if resp.status_code == 200:
                 return None
-        except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+        except httpx.TransportError as exc:
             last_error = exc
         time.sleep(HEALTH_POLL_INTERVAL)
     return last_error or TimeoutError("Health check timed out")
