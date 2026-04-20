@@ -36,7 +36,7 @@ export function HtmlViewer({ url }: HtmlViewerProps) {
   return (
     <iframe
       srcDoc={html}
-      sandbox="allow-same-origin"
+      sandbox=""
       title="Source document"
       className="h-full w-full border-0"
     />
