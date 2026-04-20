@@ -11,6 +11,7 @@ import functools
 from contextlib import suppress
 from pathlib import Path
 
+import httpx
 import structlog
 from fastapi import HTTPException
 from sqlmodel import select
@@ -57,7 +58,7 @@ class IngestService:
         """
         try:
             source, doc = await self._adapter.ingest_url(url, session)
-        except Exception as e:
+        except (httpx.HTTPError, ValueError, OSError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         source.user_id = user_id
@@ -144,7 +145,7 @@ class IngestService:
                 source.title or "untitled",
                 extra={"source_type": source.source_type, "source_url": source.source_url},
             )
-        except Exception:
+        except OSError:
             log.warning("activity log write failed", op="ingest", source_id=source.id)
 
     @staticmethod

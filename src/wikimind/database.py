@@ -120,7 +120,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         except SQLAlchemyError:
             await session.rollback()
             raise
-        except Exception:
+        except Exception:  # Intentional broad catch — ensure rollback for any error
             await session.rollback()
             raise
 

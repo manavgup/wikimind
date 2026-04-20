@@ -299,7 +299,7 @@ class QueryService:
                         conversation=_to_conversation_response(conversation),
                     )
                     yield (f"event: done\ndata: {done_payload.model_dump_json()}\n\n")
-        except Exception as e:
+        except Exception as e:  # Intentional broad catch — SSE must send error event, not crash
             log.error("Stream failed", error=str(e))
             error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
             yield f"event: error\ndata: {error_payload}\n\n"

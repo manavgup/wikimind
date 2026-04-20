@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -238,7 +239,7 @@ class LLMRouter:
             async with get_session_factory()() as cost_session:
                 cost_session.add(cost_entry)
                 await cost_session.commit()
-        except Exception:
+        except SQLAlchemyError:
             log.debug("cost log write failed (table may not exist)", exc_info=True)
 
     async def complete(
@@ -280,7 +281,7 @@ class LLMRouter:
                 task.add_done_callback(_log_budget_error)
                 return response
 
-            except Exception as e:
+            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
                 log.warning("LLM provider failed", provider=provider, error=str(e))
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
@@ -354,7 +355,7 @@ class LLMRouter:
                 )
                 return response
 
-            except Exception as e:
+            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
                 log.warning("LLM multimodal provider failed", provider=provider, error=str(e))
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
@@ -398,7 +399,7 @@ class LLMRouter:
                 )
                 instance = await self._get_provider_instance(provider)
                 return await instance.stream(request, model)
-            except Exception as e:
+            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
                 log.warning(
                     "LLM stream provider failed",
                     provider=provider,

@@ -70,7 +70,7 @@ class ConnectionManager:
         for ws in targets:
             try:
                 await ws.send_text(message)
-            except Exception:
+            except (WebSocketDisconnect, RuntimeError, ConnectionError, OSError):
                 dead.add(ws)
         for ws in dead:
             self.disconnect(ws)
@@ -79,7 +79,7 @@ class ConnectionManager:
         """Send an event to a specific client."""
         try:
             await ws.send_text(json.dumps(event))
-        except Exception:
+        except (WebSocketDisconnect, RuntimeError, ConnectionError, OSError):
             self.disconnect(ws)
 
 

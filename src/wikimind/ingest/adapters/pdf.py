@@ -214,7 +214,7 @@ class PDFAdapter:
         # back into the extracted text.
         try:
             clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
-        except Exception:
+        except Exception:  # TODO: narrow once provider error hierarchy is unified
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
         text_path = raw_dir / f"{source.id}.txt"

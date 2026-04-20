@@ -176,7 +176,7 @@ class BackgroundCompiler:
         """Run compile_source directly in the current event loop."""
         try:
             await compile_source({}, source_id, user_id=user_id, doc=doc)
-        except Exception:
+        except Exception:  # Intentional broad catch — background task must not crash
             log.exception("in-process compilation failed", source_id=source_id)
 
     @staticmethod
@@ -184,7 +184,7 @@ class BackgroundCompiler:
         """Run lint_wiki directly in the current event loop."""
         try:
             await lint_wiki({}, user_id=user_id)
-        except Exception:
+        except Exception:  # Intentional broad catch — background task must not crash
             log.exception("in-process lint failed")
 
     @staticmethod
@@ -192,7 +192,7 @@ class BackgroundCompiler:
         """Run recompile_article directly in the current event loop."""
         try:
             await recompile_article({}, article_id, mode, job_id, user_id=user_id)
-        except Exception:
+        except Exception:  # Intentional broad catch — background task must not crash
             log.exception("in-process recompile failed", article_id=article_id)
 
     @staticmethod
@@ -200,7 +200,7 @@ class BackgroundCompiler:
         """Run sweep_wikilinks directly in the current event loop."""
         try:
             await sweep_wikilinks({}, user_id=user_id)
-        except Exception:
+        except Exception:  # Intentional broad catch — background task must not crash
             log.exception("in-process sweep failed")
 
 

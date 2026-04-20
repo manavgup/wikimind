@@ -33,7 +33,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
             )
             return _error_response(exc.status_code, exc.code, exc.message, request_id)
-        except Exception as exc:
+        except Exception as exc:  # Intentional broad catch — middleware must not leak errors
             request_id = _get_request_id(request)
             log.exception(
                 "unhandled_error",
