@@ -235,14 +235,14 @@ async def test_generate_unique_slug_skips_multiple_collisions(db_session) -> Non
     assert slug == "hello-world-3"
 
 
-def test_write_article_file(tmp_path) -> None:
+async def test_write_article_file(tmp_path) -> None:
     with (
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
         c = Compiler()
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
-    rel_path = c._write_article_file(_result(), src, "test-slug", [], [])
+    rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
     assert isinstance(rel_path, str)
     full_path = Path(tmp_path) / "wiki" / rel_path
     assert full_path.exists()
@@ -251,7 +251,7 @@ def test_write_article_file(tmp_path) -> None:
     assert "test-slug" in text
 
 
-def test_write_article_file_no_concepts(tmp_path) -> None:
+async def test_write_article_file_no_concepts(tmp_path) -> None:
     with (
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
@@ -267,7 +267,7 @@ def test_write_article_file_no_concepts(tmp_path) -> None:
         article_body="x",
     )
     src = Source(source_type=SourceType.TEXT, title=None)
-    rel_path = c._write_article_file(r, src, "no-concept", [], [])
+    rel_path = await c._write_article_file(r, src, "no-concept", [], [])
     assert isinstance(rel_path, str)
     full_path = Path(tmp_path) / "wiki" / rel_path
     assert full_path.exists()
