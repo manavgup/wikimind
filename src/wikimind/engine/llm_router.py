@@ -139,11 +139,12 @@ class LLMRouter:
             return True  # No API key needed
         return bool(get_api_key(provider.value))
 
-    async def _get_provider_instance(self, provider: Provider):
+    async def _get_provider_instance(self, provider: Provider) -> object:
         """Return a cached provider instance, creating it on first use."""
         if provider in self._provider_cache:
             return self._provider_cache[provider]
 
+        instance: object
         if provider == Provider.ANTHROPIC:
             instance = AnthropicProvider()
         elif provider == Provider.OPENAI:
@@ -229,9 +230,12 @@ class LLMRouter:
             cost_usd=response.cost_usd,
             latency_ms=response.latency_ms,
         )
-        async with get_session_factory()() as cost_session:
-            cost_session.add(cost_entry)
-            await cost_session.commit()
+        try:
+            async with get_session_factory()() as cost_session:
+                cost_session.add(cost_entry)
+                await cost_session.commit()
+        except Exception:
+            log.debug("cost log write failed (table may not exist)", exc_info=True)
 
     async def complete(
         self,
