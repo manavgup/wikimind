@@ -7,6 +7,7 @@ Handles selection, fallback, cost tracking, and token budgeting.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import time
 from dataclasses import dataclass, field
@@ -425,13 +426,7 @@ class LLMRouter:
         return json.loads(content)
 
 
-# Singleton
-_router: LLMRouter | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_llm_router() -> LLMRouter:
     """Return the singleton LLM router."""
-    global _router
-    if _router is None:
-        _router = LLMRouter()
-    return _router
+    return LLMRouter()

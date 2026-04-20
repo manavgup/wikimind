@@ -8,6 +8,7 @@ they are not installed.
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -293,18 +294,14 @@ class EmbeddingService:
 # Module-level singleton (only created when search extras are available)
 # ---------------------------------------------------------------------------
 
-_embedding_service: EmbeddingService | None = None
 
-
+@functools.lru_cache(maxsize=1)
 def get_embedding_service() -> EmbeddingService | None:
     """Return a singleton EmbeddingService, or None if search extras are missing."""
-    global _embedding_service
     if not _SEARCH_AVAILABLE:
         return None
-    if _embedding_service is None:
-        try:
-            _embedding_service = EmbeddingService()
-        except Exception:
-            log.warning("Failed to initialize EmbeddingService")
-            return None
-    return _embedding_service
+    try:
+        return EmbeddingService()
+    except Exception:
+        log.warning("Failed to initialize EmbeddingService")
+        return None

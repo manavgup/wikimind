@@ -7,6 +7,7 @@ chains so callers can trace every answer back to the raw source it came
 from.
 """
 
+import functools
 import json
 import re
 import uuid
@@ -682,12 +683,7 @@ def _sanitize_filename(title: str) -> str:
     return sanitized.strip("- ") or "conversation"
 
 
-_query_service: QueryService | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_query_service() -> QueryService:
     """Return a singleton QueryService instance for FastAPI dependency injection."""
-    global _query_service
-    if _query_service is None:
-        _query_service = QueryService()
-    return _query_service
+    return QueryService()

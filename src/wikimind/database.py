@@ -13,6 +13,7 @@ exception — including connection errors — triggers a rollback so the
 session is always left in a clean state.
 """
 
+import functools
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -93,24 +94,16 @@ def get_engine():
     return _create_engine_from_url(url)
 
 
-_engine = None
-_session_factory = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_async_engine():
     """Return the singleton async engine."""
-    global _engine
-    if _engine is None:
-        _engine = get_engine()
-    return _engine
+    return get_engine()
 
 
+@functools.lru_cache(maxsize=1)
 def get_session_factory():
     """Return the singleton session factory."""
-    global _session_factory
-    if _session_factory is None:
-        _session_factory = async_sessionmaker(get_async_engine(), class_=AsyncSession, expire_on_commit=False)
-    return _session_factory
+    return async_sessionmaker(get_async_engine(), class_=AsyncSession, expire_on_commit=False)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -584,7 +577,7 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
 
 async def close_db():
     """Close database connections. Called on app shutdown."""
-    global _engine
-    if _engine:
-        await _engine.dispose()
-        _engine = None
+    if get_async_engine.cache_info().currsize:
+        await get_async_engine().dispose()
+    get_async_engine.cache_clear()
+    get_session_factory.cache_clear()
