@@ -61,7 +61,7 @@ export function Layout({ children }: LayoutProps) {
               type="button"
               onClick={() => {
                 logout();
-                window.location.href = "/login";
+                window.location.href = "/";
               }}
               className="ml-auto text-xs text-slate-400 hover:text-slate-700"
             >
