@@ -1112,8 +1112,12 @@ class YouTubeAdapter:
         if not video_id:
             raise ValueError(f"Could not extract YouTube video ID from {url}")
 
-        # Fetch transcript
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore[attr-defined]
+        # Fetch transcript — offload the synchronous HTTP call to a thread
+        # so it doesn't block the uvicorn event loop (issue #181).
+        transcript_list = await asyncio.to_thread(
+            YouTubeTranscriptApi.get_transcript,
+            video_id,  # type: ignore[attr-defined]
+        )
         transcript_text = " ".join([t["text"] for t in transcript_list])
 
         # Dedup: hash the assembled transcript (issue #67). YouTube transcripts
