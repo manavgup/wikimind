@@ -1,0 +1,27 @@
+/* Shared styles for all design-system preview cards. */
+@import url("../colors_and_type.css");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--fg-2);
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+.card {
+  width: 700px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.eyebrow {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--fg-4);
+}
+.hint { font-size: 11px; color: var(--fg-4); }
+.mono { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }

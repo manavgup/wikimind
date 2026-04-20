@@ -24,6 +24,7 @@ export default function AuthCallback() {
 
   if (showAnimation) {
     return <CompileAnimation onComplete={() => navigate("/inbox", { replace: true })} />;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white">

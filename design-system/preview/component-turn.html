@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css"></head>
+<body><div class="card">
+  <div class="eyebrow">Q&A turn · Ask view</div>
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;box-shadow:0 1px 2px 0 rgb(0 0 0 / 0.04)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font:500 11px 'Inter',sans-serif;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em">Q2</span>
+      <span style="display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border-radius:4px;background:#faf5ff;color:#7e22ce;font:500 11px 'Inter',sans-serif">⑂ 1</span>
+    </div>
+    <div style="font:600 15px 'Inter',sans-serif;color:#0f172a">How does the borrow checker prevent data races?</div>
+    <div style="font:400 13px 'Inter',sans-serif;color:#334155;margin-top:8px">Rust's ownership model enforces that a value has exactly one owner at any point, and the borrow checker extends this with aliasing XOR mutability — you can have many readers <i>or</i> one writer, never both. Because data races require a shared mutable reference accessed from two threads simultaneously, the type system statically rules them out…</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+      <span style="font:500 11px 'Inter',sans-serif;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em">Sources:</span>
+      <span style="display:inline-flex;padding:3px 10px;border-radius:9999px;background:#f0f9ff;color:#0369a1;font:500 12px 'Inter',sans-serif">Rust ownership model</span>
+      <span style="display:inline-flex;padding:3px 10px;border-radius:9999px;background:#f0f9ff;color:#0369a1;font:500 12px 'Inter',sans-serif">Fearless concurrency</span>
+    </div>
+  </div>
+</div></body></html>
