@@ -8,6 +8,8 @@ interface SourceListProps {
   isError: boolean;
   onRetry: (sourceId: string) => void;
   retryingId: string | null;
+  onDelete: (sourceId: string) => void;
+  deletingId: string | null;
 }
 
 export function SourceList({
@@ -16,6 +18,8 @@ export function SourceList({
   isError,
   onRetry,
   retryingId,
+  onDelete,
+  deletingId,
 }: SourceListProps) {
   if (isLoading) {
     return (
@@ -49,6 +53,8 @@ export function SourceList({
           source={source}
           onRetry={onRetry}
           retrying={retryingId === source.id}
+          onDelete={onDelete}
+          deleting={deletingId === source.id}
         />
       ))}
     </div>

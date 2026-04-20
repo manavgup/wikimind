@@ -3,27 +3,43 @@ import { Button } from "../shared/Button";
 import { DownloadFallback } from "./DownloadFallback";
 import { HtmlViewer } from "./HtmlViewer";
 import { PdfViewer } from "./PdfViewer";
+import { TextViewer } from "./TextViewer";
+import { YouTubeViewer } from "./YouTubeViewer";
 
 interface DocumentViewerModalProps {
   sourceType: SourceType;
   title: string;
   url: string;
+  sourceUrl?: string | null;
   onClose: () => void;
 }
 
-const INLINE_VIEWERS: Record<string, React.FC<{ url: string }>> = {
-  pdf: PdfViewer,
-  url: HtmlViewer,
-};
+function viewerForType(
+  sourceType: SourceType,
+  url: string,
+  sourceUrl?: string | null,
+): React.ReactNode {
+  switch (sourceType) {
+    case "pdf":
+      return <PdfViewer url={url} />;
+    case "url":
+      return <HtmlViewer url={url} sourceUrl={sourceUrl ?? undefined} />;
+    case "text":
+      return <TextViewer url={url} />;
+    case "youtube":
+      return <YouTubeViewer url={url} sourceUrl={sourceUrl ?? undefined} />;
+    default:
+      return <DownloadFallback url={url} filename="document" />;
+  }
+}
 
 export function DocumentViewerModal({
   sourceType,
   title,
   url,
+  sourceUrl,
   onClose,
 }: DocumentViewerModalProps) {
-  const Viewer = INLINE_VIEWERS[sourceType];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="flex h-[90vh] w-[90vw] flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
@@ -36,11 +52,7 @@ export function DocumentViewerModal({
           </Button>
         </div>
         <div className="flex-1 overflow-hidden">
-          {Viewer ? (
-            <Viewer url={url} />
-          ) : (
-            <DownloadFallback url={url} filename={title} />
-          )}
+          {viewerForType(sourceType, url, sourceUrl)}
         </div>
       </div>
     </div>

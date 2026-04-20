@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Spinner } from "../shared/Spinner";
 
-interface HtmlViewerProps {
+interface YouTubeViewerProps {
   url: string;
   sourceUrl?: string;
 }
 
-export function HtmlViewer({ url, sourceUrl }: HtmlViewerProps) {
-  const [html, setHtml] = useState<string | null>(null);
+export function YouTubeViewer({ url, sourceUrl }: YouTubeViewerProps) {
+  const [transcript, setTranscript] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,14 +19,14 @@ export function HtmlViewer({ url, sourceUrl }: HtmlViewerProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
       })
-      .then(setHtml)
+      .then(setTranscript)
       .catch((err) => setError(err.message));
   }, [url]);
 
   if (error) {
     return <div className="p-8 text-rose-600">{error}</div>;
   }
-  if (html === null) {
+  if (transcript === null) {
     return (
       <div className="flex items-center justify-center p-8">
         <Spinner size={24} />
@@ -44,16 +44,13 @@ export function HtmlViewer({ url, sourceUrl }: HtmlViewerProps) {
             rel="noreferrer"
             className="text-sm text-brand-600 hover:underline"
           >
-            Open original URL
+            Watch on YouTube
           </a>
         </div>
       ) : null}
-      <iframe
-        srcDoc={html}
-        sandbox=""
-        title="Source document"
-        className="flex-1 border-0"
-      />
+      <pre className="flex-1 overflow-auto whitespace-pre-wrap p-6 font-mono text-sm text-slate-800">
+        {transcript}
+      </pre>
     </div>
   );
 }

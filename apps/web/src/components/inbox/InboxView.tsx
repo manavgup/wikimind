@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  useDeleteSource,
   useIngestPdf,
   useIngestUrl,
   useRetryCompile,
@@ -15,6 +16,7 @@ export function InboxView() {
   const ingestUrlMutation = useIngestUrl();
   const ingestPdfMutation = useIngestPdf();
   const retryMutation = useRetryCompile();
+  const deleteMutation = useDeleteSource();
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmitUrl = async (url: string) => {
@@ -42,6 +44,17 @@ export function InboxView() {
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Failed to retry compilation",
+      );
+    }
+  };
+
+  const handleDelete = async (sourceId: string) => {
+    setError(null);
+    try {
+      await deleteMutation.mutateAsync(sourceId);
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Failed to delete source",
       );
     }
   };
@@ -88,6 +101,12 @@ export function InboxView() {
           retryingId={
             retryMutation.isPending && retryMutation.variables
               ? retryMutation.variables
+              : null
+          }
+          onDelete={handleDelete}
+          deletingId={
+            deleteMutation.isPending && deleteMutation.variables
+              ? deleteMutation.variables
               : null
           }
         />

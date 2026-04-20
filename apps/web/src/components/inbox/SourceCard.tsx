@@ -12,6 +12,8 @@ interface SourceCardProps {
   source: Source;
   onRetry?: (sourceId: string) => void;
   retrying?: boolean;
+  onDelete?: (sourceId: string) => void;
+  deleting?: boolean;
 }
 
 const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
@@ -52,7 +54,7 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
+export function SourceCard({ source, onRetry, retrying, onDelete, deleting }: SourceCardProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const statusMessage = useWebSocketStore(
@@ -109,17 +111,30 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
           {source.error_message ? (
             <p className="text-xs text-rose-700">{source.error_message}</p>
           ) : null}
-          {onRetry ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => onRetry(source.id)}
-              disabled={retrying}
-            >
-              {retrying ? <Spinner size={12} /> : null}
-              Retry compile
-            </Button>
-          ) : null}
+          <div className="flex gap-2">
+            {onRetry ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => onRetry(source.id)}
+                disabled={retrying}
+              >
+                {retrying ? <Spinner size={12} /> : null}
+                Retry compile
+              </Button>
+            ) : null}
+            {onDelete ? (
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => onDelete(source.id)}
+                disabled={deleting}
+              >
+                {deleting ? <Spinner size={12} /> : null}
+                Delete
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -139,6 +154,7 @@ export function SourceCard({ source, onRetry, retrying }: SourceCardProps) {
               sourceType={source.source_type}
               title={source.title ?? "Source document"}
               url={getOriginalUrl(source.id)}
+              sourceUrl={source.source_url}
               onClose={() => setViewerOpen(false)}
             />
           ) : null}
