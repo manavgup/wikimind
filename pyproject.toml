@@ -269,3 +269,13 @@ ignore-property-decorators = false
 ignore-module = true
 quiet = false
 verbose = 1
+
+# ---------- uv ----------
+[tool.uv]
+# The PyTorch CPU-only index (set via UV_EXTRA_INDEX_URL in Docker) ships old
+# vendored copies of common packages (e.g. requests==2.28.1).  With the default
+# "first-match" strategy uv stops searching after the first index that carries
+# any version, blocking transitive deps that need newer releases from PyPI.
+# "unsafe-best-match" considers *all* indexes and picks the highest compatible
+# version, which mirrors pip's --extra-index-url semantics.
+index-strategy = "unsafe-best-match"
