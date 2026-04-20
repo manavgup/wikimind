@@ -105,8 +105,8 @@ class LLMRouter:
 
     def __init__(self):
         self.settings = get_settings()
-        self._budget_warning_sent = False
-        self._budget_exceeded_sent = False
+        self._budget_warning_sent: tuple[int, int] | None = None
+        self._budget_exceeded_sent: tuple[int, int] | None = None
         self._cached_spend: float | None = None
         self._cache_expires_at: float = 0.0
 
@@ -159,6 +159,15 @@ class LLMRouter:
 
     async def _check_budget(self) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
+        current_month = utcnow_naive()
+        month_key = (current_month.year, current_month.month)
+
+        # Reset flags when the calendar month rolls over
+        if self._budget_warning_sent and self._budget_warning_sent != month_key:
+            self._budget_warning_sent = None
+        if self._budget_exceeded_sent and self._budget_exceeded_sent != month_key:
+            self._budget_exceeded_sent = None
+
         if self._budget_warning_sent and self._budget_exceeded_sent:
             return
 
@@ -166,7 +175,7 @@ class LLMRouter:
         if self._cached_spend is not None and now < self._cache_expires_at:
             spend = self._cached_spend
         else:
-            start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
+            start_of_month = current_month.replace(day=1, hour=0, minute=0, second=0)
             async with get_session_factory()() as session:
                 result = await session.execute(
                     select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
@@ -181,14 +190,19 @@ class LLMRouter:
         pct = spend / budget * 100
 
         if pct >= self.settings.llm.budget_warning_pct * 100 and not self._budget_warning_sent:
-            log.warning("Budget warning threshold reached", spend_usd=spend, budget_usd=budget, pct=round(pct, 1))
+            log.warning(
+                "Budget warning threshold reached",
+                spend_usd=spend,
+                budget_usd=budget,
+                pct=round(pct, 1),
+            )
             await emit_budget_warning(spend, budget, pct)
-            self._budget_warning_sent = True
+            self._budget_warning_sent = month_key
 
         if pct >= 100.0 and not self._budget_exceeded_sent:
             log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
             await emit_budget_exceeded(spend, budget)
-            self._budget_exceeded_sent = True
+            self._budget_exceeded_sent = month_key
 
     async def complete(
         self,
@@ -229,8 +243,15 @@ class LLMRouter:
                     cost_usd=response.cost_usd,
                     latency_ms=response.latency_ms,
                 )
+
+                def _log_budget_error(t: asyncio.Task) -> None:
+                    if not t.cancelled():
+                        exc = t.exception()
+                        if exc:
+                            log.warning("budget check failed", error=str(exc))
+
                 task = asyncio.create_task(self._check_budget())
-                task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+                task.add_done_callback(_log_budget_error)
                 return response
 
             except Exception as e:
