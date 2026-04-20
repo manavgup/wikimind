@@ -198,10 +198,7 @@ async def run_lint(
 
         # Emit WebSocket alert
         if contradictions:
-            article_titles: list[str] = []
-            for c in contradictions:
-                if not c.dismissed:
-                    article_titles.append(c.description)
+            article_titles: list[str] = [c.description for c in contradictions if not c.dismissed]
             if article_titles:
                 await emit_linter_alert("contradiction", article_titles, user_id=user_id)
 

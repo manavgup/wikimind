@@ -115,7 +115,15 @@ select = [
     "SIM",    # flake8-simplify
     "RUF",    # ruff-specific rules
     "PL",     # pylint rules (via ruff)
+    "PLC0415", # import-outside-top-level (not enabled by default under PL)
     "D",      # pydocstyle
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "PERF",   # perflint
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "T20",    # flake8-print
+    "ISC",    # flake8-implicit-str-concat
 ]
 ignore = [
     "E501",   # line too long — handled by formatter
@@ -131,10 +139,14 @@ ignore = [
     "PLR2004", # magic value comparison — too noisy for early stage
     "PLR0915", # too many statements — some functions are legitimately long
     "PLW0603", # global statement — acceptable for singleton patterns (engine, session factory)
+    "PIE804",  # unnecessary-dict-kwargs — Pydantic uses **{"alias": ...} patterns intentionally
+    "RET504",  # unnecessary-assign — readability-first over short-circuit returns
+    "ISC001",  # single-line-implicit-string-concat — conflicts with formatter
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF"]
+"scripts/**/*.py" = ["T20"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]

@@ -44,10 +44,9 @@ def json_array_contains(dialect: str, column_name: str, value: str) -> ClauseEle
     """
     if dialect == "postgresql":
         return text(f"{column_name}::jsonb @> cast(:val as jsonb)").bindparams(val=json_mod.dumps([value]))
-    else:
-        # SQLite: LIKE-based search matching the existing .contains() pattern
-        needle = f'"{value}"'
-        return literal_column(column_name).contains(needle)
+    # SQLite: LIKE-based search matching the existing .contains() pattern
+    needle = f'"{value}"'
+    return literal_column(column_name).contains(needle)
 
 
 def json_array_elements_subquery(dialect: str, table_name: str, column_name: str, value_alias: str = "elem"):

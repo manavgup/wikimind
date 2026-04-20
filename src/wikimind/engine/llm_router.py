@@ -142,16 +142,15 @@ class LLMRouter:
         """Create and return a provider instance."""
         if provider == Provider.ANTHROPIC:
             return AnthropicProvider()
-        elif provider == Provider.OPENAI:
+        if provider == Provider.OPENAI:
             return OpenAIProvider()
-        elif provider == Provider.GOOGLE:
+        if provider == Provider.GOOGLE:
             return GoogleProvider()
-        elif provider == Provider.OLLAMA:
+        if provider == Provider.OLLAMA:
             return OllamaProvider(self.settings.llm.ollama_base_url)
-        elif provider == Provider.MOCK:
+        if provider == Provider.MOCK:
             return MockProvider()
-        else:
-            raise ValueError(f"Provider {provider} not implemented yet")
+        raise ValueError(f"Provider {provider} not implemented yet")
 
     def _get_model(self, provider: Provider) -> str:
         """Return the configured model name for a provider."""

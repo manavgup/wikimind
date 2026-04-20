@@ -34,15 +34,15 @@ from wikimind.models import (
 
 
 def _result(**overrides):
-    defaults = dict(
-        title="Test Article",
-        summary="A two sentence summary. It explains things.",
-        key_claims=[CompiledClaim(claim="X", confidence=ConfidenceLevel.SOURCED)],
-        concepts=["test-concept"],
-        backlink_suggestions=["Related"],
-        open_questions=["Q?"],
-        article_body="Body of article. " * 50,
-    )
+    defaults = {
+        "title": "Test Article",
+        "summary": "A two sentence summary. It explains things.",
+        "key_claims": [CompiledClaim(claim="X", confidence=ConfidenceLevel.SOURCED)],
+        "concepts": ["test-concept"],
+        "backlink_suggestions": ["Related"],
+        "open_questions": ["Q?"],
+        "article_body": "Body of article. " * 50,
+    }
     defaults.update(overrides)
     return CompilationResult(**defaults)
 
