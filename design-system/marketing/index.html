@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WikiMind — you never write the wiki. you feed it.</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../colors_and_type.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.55;
+      color: var(--fg-2);
+      background: #fff;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* ---------- Layout ---------- */
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+    .wrap-narrow { max-width: 760px; margin: 0 auto; padding: 0 32px; }
+
+    /* ---------- Top nav ---------- */
+    nav.top {
+      position: sticky; top: 0; z-index: 40;
+      border-bottom: 1px solid var(--border-1);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    nav.top .inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    nav.top .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--fg-1); font-size: 15px; letter-spacing: -0.01em; }
+    nav.top .brand .glyph { font-size: 18px; }
+    nav.top .links { display: flex; align-items: center; gap: 24px; }
+    nav.top .links a { font-size: 13px; font-weight: 500; color: var(--fg-3); transition: color var(--dur-fast) var(--ease-standard); }
+    nav.top .links a:hover { color: var(--fg-1); }
+    nav.top .links .cta {
+      padding: 6px 14px; background: var(--brand-700); color: #fff; border-radius: var(--radius-md);
+      font-weight: 500; transition: background var(--dur-fast) var(--ease-standard);
+    }
+    nav.top .links .cta:hover { background: var(--brand-800); color: #fff; }
+
+    /* ---------- Hero ---------- */
+    .hero { padding: 80px 0 64px; border-bottom: 1px solid var(--border-1); }
+    .hero .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--brand-700); background: var(--brand-50); border: 1px solid var(--brand-100);
+      padding: 5px 10px; border-radius: 9999px;
+    }
+    .hero .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-500); }
+    .hero h1 {
+      margin: 24px 0 0;
+      font-size: clamp(40px, 6.4vw, 76px);
+      line-height: 1.02;
+      letter-spacing: -0.025em;
+      font-weight: 700;
+      color: var(--fg-1);
+      text-wrap: balance;
+      max-width: 14ch;
+    }
+    .hero h1 em {
+      font-family: var(--font-serif); font-style: italic; font-weight: 400;
+      color: var(--brand-700);
+    }
+    .hero .sub {
+      margin: 24px 0 0;
+      font-size: 19px; line-height: 1.55;
+      color: var(--fg-2);
+      max-width: 58ch;
+      text-wrap: pretty;
+    }
+    .hero .negations {
+      margin: 32px 0 0;
+      display: flex; flex-wrap: wrap; gap: 6px 12px;
+      font-size: 13px; color: var(--fg-3);
+    }
+    .hero .negations .neg { display: inline-flex; align-items: center; gap: 6px; }
+    .hero .negations .neg::before {
+      content: "×"; display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 2px;
+      background: var(--slate-100); color: var(--slate-400);
+      font-size: 10px; font-weight: 600;
+    }
+    .hero .negations .sep { color: var(--slate-300); margin: 0 2px; }
+
+    .hero-grid {
+      margin-top: 56px;
+      display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px;
+      align-items: start;
+    }
+    .hero-actions { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 18px; border-radius: var(--radius-md);
+      font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+      border: 1px solid transparent; cursor: pointer;
+      transition: all var(--dur-fast) var(--ease-standard);
+    }
+    .btn-primary { background: var(--brand-700); color: #fff; }
+    .btn-primary:hover { background: var(--brand-800); color: #fff; }
+    .btn-secondary { background: #fff; color: var(--fg-2); border-color: var(--border-2); }
+    .btn-secondary:hover { border-color: var(--brand-300); color: var(--fg-1); }
+    .btn .arrow { transition: transform var(--dur-fast) var(--ease-standard); }
+    .btn:hover .arrow { transform: translateX(2px); }
+
+    .hero-meta {
+      margin-top: 32px; display: flex; gap: 24px; flex-wrap: wrap;
+      font-size: 12px; color: var(--fg-3);
+    }
+    .hero-meta .m { display: flex; align-items: center; gap: 6px; }
+    .hero-meta code {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg-muted); color: var(--fg-1);
+      padding: 1px 6px; border-radius: 4px;
+    }
+
+    /* ---------- Hero diagram — the three layers ---------- */
+    .diagram {
+      background: #fff;
+      border: 1px solid var(--border-1);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 16px -8px rgb(31 50 81 / 0.10);
+    }
+    .diagram-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 4px 14px; border-bottom: 1px solid var(--border-1);
+    }
+    .diagram-head .label { font-size: 11px; color: var(--fg-4); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+    .diagram-head .controls { display: flex; gap: 6px; }
+    .diagram-head .controls span { width: 9px; height: 9px; border-radius: 50%; background: var(--slate-200); }
+
+    .layer-stack { padding: 16px 4px 4px; display: flex; flex-direction: column; gap: 10px; }
+    .layer {
+      position: relative; display: flex; gap: 14px; align-items: center;
+      padding: 14px 16px; border-radius: 8px; border: 1px solid;
+    }
+    .layer .num {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+      width: 20px; height: 20px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .layer .body { flex: 1; min-width: 0; }
+    .layer .t { font-size: 13px; font-weight: 600; color: var(--fg-1); line-height: 1.3; }
+    .layer .d { font-size: 12px; color: var(--fg-3); margin-top: 2px; line-height: 1.45; }
+    .layer .owner { font-size: 10px; font-family: var(--font-mono); font-weight: 500; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.02em; }
+
+    .layer.raw { background: #fff; border-color: var(--border-1); }
+    .layer.raw .num { background: var(--slate-100); color: var(--slate-600); }
+    .layer.raw .owner { background: var(--slate-100); color: var(--slate-600); }
+
+    .layer.wiki { background: var(--brand-50); border-color: var(--brand-100); }
+    .layer.wiki .num { background: var(--brand-100); color: var(--brand-700); }
+    .layer.wiki .owner { background: #fff; color: var(--brand-700); border: 1px solid var(--brand-200); }
+
+    .layer.schema { background: #fff; border-color: var(--border-1); }
+    .layer.schema .num { background: var(--slate-100); color: var(--slate-600); }
+    .layer.schema .owner { background: var(--slate-100); color: var(--slate-600); }
+
+    .layer-arrow {
+      height: 18px; display: flex; align-items: center; justify-content: center;
+      color: var(--slate-300); font-size: 11px; margin: -4px 0;
+    }
+    .layer-arrow svg { display: block; }
+
+    /* ---------- Section scaffolding ---------- */
+    section { padding: 80px 0; border-bottom: 1px solid var(--border-1); }
+    section.slate { background: var(--slate-50); }
+    section.brand { background: var(--brand-50); }
+    section.dark { background: var(--slate-900); border-bottom: none; color: var(--slate-100); }
+
+    .sec-head { margin-bottom: 48px; }
+    .sec-head .kicker {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--brand-700);
+    }
+    section.dark .sec-head .kicker { color: var(--brand-300); }
+    .sec-head h2 {
+      margin: 12px 0 0;
+      font-size: clamp(28px, 3.6vw, 42px); line-height: 1.1; letter-spacing: -0.02em;
+      font-weight: 700; color: var(--fg-1); text-wrap: balance; max-width: 20ch;
+    }
+    section.dark .sec-head h2 { color: #fff; }
+    .sec-head .lede {
+      margin-top: 16px; max-width: 58ch;
+      font-size: 17px; line-height: 1.55; color: var(--fg-2);
+      text-wrap: pretty;
+    }
+    section.dark .sec-head .lede { color: var(--slate-300); }
+
+    /* ---------- Two-column split ---------- */
+    .split {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px;
+      align-items: start;
+    }
+    .split.wide { gap: 64px; }
+
+    /* ---------- Problem / Solution table ---------- */
+    .compare {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      border: 1px solid var(--border-1); border-radius: 12px; overflow: hidden;
+      background: #fff;
+    }
+    .compare > div { padding: 28px 28px 32px; }
+    .compare .col-l { border-right: 1px solid var(--border-1); background: var(--slate-50); }
+    .compare .col-r { background: var(--brand-50); }
+    .compare h3 {
+      margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--fg-4);
+    }
+    .compare .col-r h3 { color: var(--brand-700); }
+    .compare .tag {
+      font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em;
+      color: var(--fg-1); margin: 0 0 14px;
+    }
+    .compare ul { margin: 0; padding: 0; list-style: none; }
+    .compare li {
+      padding: 10px 0 10px 26px; position: relative;
+      font-size: 14px; line-height: 1.55; color: var(--fg-2);
+      border-top: 1px solid var(--border-1);
+    }
+    .compare .col-r li { border-top-color: var(--brand-100); }
+    .compare li:first-child { border-top: none; }
+    .compare li::before {
+      content: ""; position: absolute; left: 0; top: 19px; width: 16px; height: 1px;
+      background: var(--slate-300);
+    }
+    .compare .col-r li::before { background: var(--brand-300); }
+    .compare li strong { color: var(--fg-1); font-weight: 600; }
+
+    /* ---------- Flow ---------- */
+    .flow {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    .flow-card {
+      background: #fff; border: 1px solid var(--border-1); border-radius: 12px;
+      padding: 24px; position: relative;
+      transition: border-color var(--dur-base) var(--ease-standard);
+    }
+    .flow-card:hover { border-color: var(--brand-300); }
+    .flow-card .step {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+      color: var(--brand-600); letter-spacing: 0.04em;
+    }
+    .flow-card h3 {
+      margin: 6px 0 8px; font-size: 22px; font-weight: 700;
+      color: var(--fg-1); letter-spacing: -0.015em;
+    }
+    .flow-card p { margin: 0 0 16px; font-size: 14px; color: var(--fg-2); line-height: 1.55; }
+    .flow-card .spec {
+      margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-1);
+      font-size: 12px; color: var(--fg-3);
+    }
+    .flow-card .spec strong { color: var(--fg-1); }
+
+    /* ---------- Mini product preview (used in cards) ---------- */
+    .mini {
+      border: 1px solid var(--border-1); border-radius: 8px; padding: 12px;
+      background: #fff; margin: 12px 0 0;
+    }
+    .mini .row { display: flex; align-items: center; gap: 8px; }
+    .mini .pill {
+      display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+      border-radius: 9999px; font-size: 11px; font-weight: 500;
+      border: 1px solid;
+    }
+    .pill.brand { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); }
+    .pill.info { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+    .pill.success { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .pill.warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .pill.neutral { background: var(--slate-100); color: var(--slate-700); border-color: var(--slate-200); }
+    .mini .title { font-size: 13px; font-weight: 600; color: var(--fg-1); margin-top: 8px; line-height: 1.3; }
+    .mini .meta { font-size: 11px; color: var(--fg-3); margin-top: 2px; }
+    .mini .spin {
+      display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+      border: 2px solid var(--slate-200); border-top-color: var(--sky-700, #0369a1);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Editorial pull quote ---------- */
+    .pullquote {
+      font-family: var(--font-serif); font-style: italic;
+      font-size: clamp(26px, 3.4vw, 38px); line-height: 1.25;
+      color: var(--fg-1); letter-spacing: -0.005em;
+      max-width: 24ch; text-wrap: balance;
+    }
+    section.dark .pullquote { color: #fff; }
+    .pullquote-cite {
+      margin-top: 24px; font-family: var(--font-sans); font-style: normal;
+      font-size: 12px; font-weight: 500; color: var(--fg-3); letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    section.dark .pullquote-cite { color: var(--slate-400); }
+
+    /* ---------- Use cases grid ---------- */
+    .cases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-1); border: 1px solid var(--border-1); border-radius: 12px; overflow: hidden; }
+    .case { background: #fff; padding: 24px; display: flex; flex-direction: column; gap: 10px; min-height: 180px; }
+    .case .eye {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--brand-700);
+    }
+    .case h3 { margin: 0; font-size: 18px; font-weight: 600; color: var(--fg-1); letter-spacing: -0.01em; }
+    .case p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--fg-2); }
+    .case .tags { margin-top: auto; display: flex; flex-wrap: wrap; gap: 4px; }
+    .case .tag-s {
+      font-family: var(--font-mono); font-size: 10px; padding: 2px 6px;
+      background: var(--slate-50); color: var(--fg-3); border-radius: 3px; border: 1px solid var(--border-1);
+    }
+
+    /* ---------- Architecture diagram (dark section) ---------- */
+    .arch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+    .arch-col {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 24px;
+    }
+    .arch-col .tier {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--brand-300); letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .arch-col h3 { margin: 8px 0 8px; font-size: 20px; font-weight: 600; color: #fff; letter-spacing: -0.01em; }
+    .arch-col p { margin: 0 0 16px; font-size: 13px; line-height: 1.55; color: var(--slate-400); }
+    .arch-col .dots {
+      font-family: var(--font-mono); font-size: 11px; color: var(--slate-500);
+      background: rgba(0,0,0,0.35); padding: 10px 12px; border-radius: 6px;
+      line-height: 1.6; border: 1px solid rgba(255,255,255,0.06);
+    }
+    .arch-col .dots span { display: block; }
+    .arch-col .dots .k { color: var(--brand-300); }
+    .arch-col .owner {
+      margin-top: 16px; font-size: 11px; color: var(--slate-400);
+      border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;
+    }
+    .arch-col .owner strong { color: #fff; font-weight: 600; }
+
+    /* ---------- FAQ ---------- */
+    .faq { border-top: 1px solid var(--border-1); }
+    details.qa {
+      border-bottom: 1px solid var(--border-1);
+    }
+    details.qa summary {
+      list-style: none; cursor: pointer;
+      padding: 22px 0;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      font-size: 17px; font-weight: 600; color: var(--fg-1);
+      transition: color var(--dur-fast) var(--ease-standard);
+    }
+    details.qa summary::-webkit-details-marker { display: none; }
+    details.qa summary::after {
+      content: "+"; font-weight: 400; color: var(--fg-3); font-size: 20px;
+      transition: transform var(--dur-base) var(--ease-standard);
+    }
+    details.qa[open] summary::after { content: "−"; }
+    details.qa summary:hover { color: var(--brand-700); }
+    details.qa .a { padding: 0 0 22px; font-size: 15px; line-height: 1.65; color: var(--fg-2); max-width: 70ch; }
+    details.qa .a code { font-family: var(--font-mono); font-size: 13px; background: var(--bg-muted); padding: 1px 5px; border-radius: 4px; color: var(--fg-1); }
+
+    /* ---------- CTA band ---------- */
+    .cta-band {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: center;
+      padding: 48px; background: #fff; border: 1px solid var(--border-1); border-radius: 16px;
+    }
+    .cta-band h2 { margin: 0; font-size: 32px; line-height: 1.1; letter-spacing: -0.02em; color: var(--fg-1); font-weight: 700; max-width: 18ch; }
+    .cta-band p { margin: 8px 0 0; font-size: 15px; color: var(--fg-3); }
+    .cta-band .actions { display: flex; gap: 12px; }
+
+    /* ---------- Footer ---------- */
+    footer.foot {
+      padding: 56px 0 48px; background: var(--slate-900); color: var(--slate-400);
+      font-size: 13px;
+    }
+    footer.foot .row {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px; align-items: start;
+    }
+    footer.foot .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #fff; font-size: 15px; letter-spacing: -0.01em; margin-bottom: 12px; }
+    footer.foot p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--slate-500); max-width: 38ch; }
+    footer.foot h4 { margin: 0 0 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate-300); }
+    footer.foot ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    footer.foot a { color: var(--slate-400); font-size: 13px; transition: color var(--dur-fast) var(--ease-standard); }
+    footer.foot a:hover { color: #fff; }
+    footer.foot .colophon {
+      margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; color: var(--slate-500);
+    }
+    footer.foot .colophon code { font-family: var(--font-mono); font-size: 11px; color: var(--slate-400); }
+
+    /* ---------- Login overlay ---------- */
+    .login-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(15, 23, 42, 0.62);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 24px;
+      animation: overlay-fade var(--dur-base) var(--ease-standard);
+    }
+    .login-overlay.open { display: flex; }
+    @keyframes overlay-fade { from { opacity: 0; } to { opacity: 1; } }
+
+    .login-card {
+      width: 100%; max-width: 920px; min-height: 560px;
+      background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 24px 72px -12px rgb(15 23 42 / 0.4);
+      display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      animation: card-rise var(--dur-slow) var(--ease-standard);
+    }
+    @keyframes card-rise { from { opacity: 0; transform: translateY(12px) scale(0.99); } to { opacity: 1; transform: none; } }
+
+    .login-left {
+      background: var(--slate-900);
+      color: #fff;
+      padding: 40px 40px 32px;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
+    .login-left::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(600px 300px at 85% 110%, rgba(70, 115, 173, 0.22), transparent 70%);
+    }
+    .login-left .brand {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; color: #fff; font-size: 15px; letter-spacing: -0.01em;
+      position: relative; z-index: 2;
+    }
+    .login-left .welcome {
+      margin: auto 0; position: relative; z-index: 2;
+    }
+    .login-left h2 {
+      margin: 0; font-size: 32px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 700;
+      color: #fff; max-width: 14ch; text-wrap: balance;
+    }
+    .login-left h2 em {
+      font-family: var(--font-serif); font-style: italic; font-weight: 400;
+      color: var(--brand-300);
+    }
+    .login-left .p { margin: 20px 0 0; font-size: 14px; line-height: 1.6; color: var(--slate-300); max-width: 40ch; }
+    .login-left .stats {
+      margin-top: 32px; display: flex; gap: 20px; position: relative; z-index: 2;
+    }
+    .login-left .stat { flex: 1; min-width: 0; }
+    .login-left .stat .n {
+      font-family: var(--font-mono); font-size: 22px; font-weight: 600; color: #fff;
+      letter-spacing: -0.01em;
+    }
+    .login-left .stat .l {
+      font-size: 10px; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+    .login-left .footmark {
+      margin-top: auto; padding-top: 32px; position: relative; z-index: 2;
+      font-size: 11px; color: var(--slate-500); font-family: var(--font-mono);
+    }
+
+    .login-right {
+      padding: 48px 48px 40px;
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .login-right .close-x {
+      position: absolute; top: 16px; right: 16px;
+      width: 28px; height: 28px; border-radius: 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: transparent; border: none; cursor: pointer;
+      color: var(--fg-4); font-size: 16px;
+      transition: all var(--dur-fast) var(--ease-standard);
+    }
+    .login-right .close-x:hover { background: var(--slate-100); color: var(--fg-1); }
+
+    .login-right .eye {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--fg-4);
+    }
+    .login-right h3 {
+      margin: 8px 0 8px; font-size: 24px; font-weight: 700; color: var(--fg-1); letter-spacing: -0.015em;
+    }
+    .login-right .sub { margin: 0 0 28px; font-size: 14px; color: var(--fg-3); line-height: 1.5; }
+
+    .oauth { display: flex; flex-direction: column; gap: 10px; }
+    .oauth button {
+      display: flex; align-items: center; gap: 12px; justify-content: center;
+      width: 100%; padding: 11px 14px;
+      background: #fff; border: 1px solid var(--border-2); border-radius: var(--radius-md);
+      font-family: var(--font-sans); font-size: 14px; font-weight: 500; color: var(--fg-1);
+      cursor: pointer; transition: all var(--dur-fast) var(--ease-standard);
+    }
+    .oauth button:hover { border-color: var(--brand-400); background: var(--slate-50); }
+    .oauth button .logo { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0 16px;
+      font-size: 11px; font-weight: 500; color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .divider::before, .divider::after {
+      content: ""; flex: 1; height: 1px; background: var(--border-1);
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .field label {
+      font-size: 12px; font-weight: 500; color: var(--fg-2);
+    }
+    .field input {
+      font-family: var(--font-sans); font-size: 14px; color: var(--fg-1);
+      background: #fff; border: 1px solid var(--border-2); border-radius: var(--radius-md);
+      padding: 9px 12px; outline: none;
+      transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+    }
+    .field input:focus { border-color: var(--brand-500); box-shadow: 0 0 0 3px rgb(70 115 173 / 0.15); }
+    .field input::placeholder { color: var(--fg-4); }
+
+    .magic-btn {
+      width: 100%; padding: 10px 16px;
+      background: var(--brand-700); color: #fff;
+      border: none; border-radius: var(--radius-md);
+      font-family: var(--font-sans); font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: background var(--dur-fast) var(--ease-standard);
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .magic-btn:hover { background: var(--brand-800); }
+    .magic-btn:disabled { background: var(--brand-300); cursor: default; }
+
+    .login-fine {
+      margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border-1);
+      font-size: 11px; color: var(--fg-4); line-height: 1.55;
+    }
+    .login-fine a { color: var(--fg-3); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+    .login-fine a:hover { color: var(--fg-1); }
+
+    /* Loading state after login click */
+    .login-loading { display: none; }
+    .login-card.loading .login-right .main { display: none; }
+    .login-card.loading .login-right .login-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; margin: auto 0; }
+    .login-card.loading .login-right .login-loading .spin-lg {
+      width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--slate-200); border-top-color: var(--brand-600);
+      animation: spin 1s linear infinite;
+    }
+    .login-card.loading .login-right .login-loading .status {
+      font-size: 13px; color: var(--fg-2); font-family: var(--font-mono);
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 960px) {
+      .hero-grid, .split { grid-template-columns: 1fr; }
+      .flow, .arch, .cases { grid-template-columns: 1fr; }
+      .compare { grid-template-columns: 1fr; }
+      .compare .col-l { border-right: none; border-bottom: 1px solid var(--border-1); }
+      .login-card { grid-template-columns: 1fr; max-width: 480px; }
+      .login-left { padding: 28px; min-height: 200px; }
+      .login-right { padding: 32px 28px; }
+      .cta-band { grid-template-columns: 1fr; gap: 20px; }
+      footer.foot .row { grid-template-columns: 1fr 1fr; gap: 28px; }
+    }
+    @media (max-width: 600px) {
+      .wrap { padding: 0 20px; }
+      nav.top .links a:not(.cta) { display: none; }
+      section { padding: 56px 0; }
+      .hero { padding: 48px 0 48px; }
+      footer.foot .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body data-screen-label="home">
+  <!-- ============ TOP NAV ============ -->
+  <nav class="top">
+    <div class="wrap inner">
+      <a class="brand" href="#top">
+        <span class="glyph">🧠</span>
+        <span>WikiMind</span>
+      </a>
+      <div class="links">
+        <a href="#how">How it works</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#cases">Use cases</a>
+        <a href="#faq">FAQ</a>
+        <a class="cta" href="#" data-login>Sign in</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ HERO ============ -->
+  <header class="hero" id="top">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow"><span class="dot"></span>v0.4 · the LLM maintains it</span>
+          <h1>you never write the wiki.<br>you <em>feed</em> it.</h1>
+          <p class="sub">
+            WikiMind is a personal knowledge OS. Drop in articles, papers, PDFs, YouTube links, or podcasts — an LLM compiles them into a living, cross‑linked wiki that keeps getting richer as you read. Ask anything. File good answers back.
+          </p>
+          <div class="negations">
+            <span class="neg">not a note app</span>
+            <span class="sep">·</span>
+            <span class="neg">not a chatbot</span>
+            <span class="sep">·</span>
+            <span class="neg">not a RAG tool</span>
+          </div>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#" data-login>
+              Open the wiki
+              <span class="arrow">→</span>
+            </a>
+            <a class="btn btn-secondary" href="#how">See how it works</a>
+          </div>
+          <div class="hero-meta">
+            <div class="m">local‑first · your data stays on disk</div>
+            <div class="m">bring your own LLM · <code>GPT</code> <code>Claude</code> <code>Ollama</code></div>
+          </div>
+        </div>
+
+        <!-- Three-layer architecture diagram -->
+        <div class="diagram" aria-label="Three layers of WikiMind">
+          <div class="diagram-head">
+            <span class="label">Architecture · three layers</span>
+            <span class="controls"><span></span><span></span><span></span></span>
+          </div>
+          <div class="layer-stack">
+            <div class="layer raw">
+              <span class="num">01</span>
+              <div class="body">
+                <div class="t">Raw sources</div>
+                <div class="d">PDFs, URLs, videos, transcripts. Immutable. Never modified.</div>
+              </div>
+              <span class="owner">you own</span>
+            </div>
+            <div class="layer-arrow" aria-hidden="true">
+              <svg width="12" height="16" viewBox="0 0 12 16" fill="none"><path d="M6 1v12m-4-4l4 4 4-4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="layer wiki">
+              <span class="num">02</span>
+              <div class="body">
+                <div class="t">The wiki · the compounding artifact</div>
+                <div class="d">Markdown pages: summaries, entities, concepts, comparisons. Rewritten with every ingest.</div>
+              </div>
+              <span class="owner">LLM owns</span>
+            </div>
+            <div class="layer-arrow" aria-hidden="true">
+              <svg width="12" height="16" viewBox="0 0 12 16" fill="none"><path d="M6 1v12m-4-4l4 4 4-4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="layer schema">
+              <span class="num">03</span>
+              <div class="body">
+                <div class="t">The schema</div>
+                <div class="d">A <code style="font-family:var(--font-mono);font-size:11px;background:var(--bg-muted);padding:1px 5px;border-radius:3px;">CLAUDE.md</code> that tells the LLM how your wiki is organised. You co‑evolve it.</div>
+              </div>
+              <span class="owner">co‑owned</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ PROBLEM / SOLUTION ============ -->
+  <section class="slate" id="problem">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">the gap</div>
+        <h2>RAG re‑discovers. WikiMind remembers.</h2>
+        <p class="lede">
+          Most LLM‑plus‑documents tools are a retrieval layer over raw files. Every question starts from scratch. Nothing accumulates. WikiMind flips the arrow: compile once, keep it current, and the LLM reads the <em>wiki</em> instead of the documents.
+        </p>
+      </div>
+
+      <div class="compare">
+        <div class="col-l">
+          <h3>retrieval · the status quo</h3>
+          <p class="tag">Knowledge that evaporates between queries.</p>
+          <ul>
+            <li><strong>Ephemeral.</strong> Every question re‑retrieves chunks from raw docs. Nothing is kept.</li>
+            <li><strong>Flat.</strong> Cross‑references are re‑discovered on the fly — often imperfectly.</li>
+            <li><strong>Opaque.</strong> You can't browse "what the LLM knows" — only watch it answer.</li>
+            <li><strong>No synthesis.</strong> Questions spanning five documents get re‑solved every time.</li>
+          </ul>
+        </div>
+        <div class="col-r">
+          <h3>compilation · WikiMind</h3>
+          <p class="tag">A compounding artifact you can actually read.</p>
+          <ul>
+            <li><strong>Persistent.</strong> Every source is compiled into markdown pages you can browse.</li>
+            <li><strong>Linked.</strong> Cross‑references are <em>already there</em>. Backlinks, graph view, concept trees.</li>
+            <li><strong>Inspectable.</strong> Every claim carries a confidence tag: <em>sourced · mixed · inferred · opinion</em>.</li>
+            <li><strong>Cumulative.</strong> Synthesis happens once at compile‑time, then gets revised — not re‑derived.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS — three operations ============ -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">three operations</div>
+        <h2>Feed. Ask. Lint.</h2>
+        <p class="lede">
+          Everything you do with WikiMind falls into one of three verbs. The first adds to the wiki. The second queries it. The third keeps it healthy.
+        </p>
+      </div>
+
+      <div class="flow">
+        <!-- FEED -->
+        <div class="flow-card">
+          <div class="step">01 / INGEST</div>
+          <h3>Feed</h3>
+          <p>Drop a URL, PDF, YouTube link, or podcast into the Inbox. The LLM reads it, discusses key takeaways with you, writes a summary page, and updates 10–15 existing pages where it matters.</p>
+          <div class="mini">
+            <div class="row">
+              <span class="pill brand">PDF</span>
+              <span class="pill info"><span class="spin"></span> Processing</span>
+            </div>
+            <div class="title">Attention Is All You Need</div>
+            <div class="meta">arxiv.org/abs/1706.03762 · extracting concepts…</div>
+          </div>
+          <div class="spec"><strong>A single source</strong> touches 10–15 wiki pages · updates the index · appends the log.</div>
+        </div>
+
+        <!-- ASK -->
+        <div class="flow-card">
+          <div class="step">02 / QUERY</div>
+          <h3>Ask</h3>
+          <p>Ask anything. The LLM reads the wiki (not the raw docs), synthesises an answer, and shows every supporting source. Good answers can be <em>filed back</em> as their own wiki pages.</p>
+          <div class="mini">
+            <div style="font-size: 11px; color: var(--fg-4); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;">Q1</div>
+            <div class="title">How does the borrow checker prevent data races?</div>
+            <div style="margin-top: 8px; display:flex; gap:6px; flex-wrap: wrap;">
+              <span class="pill info" style="font-size: 10px;">Rust ownership</span>
+              <span class="pill info" style="font-size: 10px;">Fearless concurrency</span>
+            </div>
+          </div>
+          <div class="spec"><strong>File back</strong> turns a good answer into a permanent wiki page, citations and all.</div>
+        </div>
+
+        <!-- LINT -->
+        <div class="flow-card">
+          <div class="step">03 / HEALTH</div>
+          <h3>Lint</h3>
+          <p>Ask the LLM to health‑check the wiki. It flags contradictions between pages, orphan entries, stale claims, and missing concepts — and suggests new questions worth asking.</p>
+          <div class="mini">
+            <div class="row" style="flex-wrap: wrap;">
+              <span class="pill success">82% healthy</span>
+              <span class="pill warn">3 contradictions</span>
+              <span class="pill neutral">7 orphans</span>
+            </div>
+            <div class="title" style="margin-top: 10px;">"Raft" and "Paxos complexity"</div>
+            <div class="meta">contradiction · last updated 11 days ago</div>
+          </div>
+          <div class="spec"><strong>No one wants</strong> this job. The LLM does it without forgetting or getting bored.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PULL QUOTE ============ -->
+  <section class="brand" id="quote">
+    <div class="wrap-narrow" style="text-align: center;">
+      <div class="pullquote">
+        "The tedious part of maintaining a knowledge base is not the reading or the thinking — it's the bookkeeping."
+      </div>
+      <div class="pullquote-cite">— Andrej Karpathy · the original LLM Wiki gist</div>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE — dark section ============ -->
+  <section class="dark" id="architecture">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">the three layers · in detail</div>
+        <h2>Separate what the LLM owns from what you own.</h2>
+        <p class="lede">
+          Clear boundaries are the whole trick. Your sources are immutable. The wiki is LLM‑authored and versioned in git. The schema is a markdown file you edit together.
+        </p>
+      </div>
+
+      <div class="arch">
+        <div class="arch-col">
+          <div class="tier">Layer 01</div>
+          <h3>Raw sources</h3>
+          <p>Your curated collection — articles, papers, transcripts, images. The LLM reads from it, never modifies it. This is your source of truth.</p>
+          <div class="dots">
+            <span><span class="k">raw/</span></span>
+            <span>├── articles/</span>
+            <span>├── pdfs/</span>
+            <span>├── transcripts/</span>
+            <span>└── assets/</span>
+          </div>
+          <div class="owner"><strong>Owner:</strong> you</div>
+        </div>
+        <div class="arch-col">
+          <div class="tier">Layer 02</div>
+          <h3>The wiki</h3>
+          <p>A directory of generated markdown. Entity pages, concept pages, comparisons, an index, a log. The LLM creates and maintains it as new sources arrive.</p>
+          <div class="dots">
+            <span><span class="k">wiki/</span></span>
+            <span>├── index.md          <span style="color:var(--slate-600)">// catalog</span></span>
+            <span>├── log.md            <span style="color:var(--slate-600)">// timeline</span></span>
+            <span>├── concepts/</span>
+            <span>└── entities/</span>
+          </div>
+          <div class="owner"><strong>Owner:</strong> the LLM</div>
+        </div>
+        <div class="arch-col">
+          <div class="tier">Layer 03</div>
+          <h3>The schema</h3>
+          <p>A single configuration file — <code style="font-family:var(--font-mono);color:var(--brand-300);font-size:12px;">CLAUDE.md</code> or <code style="font-family:var(--font-mono);color:var(--brand-300);font-size:12px;">AGENTS.md</code>. Describes conventions, workflows, and page formats.</p>
+          <div class="dots">
+            <span><span class="k">AGENTS.md</span></span>
+            <span style="color:var(--slate-500)"># how to ingest a source</span>
+            <span style="color:var(--slate-500)"># how to answer a query</span>
+            <span style="color:var(--slate-500)"># when to file back</span>
+            <span style="color:var(--slate-500)"># lint rules</span>
+          </div>
+          <div class="owner"><strong>Owner:</strong> you and the LLM, together</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ USE CASES ============ -->
+  <section id="cases">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker">where it helps</div>
+        <h2>Anywhere knowledge accumulates over time.</h2>
+        <p class="lede">
+          WikiMind works wherever you're building up a body of understanding across many sources — personal, academic, professional.
+        </p>
+      </div>
+
+      <div class="cases">
+        <div class="case">
+          <div class="eye">personal</div>
+          <h3>Self‑knowledge</h3>
+          <p>Journal entries, podcast notes, health logs. Over months, a structured picture of yourself compounds — goals, psychology, patterns.</p>
+          <div class="tags"><span class="tag-s">journal</span><span class="tag-s">health</span><span class="tag-s">habits</span></div>
+        </div>
+        <div class="case">
+          <div class="eye">research</div>
+          <h3>Topic deep‑dive</h3>
+          <p>Go deep on a subject over weeks — papers, reports, blog posts. The wiki becomes the running thesis. New evidence updates older claims.</p>
+          <div class="tags"><span class="tag-s">papers</span><span class="tag-s">thesis</span><span class="tag-s">citations</span></div>
+        </div>
+        <div class="case">
+          <div class="eye">reading</div>
+          <h3>Book companion</h3>
+          <p>Feed each chapter as you go. Pages accrue for characters, places, arcs, themes. By the last chapter you've built a Tolkien‑gateway‑style fan wiki of one.</p>
+          <div class="tags"><span class="tag-s">chapters</span><span class="tag-s">characters</span><span class="tag-s">themes</span></div>
+        </div>
+        <div class="case">
+          <div class="eye">team</div>
+          <h3>Team memory</h3>
+          <p>Feed Slack threads, meeting transcripts, customer calls. The wiki stays current because the LLM does the maintenance nobody else wants to do.</p>
+          <div class="tags"><span class="tag-s">slack</span><span class="tag-s">meetings</span><span class="tag-s">decisions</span></div>
+        </div>
+        <div class="case">
+          <div class="eye">work</div>
+          <h3>Due diligence</h3>
+          <p>Competitive analysis, M&amp;A evaluation, market landscape. Structured rather than scattered across a dozen Google Docs.</p>
+          <div class="tags"><span class="tag-s">competitors</span><span class="tag-s">markets</span><span class="tag-s">sources</span></div>
+        </div>
+        <div class="case">
+          <div class="eye">play</div>
+          <h3>Hobby archives</h3>
+          <p>Trip planning, course notes, a long hobby deep‑dive. Anything accumulating over time that deserves more than a Notes app.</p>
+          <div class="tags"><span class="tag-s">trips</span><span class="tag-s">courses</span><span class="tag-s">hobbies</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MEMEX / VANNEVAR BUSH ============ -->
+  <section class="slate" id="memex">
+    <div class="wrap split wide">
+      <div>
+        <div class="kicker" style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand-700);">the lineage</div>
+        <h2 style="margin: 12px 0 0; font-size: clamp(28px, 3.6vw, 42px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 700; color: var(--fg-1); text-wrap: balance; max-width: 18ch;">
+          A Memex that maintains itself.
+        </h2>
+        <p style="margin-top: 20px; font-size: 16px; line-height: 1.65; color: var(--fg-2); max-width: 58ch;">
+          In 1945 Vannevar Bush described the Memex — a personal, curated store of documents linked by associative trails. Private. Actively maintained. With the connections between documents as valuable as the documents themselves.
+        </p>
+        <p style="font-size: 16px; line-height: 1.65; color: var(--fg-2); max-width: 58ch;">
+          The part he couldn't solve was <em>who does the maintenance.</em> Wikis answered it with volunteers, and fizzled at personal scale. WikiMind answers it differently: the LLM does it. The cost of upkeep falls to near zero. The wiki stays alive.
+        </p>
+        <p style="margin-top: 24px; font-size: 13px; color: var(--fg-4); font-family: var(--font-mono);">
+          → bush, 1945 · "as we may think" · atlantic monthly
+        </p>
+      </div>
+      <div>
+        <!-- Graph sketch — abstract knowledge graph -->
+        <svg viewBox="0 0 420 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;border:1px solid var(--border-1);border-radius:12px;background:#fff;padding:12px;box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);" aria-label="Knowledge graph sketch">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" fill="#cbd5e1"/>
+            </marker>
+          </defs>
+          <!-- edges -->
+          <g stroke="#cbd5e1" stroke-width="1" fill="none">
+            <line x1="110" y1="90"  x2="210" y2="70"/>
+            <line x1="210" y1="70"  x2="320" y2="110"/>
+            <line x1="210" y1="70"  x2="170" y2="180"/>
+            <line x1="170" y1="180" x2="80"  y2="230"/>
+            <line x1="170" y1="180" x2="290" y2="200"/>
+            <line x1="290" y1="200" x2="320" y2="110"/>
+            <line x1="290" y1="200" x2="340" y2="280"/>
+            <line x1="80"  y1="230" x2="150" y2="290"/>
+            <line x1="150" y1="290" x2="280" y2="300"/>
+            <line x1="280" y1="300" x2="340" y2="280"/>
+            <line x1="110" y1="90"  x2="170" y2="180"/>
+          </g>
+          <!-- nodes -->
+          <g font-family="Inter, sans-serif" font-size="11" fill="#1e293b">
+            <g><circle cx="110" cy="90"  r="22" fill="#e6eef7" stroke="#9bb7d8"/><text x="110" y="94" text-anchor="middle">Rust</text></g>
+            <g><circle cx="210" cy="70"  r="26" fill="#4673ad" stroke="#2b4876"/><text x="210" y="74" text-anchor="middle" fill="#fff" font-weight="600">Borrow checker</text></g>
+            <g><circle cx="320" cy="110" r="20" fill="#fff" stroke="#cbd5e1"/><text x="320" y="114" text-anchor="middle">Send/Sync</text></g>
+            <g><circle cx="170" cy="180" r="24" fill="#e6eef7" stroke="#9bb7d8"/><text x="170" y="184" text-anchor="middle">Concurrency</text></g>
+            <g><circle cx="80"  cy="230" r="18" fill="#fff" stroke="#cbd5e1"/><text x="80"  y="234" text-anchor="middle">Raft</text></g>
+            <g><circle cx="290" cy="200" r="20" fill="#fff" stroke="#cbd5e1"/><text x="290" y="204" text-anchor="middle">Arc/Mutex</text></g>
+            <g><circle cx="150" cy="290" r="18" fill="#fff" stroke="#cbd5e1"/><text x="150" y="294" text-anchor="middle">Paxos</text></g>
+            <g><circle cx="280" cy="300" r="20" fill="#fff" stroke="#cbd5e1"/><text x="280" y="304" text-anchor="middle">Data race</text></g>
+            <g><circle cx="340" cy="280" r="16" fill="#fff" stroke="#cbd5e1"/><text x="340" y="284" text-anchor="middle">RAII</text></g>
+          </g>
+          <!-- caption -->
+          <text x="210" y="328" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="#94a3b8" letter-spacing="1">KNOWLEDGE GRAPH · LIVE VIEW</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section id="faq">
+    <div class="wrap-narrow">
+      <div class="sec-head" style="margin-bottom: 24px;">
+        <div class="kicker">questions</div>
+        <h2>Before you ask.</h2>
+      </div>
+
+      <div class="faq">
+        <details class="qa">
+          <summary>Where does my data live?</summary>
+          <div class="a">Locally. Raw sources and the wiki are plain files on your disk — a git repo, if you want version history. WikiMind never phones home. LLM calls go to whichever provider you've configured.</div>
+        </details>
+        <details class="qa">
+          <summary>Which LLM does it use?</summary>
+          <div class="a">Bring your own. Configure any combination of <code>OpenAI</code>, <code>Anthropic</code>, <code>Google</code>, or a local <code>Ollama</code> model in Settings. You'll see the per‑source cost before and after ingest.</div>
+        </details>
+        <details class="qa">
+          <summary>How is this different from NotebookLM or ChatGPT file upload?</summary>
+          <div class="a">Those are retrieval systems. The LLM re‑reads your files on every query and never builds anything persistent. WikiMind compiles your sources into a <em>wiki</em> you can actually browse, edit, and version — and the LLM reads the wiki, not the raw files.</div>
+        </details>
+        <details class="qa">
+          <summary>What if I disagree with what the LLM wrote?</summary>
+          <div class="a">Every claim has a confidence tag: <em>sourced · mixed · inferred · opinion</em>. Edits are first‑class — you can revise any page and the LLM will respect your version on the next compile. The wiki is yours.</div>
+        </details>
+        <details class="qa">
+          <summary>Does it scale?</summary>
+          <div class="a">To a few thousand sources, comfortably. At small scale the <code>index.md</code> catalog is enough for the LLM to navigate. As the wiki grows, an on‑disk BM25 + vector search kicks in automatically so the LLM always gets the right pages into context.</div>
+        </details>
+        <details class="qa">
+          <summary>Is it open source?</summary>
+          <div class="a">Yes. Everything — the compiler, the schema format, the web app — ships as <code>MIT</code> on GitHub. The desktop version is an Electron shell around the same bundle.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA BAND ============ -->
+  <section class="slate" id="cta">
+    <div class="wrap">
+      <div class="cta-band">
+        <div>
+          <h2>Start feeding the wiki.</h2>
+          <p>Sign in with your email or an LLM provider. The first compile runs in under a minute.</p>
+        </div>
+        <div class="actions">
+          <a class="btn btn-primary" href="#" data-login>
+            Open WikiMind <span class="arrow">→</span>
+          </a>
+          <a class="btn btn-secondary" href="https://github.com/manavgup/wikimind" target="_blank" rel="noopener">View on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="foot">
+    <div class="wrap">
+      <div class="row">
+        <div>
+          <div class="brand"><span>🧠</span> WikiMind</div>
+          <p>A personal knowledge OS. Feed it sources, ask it anything, file good answers back. The LLM maintains the wiki; you do the thinking.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#how">How it works</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#cases">Use cases</a></li>
+            <li><a href="#" data-login>Sign in</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f" target="_blank" rel="noopener">The original gist</a></li>
+            <li><a href="https://github.com/manavgup/wikimind" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="#">Privacy</a></li>
+            <li><a href="#">Terms</a></li>
+            <li><a href="#">Security</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="colophon">
+        <span>© 2026 WikiMind · local‑first, open source</span>
+        <span><code>v0.4.0 · commit 7a3f1e9</code></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ LOGIN OVERLAY ============ -->
+  <div class="login-overlay" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle" data-screen-label="login">
+    <div class="login-card" id="loginCard">
+      <!-- LEFT: inverted welcome panel -->
+      <div class="login-left">
+        <div class="brand"><span>🧠</span><span>WikiMind</span></div>
+        <div class="welcome">
+          <h2>welcome back. the wiki <em>compounded</em> while you were out.</h2>
+          <p class="p">
+            WikiMind keeps a running record of what you've read and what you've asked. Pick up exactly where you left off — your pages, your concepts, your graph.
+          </p>
+          <div class="stats">
+            <div class="stat">
+              <div class="n">214</div>
+              <div class="l">sources</div>
+            </div>
+            <div class="stat">
+              <div class="n">583</div>
+              <div class="l">articles</div>
+            </div>
+            <div class="stat">
+              <div class="n">1,247</div>
+              <div class="l">backlinks</div>
+            </div>
+          </div>
+        </div>
+        <div class="footmark">v0.4.0 · local‑first · mit licensed</div>
+      </div>
+
+      <!-- RIGHT: login form -->
+      <div class="login-right">
+        <button class="close-x" type="button" aria-label="Close" id="closeLogin">✕</button>
+
+        <div class="main">
+          <div class="eye">sign in</div>
+          <h3 id="loginTitle">Open your wiki.</h3>
+          <p class="sub">Single‑click OAuth — we never see your password. Your wiki stays on disk.</p>
+
+          <div class="oauth">
+            <button type="button" data-provider="github">
+              <span class="logo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#0f172a"><path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 008 10.95c.58.1.79-.25.79-.56v-2c-3.25.7-3.93-1.57-3.93-1.57-.53-1.36-1.3-1.72-1.3-1.72-1.06-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.41-1.27.74-1.56-2.6-.3-5.33-1.3-5.33-5.78 0-1.28.46-2.33 1.2-3.15-.12-.3-.52-1.5.12-3.13 0 0 .98-.31 3.2 1.2a11.1 11.1 0 015.83 0c2.22-1.51 3.2-1.2 3.2-1.2.64 1.63.24 2.83.12 3.13.75.82 1.2 1.87 1.2 3.15 0 4.5-2.74 5.47-5.35 5.76.42.37.8 1.1.8 2.23v3.3c0 .32.2.68.8.56A11.5 11.5 0 0023.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+              </span>
+              Continue with GitHub
+            </button>
+            <button type="button" data-provider="google">
+              <span class="logo">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M23 12.27c0-.8-.07-1.56-.2-2.3H12v4.36h6.18a5.3 5.3 0 01-2.29 3.47v2.88h3.7C21.7 18.74 23 15.8 23 12.27z"/><path fill="#34A853" d="M12 23c3.1 0 5.7-1.02 7.6-2.77l-3.71-2.88c-1.03.7-2.35 1.11-3.89 1.11-2.99 0-5.52-2.02-6.43-4.74H1.76v2.97A11 11 0 0012 23z"/><path fill="#FBBC05" d="M5.57 13.72a6.6 6.6 0 010-4.21V6.54H1.76a11 11 0 000 9.88l3.81-2.7z"/><path fill="#EA4335" d="M12 4.75c1.68 0 3.19.58 4.38 1.72l3.28-3.28C17.69 1.26 15.1 0 12 0A11 11 0 001.76 6.54l3.81 2.97C6.48 6.77 9.01 4.75 12 4.75z"/></svg>
+              </span>
+              Continue with Google
+            </button>
+            <button type="button" data-provider="api">
+              <span class="logo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M7 11h4M7 14h7"/><circle cx="17" cy="13" r="1.25" fill="#334155" stroke="none"/></svg>
+              </span>
+              Use an API key
+            </button>
+          </div>
+
+          <div class="divider">or</div>
+
+          <form id="emailForm" autocomplete="off">
+            <div class="field">
+              <label for="email">Email</label>
+              <input type="email" id="email" placeholder="you@example.com" required />
+            </div>
+            <button class="magic-btn" type="submit">
+              Send magic link <span style="font-family:var(--font-mono);">→</span>
+            </button>
+          </form>
+
+          <div class="login-fine">
+            By signing in you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+            Your wiki lives on your disk — we store only your account email and which LLM providers you've connected.
+          </div>
+        </div>
+
+        <!-- Loading state shown after login submit -->
+        <div class="login-loading">
+          <div class="spin-lg" aria-hidden="true"></div>
+          <div class="status" id="loadStatus">compiling index…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ JS ============ -->
+  <script>
+    // ---- Login overlay open/close ----
+    const overlay = document.getElementById('loginOverlay');
+    const card = document.getElementById('loginCard');
+    const closeBtn = document.getElementById('closeLogin');
+
+    document.querySelectorAll('[data-login]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+    const closeOverlay = () => {
+      overlay.classList.remove('open');
+      card.classList.remove('loading');
+      document.body.style.overflow = '';
+    };
+    closeBtn.addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeOverlay(); });
+
+    // ---- Fake login flow → route to app ----
+    const statusEl = document.getElementById('loadStatus');
+    const stages = ['authenticating…', 'loading your wiki…', 'indexing 214 sources…', 'almost there…'];
+    const runLoginFlow = () => {
+      card.classList.add('loading');
+      let i = 0;
+      const tick = () => {
+        if (i < stages.length) {
+          statusEl.textContent = stages[i++];
+          setTimeout(tick, 520);
+        } else {
+          // Deep-link into the UI kit app
+          window.location.href = '../ui_kits/app/index.html';
+        }
+      };
+      tick();
+    };
+    document.querySelectorAll('.oauth button').forEach(btn => {
+      btn.addEventListener('click', runLoginFlow);
+    });
+    document.getElementById('emailForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      runLoginFlow();
+    });
+
+    // ---- Smooth scroll for in-page anchors ----
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', (e) => {
+        const id = a.getAttribute('href');
+        if (id.length > 1 && document.querySelector(id)) {
+          e.preventDefault();
+          document.querySelector(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

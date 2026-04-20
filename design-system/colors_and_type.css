@@ -1,0 +1,181 @@
+/* ============================================================
+   WikiMind Design System — Colors & Type
+   ============================================================
+   A calm, scholarly knowledge-OS aesthetic: slate neutrals
+   paired with a desaturated brand blue that evokes ink,
+   reference books, and old-internet wikis — but modernized.
+   ============================================================ */
+
+/* --- Fonts -------------------------------------------------- */
+/* Inter is the product's actual typeface (set in wikimind/apps/web/src/index.css).
+   Loaded from Google Fonts CDN. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap");
+
+:root {
+  /* ---------- Brand scale (from tailwind.config.js) ---------- */
+  --brand-50:  #f4f7fb;
+  --brand-100: #e6eef7;
+  --brand-200: #c5d6ea;
+  --brand-300: #9bb7d8;
+  --brand-400: #6c92c2;
+  --brand-500: #4673ad;
+  --brand-600: #365b91;
+  --brand-700: #2b4876;
+  --brand-800: #243c61;
+  --brand-900: #1f3251;
+
+  /* ---------- Slate neutrals (tailwind slate) --------------- */
+  --slate-50:  #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+
+  /* ---------- Semantic color tokens ------------------------- */
+  --bg-canvas: var(--slate-50);   /* the <main> area behind cards */
+  --bg-surface: #ffffff;           /* cards, sidebar */
+  --bg-muted: var(--slate-100);    /* hover rows, code blocks */
+  --bg-inset: var(--brand-50);     /* brand-tinted callouts */
+
+  --fg-1: var(--slate-900);        /* primary text, headings */
+  --fg-2: var(--slate-700);        /* body copy */
+  --fg-3: var(--slate-500);        /* secondary / metadata */
+  --fg-4: var(--slate-400);        /* tertiary / disabled */
+  --fg-accent: var(--brand-700);   /* links, brand text */
+
+  --border-1: var(--slate-200);    /* card / panel borders */
+  --border-2: var(--slate-300);    /* input borders */
+  --border-accent: var(--brand-200);
+
+  /* ---------- Confidence system (domain-specific) ----------- */
+  /* Core metaphor: every claim has a provenance level. */
+  --conf-sourced-bg:  #ecfdf5;     /* emerald-50 */
+  --conf-sourced-fg:  #047857;     /* emerald-700 */
+  --conf-sourced-bd:  #a7f3d0;     /* emerald-200 */
+
+  --conf-mixed-bg:    #f0f9ff;     /* sky-50 */
+  --conf-mixed-fg:    #0369a1;     /* sky-700 */
+  --conf-mixed-bd:    #bae6fd;     /* sky-200 */
+
+  --conf-inferred-bg: #fffbeb;     /* amber-50 */
+  --conf-inferred-fg: #b45309;     /* amber-700 */
+  --conf-inferred-bd: #fde68a;     /* amber-200 */
+
+  --conf-opinion-bg:  var(--slate-100);
+  --conf-opinion-fg:  var(--slate-700);
+  --conf-opinion-bd:  var(--slate-200);
+
+  /* ---------- Status / toast ------------------------------- */
+  --success-bg: #ecfdf5; --success-fg: #047857; --success-bd: #a7f3d0;
+  --info-bg:    #f0f9ff; --info-fg:    #0369a1; --info-bd:    #bae6fd;
+  --warn-bg:    #fffbeb; --warn-fg:    #b45309; --warn-bd:    #fde68a;
+  --danger-bg:  #fff1f2; --danger-fg:  #be123c; --danger-bd:  #fecdd3;
+
+  /* ---------- Typography ----------------------------------- */
+  --font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif; /* used only for editorial flourishes */
+
+  /* Type scale — optimised for reading-heavy wiki content */
+  --fs-xs:   12px;   --lh-xs: 16px;
+  --fs-sm:   13px;   --lh-sm: 18px;
+  --fs-base: 14px;   --lh-base: 20px;   /* product default */
+  --fs-md:   16px;   --lh-md: 24px;     /* wiki body copy */
+  --fs-lg:   18px;   --lh-lg: 28px;
+  --fs-xl:   20px;   --lh-xl: 28px;
+  --fs-2xl:  24px;   --lh-2xl: 32px;
+  --fs-3xl:  30px;   --lh-3xl: 36px;    /* article H1 */
+  --fs-4xl:  36px;   --lh-4xl: 40px;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+  --fw-black:   800;
+
+  --tracking-tight:  -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide:    0.04em;  /* eyebrow labels: Q1, SOURCES: */
+
+  /* ---------- Spacing / layout ----------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---------- Radii ---------------------------------------- */
+  --radius-sm: 4px;   /* inline badges */
+  --radius-md: 6px;   /* buttons, inputs */
+  --radius-lg: 8px;   /* cards, panels */
+  --radius-xl: 12px;  /* modals */
+  --radius-pill: 9999px; /* capsule badges, citation chips */
+
+  /* ---------- Shadows (restrained, flat-ish) --------------- */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-ring-focus: 0 0 0 2px var(--brand-500);
+
+  /* ---------- Motion --------------------------------------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+
+  /* ---------- Layout widths -------------------------------- */
+  --w-sidebar:    224px;   /* 14rem */
+  --w-conv-rail:  256px;
+  --w-wiki-rail:  240px;
+  --w-reader-max: 720px;
+  --h-header:     64px;
+}
+
+/* ============================================================
+   Semantic element styles — opt in with class="ds-..."
+   ============================================================ */
+
+.ds-body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--fg-2);
+  background: var(--bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.ds-h1 { font-size: var(--fs-3xl); line-height: var(--lh-3xl); font-weight: var(--fw-bold);    color: var(--fg-1); letter-spacing: var(--tracking-tight); }
+.ds-h2 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); font-weight: var(--fw-semibold);color: var(--fg-1); letter-spacing: var(--tracking-tight); }
+.ds-h3 { font-size: var(--fs-xl);  line-height: var(--lh-xl);  font-weight: var(--fw-semibold);color: var(--fg-1); }
+.ds-h4 { font-size: var(--fs-lg);  line-height: var(--lh-lg);  font-weight: var(--fw-semibold);color: var(--fg-1); }
+.ds-h5 { font-size: var(--fs-md);  line-height: var(--lh-md);  font-weight: var(--fw-semibold);color: var(--fg-1); }
+.ds-h6 { font-size: var(--fs-sm);  line-height: var(--lh-sm);  font-weight: var(--fw-semibold);color: var(--fg-1); }
+
+.ds-p         { font-size: var(--fs-md);  line-height: var(--lh-md);   color: var(--fg-2); }
+.ds-p-sm      { font-size: var(--fs-sm);  line-height: var(--lh-sm);   color: var(--fg-2); }
+.ds-meta      { font-size: var(--fs-xs);  line-height: var(--lh-xs);   color: var(--fg-3); }
+.ds-eyebrow   { font-size: var(--fs-xs);  font-weight: var(--fw-medium); color: var(--fg-4);
+                text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+
+.ds-code      { font-family: var(--font-mono); font-size: 12.5px;
+                background: var(--bg-muted); color: var(--fg-1);
+                padding: 1px 5px; border-radius: var(--radius-sm); }
+
+.ds-link      { color: var(--fg-accent); text-decoration: underline; text-decoration-style: dotted;
+                text-underline-offset: 2px; }
+.ds-link:hover{ color: var(--brand-900); text-decoration-style: solid; }
+
+.ds-wikilink          { color: var(--brand-700); text-decoration: underline; text-underline-offset: 2px; }
+.ds-wikilink-unresolved { color: var(--slate-400); text-decoration: underline dotted var(--slate-400);
+                          text-underline-offset: 2px; cursor: help; }

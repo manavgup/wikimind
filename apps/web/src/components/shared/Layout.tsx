@@ -59,9 +59,12 @@ export function Layout({ children }: LayoutProps) {
             <span className="truncate text-sm text-slate-600">{user.name || user.email}</span>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                try {
+                  await fetch("/auth/logout", { method: "POST", credentials: "include" });
+                } catch { /* best-effort */ }
                 logout();
-                window.location.href = "/login";
+                window.location.href = "/";
               }}
               className="ml-auto text-xs text-slate-400 hover:text-slate-700"
             >

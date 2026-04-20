@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -29,4 +29,73 @@ body {
   text-decoration: underline dotted rgb(148 163 184);
   text-underline-offset: 2px;
   cursor: help;
+}
+
+/* --- Landing page styles --- */
+
+.font-serif-italic {
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Landing page animations */
+@keyframes overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-overlay-fade {
+  animation: overlay-fade 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.animate-card-rise {
+  animation: card-rise 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.animate-spin-custom {
+  animation: spin 1s linear infinite;
+}
+
+/* Negation x-mark pseudo-element via tailwind-incompatible styling */
+.neg-mark::before {
+  content: "\00d7";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+/* FAQ details marker removal */
+details.qa-item summary::-webkit-details-marker {
+  display: none;
+}
+details.qa-item summary {
+  list-style: none;
+}
+details.qa-item summary::after {
+  content: "+";
+  font-weight: 400;
+  color: #64748b;
+  font-size: 20px;
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+details.qa-item[open] summary::after {
+  content: "\2212";
 }

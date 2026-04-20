@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WikiMind — App UI Kit</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: {
+          brand: {
+            50:"#f4f7fb", 100:"#e6eef7", 200:"#c5d6ea", 300:"#9bb7d8",
+            400:"#6c92c2", 500:"#4673ad", 600:"#365b91", 700:"#2b4876",
+            800:"#243c61", 900:"#1f3251",
+          }
+        },
+        fontFamily: {
+          sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        },
+      }},
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    html, body, #root { height: 100%; }
+    body { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+    /* Prose overrides for tight article reader */
+    .prose p { margin-top: 0.9em; margin-bottom: 0.9em; }
+    .prose h2 { font-weight: 600; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body class="bg-slate-50">
+  <div id="root"></div>
+
+  <script type="text/babel" src="./Primitives.jsx"></script>
+  <script type="text/babel" src="./Shell.jsx"></script>
+  <script type="text/babel" src="./InboxView.jsx"></script>
+  <script type="text/babel" src="./AskView.jsx"></script>
+  <script type="text/babel" src="./WikiView.jsx"></script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useCallback } = React;
+
+    function App() {
+      const [current, setCurrent] = useState(() => localStorage.getItem("wm:view") || "inbox");
+      const [toasts, setToasts] = useState([]);
+
+      const navigate = (key) => {
+        setCurrent(key);
+        localStorage.setItem("wm:view", key);
+      };
+
+      const pushToast = useCallback((t) => {
+        const id = "tst" + Date.now() + Math.random();
+        setToasts((ts) => [...ts, { id, ...t }]);
+        setTimeout(() => setToasts((ts) => ts.filter(x => x.id !== id)), 4000);
+      }, []);
+      const dismissToast = (id) => setToasts((ts) => ts.filter(t => t.id !== id));
+
+      let view;
+      if (current === "inbox") view = <InboxView pushToast={pushToast} />;
+      else if (current === "ask") view = <AskView pushToast={pushToast} />;
+      else if (current === "wiki") view = <WikiView />;
+      else if (current === "graph") view = <StubView title="Graph" icon="🕸️" />;
+      else if (current === "health") view = <StubView title="Health" icon="🩺" />;
+      else if (current === "settings") view = <StubView title="Settings" icon="⚙️" />;
+
+      return (
+        <Shell current={current} onNavigate={navigate} toasts={toasts} onDismissToast={dismissToast}>
+          {view}
+        </Shell>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
