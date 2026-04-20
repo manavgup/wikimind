@@ -126,7 +126,7 @@ async def update_article_counts(session: AsyncSession) -> None:
     counts: dict[str, int] = {}
     ac_result = await session.execute(
         select(ArticleConcept)
-        .join(Article, ArticleConcept.article_id == Article.id)
+        .join(Article, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(Article.page_type == PageType.SOURCE)
     )
     for ac in ac_result.scalars().all():

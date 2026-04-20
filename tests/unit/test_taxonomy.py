@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlmodel import select
 
-from wikimind.models import Article, CompletionResponse, Concept, Provider
+from wikimind.models import Article, ArticleConcept, CompletionResponse, Concept, Provider
 from wikimind.services.taxonomy import (
     _exceeds_max_depth,
     _has_cycles,
@@ -121,6 +121,12 @@ class TestUpdateArticleCounts:
             concept_ids=json.dumps(["ML"]),
         )
         db_session.add_all([art1, art2])
+        await db_session.commit()
+        await db_session.refresh(art1)
+        await db_session.refresh(art2)
+        db_session.add(ArticleConcept(article_id=art1.id, concept_name="ml"))
+        db_session.add(ArticleConcept(article_id=art1.id, concept_name="nlp"))
+        db_session.add(ArticleConcept(article_id=art2.id, concept_name="ml"))
         await db_session.commit()
 
         await update_article_counts(db_session)

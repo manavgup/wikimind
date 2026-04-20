@@ -314,7 +314,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             return None
         result = await session.execute(
             select(Article)
-            .join(ArticleSource, ArticleSource.article_id == Article.id)
+            .join(ArticleSource, ArticleSource.article_id == Article.id)  # type: ignore[arg-type]
             .where(ArticleSource.source_id == source_id)
         )
         for article in result.scalars().all():

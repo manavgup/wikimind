@@ -14,13 +14,12 @@ import hashlib
 import itertools
 import json
 import random
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from wikimind.config import LinterConfig, Settings
 from wikimind.engine.linter.prompts import (
     CONTRADICTION_BATCH_SYSTEM,
     CONTRADICTION_BATCH_USER,
@@ -28,7 +27,6 @@ from wikimind.engine.linter.prompts import (
     CONTRADICTION_USER_TEMPLATE,
     format_batch_pair_section,
 )
-from wikimind.engine.llm_router import LLMRouter
 from wikimind.models import (
     Article,
     ArticleConcept,
@@ -44,6 +42,12 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.storage import resolve_wiki_path
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from wikimind.config import LinterConfig, Settings
+    from wikimind.engine.llm_router import LLMRouter
 
 log = structlog.get_logger()
 
@@ -96,7 +100,7 @@ async def _get_articles_for_concept(session: AsyncSession, concept_name: str) ->
     """Load articles tagged with the given concept via the ArticleConcept join table."""
     result = await session.execute(
         select(Article)
-        .join(ArticleConcept, ArticleConcept.article_id == Article.id)
+        .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(ArticleConcept.concept_name == concept_name)
     )
     return list(result.scalars().all())

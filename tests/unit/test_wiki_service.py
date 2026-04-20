@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from wikimind.models import Article, Backlink, BacklinkEntry, Concept, Source, SourceType
+from wikimind.models import Article, ArticleConcept, ArticleSource, Backlink, BacklinkEntry, Concept, Source, SourceType
 from wikimind.services.wiki import WikiService
 
 
@@ -38,6 +38,9 @@ async def _seed_article_with_sources(db_session, tmp_path: Path) -> tuple[Articl
     db_session.add(article)
     await db_session.commit()
     await db_session.refresh(article)
+    db_session.add(ArticleSource(article_id=article.id, source_id=pdf_source.id))
+    db_session.add(ArticleSource(article_id=article.id, source_id=url_source.id))
+    await db_session.commit()
     return article, [pdf_source, url_source]
 
 
@@ -366,6 +369,12 @@ class TestConceptFiltering:
         )
         db_session.add_all([ml_article, db_article])
         await db_session.commit()
+        await db_session.refresh(ml_article)
+        await db_session.refresh(db_article)
+        db_session.add(ArticleConcept(article_id=ml_article.id, concept_name="Machine Learning"))
+        db_session.add(ArticleConcept(article_id=ml_article.id, concept_name="AI"))
+        db_session.add(ArticleConcept(article_id=db_article.id, concept_name="Databases"))
+        await db_session.commit()
 
         service = WikiService()
         results = await service.list_articles(db_session, concept="Machine Learning")
@@ -430,24 +439,26 @@ class TestConceptFiltering:
         fp_b = tmp_path / "inferred.md"
         fp_b.write_text("# Inferred", encoding="utf-8")
 
-        db_session.add_all(
-            [
-                Article(
-                    slug="sourced-ai",
-                    title="Sourced AI",
-                    file_path=str(fp_a),
-                    concept_ids=json.dumps(["AI"]),
-                    confidence="sourced",
-                ),
-                Article(
-                    slug="inferred-ai",
-                    title="Inferred AI",
-                    file_path=str(fp_b),
-                    concept_ids=json.dumps(["AI"]),
-                    confidence="inferred",
-                ),
-            ]
+        sourced_art = Article(
+            slug="sourced-ai",
+            title="Sourced AI",
+            file_path=str(fp_a),
+            concept_ids=json.dumps(["AI"]),
+            confidence="sourced",
         )
+        inferred_art = Article(
+            slug="inferred-ai",
+            title="Inferred AI",
+            file_path=str(fp_b),
+            concept_ids=json.dumps(["AI"]),
+            confidence="inferred",
+        )
+        db_session.add_all([sourced_art, inferred_art])
+        await db_session.commit()
+        await db_session.refresh(sourced_art)
+        await db_session.refresh(inferred_art)
+        db_session.add(ArticleConcept(article_id=sourced_art.id, concept_name="AI"))
+        db_session.add(ArticleConcept(article_id=inferred_art.id, concept_name="AI"))
         await db_session.commit()
 
         service = WikiService()
@@ -465,14 +476,16 @@ class TestConceptFiltering:
         fp = tmp_path / "ml.md"
         fp.write_text("# ML", encoding="utf-8")
 
-        db_session.add(
-            Article(
-                slug="ml",
-                title="ML",
-                file_path=str(fp),
-                concept_ids=json.dumps(["Machine Learning"]),
-            )
+        ml_art = Article(
+            slug="ml",
+            title="ML",
+            file_path=str(fp),
+            concept_ids=json.dumps(["Machine Learning"]),
         )
+        db_session.add(ml_art)
+        await db_session.commit()
+        await db_session.refresh(ml_art)
+        db_session.add(ArticleConcept(article_id=ml_art.id, concept_name="Machine Learning"))
         await db_session.commit()
 
         service = WikiService()

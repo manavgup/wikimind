@@ -16,6 +16,7 @@ from wikimind.engine.linter.orphans import detect_orphans
 from wikimind.engine.linter.runner import run_lint
 from wikimind.models import (
     Article,
+    ArticleConcept,
     Backlink,
     Concept,
     ContradictionFinding,
@@ -97,6 +98,9 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
     db_session.add(art_a)
     db_session.add(art_b)
     await db_session.commit()
+    db_session.add(ArticleConcept(article_id="a1", concept_name="testing"))
+    db_session.add(ArticleConcept(article_id="a2", concept_name="testing"))
+    await db_session.commit()
 
     # Mock the LLM router
     mock_response = MagicMock()
@@ -155,6 +159,9 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
     db_session.add(art_a)
     db_session.add(art_b)
     await db_session.commit()
+    db_session.add(ArticleConcept(article_id="a1", concept_name="testing"))
+    db_session.add(ArticleConcept(article_id="a2", concept_name="testing"))
+    await db_session.commit()
 
     mock_router = MagicMock()
     mock_router.complete = AsyncMock(return_value=MagicMock())
@@ -185,6 +192,9 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
             claims=[f"Claim {i}"],
         )
         db_session.add(art)
+    await db_session.commit()
+    for i in range(5):
+        db_session.add(ArticleConcept(article_id=f"a{i}", concept_name="testing"))
     await db_session.commit()
 
     mock_router = MagicMock()
@@ -316,6 +326,9 @@ async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated
     )
     db_session.add(art_a)
     db_session.add(art_b)
+    await db_session.commit()
+    db_session.add(ArticleConcept(article_id="a1", concept_name="testing"))
+    db_session.add(ArticleConcept(article_id="a2", concept_name="testing"))
     await db_session.commit()
 
     mock_response = MagicMock()

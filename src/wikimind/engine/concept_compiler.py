@@ -107,7 +107,7 @@ async def _collect_source_articles(concept_name: str, session: AsyncSession) -> 
     normalized = slugify(concept_name)
     result = await session.execute(
         select(Article)
-        .join(ArticleConcept, ArticleConcept.article_id == Article.id)
+        .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(ArticleConcept.concept_name == normalized, Article.page_type == PageType.SOURCE)
     )
     return list(result.scalars().all())

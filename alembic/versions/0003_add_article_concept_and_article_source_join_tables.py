@@ -30,7 +30,7 @@ def _table_exists(conn, table: str) -> bool:
     return table in inspector.get_table_names()
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: C901, PLR0912
     """Create join tables and migrate existing JSON data."""
     conn = op.get_bind()
 
