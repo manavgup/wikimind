@@ -21,6 +21,7 @@ from wikimind.models import (
     Article,
     CompletionRequest,
     Concept,
+    PageType,
     TaskType,
 )
 
@@ -114,9 +115,10 @@ async def update_article_counts(session: AsyncSession) -> None:
     Args:
         session: Async database session.
     """
-    # Count references per normalized concept name
+    # Count references per normalized concept name — only source articles
+    # count toward the threshold for concept page generation (#155).
     counts: dict[str, int] = {}
-    articles_result = await session.execute(select(Article))
+    articles_result = await session.execute(select(Article).where(Article.page_type == PageType.SOURCE))
     for article in articles_result.scalars().all():
         for name in _parse_concept_ids(article.concept_ids):
             normalized = slugify(name)
@@ -153,7 +155,9 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
 
     # Look up existing concept page.
     slug = f"concept-{slugify(concept.name)}"
-    existing_result = await session.execute(select(Article).where(Article.slug == slug, Article.page_type == "concept"))
+    existing_result = await session.execute(
+        select(Article).where(Article.slug == slug, Article.page_type == PageType.CONCEPT)
+    )
     existing = existing_result.scalar_one_or_none()
     if existing is None:
         return True
