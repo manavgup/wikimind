@@ -379,7 +379,13 @@ class TestAuthEnabled:
 
     def test_spa_routes_exempt_from_auth(self, auth_container_url: str):
         """SPA HTML pages should load without auth for client-side login flow."""
-        resp = httpx.get(f"{auth_container_url}/", timeout=10)
+        # Browsers send Accept: text/html on page loads; the auth middleware
+        # uses this to distinguish SPA page loads from API calls and exempts them.
+        resp = httpx.get(
+            f"{auth_container_url}/",
+            headers={"Accept": "text/html"},
+            timeout=10,
+        )
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
 
