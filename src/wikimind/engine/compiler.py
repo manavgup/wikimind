@@ -540,11 +540,8 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         file_path = concept_dir / f"{slug}.md"
 
-        related_lines: list[str] = []
-        for rb in resolved:
-            related_lines.append(f"- [{rb.candidate_text}](/wiki/{rb.target_id})")
-        for text in unresolved:
-            related_lines.append(f"- [[{text}]]")
+        related_lines: list[str] = [f"- [{rb.candidate_text}](/wiki/{rb.target_id})" for rb in resolved]
+        related_lines.extend(f"- [[{text}]]" for text in unresolved)
         backlinks = "\n".join(related_lines)
 
         claims = "\n".join(
@@ -613,7 +610,6 @@ provider: {provider_str}
 
         if ratio >= 0.8:
             return ConfidenceLevel.SOURCED
-        elif ratio >= 0.4:
+        if ratio >= 0.4:
             return ConfidenceLevel.MIXED
-        else:
-            return ConfidenceLevel.INFERRED
+        return ConfidenceLevel.INFERRED

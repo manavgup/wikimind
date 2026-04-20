@@ -40,13 +40,13 @@ export function QueryInput({ onSubmit, disabled }: Props) {
         disabled={disabled}
         rows={2}
         placeholder="Ask a question about your wiki…"
-        className="flex-1 resize-none rounded-lg border border-slate-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+        className="flex-1 resize-none rounded-md border border-slate-300 px-4 py-3 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-slate-100 disabled:text-slate-400"
       />
       <button
         type="button"
         onClick={handleSubmit}
         disabled={disabled || !value.trim()}
-        className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-slate-300"
+        className="rounded-md bg-brand-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-brand-700 disabled:bg-brand-300"
       >
         Ask
       </button>

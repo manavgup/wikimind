@@ -175,7 +175,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     counting_factory = _CountingSessionFactory(factory)
 
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=counting_factory):
-        await sweep_wikilinks(ctx=None)
+        await sweep_wikilinks(None)
 
     # Should have at least 3 calls: 1 job session + 2 per article
     # (one per article in the loop). The key assertion is > 1.

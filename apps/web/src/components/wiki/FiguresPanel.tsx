@@ -102,8 +102,8 @@ export function FiguresPanel({ sources, onImageCount }: Props) {
                   onClick={() => setFilter("figure")}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                     filter === "figure"
-                      ? "bg-blue-600 text-white"
-                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      ? "bg-brand-600 text-white"
+                      : "bg-brand-50 text-brand-700 hover:bg-brand-100"
                   }`}
                 >
                   Figures ({figCount})
@@ -131,7 +131,7 @@ export function FiguresPanel({ sources, onImageCount }: Props) {
                 key={img.url}
                 type="button"
                 onClick={() => setSelectedImg(img.url)}
-                className="group overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:border-blue-300 hover:shadow-lg"
+                className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-brand-300 hover:shadow"
               >
                 <div className="flex items-center justify-center bg-slate-50 p-3">
                   <img
@@ -144,7 +144,7 @@ export function FiguresPanel({ sources, onImageCount }: Props) {
                 <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2">
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
-                      img.kind === "table" ? "bg-amber-400" : "bg-blue-400"
+                      img.kind === "table" ? "bg-amber-400" : "bg-brand-400"
                     }`}
                   />
                   <span className="text-sm font-medium text-slate-700">
@@ -163,7 +163,7 @@ export function FiguresPanel({ sources, onImageCount }: Props) {
       {/* Lightbox */}
       {selectedImg && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
           onClick={() => setSelectedImg(null)}
         >
           <div

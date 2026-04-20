@@ -576,8 +576,7 @@ class QueryService:
                     detail=(f"Turn indices {sorted(missing)} not found in conversation {selection.conversation_id}"),
                 )
 
-            for query in queries:
-                selected_turns.append(SelectedTurn(conversation=conversation, query=query))
+            selected_turns.extend(SelectedTurn(conversation=conversation, query=query) for query in queries)
 
         if not selected_turns:
             raise HTTPException(status_code=400, detail="No turns selected")

@@ -390,6 +390,29 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     )
 
 
+async def _check_source_dedup(
+    payload: bytes,
+    session: AsyncSession,
+    source_type: str,
+) -> tuple[Source, NormalizedDocument] | None:
+    """Return existing (source, doc) if content was already ingested, else None."""
+    content_hash = compute_hash(payload)
+    existing = await find_source_by_hash(session, content_hash)
+    if existing is not None:
+        if existing.file_path:
+            log.info(
+                "Source dedup hit",
+                source_type=source_type,
+                source_id=existing.id,
+                hash=content_hash[:16],
+            )
+            return existing, reconstruct_normalized_doc(existing)
+        log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
+        await session.delete(existing)
+        await session.commit()
+    return None
+
+
 # ---------------------------------------------------------------------------
 # URL Adapter
 # ---------------------------------------------------------------------------
@@ -412,15 +435,10 @@ class URLAdapter:
         # ingested this exact content (issue #67). We use the HTML bytes — not
         # the cleaned extraction — so the hash is stable across changes to the
         # trafilatura extraction pipeline.
+        dedup = await _check_source_dedup(html.encode("utf-8"), session, "URL")
+        if dedup is not None:
+            return dedup
         content_hash = compute_hash(html.encode("utf-8"))
-        existing = await find_source_by_hash(session, content_hash)
-        if existing is not None:
-            if existing.file_path:
-                log.info("Source dedup hit (URL)", source_id=existing.id, hash=content_hash[:16])
-                return existing, reconstruct_normalized_doc(existing)
-            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
-            await session.delete(existing)
-            await session.commit()
 
         # Extract article text
         downloaded = trafilatura.extract(
@@ -581,16 +599,10 @@ class PDFAdapter:
         # Dedup: hash the raw PDF bytes and short-circuit if we've already
         # ingested this exact file (issue #67). The hash is computed before
         # any LLM work or extraction so re-uploads are essentially free.
+        dedup = await _check_source_dedup(file_bytes, session, "PDF")
+        if dedup is not None:
+            return dedup
         content_hash = compute_hash(file_bytes)
-        existing = await find_source_by_hash(session, content_hash)
-        if existing is not None:
-            if existing.file_path:
-                log.info("Source dedup hit (PDF)", source_id=existing.id, hash=content_hash[:16])
-                return existing, reconstruct_normalized_doc(existing)
-            # Zombie source from a previous failed extraction — delete and re-ingest.
-            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
-            await session.delete(existing)
-            await session.commit()
 
         # Extract metadata (title, author, date) from the PDF info dictionary.
         # This is an instant fitz dict lookup — no ML processing.
@@ -1051,15 +1063,10 @@ class TextAdapter:
         # Dedup: hash the UTF-8 bytes of the pasted content (issue #67).
         # Title differences do NOT contribute — re-pasting the same body
         # under a new title still hits the dedup.
+        dedup = await _check_source_dedup(content.encode("utf-8"), session, "text")
+        if dedup is not None:
+            return dedup
         content_hash = compute_hash(content.encode("utf-8"))
-        existing = await find_source_by_hash(session, content_hash)
-        if existing is not None:
-            if existing.file_path:
-                log.info("Source dedup hit (text)", source_id=existing.id, hash=content_hash[:16])
-                return existing, reconstruct_normalized_doc(existing)
-            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
-            await session.delete(existing)
-            await session.commit()
 
         source = Source(
             source_type=SourceType.TEXT,
@@ -1124,15 +1131,10 @@ class YouTubeAdapter:
         # are stable for a given video so the hash is effectively a video-id
         # alias, but hashing the actual content also catches the (rare) case
         # where the same transcript appears under multiple URLs.
+        dedup = await _check_source_dedup(transcript_text.encode("utf-8"), session, "YouTube")
+        if dedup is not None:
+            return dedup
         content_hash = compute_hash(transcript_text.encode("utf-8"))
-        existing = await find_source_by_hash(session, content_hash)
-        if existing is not None:
-            if existing.file_path:
-                log.info("Source dedup hit (YouTube)", source_id=existing.id, hash=content_hash[:16])
-                return existing, reconstruct_normalized_doc(existing)
-            log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
-            await session.delete(existing)
-            await session.commit()
 
         source = Source(
             source_type=SourceType.YOUTUBE,

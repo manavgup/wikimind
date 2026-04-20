@@ -198,3 +198,49 @@ class TestRedisUrlConfig:
         monkeypatch.setenv("REDIS_URL", "redis://raw:6379/0")
         s = Settings()
         assert s.redis_url == "redis://prefixed:6379/0"
+
+
+class TestSslmodeConversion:
+    """Verify that sslmode in DATABASE_URL is converted to asyncpg-compatible ssl."""
+
+    def test_sslmode_disable_is_stripped(self, monkeypatch):
+        """sslmode=disable should be removed entirely — asyncpg defaults to no SSL."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=disable")
+        s = Settings()
+        assert "sslmode" not in s.database_url
+        assert "ssl" not in s.database_url
+
+    def test_sslmode_require_becomes_ssl_require(self, monkeypatch):
+        """sslmode=require should map to ssl=require."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require")
+        s = Settings()
+        assert "sslmode" not in s.database_url
+        assert "ssl=require" in s.database_url
+
+    def test_sslmode_verify_full_becomes_ssl_verify_full(self, monkeypatch):
+        """sslmode=verify-full should map to ssl=verify-full."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=verify-full")
+        s = Settings()
+        assert "sslmode" not in s.database_url
+        assert "ssl=verify-full" in s.database_url
+
+    def test_sslmode_verify_ca_becomes_ssl_verify_ca(self, monkeypatch):
+        """sslmode=verify-ca should map to ssl=verify-ca."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=verify-ca")
+        s = Settings()
+        assert "sslmode" not in s.database_url
+        assert "ssl=verify-ca" in s.database_url
+
+    def test_existing_ssl_param_not_overwritten(self, monkeypatch):
+        """If ssl= is already set, sslmode should be dropped without overwriting."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require&ssl=prefer")
+        s = Settings()
+        assert "ssl=prefer" in s.database_url
+        assert "sslmode" not in s.database_url
+
+    def test_scheme_rewritten_alongside_sslmode(self, monkeypatch):
+        """Both postgres:// → postgresql+asyncpg:// and sslmode → ssl should happen."""
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require")
+        s = Settings()
+        assert s.database_url.startswith("postgresql+asyncpg://")
+        assert "ssl=require" in s.database_url

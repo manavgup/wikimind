@@ -44,7 +44,7 @@ def _create_engine_from_url(url: str):
             echo=False,
             connect_args={"check_same_thread": False},
         )
-    elif is_postgres(url):
+    if is_postgres(url):
         return create_async_engine(
             url,
             echo=False,
@@ -52,9 +52,8 @@ def _create_engine_from_url(url: str):
             max_overflow=20,
             pool_pre_ping=True,
         )
-    else:
-        dialect = url.split("://", maxsplit=1)[0]
-        raise ValueError(f"Unsupported database dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
+    dialect = url.split("://", maxsplit=1)[0]
+    raise ValueError(f"Unsupported database dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
 
 
 def get_db_path() -> Path:

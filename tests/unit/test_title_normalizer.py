@@ -6,7 +6,7 @@ from wikimind.engine.title_normalizer import normalize_title
 
 
 @pytest.mark.parametrize(
-    "raw, expected",
+    ("raw", "expected"),
     [
         # Baseline
         ("Machine Learning", "machine-learning"),

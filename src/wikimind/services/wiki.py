@@ -496,7 +496,7 @@ class WikiService:
 
         max_score = max(raw_scores.values())
         if max_score == 0:
-            return {aid: 0.0 for aid in raw_scores}
+            return dict.fromkeys(raw_scores, 0.0)
 
         return {aid: s / max_score for aid, s in raw_scores.items()}
 

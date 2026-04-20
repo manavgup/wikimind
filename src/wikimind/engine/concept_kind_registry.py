@@ -76,10 +76,11 @@ async def validate_registry_against_prompts(session: AsyncSession) -> None:
     """Check that every ConceptKindDef prompt_template_key exists in PROMPT_TEMPLATES."""
     result = await session.execute(select(ConceptKindDef))
     kinds = result.scalars().all()
-    missing: list[str] = []
-    for kind in kinds:
-        if kind.prompt_template_key not in PROMPT_TEMPLATES:
-            missing.append(f"{kind.name} -> {kind.prompt_template_key}")
+    missing: list[str] = [
+        f"{kind.name} -> {kind.prompt_template_key}"
+        for kind in kinds
+        if kind.prompt_template_key not in PROMPT_TEMPLATES
+    ]
     if missing:
         raise RegistryTemplateMismatchError(
             f"ConceptKindDef rows reference missing prompt templates: {', '.join(missing)}"
