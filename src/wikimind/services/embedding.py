@@ -22,15 +22,20 @@ log = structlog.get_logger()
 # Optional dependency availability check (mirrors _DOCLING_AVAILABLE pattern)
 # ---------------------------------------------------------------------------
 
+_chromadb: Any = None
+_SentenceTransformer: Any = None
+_SEARCH_AVAILABLE = False
+
 try:
     import chromadb
+
+    _chromadb = chromadb
     from sentence_transformers import SentenceTransformer
 
+    _SentenceTransformer = SentenceTransformer
     _SEARCH_AVAILABLE = True
 except ImportError:
-    chromadb = None  # type: ignore[assignment]
-    SentenceTransformer = None  # type: ignore[assignment]
-    _SEARCH_AVAILABLE = False
+    pass
 
 
 @dataclass
@@ -135,7 +140,7 @@ class EmbeddingService:
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
         chroma_path.mkdir(parents=True, exist_ok=True)
 
-        self._client: Any = chromadb.PersistentClient(path=str(chroma_path))
+        self._client: Any = _chromadb.PersistentClient(path=str(chroma_path))
         self._collection: Any = self._client.get_or_create_collection(
             name="wikimind_chunks",
             metadata={"hnsw:space": "cosine"},
@@ -156,7 +161,7 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            self._model = SentenceTransformer(self._model_name)
+            self._model = _SentenceTransformer(self._model_name)
         return self._model
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
