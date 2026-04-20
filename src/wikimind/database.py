@@ -563,7 +563,7 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
             session.add(article)
 
     # Migrate Source.file_path (raw-relative)
-    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr,arg-type]
+    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr]
     for source in result.scalars().all():
         if source.file_path and source.file_path.startswith(raw_prefix):
             source.file_path = source.file_path[len(raw_prefix) :]

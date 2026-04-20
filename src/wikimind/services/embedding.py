@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from types import ModuleType
+from typing import Any
 
 import structlog
 
@@ -25,17 +22,14 @@ log = structlog.get_logger()
 # Optional dependency availability check (mirrors _DOCLING_AVAILABLE pattern)
 # ---------------------------------------------------------------------------
 
-_chromadb: ModuleType | None
-_SentenceTransformer: type | None
-
 try:
-    import chromadb as _chromadb
-    from sentence_transformers import SentenceTransformer as _SentenceTransformer
+    import chromadb
+    from sentence_transformers import SentenceTransformer
 
     _SEARCH_AVAILABLE = True
 except ImportError:
-    _chromadb = None
-    _SentenceTransformer = None
+    chromadb = None  # type: ignore[assignment]
+    SentenceTransformer = None  # type: ignore[assignment]
     _SEARCH_AVAILABLE = False
 
 
@@ -141,7 +135,7 @@ class EmbeddingService:
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
         chroma_path.mkdir(parents=True, exist_ok=True)
 
-        self._client: Any = _chromadb.PersistentClient(path=str(chroma_path))
+        self._client: Any = chromadb.PersistentClient(path=str(chroma_path))
         self._collection: Any = self._client.get_or_create_collection(
             name="wikimind_chunks",
             metadata={"hnsw:space": "cosine"},
@@ -162,7 +156,7 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            self._model = _SentenceTransformer(self._model_name)
+            self._model = SentenceTransformer(self._model_name)
         return self._model
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
