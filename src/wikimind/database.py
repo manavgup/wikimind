@@ -23,8 +23,9 @@ from slugify import slugify
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -98,7 +99,7 @@ def get_session_factory():
     """Return the singleton session factory."""
     global _session_factory
     if _session_factory is None:
-        _session_factory = async_sessionmaker(get_async_engine(), expire_on_commit=False)
+        _session_factory = async_sessionmaker(get_async_engine(), class_=AsyncSession, expire_on_commit=False)
     return _session_factory
 
 

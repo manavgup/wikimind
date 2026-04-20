@@ -15,7 +15,7 @@ PROMPT_TEMPLATES: dict[str, str] = {
     "concept_synthesis_paper": "",
 }
 
-_BUILTIN_KINDS: list[dict[str, str | None]] = [
+_BUILTIN_KINDS: list[dict[str, str]] = [
     {
         "name": "topic",
         "prompt_template_key": "concept_synthesis_topic",

@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 import structlog
 
@@ -21,6 +24,9 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 # Optional dependency availability check (mirrors _DOCLING_AVAILABLE pattern)
 # ---------------------------------------------------------------------------
+
+_chromadb: ModuleType | None
+_SentenceTransformer: type | None
 
 try:
     import chromadb as _chromadb
