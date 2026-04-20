@@ -147,12 +147,14 @@ async def _cleanup_orphaned_concept_pages(
         await session.execute(
             sa_delete(Backlink).where(
                 or_(
-                    Backlink.source_article_id == article.id,
-                    Backlink.target_article_id == article.id,
+                    Backlink.source_article_id == article.id,  # type: ignore[arg-type]
+                    Backlink.target_article_id == article.id,  # type: ignore[arg-type]
                 )
             )
         )
-        await session.execute(sa_delete(Article).where(Article.id == article.id))
+        await session.execute(
+            sa_delete(Article).where(Article.id == article.id)  # type: ignore[arg-type]
+        )
         cleaned += 1
         log.warning(
             "sweep: removed orphaned concept page (file missing)",
