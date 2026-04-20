@@ -235,7 +235,11 @@ class ConceptCompiler:
         existing = await self._find_existing_concept_article(concept.name, session)
         relative_path = self._write_concept_file(compilation, concept, source_articles)
         if existing is not None:
-            resolve_wiki_path(existing.file_path, user_id=concept.user_id).unlink(missing_ok=True)
+            # Delete old file only after new file is written successfully to
+            # avoid data loss if the write fails (issue #183).
+            old_path = resolve_wiki_path(existing.file_path, user_id=concept.user_id)
+            if old_path != resolve_wiki_path(relative_path, user_id=concept.user_id):
+                old_path.unlink(missing_ok=True)
             existing.title = compilation.title
             existing.summary = compilation.overview
             existing.file_path = relative_path
