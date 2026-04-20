@@ -10,6 +10,7 @@ contradictions are modelled as first-class edges in the knowledge graph.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import itertools
 import json
@@ -435,26 +436,21 @@ async def _process_uncached_pairs(
 # ---------------------------------------------------------------------------
 
 
-async def detect_contradictions(
+async def _check_concept(
+    concept_id: str | None,
+    concept_name: str,
+    pairs: list[tuple[Article, Article]],
     session: AsyncSession,
     router: LLMRouter,
     settings: Settings,
     report: LintReport,
+    semaphore: asyncio.Semaphore,
 ) -> list[ContradictionFinding]:
-    """For each concept, LLM-compare article pairs within that concept bucket."""
-    cfg = settings.linter
-    findings: list[ContradictionFinding] = []
+    """Check contradiction pairs for a single concept, bounded by *semaphore*."""
+    async with semaphore:
+        cfg = settings.linter
+        findings: list[ContradictionFinding] = []
 
-    all_work = await _collect_work(session, cfg)
-
-    total_pairs = sum(len(pairs) for _, _, pairs in all_work)
-    report.total_pairs = total_pairs
-    report.checked_pairs = 0
-    session.add(report)
-    await session.flush()
-
-    checked = 0
-    for concept_id, concept_name, pairs in all_work:  # type: ignore[assignment]
         log.info(
             "Checking contradictions in concept",
             concept=concept_name,
@@ -463,6 +459,7 @@ async def detect_contradictions(
 
         # Separate cached pairs from uncached pairs that need LLM calls
         uncached_pairs: list[tuple[Article, Article, list[str], list[str]]] = []
+        checked = 0
         for article_a, article_b in pairs:
             if cfg.enable_pair_cache:
                 cached = await _check_pair_cache(session, article_a, article_b)
@@ -472,15 +469,23 @@ async def detect_contradictions(
                         a=article_a.title[:30],
                         b=article_b.title[:30],
                     )
-                    cached_findings = _findings_from_cached(cached, report.id, article_a, article_b, concept_id)
+                    cached_findings = _findings_from_cached(
+                        cached,
+                        report.id,
+                        article_a,
+                        article_b,
+                        concept_id,
+                    )
                     findings.extend(cached_findings)
                     for f in cached_findings:
                         ctx = f"{f.article_a_claim} vs {f.article_b_claim}"
-                        await _create_contradiction_backlink(session, article_a.id, article_b.id, ctx)
+                        await _create_contradiction_backlink(
+                            session,
+                            article_a.id,
+                            article_b.id,
+                            ctx,
+                        )
                     checked += 1
-                    report.checked_pairs = checked
-                    session.add(report)
-                    await session.flush()
                     continue
 
             # Collect claims for uncached pair
@@ -490,15 +495,64 @@ async def detect_contradictions(
                 uncached_pairs.append((article_a, article_b, claims_a, claims_b))
             else:
                 checked += 1
-                report.checked_pairs = checked
-                session.add(report)
-                await session.flush()
 
         # Process uncached pairs: batch or per-pair
         new_findings, checked = await _process_uncached_pairs(
-            uncached_pairs, concept_id, router, settings, report, session, checked
+            uncached_pairs,
+            concept_id,
+            router,
+            settings,
+            report,
+            session,
+            checked,
         )
         findings.extend(new_findings)
+
+        return findings
+
+
+async def detect_contradictions(
+    session: AsyncSession,
+    router: LLMRouter,
+    settings: Settings,
+    report: LintReport,
+) -> list[ContradictionFinding]:
+    """For each concept, LLM-compare article pairs within that concept bucket.
+
+    Concepts are checked concurrently up to ``cfg.max_concept_concurrency``
+    (default 5) via ``asyncio.gather`` with a semaphore.
+    """
+    cfg = settings.linter
+
+    all_work = await _collect_work(session, cfg)
+
+    total_pairs = sum(len(pairs) for _, _, pairs in all_work)
+    report.total_pairs = total_pairs
+    report.checked_pairs = 0
+    session.add(report)
+    await session.flush()
+
+    semaphore = asyncio.Semaphore(cfg.max_concept_concurrency)
+
+    tasks = [
+        _check_concept(
+            concept_id,  # type: ignore[arg-type]
+            concept_name,  # type: ignore[arg-type]
+            pairs,
+            session,
+            router,
+            settings,
+            report,
+            semaphore,
+        )
+        for concept_id, concept_name, pairs in all_work
+    ]
+
+    results = await asyncio.gather(*tasks)
+
+    findings: list[ContradictionFinding] = []
+    for concept_findings in results:
+        findings.extend(concept_findings)
 
     return findings
 

@@ -156,6 +156,7 @@ class LinterConfig(BaseModel):
     enable_pair_cache: bool = True
     contradiction_batch_enabled: bool = True
     contradiction_batch_size: int = 10
+    max_concept_concurrency: int = 5
 
 
 class EmbeddingConfig(BaseModel):
