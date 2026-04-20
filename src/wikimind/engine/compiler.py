@@ -328,7 +328,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         provider: Provider | None,
     ) -> Article:
         """Create a brand-new article (no existing same-provider article)."""
-        slug = self._generate_unique_slug(result.title)
+        slug = await self._generate_unique_slug(result.title, session)
 
         resolved, unresolved = await resolve_backlink_candidates(
             result.backlink_suggestions,
@@ -511,10 +511,21 @@ Compile this into a wiki article following the JSON schema exactly."""
                     target=rb.target_id,
                 )
 
-    def _generate_unique_slug(self, title: str) -> str:
-        """Generate a URL-safe slug from a title."""
+    async def _generate_unique_slug(self, title: str, session: AsyncSession) -> str:
+        """Generate a URL-safe slug from a title, avoiding collisions.
+
+        Tries the base slug first; if it already exists, appends ``-2``,
+        ``-3``, etc. until a unique value is found.
+        """
         base = slugify(title, max_length=80)
-        return base
+        candidate = base
+        suffix = 2
+        while True:
+            existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
+            if existing is None:
+                return candidate
+            candidate = f"{base}-{suffix}"
+            suffix += 1
 
     def _write_article_file(
         self,
