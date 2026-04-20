@@ -1,6 +1,7 @@
-// Zustand store for OAuth2 authentication state.
+// Zustand store for authentication state.
 //
-// Persists the JWT token in localStorage so sessions survive page reloads.
+// Session is managed via HttpOnly cookies — the frontend never touches
+// the JWT directly. Auth state is determined by calling /auth/me on mount.
 
 import { create } from "zustand";
 
@@ -12,29 +13,21 @@ export interface AuthUser {
 }
 
 interface AuthState {
-  token: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
   authDisabled: boolean;
-  setToken: (token: string) => void;
   setUser: (user: AuthUser) => void;
   setAuthDisabled: (disabled: boolean) => void;
   logout: () => void;
 }
 
 export const useAuth = create<AuthState>((set) => ({
-  token: localStorage.getItem("wikimind_token"),
   user: null,
-  isAuthenticated: !!localStorage.getItem("wikimind_token"),
+  isAuthenticated: false,
   authDisabled: false,
-  setToken: (token) => {
-    localStorage.setItem("wikimind_token", token);
-    set({ token, isAuthenticated: true });
-  },
-  setUser: (user) => set({ user }),
+  setUser: (user) => set({ user, isAuthenticated: true }),
   setAuthDisabled: (disabled) => set({ authDisabled: disabled }),
   logout: () => {
-    localStorage.removeItem("wikimind_token");
-    set({ token: null, user: null, isAuthenticated: false });
+    set({ user: null, isAuthenticated: false });
   },
 }));

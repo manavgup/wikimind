@@ -1231,6 +1231,19 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Me Auth Me Get
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Logout
+      description: Clear the session cookie.
+      operationId: logout_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /health:
     get:
       summary: Health

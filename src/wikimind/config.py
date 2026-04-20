@@ -179,7 +179,10 @@ class AuthConfig(BaseModel):
     google_client_secret: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
-    frontend_url: str = ""  # Dev override, e.g. "http://localhost:5173"
+    # BFF cookie settings
+    cookie_name: str = "wikimind_session"
+    cookie_secure: bool = True  # False in dev (HTTP), True in prod (HTTPS)
+    cookie_domain: str | None = None  # None = current host; set for subdomains
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).

@@ -6,3 +6,7 @@ import { apiFetch } from "./client";
 export function fetchCurrentUser(): Promise<AuthUser> {
   return apiFetch<AuthUser>("/auth/me");
 }
+
+export function logoutUser(): Promise<void> {
+  return apiFetch<void>("/auth/logout", { method: "POST" });
+}
