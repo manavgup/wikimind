@@ -183,6 +183,7 @@ class TestEmbeddingServiceMocked:
                 "documents": [["Some chunk text"]],
             }
             svc._collection = mock_collection
+            svc._min_score = 0.65
 
             results = svc.search("query text", limit=5)
 
