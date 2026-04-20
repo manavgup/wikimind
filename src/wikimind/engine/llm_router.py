@@ -109,7 +109,10 @@ class LLMRouter:
         self._budget_exceeded_sent: tuple[int, int] | None = None
         self._cached_spend: float | None = None
         self._cache_expires_at: float = 0.0
-        self._provider_cache: dict[Provider, object] = {}
+        self._provider_cache: dict[
+            Provider,
+            AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider,
+        ] = {}
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
         """Return ordered list of providers to try."""
@@ -139,12 +142,14 @@ class LLMRouter:
             return True  # No API key needed
         return bool(get_api_key(provider.value))
 
-    async def _get_provider_instance(self, provider: Provider) -> object:
+    async def _get_provider_instance(
+        self, provider: Provider
+    ) -> AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider:
         """Return a cached provider instance, creating it on first use."""
         if provider in self._provider_cache:
             return self._provider_cache[provider]
 
-        instance: object
+        instance: AnthropicProvider | OpenAIProvider | GoogleProvider | OllamaProvider | MockProvider
         if provider == Provider.ANTHROPIC:
             instance = AnthropicProvider()
         elif provider == Provider.OPENAI:
