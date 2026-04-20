@@ -124,6 +124,10 @@ select = [
     "RET",    # flake8-return
     "T20",    # flake8-print
     "ISC",    # flake8-implicit-str-concat
+    "S",      # flake8-bandit (security)
+    "A",      # flake8-builtins (shadowing)
+    "DTZ",    # flake8-datetimez (naive datetime)
+    "N",      # pep8-naming
 ]
 ignore = [
     "E501",   # line too long — handled by formatter
@@ -142,11 +146,16 @@ ignore = [
     "PIE804",  # unnecessary-dict-kwargs — Pydantic uses **{"alias": ...} patterns intentionally
     "RET504",  # unnecessary-assign — readability-first over short-circuit returns
     "ISC001",  # single-line-implicit-string-concat — conflicts with formatter
+    "S101",   # assert — mirror [tool.bandit] skip
+    "S105",   # hardcoded password — false positives on key-name mappings (mirror bandit)
+    "A002",   # builtin-argument-shadowing — FastAPI route params named `id`/`type` are common
+    "A003",   # builtin-attribute-shadowing — SQLModel/Pydantic models define `id`/`type` fields
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF"]
-"scripts/**/*.py" = ["T20"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ"]
+"scripts/**/*.py" = ["T20", "S"]
+"alembic/**/*.py" = ["N"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]
