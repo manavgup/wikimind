@@ -288,8 +288,17 @@ class Settings(BaseSettings):
             parsed = urlparse(raw)
             params = parse_qs(parsed.query)
             sslmode = params.pop("sslmode", [None])[0]
-            if sslmode == "disable" and "ssl" not in params:
-                params["ssl"] = ["disable"]
+            if sslmode is not None and "ssl" not in params:
+                if sslmode == "disable":
+                    pass  # no ssl param needed — asyncpg default is no-SSL
+                elif sslmode in ("require", "verify-ca", "verify-full"):
+                    params["ssl"] = [sslmode]
+                else:
+                    log.warning(
+                        "Unhandled sslmode value — passing through as ssl",
+                        sslmode=sslmode,
+                    )
+                    params["ssl"] = [sslmode]
             raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
             self.database_url = raw
         return self
