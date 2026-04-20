@@ -71,11 +71,11 @@ class TestAutoEnableProviders:
         assert s.openai_api_key is not None
         assert s.openai_api_key.get_secret_value() == "sk-test-456"
 
-    def test_anthropic_stays_enabled_when_no_key(self):
-        # Anthropic defaults to enabled=True even without a key (legacy default).
-        # Auto-enable doesn't disable anything — only flips False → True.
+    def test_anthropic_disabled_when_no_key(self):
+        # Anthropic defaults to enabled=False like all other providers.
+        # Auto-enable flips False → True only when the API key is present.
         s = Settings()
-        assert s.llm.anthropic.enabled is True
+        assert s.llm.anthropic.enabled is False
 
     def test_google_auto_enables_with_key(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "google-test")
@@ -84,6 +84,7 @@ class TestAutoEnableProviders:
 
     def test_no_auto_enable_when_no_keys(self):
         s = Settings()
+        assert s.llm.anthropic.enabled is False
         assert s.llm.openai.enabled is False
         assert s.llm.google.enabled is False
         assert s.llm.ollama.enabled is False

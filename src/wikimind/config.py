@@ -54,7 +54,7 @@ class AnthropicConfig(LLMProviderConfig):
     """Anthropic provider defaults."""
 
     model: str = "claude-sonnet-4-5"
-    enabled: bool = True
+    enabled: bool = False
 
 
 class OpenAIConfig(LLMProviderConfig):
