@@ -216,6 +216,8 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make docstyle` | Run pydocstyle docstring checks |
 | `make bandit` | Run bandit security scanner |
 | `make vulture` | Detect dead code (80% confidence) |
+| `make dead-code` | Alias for vulture — find unused functions, imports, variables |
+| `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
 | `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop) |
 | `make coverage-check` | Run tests and fail if coverage is under 80% |

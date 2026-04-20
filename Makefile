@@ -164,6 +164,13 @@ bandit: ## Run bandit security scanner
 vulture: ## Detect dead code (80% confidence)
 	$(BIN)/vulture src/wikimind vulture_whitelist.py --min-confidence 80
 
+.PHONY: dead-code
+dead-code: vulture ## Alias for vulture — find unused functions, imports, variables
+
+.PHONY: doc-coverage
+doc-coverage: ## Measure docstring coverage (fails if below fail-under threshold)
+	$(BIN)/interrogate -c pyproject.toml src/wikimind
+
 .PHONY: security
 security: bandit vulture ## Run security and dead-code checks
 

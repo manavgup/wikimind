@@ -227,7 +227,7 @@ async def lint_wiki(_ctx, user_id: str | None = None):
             await session.commit()
 
 
-async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):
+async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):  # noqa: C901
     """Recompile an existing article from its source or concept.
 
     Args:
