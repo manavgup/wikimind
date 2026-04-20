@@ -193,6 +193,10 @@ frontend-dev: ## Start Vite dev server on :5173
 frontend-build: ## Build frontend production bundle
 	cd apps/web && npm run build
 
+.PHONY: generate-types
+generate-types: ## Generate TypeScript types from OpenAPI schema
+	cd apps/web && npx openapi-typescript ../../docs/openapi.yaml -o src/types/generated.ts
+
 .PHONY: frontend-verify
 frontend-verify: ## Run all frontend quality checks
 	cd apps/web && npm run lint && npm run typecheck && npm run build
