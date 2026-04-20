@@ -5,6 +5,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import {
+  deleteSource,
   ingestPdf,
   ingestUrl,
   listSources,
@@ -53,6 +54,16 @@ export function useRetryCompile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (sourceId: string) => retryCompile(sourceId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SOURCES_KEY });
+    },
+  });
+}
+
+export function useDeleteSource() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceId: string) => deleteSource(sourceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SOURCES_KEY });
     },
