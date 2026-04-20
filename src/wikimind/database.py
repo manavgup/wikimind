@@ -179,6 +179,7 @@ async def init_db():
         ("0002_repair_json_arrays", _repair_malformed_json_arrays),
         ("0003_backfill_concepts", _backfill_concepts_from_articles),
         ("0004_relative_paths", None),  # handled separately (needs session)
+        ("0005_backfill_join_tables", _backfill_join_tables_from_json),
     ]
 
     for version, migration_fn in _versioned_migrations:
@@ -545,6 +546,72 @@ async def _backfill_concepts_from_articles(engine) -> None:
                 sa_text("UPDATE concept SET article_count = 0 WHERE name = :name"),
                 {"name": name},
             )
+
+
+async def _backfill_join_tables_from_json(engine) -> None:  # noqa: C901
+    """Populate ArticleConcept and ArticleSource from legacy JSON columns.
+
+    Idempotent: existing rows are skipped via INSERT OR IGNORE (SQLite)
+    or ON CONFLICT DO NOTHING (PostgreSQL).
+    """
+    async with engine.begin() as conn:
+
+        def _table_exists(sync_conn, table_name: str) -> bool:
+            inspector = sa_inspect(sync_conn)
+            return table_name in inspector.get_table_names()
+
+        has_ac = await conn.run_sync(lambda c: _table_exists(c, "articleconcept"))
+        has_as = await conn.run_sync(lambda c: _table_exists(c, "articlesource"))
+
+        if not has_ac or not has_as:
+            return  # Tables not yet created; skip backfill
+
+        def _select_articles(sync_conn):
+            return sync_conn.execute(
+                sa_text(
+                    "SELECT id, concept_ids, source_ids FROM article"
+                    " WHERE concept_ids IS NOT NULL OR source_ids IS NOT NULL"
+                )
+            ).fetchall()
+
+        rows = await conn.run_sync(_select_articles)
+
+        for row in rows:
+            article_id, concept_ids_raw, source_ids_raw = row
+
+            if concept_ids_raw:
+                try:
+                    concept_names = json.loads(concept_ids_raw)
+                    if isinstance(concept_names, list):
+                        for name in concept_names:
+                            if name:
+                                await conn.execute(
+                                    sa_text(
+                                        "INSERT OR IGNORE INTO articleconcept"
+                                        " (article_id, concept_name)"
+                                        " VALUES (:article_id, :concept_name)"
+                                    ),
+                                    {"article_id": article_id, "concept_name": str(name)},
+                                )
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            if source_ids_raw:
+                try:
+                    source_ids = json.loads(source_ids_raw)
+                    if isinstance(source_ids, list):
+                        for sid in source_ids:
+                            if sid:
+                                await conn.execute(
+                                    sa_text(
+                                        "INSERT OR IGNORE INTO articlesource"
+                                        " (article_id, source_id)"
+                                        " VALUES (:article_id, :source_id)"
+                                    ),
+                                    {"article_id": article_id, "source_id": str(sid)},
+                                )
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
 
 async def _migrate_to_relative_paths(session: AsyncSession) -> None:

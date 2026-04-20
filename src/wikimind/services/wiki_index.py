@@ -18,7 +18,7 @@ from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
-from wikimind.models import Article, Backlink, Concept, PageType
+from wikimind.models import Article, ArticleConcept, Backlink, Concept, PageType
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,7 +70,7 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901
+async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901, PLR0912
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
@@ -106,9 +106,16 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901
     concept_articles: dict[str, list[Article]] = defaultdict(list)
     uncategorized: list[Article] = []
 
+    # Build article -> concept names mapping from join table
+    ac_result = await session.execute(select(ArticleConcept))
+    article_concept_map: dict[str, list[str]] = defaultdict(list)
+    for ac in ac_result.scalars().all():
+        article_concept_map[ac.article_id].append(ac.concept_name)
+
     for article in articles:
-        raw_ids: list[str] = []
-        if article.concept_ids:
+        raw_ids = article_concept_map.get(article.id, [])
+        # Fallback to JSON column for pre-migration data
+        if not raw_ids and article.concept_ids:
             with contextlib.suppress(json.JSONDecodeError, TypeError):
                 parsed = json.loads(article.concept_ids)
                 if isinstance(parsed, list):

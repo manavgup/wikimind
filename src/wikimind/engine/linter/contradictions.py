@@ -14,12 +14,13 @@ import hashlib
 import itertools
 import json
 import random
-from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from wikimind.config import LinterConfig, Settings
 from wikimind.engine.linter.prompts import (
     CONTRADICTION_BATCH_SYSTEM,
     CONTRADICTION_BATCH_USER,
@@ -27,8 +28,10 @@ from wikimind.engine.linter.prompts import (
     CONTRADICTION_USER_TEMPLATE,
     format_batch_pair_section,
 )
+from wikimind.engine.llm_router import LLMRouter
 from wikimind.models import (
     Article,
+    ArticleConcept,
     Backlink,
     CompletionRequest,
     Concept,
@@ -41,12 +44,6 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.storage import resolve_wiki_path
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from wikimind.config import LinterConfig, Settings
-    from wikimind.engine.llm_router import LLMRouter
 
 log = structlog.get_logger()
 
@@ -96,20 +93,13 @@ def _extract_claims(article: Article) -> list[str]:
 
 
 async def _get_articles_for_concept(session: AsyncSession, concept_name: str) -> list[Article]:
-    """Load articles whose concept_ids JSON array contains the given concept name."""
-    result = await session.execute(select(Article))
-    all_articles = list(result.scalars().all())
-    matched: list[Article] = []
-    for a in all_articles:
-        if not a.concept_ids:
-            continue
-        try:
-            ids = json.loads(a.concept_ids)
-        except (TypeError, json.JSONDecodeError):
-            continue
-        if isinstance(ids, list) and concept_name in ids:
-            matched.append(a)
-    return matched
+    """Load articles tagged with the given concept via the ArticleConcept join table."""
+    result = await session.execute(
+        select(Article)
+        .join(ArticleConcept, ArticleConcept.article_id == Article.id)
+        .where(ArticleConcept.concept_name == concept_name)
+    )
+    return list(result.scalars().all())
 
 
 async def _check_pair_cache(session: AsyncSession, article_a: Article, article_b: Article) -> list[dict] | None:
@@ -266,8 +256,6 @@ async def _run_batch(
                 batch_results = data
             elif isinstance(data, dict) and "results" in data:
                 batch_results = data["results"]
-            elif isinstance(data, dict) and "pair_index" in data:
-                batch_results = [data]
             else:
                 raise ValueError(f"Unexpected batch response shape: {type(data)}")
 
@@ -405,7 +393,7 @@ async def _process_uncached_pairs(
     concept_id: str | None,
     router: LLMRouter,
     settings: Settings,
-    report_id: str,
+    report: LintReport,
     session: AsyncSession,
     checked: int,
 ) -> tuple[list[ContradictionFinding], int]:
@@ -419,7 +407,7 @@ async def _process_uncached_pairs(
     if cfg.contradiction_batch_enabled and len(uncached_pairs) > 1:
         for batch_start in range(0, len(uncached_pairs), cfg.contradiction_batch_size):
             batch = uncached_pairs[batch_start : batch_start + cfg.contradiction_batch_size]
-            batch_findings = await _run_batch(batch, concept_id, router, settings, report_id, session)
+            batch_findings = await _run_batch(batch, concept_id, router, settings, report.id, session)
             findings.extend(batch_findings)
 
             for _idx, (art_a, art_b, _ca, _cb) in enumerate(batch):
@@ -429,17 +417,19 @@ async def _process_uncached_pairs(
                     ]
                     await _save_pair_cache(session, art_a, art_b, _cache_data_from_findings(pair_findings))
                 checked += 1
-
-        await session.commit()
+                report.checked_pairs = checked
+                session.add(report)
+                await session.flush()
     else:
         for art_a, art_b, _ca, _cb in uncached_pairs:
-            new_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report_id, session)
+            new_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report.id, session)
             findings.extend(new_findings)
             if cfg.enable_pair_cache:
                 await _save_pair_cache(session, art_a, art_b, _cache_data_from_findings(new_findings))
             checked += 1
-
-        await session.commit()
+            report.checked_pairs = checked
+            session.add(report)
+            await session.flush()
 
     return findings, checked
 
@@ -449,94 +439,15 @@ async def _process_uncached_pairs(
 # ---------------------------------------------------------------------------
 
 
-async def _check_concept(
-    concept_id: str | None,
-    concept_name: str,
-    pairs: list[tuple[Article, Article]],
-    session: AsyncSession,
-    router: LLMRouter,
-    settings: Settings,
-    report_id: str,
-) -> tuple[list[ContradictionFinding], int]:
-    """Check contradiction pairs for a single concept.
-
-    Returns (findings, checked_pairs_count).
-    """
-    cfg = settings.linter
-    findings: list[ContradictionFinding] = []
-
-    log.info(
-        "Checking contradictions in concept",
-        concept=concept_name,
-        pairs=len(pairs),
-    )
-
-    # Separate cached pairs from uncached pairs that need LLM calls
-    uncached_pairs: list[tuple[Article, Article, list[str], list[str]]] = []
-    checked = 0
-    for article_a, article_b in pairs:
-        if cfg.enable_pair_cache:
-            cached = await _check_pair_cache(session, article_a, article_b)
-            if cached is not None:
-                log.info(
-                    "Pair cache hit",
-                    a=article_a.title[:30],
-                    b=article_b.title[:30],
-                )
-                cached_findings = _findings_from_cached(
-                    cached,
-                    report_id,
-                    article_a,
-                    article_b,
-                    concept_id,
-                )
-                findings.extend(cached_findings)
-                for f in cached_findings:
-                    ctx = f"{f.article_a_claim} vs {f.article_b_claim}"
-                    await _create_contradiction_backlink(
-                        session,
-                        article_a.id,
-                        article_b.id,
-                        ctx,
-                    )
-                checked += 1
-                continue
-
-        # Collect claims for uncached pair
-        claims_a = _extract_claims(article_a)
-        claims_b = _extract_claims(article_b)
-        if claims_a and claims_b:
-            uncached_pairs.append((article_a, article_b, claims_a, claims_b))
-        else:
-            checked += 1
-
-    # Process uncached pairs: batch or per-pair
-    new_findings, checked = await _process_uncached_pairs(
-        uncached_pairs,
-        concept_id,
-        router,
-        settings,
-        report_id,
-        session,
-        checked,
-    )
-    findings.extend(new_findings)
-
-    return findings, checked
-
-
 async def detect_contradictions(
     session: AsyncSession,
     router: LLMRouter,
     settings: Settings,
     report: LintReport,
 ) -> list[ContradictionFinding]:
-    """For each concept, LLM-compare article pairs within that concept bucket.
-
-    Concepts are checked concurrently up to ``cfg.max_concept_concurrency``
-    (default 5) via ``asyncio.gather`` with a semaphore.
-    """
+    """For each concept, LLM-compare article pairs within that concept bucket."""
     cfg = settings.linter
+    findings: list[ContradictionFinding] = []
 
     all_work = await _collect_work(session, cfg)
 
@@ -546,26 +457,52 @@ async def detect_contradictions(
     session.add(report)
     await session.flush()
 
-    findings: list[ContradictionFinding] = []
-    total_checked = 0
-
-    for concept_id, concept_name, pairs in all_work:
-        concept_findings, checked = await _check_concept(
-            concept_id,
-            concept_name,
-            pairs,
-            session,
-            router,
-            settings,
-            report.id,
+    checked = 0
+    for concept_id, concept_name, pairs in all_work:  # type: ignore[assignment]
+        log.info(
+            "Checking contradictions in concept",
+            concept=concept_name,
+            pairs=len(pairs),
         )
-        findings.extend(concept_findings)
-        total_checked += checked
 
-        # Update progress after each concept.
-        report.checked_pairs = total_checked
-        session.add(report)
-        await session.flush()
+        # Separate cached pairs from uncached pairs that need LLM calls
+        uncached_pairs: list[tuple[Article, Article, list[str], list[str]]] = []
+        for article_a, article_b in pairs:
+            if cfg.enable_pair_cache:
+                cached = await _check_pair_cache(session, article_a, article_b)
+                if cached is not None:
+                    log.info(
+                        "Pair cache hit",
+                        a=article_a.title[:30],
+                        b=article_b.title[:30],
+                    )
+                    cached_findings = _findings_from_cached(cached, report.id, article_a, article_b, concept_id)
+                    findings.extend(cached_findings)
+                    for f in cached_findings:
+                        ctx = f"{f.article_a_claim} vs {f.article_b_claim}"
+                        await _create_contradiction_backlink(session, article_a.id, article_b.id, ctx)
+                    checked += 1
+                    report.checked_pairs = checked
+                    session.add(report)
+                    await session.flush()
+                    continue
+
+            # Collect claims for uncached pair
+            claims_a = _extract_claims(article_a)
+            claims_b = _extract_claims(article_b)
+            if claims_a and claims_b:
+                uncached_pairs.append((article_a, article_b, claims_a, claims_b))
+            else:
+                checked += 1
+                report.checked_pairs = checked
+                session.add(report)
+                await session.flush()
+
+        # Process uncached pairs: batch or per-pair
+        new_findings, checked = await _process_uncached_pairs(
+            uncached_pairs, concept_id, router, settings, report, session, checked
+        )
+        findings.extend(new_findings)
 
     return findings
 

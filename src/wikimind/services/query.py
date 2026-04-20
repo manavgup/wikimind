@@ -30,6 +30,7 @@ from wikimind.engine.conversation_serializer import (
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
+    ArticleSource,
     AskResponse,
     CitationArticleRef,
     CitationResponse,
@@ -129,7 +130,12 @@ async def _build_citations(query: Query, session: AsyncSession) -> list[Citation
         article = articles_by_title.get(title)
         if article is None:
             continue
-        source_ids = _parse_source_ids(article.source_ids)
+        # Query join table for source IDs
+        as_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
+        source_ids = [row[0] for row in as_result.all()]
+        # Fallback to JSON column for pre-migration data
+        if not source_ids:
+            source_ids = _parse_source_ids(article.source_ids)
         sources: list[Source] = []
         if source_ids:
             src_result = await session.execute(

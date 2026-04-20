@@ -212,6 +212,30 @@ class Article(SQLModel, table=True):
     )
 
 
+class ArticleConcept(SQLModel, table=True):
+    """Join table linking articles to concept names.
+
+    Replaces the JSON-array ``Article.concept_ids`` column with a proper
+    many-to-many relationship so queries like "articles tagged with concept X"
+    can use an indexed join instead of a full table scan + JSON parse.
+    """
+
+    article_id: str = Field(foreign_key="article.id", primary_key=True)
+    concept_name: str = Field(primary_key=True, index=True)
+
+
+class ArticleSource(SQLModel, table=True):
+    """Join table linking articles to source IDs.
+
+    Replaces the JSON-array ``Article.source_ids`` column with a proper
+    many-to-many relationship so lookups like "which article was compiled
+    from source X" can use an indexed join instead of a full table scan.
+    """
+
+    article_id: str = Field(foreign_key="article.id", primary_key=True)
+    source_id: str = Field(foreign_key="source.id", primary_key=True, index=True)
+
+
 class ConceptKindDef(SQLModel, table=True):
     """Registry of concept kinds (Type Object pattern)."""
 

@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 import structlog
 from sqlmodel import select
 
-from wikimind.models import Article, Backlink, RelationType
+from wikimind.models import Article, ArticleConcept, Backlink, RelationType
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -114,9 +114,11 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
 
     # ---- Check 1: source pages need >= 1 concept ----
     if article.page_type == "source":
-        concept_ids: list[str] = []
-        if article.concept_ids:
-            with contextlib.suppress(TypeError, json.JSONDecodeError):
+        ac_result = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
+        concept_ids: list[str] = [ac.concept_name for ac in ac_result.scalars().all()]
+        # Fallback to JSON column for pre-migration data
+        if not concept_ids and article.concept_ids:
+            with contextlib.suppress(TypeError, ValueError):
                 concept_ids = json.loads(article.concept_ids)
         if not concept_ids:
             msg = f"Source page '{article.title}' has no concepts in concept_ids"

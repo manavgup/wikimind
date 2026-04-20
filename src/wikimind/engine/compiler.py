@@ -18,7 +18,6 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
-from wikimind.db_compat import is_sqlite, json_array_contains
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
@@ -27,6 +26,8 @@ from wikimind.engine.wikilink_resolver import (
 )
 from wikimind.models import (
     Article,
+    ArticleConcept,
+    ArticleSource,
     Backlink,
     CompilationResult,
     CompletionRequest,
@@ -311,16 +312,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Find an article previously compiled from this source by this provider."""
         if provider is None:
             return None
-        settings = get_settings()
-        dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
-        if dialect == "postgresql":
-            clause = json_array_contains(dialect, "source_ids", source_id)
-            result = await session.execute(select(Article).where(clause))  # type: ignore[arg-type]
-        else:
-            needle = f'"{source_id}"'
-            result = await session.execute(
-                select(Article).where(Article.source_ids.contains(needle))  # type: ignore[union-attr]
-            )
+        result = await session.execute(
+            select(Article)
+            .join(ArticleSource, ArticleSource.article_id == Article.id)
+            .where(ArticleSource.source_id == source_id)
+        )
         for article in result.scalars().all():
             if article.provider == provider:
                 return article
@@ -364,6 +360,12 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         await session.commit()
         await session.refresh(article)
+
+        # Populate join tables
+        session.add(ArticleSource(article_id=article.id, source_id=source.id))
+        for concept_name in result.concepts:
+            session.add(ArticleConcept(article_id=article.id, concept_name=concept_name))
+        await session.commit()
 
         await self._persist_resolved_backlinks(article.id, resolved, session)
 
@@ -448,8 +450,22 @@ Compile this into a wiki article following the JSON schema exactly."""
         for row in old_bl.scalars().all():
             await session.delete(row)
 
+        # Refresh join tables
+        old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == existing.id))
+        for ac in old_ac.scalars().all():
+            await session.delete(ac)
+        old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == existing.id))
+        for a_s in old_as.scalars().all():
+            await session.delete(a_s)
+
         await session.commit()
         await session.refresh(existing)
+
+        # Re-populate join tables
+        session.add(ArticleSource(article_id=existing.id, source_id=source.id))
+        for concept_name in result.concepts:
+            session.add(ArticleConcept(article_id=existing.id, concept_name=concept_name))
+        await session.commit()
 
         await self._persist_resolved_backlinks(existing.id, resolved, session)
 

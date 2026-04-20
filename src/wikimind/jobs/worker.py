@@ -40,6 +40,8 @@ from wikimind.engine.linter.runner import run_lint
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
     Article,
+    ArticleConcept,
+    ArticleSource,
     Concept,
     IngestStatus,
     Job,
@@ -237,6 +239,24 @@ async def lint_wiki(_ctx, user_id: str | None = None):
             await session.commit()
 
 
+async def _get_article_source_ids(article: Article, session) -> list[str]:
+    """Fetch source IDs from join table with JSON column fallback."""
+    result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
+    ids = [row[0] for row in result.all()]
+    if not ids:
+        ids = json.loads(article.source_ids) if article.source_ids else []
+    return ids
+
+
+async def _get_article_concept_names(article: Article, session) -> list[str]:
+    """Fetch concept names from join table with JSON column fallback."""
+    result = await session.execute(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article.id))
+    names = [row[0] for row in result.all()]
+    if not names:
+        names = json.loads(article.concept_ids) if article.concept_ids else []
+    return names
+
+
 async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):  # noqa: C901
     """Recompile an existing article from its source or concept.
 
@@ -283,7 +303,7 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
         try:
             if mode == "source":
-                source_ids = json.loads(article.source_ids) if article.source_ids else []
+                source_ids = await _get_article_source_ids(article, session)
                 if not source_ids:
                     raise ValueError("Article has no linked sources")
 
@@ -312,11 +332,11 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
                 await compiler.save_article(result, source, session)
 
             elif mode == "concept":
-                concept_ids = json.loads(article.concept_ids) if article.concept_ids else []
-                if not concept_ids:
+                concept_names = await _get_article_concept_names(article, session)
+                if not concept_names:
                     raise ValueError("Article has no linked concepts")
 
-                concept_name = concept_ids[0]
+                concept_name = concept_names[0]
                 result = await session.execute(select(Concept).where(Concept.name == concept_name))
                 concept = result.scalars().first()
                 if not concept:

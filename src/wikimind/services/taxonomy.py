@@ -20,6 +20,8 @@ from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
+    ArticleConcept,
+    ArticleSource,
     CompletionRequest,
     Concept,
     PageType,
@@ -110,24 +112,27 @@ async def upsert_concepts(
 
 
 async def update_article_counts(session: AsyncSession) -> None:
-    """Recalculate ``Concept.article_count`` from all articles' concept_ids.
+    """Recalculate ``Concept.article_count`` from the ArticleConcept join table.
 
-    Scans every article, parses its ``concept_ids`` JSON, normalizes
+    Queries the join table for article counts per concept name, normalizes
     each name, and sets the count on the matching Concept row. Concepts
     not referenced by any article get their count reset to zero.
 
     Args:
         session: Async database session.
     """
-    # Count references per normalized concept name — only source articles
-    # count toward the threshold for concept page generation (#155).
+    # Count references per normalized concept name from join table — only
+    # source articles count toward the threshold for concept page generation (#155).
     counts: dict[str, int] = {}
-    articles_result = await session.execute(select(Article).where(Article.page_type == PageType.SOURCE))
-    for article in articles_result.scalars().all():
-        for name in _parse_concept_ids(article.concept_ids):
-            normalized = slugify(name)
-            if normalized:
-                counts[normalized] = counts.get(normalized, 0) + 1
+    ac_result = await session.execute(
+        select(ArticleConcept)
+        .join(Article, ArticleConcept.article_id == Article.id)
+        .where(Article.page_type == PageType.SOURCE)
+    )
+    for ac in ac_result.scalars().all():
+        normalized = slugify(ac.concept_name)
+        if normalized:
+            counts[normalized] = counts.get(normalized, 0) + 1
 
     # Apply counts to all concepts
     concepts_result = await session.execute(select(Concept))
@@ -142,10 +147,9 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
     """Return True if the concept's current source articles differ from the last compilation.
 
     Compares sorted source article IDs from the database against the
-    ``source_ids`` JSON stored on the existing concept page article.
-    Returns True (needs recompilation) when no existing concept page
-    exists, when the stored ``source_ids`` cannot be parsed, or when
-    the sorted ID lists do not match.
+    source IDs stored in the ``ArticleSource`` join table for the existing
+    concept page article. Returns True (needs recompilation) when no
+    existing concept page exists or when the sorted ID lists do not match.
 
     This avoids expensive LLM calls when the source set is unchanged
     (issue #162).
@@ -166,10 +170,15 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
     if existing is None:
         return True
 
-    try:
-        previous_ids = sorted(json.loads(existing.source_ids or "[]"))
-    except (TypeError, ValueError):
-        return True
+    prev_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == existing.id))
+    previous_ids = sorted(row[0] for row in prev_result.all())
+
+    # Fallback to JSON if join table is empty (pre-migration data)
+    if not previous_ids:
+        try:
+            previous_ids = sorted(json.loads(existing.source_ids or "[]"))
+        except (TypeError, ValueError):
+            return True
 
     return current_ids != previous_ids
 
