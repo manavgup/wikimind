@@ -352,6 +352,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             concept_ids=json.dumps(result.concepts),
             provider=provider,
             page_type=PageType.SOURCE,
+            user_id=source.user_id,
         )
         session.add(article)
 
@@ -434,6 +435,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing.concept_ids = json.dumps(result.concepts)
         existing.page_type = PageType.SOURCE
         existing.updated_at = utcnow_naive()
+        existing.user_id = source.user_id
         session.add(existing)
 
         source.status = IngestStatus.COMPILED

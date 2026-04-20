@@ -5,6 +5,7 @@ registers all routers, and configures CORS for Electron and web dev servers.
 """
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -29,7 +30,7 @@ from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
-from wikimind.models import IngestStatus, Source, UserPreference
+from wikimind.models import Article, IngestStatus, Source, UserPreference
 
 log = structlog.get_logger()
 
@@ -74,6 +75,28 @@ async def lifespan(_app: FastAPI):
         if stuck:
             await session.commit()
             log.info("Reset stuck processing sources", count=len(stuck))
+
+    # Backfill article.user_id from linked source for articles created
+    # before user_id propagation was fixed. One-time migration that
+    # becomes a no-op once all articles have a user_id set.
+    async with get_session_factory()() as session:
+        result = await session.execute(
+            select(Article).where(Article.user_id.is_(None))  # type: ignore[union-attr]
+        )
+        orphan_articles = list(result.scalars().all())
+        backfilled = 0
+        for article in orphan_articles:
+            source_ids = json.loads(article.source_ids) if article.source_ids else []
+            if not source_ids:
+                continue
+            source = await session.get(Source, source_ids[0])
+            if source and source.user_id:
+                article.user_id = source.user_id
+                session.add(article)
+                backfilled += 1
+        if backfilled:
+            await session.commit()
+            log.info("Backfilled article user_id from source", count=backfilled)
 
     # Warm up the Docling converter in a background thread so ML model
     # weights (~500 MB) are downloaded and loaded before the first PDF
