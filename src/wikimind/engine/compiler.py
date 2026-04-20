@@ -408,7 +408,6 @@ Compile this into a wiki article following the JSON schema exactly."""
         old_concept_ids = existing.concept_ids
 
         old_path = resolve_wiki_path(existing.file_path, user_id=source.user_id)
-        old_path.unlink(missing_ok=True)
 
         resolved, unresolved = await resolve_backlink_candidates(
             result.backlink_suggestions,
@@ -418,6 +417,11 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
 
         relative_path = self._write_article_file(result, source, existing.slug, resolved, unresolved)
+
+        # Delete old file only after new file is written successfully to
+        # avoid data loss if the write fails (issue #183).
+        if old_path != resolve_wiki_path(relative_path, user_id=source.user_id):
+            old_path.unlink(missing_ok=True)
 
         existing.title = result.title
         existing.summary = result.summary
@@ -502,7 +506,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             )
             session.add(bl)
             try:
-                await session.commit()
+                await session.flush()
             except IntegrityError:
                 await session.rollback()
                 log.debug(
@@ -510,6 +514,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                     source=source_article_id,
                     target=rb.target_id,
                 )
+        await session.commit()
 
     def _generate_unique_slug(self, title: str) -> str:
         """Generate a URL-safe slug from a title."""
