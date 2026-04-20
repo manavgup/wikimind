@@ -271,7 +271,13 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
     db_mod._engine = None
     db_mod._session_factory = None
 
-    await init_db()
+    # Create tables without running versioned migrations so we can insert
+    # a legacy Query row first, then let init_db() backfill it.
+    from sqlmodel import SQLModel as _SM  # noqa: PLC0415
+
+    engine = db_mod.get_async_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(_SM.metadata.create_all)
 
     # Insert a Query row directly without conversation_id (simulating a legacy row)
     factory = get_session_factory()
@@ -287,7 +293,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
         await session.commit()
         legacy_id = legacy.id
 
-    # Run init_db again — backfill should kick in
+    # Run init_db — versioned backfill should process the legacy row
     await init_db()
 
     async with factory() as session:
@@ -300,7 +306,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
         assert conv is not None
         assert conv.title == "What is the legacy question?"
 
-    # Idempotency: a third init_db should be a no-op (no duplicate Conversation rows)
+    # Idempotency: a second init_db is a no-op (migration already recorded)
     await init_db()
     async with factory() as session:
         rows_result = await session.execute(select(Conversation).where(Conversation.id == result.conversation_id))
