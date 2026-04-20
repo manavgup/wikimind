@@ -33,14 +33,14 @@ if TYPE_CHECKING:
 class LinterService:
     """Coordinate lint report queries, finding dismissal, and run triggers."""
 
-    async def trigger_run(self) -> dict[str, str]:
+    async def trigger_run(self, user_id: str | None = None) -> dict[str, str]:
         """Schedule a lint run via the background job system.
 
         Returns:
             Dict with status indicating the run was scheduled.
         """
         bg = get_background_compiler()
-        await bg.schedule_lint()
+        await bg.schedule_lint(user_id=user_id)
         return {"status": "in_progress"}
 
     async def list_reports(
