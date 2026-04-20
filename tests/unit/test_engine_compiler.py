@@ -195,9 +195,44 @@ def test_overall_confidence_inferred() -> None:
     assert c._overall_confidence(_result(claims=claims)) == ConfidenceLevel.INFERRED
 
 
-def test_generate_unique_slug() -> None:
+async def test_generate_unique_slug(db_session) -> None:
     c = _make_compiler()
-    assert c._generate_unique_slug("Hello World!") == "hello-world"
+    assert await c._generate_unique_slug("Hello World!", db_session) == "hello-world"
+
+
+async def test_generate_unique_slug_avoids_collision(db_session) -> None:
+    """When a slug already exists, append -2, -3, etc."""
+    c = _make_compiler()
+    # Create an article that occupies "hello-world"
+    existing = Article(
+        slug="hello-world",
+        title="Hello World",
+        file_path="general/hello-world.md",
+        confidence=ConfidenceLevel.SOURCED,
+    )
+    db_session.add(existing)
+    await db_session.commit()
+
+    slug = await c._generate_unique_slug("Hello World!", db_session)
+    assert slug == "hello-world-2"
+
+
+async def test_generate_unique_slug_skips_multiple_collisions(db_session) -> None:
+    """When -2 also exists, continue to -3."""
+    c = _make_compiler()
+    for s in ("hello-world", "hello-world-2"):
+        db_session.add(
+            Article(
+                slug=s,
+                title="Hello World",
+                file_path=f"general/{s}.md",
+                confidence=ConfidenceLevel.SOURCED,
+            )
+        )
+    await db_session.commit()
+
+    slug = await c._generate_unique_slug("Hello World!", db_session)
+    assert slug == "hello-world-3"
 
 
 def test_write_article_file(tmp_path) -> None:
