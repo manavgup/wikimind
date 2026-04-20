@@ -2,8 +2,14 @@
 
 Provides ``/auth/login/{provider}`` to redirect users to the OAuth2
 provider's authorization page, ``/auth/callback`` to handle the code
-exchange and JWT issuance, and ``/auth/me`` to return the current
-user's profile.
+exchange, JWT issuance, and HttpOnly cookie setting, ``/auth/me`` to
+return the current user's profile, and ``/auth/logout`` to clear the
+session cookie.
+
+The JWT is stored in an HttpOnly cookie (not exposed to JavaScript).
+After the OAuth callback sets the cookie, the browser is redirected to
+``/callback`` on the frontend where the SPA calls ``/auth/me``
+(cookie sent automatically) to confirm the session.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -11,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -169,6 +175,23 @@ def _create_jwt(user: User, settings: Settings) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _callback_url(request: Request) -> str:
+    """Build the OAuth callback URL from the request's Host header.
+
+    ``request.url_for()`` uses the ASGI scope's server address which
+    ignores reverse proxies (Vite dev proxy, nginx, Fly.io).  Reading
+    the ``Host`` header directly produces the correct origin in all
+    environments.
+    """
+    host = request.headers.get("host", request.url.netloc)
+    return f"{request.url.scheme}://{host}/auth/callback"
+
+
+# ---------------------------------------------------------------------------
 # Route handlers
 # ---------------------------------------------------------------------------
 
@@ -177,7 +200,7 @@ def _create_jwt(user: User, settings: Settings) -> str:
 async def login(provider: str, request: Request) -> RedirectResponse:
     """Redirect to OAuth2 provider's authorize URL."""
     settings = get_settings()
-    callback_url = str(request.url_for("auth_callback"))
+    callback_url = _callback_url(request)
 
     if provider == "google":
         authorize_url = (
@@ -210,7 +233,7 @@ async def callback(
     settings = get_settings()
     provider = state
     # Google requires the exact redirect_uri used in the authorize request
-    callback_url = str(request.url_for("auth_callback"))
+    callback_url = _callback_url(request)
 
     if provider == "google":
         token_resp = await _exchange_google_token(code, settings, callback_url)
@@ -224,12 +247,22 @@ async def callback(
     user = await _upsert_user(session, provider, user_info)
     jwt_token = _create_jwt(user, settings)
 
-    # Redirect to the frontend with the token in the URL fragment.
-    # In production the backend serves the SPA so a relative redirect works.
-    # In dev mode, the Vite server is on a different port — set
-    # WIKIMIND_AUTH__FRONTEND_URL=http://localhost:5173 to redirect there.
-    base = settings.auth.frontend_url or ""
-    return RedirectResponse(url=f"{base}/#token={jwt_token}")
+    # Set JWT as HttpOnly cookie and redirect to the frontend callback page.
+    # The redirect is relative — in both dev (Vite proxy) and prod (same origin)
+    # the browser stays on the frontend origin.  The AuthCallback component
+    # calls /auth/me (cookie sent automatically) to confirm the session.
+    response = RedirectResponse(url="/callback", status_code=302)
+    response.set_cookie(
+        key=settings.auth.cookie_name,
+        value=jwt_token,
+        httponly=True,
+        secure=settings.auth.cookie_secure,
+        samesite="lax",
+        max_age=settings.auth.jwt_expiry_minutes * 60,
+        path="/",
+        domain=settings.auth.cookie_domain,
+    )
+    return response
 
 
 @router.get("/me")
@@ -251,3 +284,16 @@ async def me(request: Request, session: AsyncSession = Depends(get_session)) -> 
         "name": user.name,
         "avatar_url": user.avatar_url,
     }
+
+
+@router.post("/logout")
+async def logout() -> JSONResponse:
+    """Clear the session cookie."""
+    settings = get_settings()
+    response = JSONResponse(content={"status": "ok"})
+    response.delete_cookie(
+        key=settings.auth.cookie_name,
+        path="/",
+        domain=settings.auth.cookie_domain,
+    )
+    return response

@@ -4,10 +4,12 @@ When ``settings.auth.enabled`` is False (default), the middleware is a
 pass-through — every request proceeds with ``request.state.user_id = None``,
 preserving backward-compatible single-user mode.
 
-When enabled, the middleware extracts a JWT from the ``Authorization: Bearer``
-header, decodes it, and sets ``request.state.user_id`` and
+When enabled, the middleware extracts a JWT from the ``wikimind_session``
+HttpOnly cookie (set during the OAuth callback). If no cookie is present,
+it falls back to the ``Authorization: Bearer`` header for API clients.
+The decoded payload sets ``request.state.user_id`` and
 ``request.state.user_email`` for downstream route handlers. Exempt paths
-(health check, docs, auth routes) are never challenged.
+(health check, docs, auth routes, logout) are never challenged.
 """
 
 import jwt
@@ -18,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from wikimind.config import get_settings
 
 EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
-EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/assets/")
+EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/auth/logout", "/assets/")
 # Static frontend files that must load without auth so users can see the login page.
 _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
 # API route prefixes that require auth. Everything else is a frontend SPA route
@@ -59,7 +61,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user_email = None
             return await call_next(request)
 
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        token = request.cookies.get(settings.auth.cookie_name, "")
+        if not token:
+            token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         if not token:
             return JSONResponse(
                 status_code=401,
