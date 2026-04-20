@@ -502,7 +502,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             )
             session.add(bl)
             try:
-                await session.commit()
+                await session.flush()
             except IntegrityError:
                 await session.rollback()
                 log.debug(
@@ -510,6 +510,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                     source=source_article_id,
                     target=rb.target_id,
                 )
+        await session.commit()
 
     def _generate_unique_slug(self, title: str) -> str:
         """Generate a URL-safe slug from a title."""

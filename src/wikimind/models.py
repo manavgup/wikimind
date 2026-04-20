@@ -10,7 +10,7 @@ from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, computed_field
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Column, String, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -186,7 +186,10 @@ class Article(SQLModel, table=True):
     # same source with the same provider replaces this article in place;
     # different providers stack as separate articles for comparison.
     provider: Provider | None = None
-    page_type: str = Field(default=PageType.SOURCE)
+    page_type: PageType = Field(
+        default=PageType.SOURCE,
+        sa_column=Column(String, default=PageType.SOURCE),
+    )
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
