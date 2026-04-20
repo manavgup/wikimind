@@ -224,6 +224,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
 | `make frontend-build` | Build frontend production bundle |
+| `make generate-types` | Generate TypeScript types from OpenAPI schema |
 | `make frontend-verify` | Run all frontend quality checks |
 
 ### 🖥️  DESKTOP (Electron shell)
