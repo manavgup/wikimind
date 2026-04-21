@@ -13,11 +13,13 @@ FROM python:${PYTHON_VERSION}-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_COMPILE_BYTECODE=1
 
 # System libraries required by pymupdf, sqlite, healthchecks, and keyring.
 # The upgrade step patches OS-level CVEs (e.g. openssl) so the Trivy scan
 # passes even when the base image ships with a known vulnerability.
+# Also upgrade pip/setuptools/wheel to patch CVE-2026-23949 & CVE-2026-24049.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN apt-get update \
     && apt-get upgrade -y \
@@ -26,7 +28,8 @@ RUN apt-get update \
         curl \
         libmupdf-dev \
         libsqlite3-0 \
-    && rm -rf /var/lib/apt/lists/*
+    && pip install --upgrade pip setuptools wheel \
+    && rm -rf /var/lib/apt/lists/* /root/.cache/pip
 
 WORKDIR /app
 
@@ -46,8 +49,14 @@ FROM base AS dev
 # PDF extraction is handled by the docling-serve sidecar container.
 ARG EXTRAS=dev
 COPY pyproject.toml uv.lock README.md ./
+
+# Sync dependencies without installing the project to cache them
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --extra ${EXTRAS}
+
 COPY src ./src
-RUN uv sync --frozen --extra ${EXTRAS}
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --extra ${EXTRAS}
 
 COPY . .
 
@@ -74,13 +83,17 @@ CMD ["uv", "run", "uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port",
 FROM base AS prod
 
 COPY pyproject.toml uv.lock README.md ./
-COPY src ./src
+
+# Sync dependencies without installing the project to cache them.
 # Install only production dependencies — no ML libs, no playwright.
 # PDF extraction is handled by the docling-serve sidecar container.
-RUN pip install --upgrade pip wheel setuptools \
-    && uv sync --frozen \
-    && uv pip install gunicorn \
-    && rm -rf /root/.cache/pip
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+COPY src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen \
+    && uv pip install gunicorn
 
 # Alembic migrations for Postgres deployments
 COPY alembic.ini ./
