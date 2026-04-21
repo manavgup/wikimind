@@ -18,7 +18,7 @@ services:
       target: dev
     image: wikimind-dev:latest
     container_name: wikimind-gateway
-    command: uvicorn wikimind.main:app --host 0.0.0.0 --port 7842 --reload
+    command: uv run uvicorn wikimind.main:app --host 0.0.0.0 --port 7842 --reload
     environment:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_SERVER__HOST: 0.0.0.0
@@ -56,7 +56,7 @@ services:
       target: dev
     image: wikimind-dev:latest
     container_name: wikimind-worker
-    command: python -m arq wikimind.jobs.worker.WorkerSettings
+    command: uv run python -m arq wikimind.jobs.worker.WorkerSettings
     environment:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_REDIS_URL: redis://redis:6379/0
