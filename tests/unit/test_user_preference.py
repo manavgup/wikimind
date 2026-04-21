@@ -83,11 +83,19 @@ async def test_set_default_provider_valid(client) -> None:
     """Setting a valid, enabled provider with an API key configured returns 200."""
     session_factory, _ = _make_session_with_pref(None)
 
-    with (
-        patch.object(settings_mod, "get_session_factory", return_value=session_factory),
-        patch.object(settings_mod, "get_api_key", return_value="sk-fake"),
-    ):
-        resp = await client.post("/settings/llm/default-provider", json={"provider": "anthropic"})
+    settings = settings_mod.get_settings()
+    original_enabled = settings.llm.anthropic.enabled
+    settings.llm.anthropic.enabled = True
+    try:
+        with (
+            patch.object(settings_mod, "get_session_factory", return_value=session_factory),
+            patch.object(settings_mod, "get_api_key", return_value="sk-fake"),
+        ):
+            resp = await client.post(
+                "/settings/llm/default-provider", json={"provider": "anthropic"}
+            )
+    finally:
+        settings.llm.anthropic.enabled = original_enabled
 
     assert resp.status_code == 200
     data = resp.json()
