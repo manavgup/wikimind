@@ -59,7 +59,12 @@ def _create_engine_from_url(url: str):
     if is_postgres(url):
         url, connect_args = _parse_ssl(url)
         return create_async_engine(
-            url, echo=False, pool_size=10, max_overflow=20, pool_pre_ping=True, connect_args=connect_args,
+            url,
+            echo=False,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            connect_args=connect_args,
         )
     dialect = url.split("://", maxsplit=1)[0]
     raise ValueError(f"Unsupported dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
