@@ -1,0 +1,1 @@
+../../../adr/adr-004-markdown-files-sqlite-metadata.md

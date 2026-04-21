@@ -2,6 +2,8 @@
 
 WikiMind supports four source types: web URLs, PDFs, raw text, and YouTube videos. Every ingested source is automatically compiled into a structured wiki article by an LLM.
 
+![Inbox — paste URLs, upload PDFs, or drag and drop](../assets/screenshots/inbox-view.svg)
+
 ## Source Types
 
 ### Web URLs

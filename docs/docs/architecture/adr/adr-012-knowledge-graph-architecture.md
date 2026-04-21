@@ -1,0 +1,1 @@
+../../../adr/adr-012-knowledge-graph-architecture.md

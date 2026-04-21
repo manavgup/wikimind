@@ -1,0 +1,1 @@
+../../../adr/adr-008-pydantic-basesettings.md

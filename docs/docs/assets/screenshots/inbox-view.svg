@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    </filter>
+    <clipPath id="round4"><rect width="960" height="600" rx="8"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round4)">
+    <!-- Background -->
+    <rect width="960" height="600" fill="#f8fafc"/>
+
+    <!-- Sidebar -->
+    <rect width="224" height="600" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+    <!-- Logo area -->
+    <text x="48" y="38" font-size="18" font-weight="700" fill="#0f172a">WikiMind</text>
+    <text x="20" y="38" font-size="18">🧠</text>
+    <!-- Nav items -->
+    <rect x="12" y="60" width="200" height="36" rx="6" fill="#f4f7fb"/>
+    <text x="48" y="83" font-size="13" font-weight="600" fill="#2b4876">📥 Inbox</text>
+    <text x="48" y="119" font-size="13" fill="#64748b">💬 Ask</text>
+    <text x="48" y="155" font-size="13" fill="#64748b">📚 Wiki</text>
+    <text x="48" y="191" font-size="13" fill="#64748b">🕸️ Graph</text>
+    <text x="48" y="227" font-size="13" fill="#64748b">🩺 Health</text>
+    <text x="48" y="263" font-size="13" fill="#64748b">⚙️ Settings</text>
+    <!-- Connection badge -->
+    <rect x="20" y="565" width="48" height="20" rx="10" fill="#ecfdf5"/>
+    <circle cx="34" cy="575" r="3" fill="#047857"/>
+    <text x="42" y="579" font-size="10" fill="#047857">Live</text>
+
+    <!-- Main content area -->
+    <g transform="translate(224, 0)">
+      <!-- Header -->
+      <rect width="736" height="72" fill="#fff" stroke="#e2e8f0" stroke-width="0 0 1 0"/>
+      <line x1="0" y1="72" x2="736" y2="72" stroke="#e2e8f0"/>
+      <text x="24" y="34" font-size="20" font-weight="600" fill="#0f172a">Inbox</text>
+      <text x="24" y="54" font-size="12" fill="#94a3b8">All ingested sources. Live progress streams over WebSocket.</text>
+      <!-- Source count -->
+      <rect x="660" y="16" width="56" height="24" rx="12" fill="#f4f7fb"/>
+      <text x="688" y="33" font-size="11" font-weight="500" fill="#2b4876" text-anchor="middle">8 sources</text>
+
+      <!-- Quick Add Bar -->
+      <g transform="translate(24, 88)">
+        <rect width="688" height="52" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+        <rect x="12" y="10" width="400" height="32" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+        <text x="24" y="31" font-size="12" fill="#94a3b8">Paste a URL to ingest...</text>
+        <rect x="420" y="10" width="52" height="32" rx="6" fill="#365b91"/>
+        <text x="446" y="31" font-size="12" font-weight="500" fill="#fff" text-anchor="middle">Add</text>
+        <!-- PDF drop zone -->
+        <rect x="488" y="10" width="188" height="32" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="4,3"/>
+        <text x="582" y="31" font-size="11" fill="#94a3b8" text-anchor="middle">Drop PDF here</text>
+      </g>
+
+      <!-- Source Cards Grid (2 columns) -->
+      <g transform="translate(24, 160)">
+        <!-- Card 1: URL source, compiled -->
+        <rect width="336" height="120" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+        <rect x="12" y="12" width="32" height="18" rx="4" fill="#f0f9ff"/>
+        <text x="28" y="25" font-size="10" font-weight="500" fill="#0369a1" text-anchor="middle">URL</text>
+        <rect x="50" y="12" width="36" height="18" rx="4" fill="#ecfdf5"/>
+        <text x="68" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">Done</text>
+        <text x="280" y="25" font-size="10" fill="#94a3b8" text-anchor="end">Apr 21, 2:30 PM</text>
+        <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Attention Is All You Need — Transformer Architecture</text>
+        <text x="12" y="68" font-size="11" fill="#4673ad">arxiv.org/abs/1706.03762</text>
+        <rect x="12" y="86" width="72" height="24" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="48" y="102" font-size="10" fill="#64748b" text-anchor="middle">View original</text>
+
+        <!-- Card 2: PDF, compiled -->
+        <g transform="translate(352, 0)">
+          <rect width="336" height="120" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="32" height="18" rx="4" fill="#fef3c7"/>
+          <text x="28" y="25" font-size="10" font-weight="500" fill="#b45309" text-anchor="middle">PDF</text>
+          <rect x="50" y="12" width="36" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="68" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">Done</text>
+          <text x="280" y="25" font-size="10" fill="#94a3b8" text-anchor="end">Apr 21, 1:15 PM</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Q4 2025 Engineering Retrospective</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">engineering-retro-q4-2025.pdf</text>
+          <rect x="12" y="86" width="72" height="24" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+          <text x="48" y="102" font-size="10" fill="#64748b" text-anchor="middle">View original</text>
+        </g>
+
+        <!-- Card 3: YouTube, compiling -->
+        <g transform="translate(0, 136)">
+          <rect width="336" height="120" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="54" height="18" rx="4" fill="#fce7f3"/>
+          <text x="39" y="25" font-size="10" font-weight="500" fill="#be185d" text-anchor="middle">YouTube</text>
+          <rect x="72" y="12" width="68" height="18" rx="4" fill="#f0f9ff"/>
+          <circle cx="83" cy="21" r="3" fill="#0369a1" opacity="0.6"><animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" repeatCount="indefinite"/></circle>
+          <text x="107" y="25" font-size="10" font-weight="500" fill="#0369a1" text-anchor="middle">Compiling</text>
+          <text x="280" y="25" font-size="10" fill="#94a3b8" text-anchor="end">Apr 21, 3:05 PM</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">3Blue1Brown — But what is a GPT?</text>
+          <text x="12" y="68" font-size="11" fill="#4673ad">youtube.com/watch?v=wjZofJX0v4M</text>
+          <text x="12" y="100" font-size="11" fill="#64748b">Extracting key claims and concepts...</text>
+        </g>
+
+        <!-- Card 4: URL, done -->
+        <g transform="translate(352, 136)">
+          <rect width="336" height="120" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="32" height="18" rx="4" fill="#f0f9ff"/>
+          <text x="28" y="25" font-size="10" font-weight="500" fill="#0369a1" text-anchor="middle">URL</text>
+          <rect x="50" y="12" width="36" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="68" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">Done</text>
+          <text x="280" y="25" font-size="10" fill="#94a3b8" text-anchor="end">Apr 20, 9:42 AM</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">The Bitter Lesson — Rich Sutton</text>
+          <text x="12" y="68" font-size="11" fill="#4673ad">incompleteideas.net/IncIdeas/BitterLesson.html</text>
+          <rect x="12" y="86" width="72" height="24" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+          <text x="48" y="102" font-size="10" fill="#64748b" text-anchor="middle">View original</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -2,6 +2,8 @@
 
 Once sources are compiled, WikiMind maintains a structured wiki of interconnected articles. This page covers how to browse, search, and understand the wiki structure.
 
+![Wiki Explorer — browse articles by concept, search, and filter](../assets/screenshots/wiki-explorer.svg)
+
 ## Article Types
 
 WikiMind has several page types:

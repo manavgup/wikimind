@@ -2,6 +2,8 @@
 
 WikiMind's Q&A agent answers questions against your compiled wiki, citing specific articles and suggesting follow-up questions.
 
+![Ask view — multi-turn Q&A with streaming answers and source citations](../assets/screenshots/ask-view.svg)
+
 ## Asking Questions
 
 ### Simple question

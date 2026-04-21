@@ -12,6 +12,8 @@ WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube
 
 It is the **synthesis layer** that sits above everything you consume.
 
+![WikiMind — Article detail view with claims, backlinks, and concepts](assets/screenshots/article-detail.svg)
+
 ## How it works
 
 ```

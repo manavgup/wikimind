@@ -4,6 +4,8 @@ WikiMind's React frontend provides three main views for interacting with your kn
 
 ## Inbox
 
+![Inbox view — source cards with status badges and quick-add bar](../assets/screenshots/inbox-view.svg)
+
 The Inbox is where you feed sources into WikiMind. You can:
 
 - **Paste a URL** -- Web articles, YouTube videos, or direct PDF links
@@ -13,6 +15,8 @@ The Inbox is where you feed sources into WikiMind. You can:
 Each ingested source shows its status: `ingested`, `processing`, `compiled`, or `failed`. Sources auto-compile in the background once ingested.
 
 ## Wiki Explorer
+
+![Wiki Explorer — concept tree sidebar with article grid](../assets/screenshots/wiki-explorer.svg)
 
 The Wiki Explorer lets you browse your compiled knowledge base:
 
@@ -28,7 +32,11 @@ Each article shows:
 - **Source provenance** -- which original source was compiled to produce this article
 - **Figures panel** -- extracted images from PDF sources (when available)
 
+![Article detail — claims, backlinks, and concept tags](../assets/screenshots/article-detail.svg)
+
 ## Ask
+
+![Ask view — conversational Q&A with source citations](../assets/screenshots/ask-view.svg)
 
 The Ask view provides a conversational Q&A interface:
 

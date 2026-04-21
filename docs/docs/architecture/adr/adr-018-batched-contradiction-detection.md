@@ -1,0 +1,1 @@
+../../../adr/adr-018-batched-contradiction-detection.md

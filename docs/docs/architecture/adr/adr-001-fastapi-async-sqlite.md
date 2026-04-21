@@ -1,0 +1,1 @@
+../../../adr/adr-001-fastapi-async-sqlite.md

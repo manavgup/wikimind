@@ -1,0 +1,1 @@
+../../../adr/adr-007-structured-json-prompt-contract.md

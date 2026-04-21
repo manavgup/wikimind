@@ -1,0 +1,1 @@
+../../../adr/adr-023-production-container-architecture.md
