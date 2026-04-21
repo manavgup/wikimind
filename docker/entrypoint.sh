@@ -7,7 +7,7 @@ set -euo pipefail
 _db_url="${WIKIMIND_DATABASE_URL:-${DATABASE_URL:-}}"
 if [[ "$_db_url" == postgres* ]]; then
     echo "Running Alembic migrations..."
-    python -m alembic upgrade head
+    uv run python -m alembic upgrade head
     echo "Migrations complete."
 fi
 
@@ -18,4 +18,4 @@ if [[ -z "${WEB_CONCURRENCY:-}" ]]; then
 fi
 
 # Hand off to CMD (gunicorn in prod, or whatever compose overrides).
-exec "$@"
+exec uv run "$@"

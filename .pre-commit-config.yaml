@@ -80,6 +80,14 @@ repos:
         pass_filenames: false
         files: ^pyproject\.toml$
 
+      - id: check-noqa
+        name: Flag new # noqa suppressions (informational)
+        entry: python scripts/check_noqa.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
       - id: forbid-ai-artifacts
         name: Forbid AI-generated artifacts
         entry: >-

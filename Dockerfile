@@ -22,6 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # System libraries required by pymupdf, sqlite, healthchecks, and keyring.
 # The upgrade step patches OS-level CVEs (e.g. openssl) so the Trivy scan
 # passes even when the base image ships with a known vulnerability.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
@@ -52,21 +53,17 @@ FROM base AS dev
 # under 2 GB (see TORCH_INDEX above). GPU builds use cu121 wheels (~9 GB).
 ARG EXTRAS=dev
 ARG TORCH_INDEX
-COPY pyproject.toml README.md ./
+COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
-# Upgrade pip, setuptools, AND wheel before installing — the python:3.11-slim
-# base ships with older versions that Trivy flags for:
-#   CVE-2026-23949 (jaraco.context ≤5.3.0, vendored inside setuptools)
-#   CVE-2026-24049 (wheel ≤0.45.1, both top-level and vendored in setuptools)
-# Both are build-time tools, not runtime deps, but HIGH severity with fixes
-# available — cheaper to upgrade than to justify a .trivyignore exception.
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} -e ".[${EXTRAS}]"
+# Use uv for reproducible installs pinned by uv.lock.
+# UV_EXTRA_INDEX_URL provides CPU-only PyTorch wheels when needed.
+ENV UV_EXTRA_INDEX_URL=${TORCH_INDEX}
+RUN uv sync --frozen --extra ${EXTRAS}
 
 COPY . .
 
 EXPOSE 7842
-CMD ["uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port", "7842", "--reload"]
+CMD ["uv", "run", "uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port", "7842", "--reload"]
 
 # ---------------------------------------------------------------------------
 # Production stage — slim runtime image.
@@ -88,18 +85,19 @@ CMD ["uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port", "7842", "--r
 FROM base AS prod
 
 ARG TORCH_INDEX
-COPY pyproject.toml README.md ./
+COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
-# Same CVE upgrade as the dev stage — see comment above.
+# Use uv for reproducible installs pinned by uv.lock.
 # Install with [pdf] extra for structured PDF extraction via docling.
 # Playwright is needed by docling's HTML backend for URL ingestion.
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install --extra-index-url ${TORCH_INDEX} ".[pdf]" gunicorn playwright onnxruntime \
-    && playwright install --with-deps chromium
+ENV UV_EXTRA_INDEX_URL=${TORCH_INDEX}
+RUN uv sync --frozen --extra pdf \
+    && uv pip install gunicorn playwright onnxruntime \
+    && uv run playwright install --with-deps chromium
 
 # Pre-download RapidOCR models so they don't need to be fetched at runtime
 # from modelscope.cn (unreliable from US datacenters). Non-fatal if it fails.
-RUN python -c "from rapidocr import RapidOCR; RapidOCR()" \
+RUN uv run python -c "from rapidocr import RapidOCR; RapidOCR()" \
     || echo "WARN: RapidOCR model pre-download failed (non-fatal)"
 
 # Alembic migrations for Postgres deployments
