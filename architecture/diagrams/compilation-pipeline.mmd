@@ -1,0 +1,37 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4F46E5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730A3', 'lineColor': '#6366F1', 'secondaryColor': '#F0ABFC', 'tertiaryColor': '#E0E7FF', 'fontSize': '14px'}}}%%
+flowchart LR
+    A["Source<br/>Document"] --> B{"Tokens<br/>> 80K?"}
+
+    B -- No --> C["Single-pass<br/>Compile"]
+    B -- Yes --> D["Split into<br/>Chunks"]
+
+    D --> E1["Chunk 1"]
+    D --> E2["Chunk 2"]
+    D --> EN["Chunk N"]
+
+    E1 & E2 & EN --> F["Merge<br/>Results"]
+
+    C --> G["Parse JSON<br/>Response"]
+    F --> G
+
+    G --> H["Save Article<br/>(File + DB)"]
+    H --> I["Resolve<br/>Backlinks"]
+    I --> J["Upsert<br/>Concepts"]
+    J --> K["Generate<br/>Concept Pages"]
+    K --> L["Regenerate<br/>Index"]
+
+    classDef inputNode fill:#818CF8,stroke:#4338CA,color:#fff,rx:10
+    classDef decisionNode fill:#FCD34D,stroke:#D97706,color:#78350F,rx:4
+    classDef compileNode fill:#F9A8D4,stroke:#DB2777,color:#831843,rx:8
+    classDef chunkNode fill:#FBCFE8,stroke:#DB2777,color:#831843,rx:6
+    classDef mergeNode fill:#C084FC,stroke:#7C3AED,color:#fff,rx:8
+    classDef processNode fill:#6EE7B7,stroke:#059669,color:#064E3B,rx:8
+    classDef outputNode fill:#4F46E5,stroke:#3730A3,color:#fff,rx:10
+
+    class A inputNode
+    class B decisionNode
+    class C,D compileNode
+    class E1,E2,EN chunkNode
+    class F mergeNode
+    class G,H,I,J,K processNode
+    class L outputNode

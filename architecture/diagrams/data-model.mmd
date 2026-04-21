@@ -1,0 +1,80 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4F46E5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730A3', 'lineColor': '#6366F1', 'fontSize': '13px'}}}%%
+erDiagram
+    Source {
+        uuid id PK
+        enum source_type "url | pdf | text | youtube"
+        string source_url
+        string title
+        enum status "ingested | compiling | compiled | error"
+        string content_hash UK
+        datetime ingested_at
+        datetime compiled_at
+        uuid user_id FK
+    }
+
+    Article {
+        uuid id PK
+        string slug UK
+        string title
+        string file_path
+        enum confidence "sourced | mixed | inferred"
+        text summary
+        json source_ids
+        json concept_ids
+        enum page_type "source | concept | index"
+        string provider
+        uuid user_id FK
+    }
+
+    Concept {
+        uuid id PK
+        string name UK
+        uuid parent_id FK
+        int article_count
+        text description
+    }
+
+    Backlink {
+        uuid source_article_id FK
+        uuid target_article_id FK
+        enum relation_type "references | extends | supersedes"
+        text context
+        enum resolution "resolved | unresolved"
+    }
+
+    Conversation {
+        uuid id PK
+        string title
+        uuid filed_article_id FK
+        uuid parent_conversation_id FK
+        uuid user_id FK
+    }
+
+    Query {
+        uuid id PK
+        text question
+        text answer
+        enum confidence "high | medium | low"
+        int turn_index
+        uuid conversation_id FK
+        uuid user_id FK
+    }
+
+    CostLog {
+        uuid id PK
+        string provider
+        string model
+        enum task_type "compile | qa | ingest | concept"
+        float cost_usd
+        int input_tokens
+        int output_tokens
+        int latency_ms
+    }
+
+    Source ||--o{ Article : "compiled into"
+    Article }o--o{ Backlink : "source / target"
+    Concept ||--o{ Concept : "parent"
+    Concept ||--o{ Article : "tagged"
+    Conversation ||--o{ Query : "contains"
+    Conversation ||--o| Article : "filed as"
+    Query }o--|| Conversation : "belongs to"

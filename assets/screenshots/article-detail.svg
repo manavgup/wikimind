@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    </filter>
+    <clipPath id="round4"><rect width="960" height="600" rx="8"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round4)">
+    <rect width="960" height="600" fill="#f8fafc"/>
+
+    <!-- Sidebar -->
+    <rect width="224" height="600" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="48" y="38" font-size="18" font-weight="700" fill="#0f172a">WikiMind</text>
+    <text x="20" y="38" font-size="18">🧠</text>
+    <text x="48" y="83" font-size="13" fill="#64748b">📥 Inbox</text>
+    <text x="48" y="119" font-size="13" fill="#64748b">💬 Ask</text>
+    <rect x="12" y="132" width="200" height="36" rx="6" fill="#f4f7fb"/>
+    <text x="48" y="155" font-size="13" font-weight="600" fill="#2b4876">📚 Wiki</text>
+    <text x="48" y="191" font-size="13" fill="#64748b">🕸️ Graph</text>
+    <rect x="20" y="565" width="48" height="20" rx="10" fill="#ecfdf5"/>
+    <circle cx="34" cy="575" r="3" fill="#047857"/>
+    <text x="42" y="579" font-size="10" fill="#047857">Live</text>
+
+    <!-- Article Reader (center) -->
+    <g transform="translate(224, 0)">
+      <!-- Mini concept sidebar -->
+      <rect width="160" height="600" fill="#fff"/>
+      <line x1="160" y1="0" x2="160" y2="600" stroke="#e2e8f0"/>
+
+      <text x="16" y="24" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.5">TOPICS</text>
+      <text x="16" y="48" font-size="12" fill="#334155">▾ artificial-intelligence</text>
+      <rect x="8" y="56" width="144" height="22" rx="4" fill="#f4f7fb"/>
+      <text x="32" y="72" font-size="12" font-weight="500" fill="#2b4876">machine-learning</text>
+      <text x="32" y="94" font-size="12" fill="#334155">deep-learning</text>
+      <text x="16" y="118" font-size="12" fill="#334155">▸ software-engineering</text>
+
+      <!-- Article content -->
+      <g transform="translate(180, 20)">
+        <!-- Badges -->
+        <rect x="0" y="0" width="42" height="20" rx="4" fill="#f4f7fb"/>
+        <text x="21" y="14" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">source</text>
+        <rect x="48" y="0" width="48" height="20" rx="4" fill="#ecfdf5"/>
+        <text x="72" y="14" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+        <rect x="102" y="0" width="32" height="20" rx="4" fill="#f0f9ff"/>
+        <text x="118" y="14" font-size="10" font-weight="500" fill="#0369a1" text-anchor="middle">92%</text>
+        <!-- Concept tags -->
+        <rect x="142" y="0" width="100" height="20" rx="10" fill="#f4f7fb"/>
+        <text x="192" y="14" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">machine-learning</text>
+        <rect x="248" y="0" width="76" height="20" rx="10" fill="#f4f7fb"/>
+        <text x="286" y="14" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">deep-learning</text>
+
+        <!-- Title -->
+        <text x="0" y="52" font-size="24" font-weight="700" fill="#0f172a" letter-spacing="-0.3">Attention Is All You Need</text>
+
+        <!-- Summary -->
+        <text x="0" y="78" font-size="14" fill="#475569">Introduces the Transformer model architecture, replacing recurrence and</text>
+        <text x="0" y="96" font-size="14" fill="#475569">convolutions entirely with multi-head self-attention mechanisms.</text>
+
+        <!-- Article body -->
+        <line x1="0" y1="114" x2="340" y2="114" stroke="#e2e8f0"/>
+
+        <text x="0" y="140" font-size="16" font-weight="600" fill="#0f172a">Key Claims</text>
+
+        <!-- Claims with confidence badges -->
+        <g transform="translate(0, 156)">
+          <circle cx="6" cy="6" r="3" fill="#047857"/>
+          <text x="16" y="10" font-size="13" fill="#334155">The Transformer achieves 28.4 BLEU on WMT 2014 EN-DE</text>
+          <rect x="380" y="-4" width="46" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="403" y="9" font-size="9" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+        </g>
+
+        <g transform="translate(0, 180)">
+          <circle cx="6" cy="6" r="3" fill="#047857"/>
+          <text x="16" y="10" font-size="13" fill="#334155">Self-attention reduces sequential computation to O(1)</text>
+          <rect x="380" y="-4" width="46" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="403" y="9" font-size="9" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+        </g>
+
+        <g transform="translate(0, 204)">
+          <circle cx="6" cy="6" r="3" fill="#b45309"/>
+          <text x="16" y="10" font-size="13" fill="#334155">Transformers will likely replace RNNs in most NLP tasks</text>
+          <rect x="380" y="-4" width="50" height="18" rx="4" fill="#fffbeb"/>
+          <text x="405" y="9" font-size="9" font-weight="500" fill="#b45309" text-anchor="middle">inferred</text>
+        </g>
+
+        <!-- Article body text -->
+        <text x="0" y="246" font-size="16" font-weight="600" fill="#0f172a">Analysis</text>
+
+        <text x="0" y="268" font-size="13" fill="#334155" line-height="1.6">Vaswani et al. (2017) propose a novel sequence-to-sequence architecture</text>
+        <text x="0" y="286" font-size="13" fill="#334155">that relies entirely on attention mechanisms. The core innovation is</text>
+        <text x="0" y="304" font-size="13" fill="#334155">multi-head self-attention, which allows each position in the input to</text>
+        <text x="0" y="322" font-size="13" fill="#334155">attend to all positions in the previous layer...</text>
+
+        <text x="0" y="354" font-size="13" fill="#334155">The model uses positional encodings (sinusoidal functions) to inject</text>
+        <text x="0" y="372" font-size="13" fill="#334155">sequence order information. This is a key departure from RNNs, which</text>
+        <text x="0" y="390" font-size="13" fill="#334155">process tokens sequentially. The authors demonstrate state-of-the-art</text>
+        <text x="0" y="408" font-size="13" fill="#334155">results on English-to-German and English-to-French translation tasks.</text>
+
+        <!-- Open Questions -->
+        <text x="0" y="446" font-size="16" font-weight="600" fill="#0f172a">Open Questions</text>
+        <text x="16" y="468" font-size="13" fill="#475569">• How do Transformers scale to very long sequences (&gt;10K tokens)?</text>
+        <text x="16" y="488" font-size="13" fill="#475569">• Can self-attention replace convolutions in computer vision?</text>
+      </g>
+
+      <!-- Backlink Panel (right) -->
+      <g transform="translate(576, 0)">
+        <rect width="160" height="600" fill="#fff"/>
+        <line x1="0" y1="0" x2="0" y2="600" stroke="#e2e8f0"/>
+
+        <text x="12" y="28" font-size="11" font-weight="600" fill="#0f172a">Linked from</text>
+
+        <text x="12" y="52" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">REFERENCES</text>
+        <text x="12" y="72" font-size="12" fill="#4673ad" text-decoration="underline">But what is a GPT?</text>
+        <text x="12" y="92" font-size="12" fill="#4673ad" text-decoration="underline">Machine Learning</text>
+
+        <text x="12" y="120" font-size="10" font-weight="600" fill="#0369a1" letter-spacing="0.3">EXTENDS</text>
+        <text x="12" y="140" font-size="12" fill="#4673ad" text-decoration="underline">Transformer Architecture</text>
+
+        <line x1="12" y1="162" x2="148" y2="162" stroke="#e2e8f0"/>
+
+        <text x="12" y="184" font-size="11" font-weight="600" fill="#0f172a">Links to</text>
+
+        <text x="12" y="208" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">REFERENCES</text>
+        <text x="12" y="228" font-size="12" fill="#4673ad" text-decoration="underline">The Bitter Lesson</text>
+
+        <line x1="12" y1="250" x2="148" y2="250" stroke="#e2e8f0"/>
+
+        <text x="12" y="272" font-size="11" font-weight="600" fill="#0f172a">Concepts</text>
+        <rect x="12" y="282" width="92" height="22" rx="11" fill="#f1f5f9"/>
+        <text x="58" y="297" font-size="10" fill="#475569" text-anchor="middle">machine-learning</text>
+        <rect x="12" y="310" width="78" height="22" rx="11" fill="#f1f5f9"/>
+        <text x="51" y="325" font-size="10" fill="#475569" text-anchor="middle">deep-learning</text>
+        <rect x="12" y="338" width="64" height="22" rx="11" fill="#f1f5f9"/>
+        <text x="44" y="353" font-size="10" fill="#475569" text-anchor="middle">attention</text>
+      </g>
+    </g>
+  </g>
+</svg>
