@@ -102,6 +102,7 @@ def _settings(tmp_path: Path, min_sources: int = 2) -> SimpleNamespace:
     return SimpleNamespace(
         data_dir=str(tmp_path),
         taxonomy=SimpleNamespace(concept_page_min_sources=min_sources),
+        compiler=SimpleNamespace(max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000),
     )
 
 

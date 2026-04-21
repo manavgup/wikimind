@@ -38,6 +38,7 @@ def _agent(tmp_path) -> QAAgent:
                     max_prior_turns_in_context=5,
                     prior_answer_truncate_chars=500,
                     conversation_title_max_chars=120,
+                    max_tokens=2048,
                 ),
             ),
         ),
