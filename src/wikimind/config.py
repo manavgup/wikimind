@@ -299,8 +299,8 @@ class Settings(BaseSettings):
             sslmode = params.pop("sslmode", [None])[0]
             if sslmode is not None and "ssl" not in params:
                 if sslmode == "disable":
-                    # Explicitly disable SSL — newer asyncpg defaults to attempting TLS.
-                    params["ssl"] = ["disable"]
+                    # Strip entirely — asyncpg defaults to no SSL, so omitting is correct.
+                    pass
                 elif sslmode in ("require", "verify-ca", "verify-full"):
                     params["ssl"] = [sslmode]
                 else:
