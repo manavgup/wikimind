@@ -157,11 +157,11 @@ async def _record_migration(engine, version: str) -> None:
 
 
 async def init_db():
-    """Create all tables and run idempotent column migrations.
+    """Create all tables and run idempotent data migrations.
 
-    SQLite (dev/test): Uses create_all() + lightweight migration helpers.
-    Postgres (production): Expects Alembic migrations to be run separately
-    via ``alembic upgrade head``. Only runs backfill helpers.
+    ``create_all()`` runs on both SQLite and Postgres (idempotent).
+    Lightweight column migrations (ALTER TABLE) only run on SQLite;
+    Postgres uses Alembic for schema evolution.
 
     Each data migration is guarded by a MigrationHistory version check so
     it runs at most once, avoiding O(n) startup scans on subsequent boots.
@@ -169,13 +169,13 @@ async def init_db():
     engine = get_async_engine()
     settings = get_settings()
 
+    # create_all is idempotent — safe on both SQLite and Postgres.
+    # On Postgres, Alembic handles schema evolution but create_all ensures
+    # internal tables (e.g. migrationhistory) exist on first boot.
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     if is_sqlite(settings.database_url):
-        # SQLite: create_all + lightweight column migration (fast, no Alembic overhead)
-        async with engine.begin() as conn:
-            await conn.run_sync(SQLModel.metadata.create_all)
         await _migrate_added_columns(engine)
-    # else: Postgres uses Alembic — tables must exist before startup.
-    # Run `alembic upgrade head` as part of deployment.
 
     # Versioned data migrations — each runs at most once
     _versioned_migrations: list[tuple[str, object]] = [
