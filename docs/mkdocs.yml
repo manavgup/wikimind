@@ -26,9 +26,8 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  logo: theme/logo.svg
-  favicon: theme/favicon.svg
-  custom_dir: theme
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
