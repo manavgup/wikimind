@@ -74,6 +74,21 @@ Override with `WEB_CONCURRENCY`:
 WEB_CONCURRENCY=4 POSTGRES_PASSWORD=changeme make deploy-up
 ```
 
+### PDF Processing (docling-serve)
+
+PDF extraction runs in a separate container ([docling-serve](https://github.com/docling-project/docling-serve)).
+It starts automatically with `docker compose up` or `make dev-docker`.
+
+To run without Docker (local dev):
+
+```bash
+# Pull and run docling-serve separately:
+docker run -p 5001:5001 quay.io/docling-project/docling-serve-cpu:latest
+```
+
+Set `WIKIMIND_DOCLING_SERVE_URL=http://localhost:5001` in your `.env`.
+Without docling-serve running, PDF ingestion falls back to basic text extraction (pymupdf).
+
 ### Fly.io (cloud)
 
 ```bash
@@ -162,7 +177,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
 | Database | SQLite via SQLModel + aiosqlite |
 | LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
-| PDF extraction | pymupdf (fitz) — default; IBM Docling — opt-in via `[parse-advanced]` |
+| PDF extraction | [docling-serve](https://github.com/docling-project/docling-serve) sidecar; pymupdf (fitz) fallback |
 | Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
 | Logging | structlog (JSON in prod, console in dev) |
 | Type checking | mypy + basedpyright |

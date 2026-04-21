@@ -6,6 +6,7 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from wikimind.ingest import service as svc_mod
@@ -102,8 +103,16 @@ async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
     mock_enhance = AsyncMock(side_effect=lambda fb, ct, sid: ct)
     monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", mock_enhance)
 
+    # Make docling-serve unavailable so fitz fallback is used
+    mock_emit = AsyncMock()
+    monkeypatch.setattr(pdf_mod, "emit_source_progress", mock_emit)
+
     with (
-        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(
+            pdf_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        ),
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
@@ -356,13 +365,6 @@ def test_looks_like_pdf_url() -> None:
     assert IngestService._looks_like_pdf_url("https://x.com/a.html") is False
 
 
-def test_get_docling_converter_unavailable() -> None:
-    with patch.object(pdf_mod, "_DocumentConverter", None):
-        pdf_mod._docling_converter = None
-        with pytest.raises(RuntimeError):
-            pdf_mod._get_docling_converter()
-
-
 # ---------------------------------------------------------------------------
 # PDF metadata extraction tests (issue #124)
 # ---------------------------------------------------------------------------
@@ -473,8 +475,15 @@ async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
     fake_text_doc.__iter__ = lambda self: iter([fake_page])
     fake_text_doc.close = MagicMock()
 
+    mock_emit = AsyncMock()
+    monkeypatch.setattr(pdf_mod, "emit_source_progress", mock_emit)
+
     with (
-        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(
+            pdf_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        ),
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
@@ -498,8 +507,15 @@ async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
     fake_text_doc.__iter__ = lambda self: iter([fake_page])
     fake_text_doc.close = MagicMock()
 
+    mock_emit = AsyncMock()
+    monkeypatch.setattr(pdf_mod, "emit_source_progress", mock_emit)
+
     with (
-        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(
+            pdf_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        ),
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
@@ -520,8 +536,15 @@ async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
     fake_text_doc.__iter__ = lambda self: iter([fake_page])
     fake_text_doc.close = MagicMock()
 
+    mock_emit = AsyncMock()
+    monkeypatch.setattr(pdf_mod, "emit_source_progress", mock_emit)
+
     with (
-        patch.object(pdf_mod, "_DOCLING_AVAILABLE", False),
+        patch.object(
+            pdf_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        ),
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()

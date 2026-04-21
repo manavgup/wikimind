@@ -31,6 +31,7 @@ considered, and the consequences.
 | [022](adr-022-multi-user-authentication.md) | Multi-User Authentication via OAuth2 | Accepted (revised — BFF cookie auth, April 2026) |
 | [023](adr-023-production-container-architecture.md) | Production Container Architecture | Unknown |
 | [024](adr-024-gunicorn-autoscaling-horizontal-readiness.md) | Gunicorn Auto-Scaling and Horizontal Scaling Readiness | Unknown |
+| [025](adr-025-docling-serve-sidecar.md) | Docling-Serve Sidecar for PDF Extraction | Unknown |
 
 ## ADR Format
 

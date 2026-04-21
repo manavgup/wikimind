@@ -8,6 +8,7 @@
 #   worker   — ARQ background job worker (compilation, sweep)
 #   postgres — PostgreSQL 16 for metadata
 #   redis    — Broker/result store for ARQ background jobs
+#   docling  — PDF extraction sidecar (docling-serve)
 #
 # Usage:
 #   make deploy-up       # build and start
@@ -41,12 +42,10 @@ services:
       WIKIMIND_DATA_DIR: /home/wikimind/.wikimind
       WIKIMIND_SERVER__HOST: "0.0.0.0"
       WIKIMIND_SERVER__PORT: "7842"
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
       # Gunicorn workers auto-tune to CPU by default (see gunicorn.conf.py).
       # Override: WEB_CONCURRENCY=4 make deploy-up
-      # Empty string is safe — entrypoint.sh unsets it before gunicorn starts.
-      # Default to 1 worker — Docling + OCR models consume ~500MB per worker.
-      # Override: WEB_CONCURRENCY=2 make deploy-up (needs ≥3GB memory limit).
-      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-1}"
+      WEB_CONCURRENCY: "${WEB_CONCURRENCY:-}"
     env_file:
       - path: .env
         required: false
@@ -56,6 +55,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      docling:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
@@ -67,7 +68,7 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 2G
+          memory: 1G
         reservations:
           cpus: '0.5'
           memory: 512M
@@ -86,6 +87,7 @@ services:
       WIKIMIND_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-wikimind}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-wikimind}
       WIKIMIND_REDIS_URL: redis://redis:6379/0
       WIKIMIND_DATA_DIR: /home/wikimind/.wikimind
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
     env_file:
       - path: .env
         required: false
@@ -96,6 +98,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      docling:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -104,6 +108,27 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:latest
+    container_name: wikimind-docling
+    restart: unless-stopped
+    networks: [wikimindnet]
+    ports:
+      - "5001:5001"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   postgres:
     image: postgres:16-alpine

@@ -7,10 +7,6 @@
 #   prod   — slim runtime with only production dependencies
 
 # ---------------------------------------------------------------------------
-# PyTorch index — defaults to CPU-only wheels (~1.7 GB image).
-# For GPU/CUDA support, rebuild with:
-#   docker build --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu121 .
-ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim AS base
 
@@ -46,18 +42,11 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 FROM base AS dev
 
-# Install the dev extras (tests + lint + pdf) but NOT `search` by default.
-# The `[search]` extras pull chromadb + sentence-transformers (~4.7 GB);
-# rebuild with `--build-arg EXTRAS=dev,search` if you need the search stack.
-# The `[pdf]` extra pulls docling + PyTorch; CPU-only wheels keep the image
-# under 2 GB (see TORCH_INDEX above). GPU builds use cu121 wheels (~9 GB).
+# Install the dev extras (tests + lint) for local development.
+# PDF extraction is handled by the docling-serve sidecar container.
 ARG EXTRAS=dev
-ARG TORCH_INDEX
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
-# Use uv for reproducible installs pinned by uv.lock.
-# UV_EXTRA_INDEX_URL provides CPU-only PyTorch wheels when needed.
-ENV UV_EXTRA_INDEX_URL=${TORCH_INDEX}
 RUN uv sync --frozen --extra ${EXTRAS}
 
 COPY . .
@@ -84,21 +73,14 @@ CMD ["uv", "run", "uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port",
 # ---------------------------------------------------------------------------
 FROM base AS prod
 
-ARG TORCH_INDEX
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
-# Use uv for reproducible installs pinned by uv.lock.
-# Install with [pdf] extra for structured PDF extraction via docling.
-# Playwright is needed by docling's HTML backend for URL ingestion.
-ENV UV_EXTRA_INDEX_URL=${TORCH_INDEX}
-RUN uv sync --frozen --extra pdf \
-    && uv pip install gunicorn playwright onnxruntime \
-    && uv run playwright install --with-deps chromium
-
-# Pre-download RapidOCR models so they don't need to be fetched at runtime
-# from modelscope.cn (unreliable from US datacenters). Non-fatal if it fails.
-RUN uv run python -c "from rapidocr import RapidOCR; RapidOCR()" \
-    || echo "WARN: RapidOCR model pre-download failed (non-fatal)"
+# Install only production dependencies — no ML libs, no playwright.
+# PDF extraction is handled by the docling-serve sidecar container.
+RUN pip install --upgrade pip wheel setuptools \
+    && uv sync --frozen \
+    && uv pip install gunicorn \
+    && rm -rf /root/.cache/pip
 
 # Alembic migrations for Postgres deployments
 COPY alembic.ini ./
@@ -116,11 +98,9 @@ COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user in production.
-# Pre-create model cache dirs so rapidocr/docling can write model files at runtime.
 RUN useradd --create-home --uid 1000 wikimind \
     && mkdir -p /home/wikimind/.wikimind \
-    && chown -R wikimind:wikimind /home/wikimind /app \
-    && chown -R wikimind:wikimind /usr/local/lib/python3.11/site-packages/rapidocr/models/ 2>/dev/null || true
+    && chown -R wikimind:wikimind /home/wikimind /app
 USER wikimind
 
 ENV WIKIMIND_DATA_DIR=/home/wikimind/.wikimind \

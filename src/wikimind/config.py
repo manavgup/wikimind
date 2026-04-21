@@ -237,10 +237,9 @@ class Settings(BaseSettings):
     # "r2" delegates to Cloudflare R2 (wiki_dir / raw_dir are not needed).
     storage_backend: str = "local"
 
-    # PDF extraction: number of pages per Docling batch (issue #117).
-    # Smaller values give more frequent progress updates at the cost of
-    # slightly higher overhead from repeated converter calls.
-    docling_batch_pages: int = 10
+    # PDF extraction: docling-serve sidecar URL.
+    # The docling-serve container exposes /v1/convert/source for PDF-to-markdown.
+    docling_serve_url: str = "http://localhost:5001"
 
     # Vision-enhanced slide deck ingestion (issue #68).
     # Pages with fewer characters than the threshold are treated as

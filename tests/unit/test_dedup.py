@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import fitz
+import httpx
 import pytest
 from sqlmodel import select
 
@@ -199,7 +200,15 @@ class TestPDFAdapterDedup:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(pdf_adapter_mod, "_DOCLING_AVAILABLE", False)
+        # Make docling-serve unavailable so fitz fallback is used
+        monkeypatch.setattr(
+            pdf_adapter_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        )
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(pdf_adapter_mod, "emit_source_progress", mock_emit)
+
         adapter = PDFAdapter()
         pdf_bytes = _build_pdf_bytes(["Identical PDF content"])
 
@@ -215,7 +224,15 @@ class TestPDFAdapterDedup:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(pdf_adapter_mod, "_DOCLING_AVAILABLE", False)
+        # Make docling-serve unavailable so fitz fallback is used
+        monkeypatch.setattr(
+            pdf_adapter_mod,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        )
+        mock_emit = AsyncMock()
+        monkeypatch.setattr(pdf_adapter_mod, "emit_source_progress", mock_emit)
+
         adapter = PDFAdapter()
         first_pdf = _build_pdf_bytes(["Page A"])
         second_pdf = _build_pdf_bytes(["Page B"])

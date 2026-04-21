@@ -51,7 +51,7 @@ on:
       - ".github/workflows/docker.yml"
   schedule:
     # Weekly rebuild against the latest base image — catches bit-rot.
-    - cron: "0 9 * * MON"
+    - cron: "0 9 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -104,14 +104,15 @@ jobs:
           cache-from: type=gha,scope=prod
           cache-to: type=gha,scope=prod,mode=max
 
-      - name: 🔍  Bloat guard — verify no GPU packages in CPU image
+      - name: 🔍  Image size check
         run: |
-          if docker run --rm wikimind-prod:ci pip list --format=freeze 2>/dev/null \
-            | grep -iE '^(nvidia|triton)'; then
-            echo "::error::GPU packages found in CPU-only image. See ADR-015."
+          SIZE=$(docker image inspect wikimind-prod:ci --format '{{.Size}}')
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Image size: ${SIZE_MB}MB"
+          if [ "$SIZE_MB" -gt 1200 ]; then
+            echo "::error::Image exceeds 1200MB (got ${SIZE_MB}MB)"
             exit 1
           fi
-          echo "✅ No GPU bloat detected in prod image"
 
   # ---------------------------------------------------------------
   # Tier 3 — Trivy CVE scan on the prod image

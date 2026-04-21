@@ -4,6 +4,7 @@
 #   gateway  — FastAPI app (uvicorn --reload), code mounted from host
 #   redis    — broker/result store for ARQ background jobs
 #   worker   — ARQ worker consuming the same code mount as the gateway
+#   docling  — PDF extraction sidecar (docling-serve)
 #
 # Bring up:   make docker-up
 # Build:      make docker-build
@@ -17,22 +18,28 @@ services:
       target: dev
     image: wikimind-dev:latest
     container_name: wikimind-gateway
-    command: uvicorn wikimind.main:app --host 0.0.0.0 --port 7842 --reload
+    command: uv run uvicorn wikimind.main:app --host 0.0.0.0 --port 7842 --reload
     environment:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_SERVER__HOST: 0.0.0.0
       WIKIMIND_SERVER__PORT: "7842"
       WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
+      UV_LINK_MODE: copy
     env_file:
       - path: .env
         required: false
     ports:
       - "7842:7842"
     volumes:
-      - .:/app
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
       - wikimind-data:/data
     depends_on:
       redis:
+        condition: service_healthy
+      docling:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
@@ -52,20 +59,25 @@ services:
       target: dev
     image: wikimind-dev:latest
     container_name: wikimind-worker
-    command: python -m arq wikimind.jobs.worker.WorkerSettings
+    command: uv run python -m arq wikimind.jobs.worker.WorkerSettings
     environment:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
+      UV_LINK_MODE: copy
     env_file:
       - path: .env
         required: false
     volumes:
-      - .:/app
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
       - wikimind-data:/data
     depends_on:
       gateway:
         condition: service_started
       redis:
+        condition: service_healthy
+      docling:
         condition: service_healthy
 
   redis:
@@ -80,6 +92,18 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:latest
+    container_name: wikimind-docling
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   wikimind-data:

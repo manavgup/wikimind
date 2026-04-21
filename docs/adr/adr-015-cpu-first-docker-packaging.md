@@ -1,5 +1,8 @@
 # ADR-015: CPU-First Docker Packaging
 
+> **Note:** Partially superseded by [ADR-025](adr-025-docling-serve-sidecar.md).
+> PyTorch and Docling are no longer in the main image — they run in the docling-serve sidecar.
+
 **Status:** Accepted
 **Date:** 2026-04-12
 **Issue:** [#140](https://github.com/manavgup/wikimind/issues/140)
