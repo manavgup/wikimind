@@ -77,7 +77,8 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 # Install only production dependencies — no ML libs, no playwright.
 # PDF extraction is handled by the docling-serve sidecar container.
-RUN uv sync --frozen \
+RUN pip install --upgrade pip wheel setuptools \
+    && uv sync --frozen \
     && uv pip install gunicorn \
     && rm -rf /root/.cache/pip
 
