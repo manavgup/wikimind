@@ -241,9 +241,7 @@ class TestConvertViaDoclingServe:
 
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
-        mock_response.json.return_value = {
-            "document": {"md_content": "# Converted\n\nBody text."}
-        }
+        mock_response.json.return_value = {"document": {"md_content": "# Converted\n\nBody text."}}
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
