@@ -462,7 +462,7 @@ async def detect_contradictions(
     await session.flush()
 
     checked = 0
-    for concept_id, concept_name, pairs in all_work:  # type: ignore[assignment]
+    for concept_id, concept_name, pairs in all_work:
         log.info(
             "Checking contradictions in concept",
             concept=concept_name,
