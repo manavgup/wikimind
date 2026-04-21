@@ -45,10 +45,15 @@ install: ensure-venv ## Install production dependencies (pinned by uv.lock)
 	@echo "✅  Install complete."
 
 .PHONY: install-dev
-install-dev: ensure-venv ## Install all dev/test/lint dependencies (pinned by uv.lock)
+install-dev: ensure-venv setup-git-mergedrivers ## Install all dev/test/lint dependencies (pinned by uv.lock)
 	@echo "📦  Installing dev dependencies..."
 	@uv sync --frozen --extra dev > /dev/null
 	@echo "✅  Install complete."
+
+.PHONY: setup-git-mergedrivers
+setup-git-mergedrivers: ## Configure custom git merge drivers (secrets baseline)
+	@git config merge.secrets-baseline.name "Auto-regenerate secrets baseline"
+	@git config merge.secrets-baseline.driver 'detect-secrets scan --baseline %A'
 
 # Path to the editable install marker file inside the venv. We use this to
 # detect when an agent worktree has hijacked the root venv (issue #66).

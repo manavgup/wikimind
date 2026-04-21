@@ -1,0 +1,4 @@
+# Auto-regenerate secrets baseline on merge to avoid timestamp conflicts.
+# Requires: git config merge.secrets-baseline.driver 'detect-secrets scan --baseline %A'
+# (set up automatically by `make install-dev`)
+.secrets.baseline merge=secrets-baseline
