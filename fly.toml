@@ -18,8 +18,7 @@ primary_region = "ord"
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
-  # Gunicorn workers (see gunicorn.conf.py).
-  # Each worker is lightweight (~50MB RSS) since ML models run in docling-serve sidecar.
+  # Gunicorn workers — lightweight now that ML runs in docling-serve sidecar.
   WEB_CONCURRENCY = "4"
 
 [http_service]
@@ -29,7 +28,6 @@ primary_region = "ord"
   auto_start_machines = true
   min_machines_running = 0
 
-  # Fly spins up additional machines when connections exceed soft_limit.
   [http_service.concurrency]
     type = "connections"
     hard_limit = 50
