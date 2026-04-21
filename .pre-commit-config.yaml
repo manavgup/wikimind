@@ -39,16 +39,6 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
 
-  # ── Keep .secrets.baseline line numbers in sync ─────────────────────────
-  - repo: local
-    hooks:
-      - id: secrets-baseline-update
-        name: update .secrets.baseline line numbers
-        entry: bash -c 'uv run detect-secrets scan --baseline .secrets.baseline'
-        language: system
-        pass_filenames: false
-        always_run: true
-
   # ── Doc sync (local hooks) ────────────────────────────────────────────────
   - repo: local
     hooks:
