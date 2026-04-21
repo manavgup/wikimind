@@ -154,6 +154,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         Summary response with a minimal source list attached.
     """
     source_ids = _parse_source_ids(article.source_ids)
+    concepts = _parse_source_ids(article.concept_ids)
     sources = await _fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
     return ArticleSummaryResponse(
@@ -169,6 +170,9 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         backlink_count=backlink_count,
         created_at=article.created_at,
         updated_at=article.updated_at,
+        concepts=concepts,
+        source_ids=source_ids,
+        user_id=article.user_id,
     )
 
 
@@ -523,6 +527,73 @@ class WikiService:
             query = query.where(Concept.article_count > 0)
         result = await session.execute(query)
         return list(result.scalars().all())
+
+    async def get_concept(
+        self,
+        name: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> dict:
+        """Retrieve a concept by name with its linked articles.
+
+        Args:
+            name: Concept name (case-sensitive).
+            session: Async database session.
+            user_id: Optional user ID filter.
+
+        Returns:
+            Dict with concept fields and linked articles list.
+
+        Raises:
+            HTTPException: 404 if concept not found.
+        """
+        query = select(Concept).where(Concept.name == name)
+        if user_id:
+            query = query.where(Concept.user_id == user_id)
+        result = await session.execute(query)
+        concept = result.scalar_one_or_none()
+        if not concept:
+            raise HTTPException(status_code=404, detail=f"Concept not found: {name}")
+
+        articles = await self.list_articles(session=session, concept=name, user_id=user_id)
+        return {
+            "id": concept.id,
+            "name": concept.name,
+            "description": concept.description,
+            "article_count": concept.article_count,
+            "parent_id": concept.parent_id,
+            "concept_kind": concept.concept_kind,
+            "created_at": concept.created_at,
+            "articles": articles,
+        }
+
+    async def get_concept_articles(
+        self,
+        name: str,
+        session: AsyncSession,
+        limit: int = 50,
+        offset: int = 0,
+        user_id: str | None = None,
+    ) -> list[ArticleSummaryResponse]:
+        """List articles tagged with a specific concept.
+
+        Args:
+            name: Concept name to filter by.
+            session: Async database session.
+            limit: Max results.
+            offset: Pagination offset.
+            user_id: Optional user ID filter.
+
+        Returns:
+            List of article summaries for the concept.
+        """
+        return await self.list_articles(
+            session=session,
+            concept=name,
+            limit=limit,
+            offset=offset,
+            user_id=user_id,
+        )
 
     async def get_health(self, session: AsyncSession) -> dict:
         """Return the latest wiki health report from the linter.

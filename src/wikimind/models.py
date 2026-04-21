@@ -815,6 +815,135 @@ class ArticleSummaryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     page_type: PageType = PageType.SOURCE
+    concepts: list[str] = []
+    source_ids: list[str] = []
+    user_id: str | None = None
+
+
+class ContradictionResolutionOption(BaseModel):
+    """A valid resolution option for contradictions."""
+
+    value: str
+    label: str
+
+
+class ResolveContradictionResponse(BaseModel):
+    """Response after resolving a contradiction."""
+
+    resolved: bool
+    source_id: str
+    target_id: str
+    resolution: str
+
+
+class RecompileResponse(BaseModel):
+    """Response after scheduling an article recompile."""
+
+    status: str
+    job_id: str
+
+
+class RebuildConceptsResponse(BaseModel):
+    """Response after triggering taxonomy rebuild."""
+
+    status: str
+
+
+class HealthSummaryResponse(BaseModel):
+    """Lightweight health summary from latest lint report."""
+
+    generated_at: datetime | None = None
+    total_articles: int = 0
+    total_findings: int | None = None
+    contradictions_count: int | None = None
+    orphans_count: int | None = None
+    status: str | None = None
+    message: str | None = None
+
+
+class JobTriggerResponse(BaseModel):
+    """Response after triggering an async job."""
+
+    status: str
+    job_id: str | None = None
+    message: str | None = None
+
+
+class LintRunResponse(BaseModel):
+    """Response after triggering a lint run."""
+
+    status: str
+
+
+class DismissFindingResponse(BaseModel):
+    """Response after dismissing a lint finding."""
+
+    dismissed: bool
+    kind: str
+    finding_id: str
+
+
+class ConceptResponse(BaseModel):
+    """Concept summary for list views."""
+
+    id: str
+    name: str
+    description: str | None = None
+    article_count: int = 0
+    parent_id: str | None = None
+    concept_kind: str = "topic"
+    created_at: datetime
+
+
+class ConceptDetailResponse(BaseModel):
+    """Full concept with linked articles."""
+
+    id: str
+    name: str
+    description: str | None = None
+    article_count: int = 0
+    parent_id: str | None = None
+    concept_kind: str = "topic"
+    created_at: datetime
+    articles: list[ArticleSummaryResponse] = []
+
+
+class SystemStats(BaseModel):
+    """Aggregate system statistics."""
+
+    article_count: int = 0
+    source_count: int = 0
+    concept_count: int = 0
+    backlink_count: int = 0
+    orphan_count: int = 0
+    conversation_count: int = 0
+    articles_by_type: dict[str, int] = {}
+
+
+class OrphanArticle(BaseModel):
+    """Article whose wiki file is missing from disk."""
+
+    id: str
+    slug: str
+    title: str
+    file_path: str
+
+
+class EligibleConcept(BaseModel):
+    """Concept eligible for concept-page generation."""
+
+    id: str
+    name: str
+    article_count: int
+    has_existing_page: bool = False
+
+
+class AdminActionResult(BaseModel):
+    """Result of an admin action."""
+
+    action: str
+    status: str
+    job_id: str | None = None
 
 
 class CitationArticleRef(BaseModel):
