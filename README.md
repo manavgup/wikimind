@@ -203,6 +203,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make venv` | Create Python virtual environment |
 | `make install` | Install production dependencies (pinned by uv.lock) |
 | `make install-dev` | Install all dev/test/lint dependencies (pinned by uv.lock) |
+| `make setup-git-mergedrivers` | Configure custom git merge drivers (secrets baseline) |
 | `make check-venv` | Verify the venv editable install points at this checkout's src/ |
 | `make repair-venv` | Reinstall the editable package so it points at this checkout |
 | `make check-env` | Verify Python version, venv hygiene, and required tools |
