@@ -51,9 +51,7 @@ def upgrade() -> None:  # noqa: C901, PLR0912
         )
 
     # --- Migrate existing JSON data ---
-    rows = conn.execute(
-        sa.text("SELECT id, concept_ids, source_ids FROM article")
-    ).fetchall()
+    rows = conn.execute(sa.text("SELECT id, concept_ids, source_ids FROM article")).fetchall()
 
     for article_id, concept_ids_raw, source_ids_raw in rows:
         if concept_ids_raw:
