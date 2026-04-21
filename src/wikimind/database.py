@@ -17,6 +17,7 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import structlog
 from slugify import slugify
@@ -34,6 +35,17 @@ from wikimind.db_compat import is_postgres, is_sqlite
 log = structlog.get_logger()
 
 
+def _parse_ssl(url: str) -> tuple[str, dict]:
+    """Strip sslmode/ssl from URL, return (clean_url, connect_args)."""
+    if "sslmode=" not in url and "ssl=" not in url:
+        return url, {}
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    mode = params.pop("sslmode", params.pop("ssl", ["prefer"]))[0]
+    clean = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
+    return clean, {"ssl": mode != "disable"}
+
+
 def _create_engine_from_url(url: str):
     """Create an async engine appropriate for the database URL's dialect.
 
@@ -43,18 +55,9 @@ def _create_engine_from_url(url: str):
     Raises ValueError for unsupported dialects.
     """
     if is_sqlite(url):
-        return create_async_engine(
-            url,
-            echo=False,
-            connect_args={"check_same_thread": False},
-        )
+        return create_async_engine(url, echo=False, connect_args={"check_same_thread": False})
     if is_postgres(url):
-        connect_args: dict = {}
-        # asyncpg defaults to attempting TLS; explicitly disable when URL says so.
-        if "ssl=disable" in url:
-            connect_args["ssl"] = False
-            # Strip from URL so asyncpg doesn't receive the string value.
-            url = url.replace("?ssl=disable&", "?").replace("?ssl=disable", "").replace("&ssl=disable", "")
+        url, connect_args = _parse_ssl(url)
         return create_async_engine(
             url,
             echo=False,
@@ -64,7 +67,7 @@ def _create_engine_from_url(url: str):
             connect_args=connect_args,
         )
     dialect = url.split("://", maxsplit=1)[0]
-    raise ValueError(f"Unsupported database dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
+    raise ValueError(f"Unsupported dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
 
 
 def get_db_path() -> Path:
