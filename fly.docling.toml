@@ -1,0 +1,42 @@
+# fly.docling.toml — Fly.io config for the docling-serve PDF extraction sidecar.
+#
+# This runs on the Fly internal network (no public HTTP). The main wikimind
+# app reaches it at http://wikimind-docling.internal:5001.
+#
+# First-time setup:
+#   fly apps create wikimind-docling
+#
+# Deploy (done automatically by CI):
+#   fly deploy --app wikimind-docling --config fly.docling.toml
+
+app = "wikimind-docling"
+primary_region = "ord"
+
+[build]
+  image = "quay.io/docling-project/docling-serve-cpu:latest"
+
+[http_service]
+  internal_port = 5001
+  # No public routing — only reachable on .internal network
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 10
+    soft_limit = 5
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 5001
+    path = "/health"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"
+
+[[vm]]
+  memory = "4gb"
+  cpu_kind = "shared"
+  cpus = 2
