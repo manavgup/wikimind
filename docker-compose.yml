@@ -25,14 +25,16 @@ services:
       WIKIMIND_SERVER__PORT: "7842"
       WIKIMIND_REDIS_URL: redis://redis:6379/0
       WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
+      UV_LINK_MODE: copy
     env_file:
       - path: .env
         required: false
     ports:
       - "7842:7842"
     volumes:
-      - .:/app
-      - /app/.venv
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
       - wikimind-data:/data
     depends_on:
       redis:
@@ -62,12 +64,13 @@ services:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_REDIS_URL: redis://redis:6379/0
       WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
+      UV_LINK_MODE: copy
     env_file:
       - path: .env
         required: false
     volumes:
-      - .:/app
-      - /app/.venv
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
       - wikimind-data:/data
     depends_on:
       gateway:
