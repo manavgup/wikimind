@@ -44,7 +44,7 @@ repos:
     hooks:
       - id: secrets-baseline-update
         name: update .secrets.baseline line numbers
-        entry: bash -c 'detect-secrets scan --baseline .secrets.baseline'
+        entry: bash -c 'uv run detect-secrets scan --baseline .secrets.baseline'
         language: system
         pass_filenames: false
         always_run: true
