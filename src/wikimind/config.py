@@ -309,6 +309,11 @@ class Settings(BaseSettings):
                         sslmode=sslmode,
                     )
                     params["ssl"] = [sslmode]
+            # Fly.io internal Postgres doesn't support SSL. When no ssl/sslmode
+            # param is present and we're running on Fly, explicitly disable SSL
+            # to prevent asyncpg's default SSL-first connection attempt.
+            if "ssl" not in params and os.environ.get("FLY_APP_NAME"):
+                params["ssl"] = ["disable"]
             raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
             self.database_url = raw
         return self
