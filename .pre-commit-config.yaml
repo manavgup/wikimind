@@ -15,6 +15,7 @@ repos:
         exclude: "^docs/"
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: "^docs/mkdocs\\.yml$"
       - id: check-toml
       - id: check-json
         exclude: "^apps/"
