@@ -96,7 +96,6 @@ async def lifespan(_app: FastAPI):
             await session.commit()
             log.info("Backfilled article user_id from source", count=backfilled)
 
-
     yield
 
     log.info("WikiMind gateway shutting down")
