@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
 
 from wikimind.config import get_settings
-from wikimind.database import get_session, get_session_factory
+from wikimind.database import get_session
 from wikimind.main import app
 
 if TYPE_CHECKING:
