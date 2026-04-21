@@ -43,6 +43,9 @@ Thumbs.db
 # Git worktrees (parallel development)
 .worktrees/
 
+# MkDocs documentation build output
+docs/site/
+
 # Serena MCP tool — auto-generated per-worktree config + cache + memories
 .serena/
 .venv

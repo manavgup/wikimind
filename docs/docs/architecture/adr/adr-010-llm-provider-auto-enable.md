@@ -1,0 +1,1 @@
+../../../adr/adr-010-llm-provider-auto-enable.md

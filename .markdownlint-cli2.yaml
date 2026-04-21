@@ -1,0 +1,23 @@
+# Markdown linting rules for consistent documentation style.
+# Used by markdownlint-cli2.
+
+config:
+  # Line length — disabled because docs often have long URLs and tables
+  MD013: false
+
+  # Allow duplicate headings in different sections
+  MD024:
+    siblings_only: true
+
+  # Allow inline HTML (used by MkDocs Material features)
+  MD033: false
+
+  # Allow bare URLs
+  MD034: false
+
+  # First line should be a top-level heading — disabled for MkDocs pages
+  # that use YAML frontmatter or start with admonitions
+  MD041: false
+
+globs:
+  - "docs/docs/**/*.md"

@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    </filter>
+    <clipPath id="round4"><rect width="960" height="600" rx="8"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round4)">
+    <rect width="960" height="600" fill="#f8fafc"/>
+
+    <!-- Sidebar -->
+    <rect width="224" height="600" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="48" y="38" font-size="18" font-weight="700" fill="#0f172a">WikiMind</text>
+    <text x="20" y="38" font-size="18">🧠</text>
+    <text x="48" y="83" font-size="13" fill="#64748b">📥 Inbox</text>
+    <rect x="12" y="96" width="200" height="36" rx="6" fill="#f4f7fb"/>
+    <text x="48" y="119" font-size="13" font-weight="600" fill="#2b4876">💬 Ask</text>
+    <text x="48" y="155" font-size="13" fill="#64748b">📚 Wiki</text>
+    <text x="48" y="191" font-size="13" fill="#64748b">🕸️ Graph</text>
+    <rect x="20" y="565" width="48" height="20" rx="10" fill="#ecfdf5"/>
+    <circle cx="34" cy="575" r="3" fill="#047857"/>
+    <text x="42" y="579" font-size="10" fill="#047857">Live</text>
+
+    <!-- Conversation History sidebar -->
+    <g transform="translate(224, 0)">
+      <rect width="256" height="600" fill="#fff"/>
+      <line x1="256" y1="0" x2="256" y2="600" stroke="#e2e8f0"/>
+
+      <!-- Header -->
+      <text x="16" y="28" font-size="11" font-weight="600" fill="#64748b" letter-spacing="0.5">CONVERSATIONS</text>
+      <text x="232" y="28" font-size="12" fill="#4673ad" text-anchor="end">+ New</text>
+
+      <!-- Active conversation -->
+      <rect x="8" y="40" width="240" height="58" rx="6" fill="#f4f7fb"/>
+      <text x="16" y="62" font-size="13" font-weight="500" fill="#0f172a">How do transformers handle long...</text>
+      <text x="16" y="80" font-size="10" fill="#94a3b8">3 turns · 2h ago</text>
+
+      <!-- Other conversations -->
+      <g transform="translate(0, 106)">
+        <rect x="8" y="0" width="240" height="58" rx="6" fill="transparent"/>
+        <text x="16" y="22" font-size="13" fill="#334155">What is the bitter lesson?</text>
+        <text x="16" y="40" font-size="10" fill="#94a3b8">2 turns · 1d ago</text>
+      </g>
+
+      <g transform="translate(0, 170)">
+        <rect x="8" y="0" width="240" height="58" rx="6" fill="transparent"/>
+        <!-- Fork icon -->
+        <text x="16" y="22" font-size="11" fill="#7c3aed">↳</text>
+        <text x="30" y="22" font-size="13" fill="#334155">Compare attention mechanisms</text>
+        <text x="16" y="40" font-size="10" fill="#94a3b8">4 turns · 3d ago · 1 fork</text>
+      </g>
+
+      <g transform="translate(0, 234)">
+        <rect x="8" y="0" width="240" height="58" rx="6" fill="transparent"/>
+        <text x="16" y="22" font-size="13" fill="#334155">Explain backpropagation</text>
+        <text x="16" y="40" font-size="10" fill="#94a3b8">5 turns · 5d ago</text>
+      </g>
+    </g>
+
+    <!-- Main conversation area -->
+    <g transform="translate(480, 0)">
+      <rect width="480" height="600" fill="#f8fafc"/>
+
+      <!-- Turn 1 -->
+      <g transform="translate(20, 20)">
+        <rect width="440" height="190" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+
+        <!-- Question -->
+        <text x="16" y="28" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">Q1</text>
+        <text x="16" y="50" font-size="14" font-weight="600" fill="#0f172a">How do transformers handle long sequences?</text>
+
+        <!-- Answer -->
+        <text x="16" y="76" font-size="13" fill="#334155">Transformers face quadratic complexity O(n²) in self-attention</text>
+        <text x="16" y="94" font-size="13" fill="#334155">with respect to sequence length. Several approaches address</text>
+        <text x="16" y="112" font-size="13" fill="#334155">this: sparse attention patterns (Longformer), linear attention</text>
+        <text x="16" y="130" font-size="13" fill="#334155">approximations (Performer), and chunked processing...</text>
+
+        <!-- Sources -->
+        <line x1="16" y1="148" x2="424" y2="148" stroke="#f1f5f9"/>
+        <text x="16" y="168" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">SOURCES:</text>
+        <rect x="72" y="156" width="148" height="22" rx="11" fill="#f0f9ff"/>
+        <text x="146" y="171" font-size="10" fill="#0369a1" text-anchor="middle">Attention Is All You Need</text>
+        <rect x="226" y="156" width="110" height="22" rx="11" fill="#f0f9ff"/>
+        <text x="281" y="171" font-size="10" fill="#0369a1" text-anchor="middle">But what is a GPT?</text>
+        <!-- Confidence -->
+        <text x="400" y="186" font-size="10" fill="#94a3b8" text-anchor="end">Confidence: high</text>
+      </g>
+
+      <!-- Turn 2 -->
+      <g transform="translate(20, 226)">
+        <rect width="440" height="158" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+
+        <text x="16" y="28" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">Q2</text>
+        <text x="16" y="50" font-size="14" font-weight="600" fill="#0f172a">What about positional encodings — are they still used?</text>
+
+        <text x="16" y="76" font-size="13" fill="#334155">The original Transformer uses sinusoidal positional encodings,</text>
+        <text x="16" y="94" font-size="13" fill="#334155">but modern variants have moved to learned or rotary positional</text>
+        <text x="16" y="112" font-size="13" fill="#334155">embeddings (RoPE). Your wiki notes that GPT-style models...</text>
+
+        <line x1="16" y1="126" x2="424" y2="126" stroke="#f1f5f9"/>
+        <text x="16" y="146" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">SOURCES:</text>
+        <rect x="72" y="134" width="148" height="22" rx="11" fill="#f0f9ff"/>
+        <text x="146" y="149" font-size="10" fill="#0369a1" text-anchor="middle">Attention Is All You Need</text>
+      </g>
+
+      <!-- Turn 3: streaming -->
+      <g transform="translate(20, 400)">
+        <rect width="440" height="96" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)" opacity="0.8"/>
+
+        <text x="16" y="28" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.3">Q3</text>
+        <text x="16" y="50" font-size="14" font-weight="600" fill="#0f172a">How does multi-head attention differ from single-head?</text>
+
+        <!-- Streaming indicator -->
+        <circle cx="20" cy="76" r="4" fill="#4673ad" opacity="0.6">
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <text x="30" y="80" font-size="12" fill="#64748b">Generating answer...</text>
+      </g>
+
+      <!-- Input area -->
+      <g transform="translate(20, 520)">
+        <rect width="440" height="60" fill="#fff" rx="0"/>
+        <line x1="0" y1="0" x2="440" y2="0" stroke="#e2e8f0"/>
+        <rect x="0" y="12" width="372" height="40" rx="6" fill="#fff" stroke="#cbd5e1"/>
+        <text x="16" y="37" font-size="13" fill="#94a3b8">Ask a question about your wiki...</text>
+        <rect x="384" y="12" width="56" height="40" rx="6" fill="#365b91"/>
+        <text x="412" y="37" font-size="13" font-weight="500" fill="#fff" text-anchor="middle">Ask</text>
+      </g>
+
+      <!-- Action buttons -->
+      <g transform="translate(20, 496)">
+        <rect x="0" y="0" width="96" height="26" rx="4" fill="#f4f7fb" stroke="#c5d6ea"/>
+        <text x="48" y="17" font-size="11" font-weight="500" fill="#2b4876" text-anchor="middle">Save to wiki</text>
+        <rect x="104" y="0" width="106" height="26" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="157" y="17" font-size="11" fill="#64748b" text-anchor="middle">Export markdown</text>
+      </g>
+    </g>
+  </g>
+</svg>

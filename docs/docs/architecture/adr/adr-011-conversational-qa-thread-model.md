@@ -1,0 +1,1 @@
+../../../adr/adr-011-conversational-qa-thread-model.md

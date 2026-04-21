@@ -1,0 +1,1 @@
+../../../adr/adr-025-docling-serve-sidecar.md

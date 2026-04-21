@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif">
+  <defs>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.06"/>
+    </filter>
+    <clipPath id="round4"><rect width="960" height="600" rx="8"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#round4)">
+    <rect width="960" height="600" fill="#f8fafc"/>
+
+    <!-- Sidebar (same as inbox) -->
+    <rect width="224" height="600" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="48" y="38" font-size="18" font-weight="700" fill="#0f172a">WikiMind</text>
+    <text x="20" y="38" font-size="18">🧠</text>
+    <text x="48" y="83" font-size="13" fill="#64748b">📥 Inbox</text>
+    <text x="48" y="119" font-size="13" fill="#64748b">💬 Ask</text>
+    <rect x="12" y="132" width="200" height="36" rx="6" fill="#f4f7fb"/>
+    <text x="48" y="155" font-size="13" font-weight="600" fill="#2b4876">📚 Wiki</text>
+    <text x="48" y="191" font-size="13" fill="#64748b">🕸️ Graph</text>
+    <text x="48" y="227" font-size="13" fill="#64748b">🩺 Health</text>
+    <text x="48" y="263" font-size="13" fill="#64748b">⚙️ Settings</text>
+    <rect x="20" y="565" width="48" height="20" rx="10" fill="#ecfdf5"/>
+    <circle cx="34" cy="575" r="3" fill="#047857"/>
+    <text x="42" y="579" font-size="10" fill="#047857">Live</text>
+
+    <!-- Main content -->
+    <g transform="translate(224, 0)">
+      <!-- Header -->
+      <rect width="736" height="56" fill="#fff"/>
+      <line x1="0" y1="56" x2="736" y2="56" stroke="#e2e8f0"/>
+      <text x="24" y="36" font-size="18" font-weight="600" fill="#0f172a">Wiki</text>
+      <!-- Search bar -->
+      <rect x="200" y="14" width="300" height="32" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="220" y="35" font-size="12" fill="#94a3b8">Search articles...</text>
+
+      <!-- Concept Tree sidebar -->
+      <g transform="translate(0, 56)">
+        <rect width="240" height="544" fill="#fff" stroke="#e2e8f0" stroke-width="0 1 0 0"/>
+        <line x1="240" y1="0" x2="240" y2="544" stroke="#e2e8f0"/>
+
+        <!-- Filter -->
+        <rect x="12" y="12" width="216" height="28" rx="4" fill="#f8fafc" stroke="#cbd5e1"/>
+        <text x="24" y="31" font-size="11" fill="#94a3b8">Filter topics...</text>
+
+        <!-- All articles -->
+        <rect x="12" y="52" width="216" height="28" rx="4" fill="#f4f7fb"/>
+        <text x="24" y="71" font-size="12" font-weight="500" fill="#2b4876">All articles</text>
+        <text x="212" y="71" font-size="11" fill="#94a3b8" text-anchor="end">12</text>
+
+        <!-- Concept Pages header -->
+        <text x="16" y="108" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.5">CONCEPT PAGES</text>
+
+        <rect x="12" y="116" width="216" height="26" rx="4" fill="transparent"/>
+        <circle cx="28" cy="129" r="8" fill="#c5d6ea"/>
+        <text x="28" y="133" font-size="9" font-weight="600" fill="#2b4876" text-anchor="middle">C</text>
+        <text x="44" y="133" font-size="12" fill="#2b4876">Machine Learning</text>
+
+        <rect x="12" y="142" width="216" height="26" rx="4" fill="transparent"/>
+        <circle cx="28" cy="155" r="8" fill="#c5d6ea"/>
+        <text x="28" y="159" font-size="9" font-weight="600" fill="#2b4876" text-anchor="middle">C</text>
+        <text x="44" y="159" font-size="12" fill="#2b4876">Transformer Architecture</text>
+
+        <!-- Topics header -->
+        <text x="16" y="196" font-size="10" font-weight="600" fill="#64748b" letter-spacing="0.5">TOPICS</text>
+
+        <!-- Topic tree -->
+        <text x="24" y="220" font-size="12" fill="#334155">▾ artificial-intelligence</text>
+        <text x="216" y="220" font-size="10" fill="#94a3b8" text-anchor="end">5</text>
+
+        <rect x="12" y="228" width="216" height="24" rx="4" fill="#f4f7fb"/>
+        <text x="42" y="245" font-size="12" font-weight="500" fill="#2b4876">▾ machine-learning</text>
+        <text x="216" y="245" font-size="10" fill="#94a3b8" text-anchor="end">3</text>
+
+        <text x="60" y="270" font-size="12" fill="#334155">deep-learning</text>
+        <text x="216" y="270" font-size="10" fill="#94a3b8" text-anchor="end">2</text>
+
+        <text x="60" y="294" font-size="12" fill="#334155">reinforcement-learning</text>
+        <text x="216" y="294" font-size="10" fill="#94a3b8" text-anchor="end">1</text>
+
+        <text x="24" y="322" font-size="12" fill="#334155">▸ software-engineering</text>
+        <text x="216" y="322" font-size="10" fill="#94a3b8" text-anchor="end">4</text>
+
+        <text x="24" y="348" font-size="12" fill="#334155">▸ research-methodology</text>
+        <text x="216" y="348" font-size="10" fill="#94a3b8" text-anchor="end">3</text>
+      </g>
+
+      <!-- Article grid -->
+      <g transform="translate(252, 68)">
+        <!-- Article cards (3-column grid) -->
+        <!-- Card 1 -->
+        <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+        <rect x="12" y="12" width="46" height="18" rx="4" fill="#f4f7fb"/>
+        <text x="35" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">source</text>
+        <rect x="64" y="12" width="50" height="18" rx="4" fill="#ecfdf5"/>
+        <text x="89" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+        <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Attention Is All You Need</text>
+        <text x="12" y="68" font-size="11" fill="#64748b">Introduces the Transformer model,</text>
+        <text x="12" y="82" font-size="11" fill="#64748b">replacing recurrence with self-attention.</text>
+        <text x="12" y="120" font-size="10" fill="#94a3b8">1 source · 3 backlinks</text>
+
+        <!-- Card 2 -->
+        <g transform="translate(240, 0)">
+          <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="50" height="18" rx="4" fill="#f4f7fb"/>
+          <text x="37" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">concept</text>
+          <rect x="68" y="12" width="42" height="18" rx="4" fill="#f0f9ff"/>
+          <text x="89" y="25" font-size="10" font-weight="500" fill="#0369a1" text-anchor="middle">mixed</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Machine Learning</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">Synthesized from 3 source articles</text>
+          <text x="12" y="82" font-size="11" fill="#64748b">covering supervised and unsupervised...</text>
+          <text x="12" y="120" font-size="10" fill="#94a3b8">3 sources · 5 backlinks</text>
+        </g>
+
+        <!-- Card 3 -->
+        <g transform="translate(0, 156)">
+          <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="46" height="18" rx="4" fill="#f4f7fb"/>
+          <text x="35" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">source</text>
+          <rect x="64" y="12" width="50" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="89" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">The Bitter Lesson</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">Rich Sutton argues that general</text>
+          <text x="12" y="82" font-size="11" fill="#64748b">methods leveraging computation win.</text>
+          <text x="12" y="120" font-size="10" fill="#94a3b8">1 source · 2 backlinks</text>
+        </g>
+
+        <!-- Card 4 -->
+        <g transform="translate(240, 156)">
+          <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="46" height="18" rx="4" fill="#f4f7fb"/>
+          <text x="35" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">source</text>
+          <rect x="64" y="12" width="54" height="18" rx="4" fill="#fffbeb"/>
+          <text x="91" y="25" font-size="10" font-weight="500" fill="#b45309" text-anchor="middle">inferred</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Q4 Engineering Retrospective</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">Reviews team velocity, incident</text>
+          <text x="12" y="82" font-size="11" fill="#64748b">response, and architectural decisions.</text>
+          <text x="12" y="120" font-size="10" fill="#94a3b8">1 source · 1 backlink</text>
+        </g>
+
+        <!-- Card 5 -->
+        <g transform="translate(0, 312)">
+          <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="46" height="18" rx="4" fill="#f4f7fb"/>
+          <text x="35" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">source</text>
+          <rect x="64" y="12" width="50" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="89" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">But what is a GPT?</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">3Blue1Brown explains transformer</text>
+          <text x="12" y="82" font-size="11" fill="#64748b">mechanics with visual intuitions.</text>
+          <text x="12" y="120" font-size="10" fill="#94a3b8">1 source · 4 backlinks</text>
+        </g>
+
+        <!-- Card 6 -->
+        <g transform="translate(240, 312)">
+          <rect width="228" height="140" rx="8" fill="#fff" stroke="#e2e8f0" filter="url(#shadow)"/>
+          <rect x="12" y="12" width="50" height="18" rx="4" fill="#f4f7fb"/>
+          <text x="37" y="25" font-size="10" font-weight="500" fill="#2b4876" text-anchor="middle">concept</text>
+          <rect x="68" y="12" width="50" height="18" rx="4" fill="#ecfdf5"/>
+          <text x="93" y="25" font-size="10" font-weight="500" fill="#047857" text-anchor="middle">sourced</text>
+          <text x="12" y="50" font-size="13" font-weight="600" fill="#0f172a">Transformer Architecture</text>
+          <text x="12" y="68" font-size="11" fill="#64748b">Synthesized from 2 source articles</text>
+          <text x="12" y="82" font-size="11" fill="#64748b">on self-attention and positional...</text>
+          <text x="12" y="120" font-size="10" fill="#94a3b8">2 sources · 6 backlinks</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

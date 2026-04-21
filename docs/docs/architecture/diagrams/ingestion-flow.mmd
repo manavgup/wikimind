@@ -1,0 +1,71 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4F46E5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730A3', 'lineColor': '#6366F1', 'secondaryColor': '#F0ABFC', 'tertiaryColor': '#E0E7FF', 'fontSize': '14px'}}}%%
+flowchart TB
+    subgraph Input["<b>Input Sources</b>"]
+        direction LR
+        URL["Web URL"]
+        PDF["PDF Upload"]
+        Text["Raw Text"]
+        YT["YouTube URL"]
+    end
+
+    subgraph Router["<b>IngestService — URL Router</b>"]
+        Detect{"Detect<br/>Source Type"}
+    end
+
+    subgraph Adapters["<b>Extraction Adapters</b>"]
+        URLAdapter["<b>URLAdapter</b><br/>trafilatura<br/>HTML → clean text"]
+        PDFAdapter["<b>PDFAdapter</b><br/>docling-serve /<br/>pymupdf fallback"]
+        TextAdapter["<b>TextAdapter</b><br/>passthrough"]
+        YTAdapter["<b>YouTubeAdapter</b><br/>youtube-transcript-api"]
+    end
+
+    subgraph Processing["<b>Post-processing</b>"]
+        direction LR
+        Dedup["Dedup<br/>(SHA-256)"]
+        Token["Token<br/>Estimation"]
+        Chunk["Semantic<br/>Chunking"]
+    end
+
+    subgraph Output["<b>Output</b>"]
+        direction LR
+        Source[("Source<br/>DB Row")]
+        Doc["Normalized<br/>Document"]
+        RawFile["Raw File<br/>~/.wikimind/raw/"]
+    end
+
+    URL --> Detect
+    PDF --> PDFAdapter
+    Text --> TextAdapter
+    YT --> Detect
+
+    Detect -->|"youtube.com<br/>youtu.be"| YTAdapter
+    Detect -->|".pdf or<br/>Content-Type: pdf"| PDFAdapter
+    Detect -->|"everything else"| URLAdapter
+
+    URLAdapter & PDFAdapter & TextAdapter & YTAdapter --> Dedup
+    Dedup --> Token --> Chunk
+    Chunk --> Source & Doc & RawFile
+
+    subgraph Vision["<b>Vision Enhancement</b> (PDF only)"]
+        direction LR
+        Render["Render page<br/>as image"]
+        Describe["Multimodal LLM<br/>describes content"]
+    end
+
+    PDFAdapter -.->|"text < 300 chars<br/>per page"| Render
+    Render --> Describe
+    Describe -.-> Dedup
+
+    classDef inputNode fill:#818CF8,stroke:#4338CA,color:#fff,rx:8
+    classDef routerNode fill:#FCD34D,stroke:#D97706,color:#78350F,rx:4
+    classDef adapterNode fill:#C7D2FE,stroke:#4F46E5,color:#1E1B4B,rx:8
+    classDef processNode fill:#6EE7B7,stroke:#059669,color:#064E3B,rx:8
+    classDef outputNode fill:#4F46E5,stroke:#3730A3,color:#fff,rx:8
+    classDef visionNode fill:#FBCFE8,stroke:#DB2777,color:#831843,rx:8
+
+    class URL,PDF,Text,YT inputNode
+    class Detect routerNode
+    class URLAdapter,PDFAdapter,TextAdapter,YTAdapter adapterNode
+    class Dedup,Token,Chunk processNode
+    class Source,Doc,RawFile outputNode
+    class Render,Describe visionNode

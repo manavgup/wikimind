@@ -1,0 +1,32 @@
+# Architecture Decision Records
+
+This section contains the architectural decisions for WikiMind. Each ADR documents a single significant decision, the alternatives considered, and the consequences.
+
+## Index
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [001](adr-001-fastapi-async-sqlite.md) | FastAPI + async SQLite for local-first daemon | Accepted |
+| [002](adr-002-arq-fakeredis.md) | ARQ + fakeredis for job queue | Accepted |
+| [003](adr-003-multi-provider-llm-router.md) | Multi-provider LLM router with fallback | Accepted |
+| [004](adr-004-markdown-files-sqlite-metadata.md) | Plain markdown files + SQLite metadata | Accepted |
+| [005](adr-005-confidence-tagged-claims.md) | Confidence-tagged claims | Accepted |
+| [006](adr-006-chunked-compilation.md) | Chunked compilation for large documents | Accepted |
+| [007](adr-007-structured-json-prompt-contract.md) | Structured JSON prompt contract | Accepted |
+| [008](adr-008-pydantic-basesettings.md) | Pydantic BaseSettings for configuration | Accepted |
+| [009](adr-009-decoupled-ingest-compilation.md) | Decoupled ingest and compilation | Accepted |
+| [010](adr-010-llm-provider-auto-enable.md) | Auto-enable LLM providers when API key detected | Accepted |
+| [011](adr-011-conversational-qa-thread-model.md) | Conversational Q&A thread model | Accepted |
+| [012](adr-012-knowledge-graph-architecture.md) | Knowledge graph architecture | Accepted |
+| [013](adr-013-react-force-graph-2d.md) | react-force-graph-2d for knowledge graph | Proposed |
+| [014](adr-014-hybrid-search-architecture.md) | Hybrid search with ChromaDB and sentence-transformers | Accepted |
+| [015](adr-015-cpu-first-docker-packaging.md) | CPU-First Docker Packaging | Accepted |
+| [016](adr-016-article-recompilation.md) | Article recompilation as first-class action | Accepted |
+| [017](adr-017-backlink-enforcer-lint-phase.md) | Backlink enforcer as lint Phase 3 | Accepted |
+| [018](adr-018-batched-contradiction-detection.md) | Batched Contradiction Detection | Accepted |
+| [019](adr-019-runtime-user-preferences.md) | Runtime User Preferences via DB Override Table | Accepted |
+| [021](adr-021-postgres-compatibility.md) | PostgreSQL compatibility for production | Accepted |
+| [022](adr-022-multi-user-authentication.md) | Multi-User Authentication via OAuth2 | Accepted |
+| [023](adr-023-production-container-architecture.md) | Production Container Architecture | Accepted |
+| [024](adr-024-gunicorn-autoscaling-horizontal-readiness.md) | Gunicorn Autoscaling & Horizontal Readiness | Accepted |
+| [025](adr-025-docling-serve-sidecar.md) | docling-serve Sidecar | Accepted |

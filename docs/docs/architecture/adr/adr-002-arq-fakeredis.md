@@ -1,0 +1,1 @@
+../../../adr/adr-002-arq-fakeredis.md

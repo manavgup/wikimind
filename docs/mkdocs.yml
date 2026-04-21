@@ -1,0 +1,141 @@
+site_name: WikiMind
+site_url: https://manavgup.github.io/wikimind/
+site_description: Personal LLM-powered knowledge OS
+site_author: Manav Gupta
+repo_name: manavgup/wikimind
+repo_url: https://github.com/manavgup/wikimind
+edit_uri: edit/main/docs/docs/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      separator: '[\s\-\.]+'
+  - awesome-pages
+  - glightbox
+  - minify:
+      minify_html: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      fallback_to_build_date: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.mark
+  - pymdownx.keys
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/manavgup/wikimind
+
+nav:
+  - Home: index.md
+  - Overview:
+      - Features: overview/features.md
+      - Quick Start: overview/quick-start.md
+      - UI Guide: overview/ui-guide.md
+  - Using WikiMind:
+      - Ingesting Sources: using/ingestion.md
+      - Navigating the Wiki: using/wiki.md
+      - Q&A Agent: using/ask.md
+      - Concepts & Knowledge Graph: using/concepts.md
+  - Deployment:
+      - Local Development: deployment/local.md
+      - Docker: deployment/docker.md
+      - Fly.io: deployment/fly-io.md
+  - Architecture:
+      - System Overview: architecture/index.md
+      - LLM Compilation Pipeline: architecture/compiler.md
+      - Ingestion Adapters: architecture/ingest.md
+      - Storage Backends: architecture/storage.md
+      - Architecture Decision Records:
+          - architecture/adr/index.md
+          - ADR-001 FastAPI + async SQLite: architecture/adr/adr-001-fastapi-async-sqlite.md
+          - ADR-002 ARQ + fakeredis: architecture/adr/adr-002-arq-fakeredis.md
+          - ADR-003 Multi-provider LLM router: architecture/adr/adr-003-multi-provider-llm-router.md
+          - ADR-004 Markdown files + SQLite: architecture/adr/adr-004-markdown-files-sqlite-metadata.md
+          - ADR-005 Confidence-tagged claims: architecture/adr/adr-005-confidence-tagged-claims.md
+          - ADR-006 Chunked compilation: architecture/adr/adr-006-chunked-compilation.md
+          - ADR-007 Structured JSON prompt: architecture/adr/adr-007-structured-json-prompt-contract.md
+          - ADR-008 Pydantic BaseSettings: architecture/adr/adr-008-pydantic-basesettings.md
+          - ADR-009 Decoupled ingest/compile: architecture/adr/adr-009-decoupled-ingest-compilation.md
+          - ADR-010 Provider auto-enable: architecture/adr/adr-010-llm-provider-auto-enable.md
+          - ADR-011 Conversational Q&A: architecture/adr/adr-011-conversational-qa-thread-model.md
+          - ADR-012 Knowledge graph: architecture/adr/adr-012-knowledge-graph-architecture.md
+          - ADR-013 react-force-graph-2d: architecture/adr/adr-013-react-force-graph-2d.md
+          - ADR-014 Hybrid search: architecture/adr/adr-014-hybrid-search-architecture.md
+          - ADR-015 CPU-first Docker: architecture/adr/adr-015-cpu-first-docker-packaging.md
+          - ADR-016 Article recompilation: architecture/adr/adr-016-article-recompilation.md
+          - ADR-017 Backlink enforcer: architecture/adr/adr-017-backlink-enforcer-lint-phase.md
+          - ADR-018 Contradiction detection: architecture/adr/adr-018-batched-contradiction-detection.md
+          - ADR-019 Runtime preferences: architecture/adr/adr-019-runtime-user-preferences.md
+          - ADR-021 PostgreSQL compat: architecture/adr/adr-021-postgres-compatibility.md
+          - ADR-022 Multi-user auth: architecture/adr/adr-022-multi-user-authentication.md
+          - ADR-023 Container architecture: architecture/adr/adr-023-production-container-architecture.md
+          - ADR-024 Gunicorn autoscaling: architecture/adr/adr-024-gunicorn-autoscaling-horizontal-readiness.md
+          - ADR-025 docling-serve sidecar: architecture/adr/adr-025-docling-serve-sidecar.md
+  - API Reference:
+      - OpenAPI: api/openapi.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Testing: development/testing.md
+      - CI/CD: development/ci-cd.md
+  - Configuration:
+      - Settings: configuration/settings.md
+      - Authentication: configuration/auth.md
+      - LLM Providers: configuration/llm-providers.md

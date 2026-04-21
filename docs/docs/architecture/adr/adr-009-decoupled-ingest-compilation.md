@@ -1,0 +1,1 @@
+../../../adr/adr-009-decoupled-ingest-compilation.md

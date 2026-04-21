@@ -1,0 +1,1 @@
+../../../adr/adr-024-gunicorn-autoscaling-horizontal-readiness.md
