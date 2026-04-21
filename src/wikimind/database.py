@@ -49,12 +49,19 @@ def _create_engine_from_url(url: str):
             connect_args={"check_same_thread": False},
         )
     if is_postgres(url):
+        connect_args: dict = {}
+        # asyncpg defaults to attempting TLS; explicitly disable when URL says so.
+        if "ssl=disable" in url:
+            connect_args["ssl"] = False
+            # Strip from URL so asyncpg doesn't receive the string value.
+            url = url.replace("?ssl=disable&", "?").replace("?ssl=disable", "").replace("&ssl=disable", "")
         return create_async_engine(
             url,
             echo=False,
             pool_size=10,
             max_overflow=20,
             pool_pre_ping=True,
+            connect_args=connect_args,
         )
     dialect = url.split("://", maxsplit=1)[0]
     raise ValueError(f"Unsupported database dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
