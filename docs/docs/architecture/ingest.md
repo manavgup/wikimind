@@ -4,42 +4,7 @@ WikiMind's ingestion layer transforms raw sources into normalized documents read
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph Input["Input Sources"]
-        URL["Web URL"]
-        PDF["PDF Upload"]
-        Text["Raw Text"]
-        YT["YouTube URL"]
-    end
-
-    subgraph Service["IngestService"]
-        Router["URL Router"]
-    end
-
-    subgraph Adapters["Adapters"]
-        URLAdapter["URLAdapter<br/>(trafilatura)"]
-        PDFAdapter["PDFAdapter<br/>(docling-serve / pymupdf)"]
-        TextAdapter["TextAdapter"]
-        YTAdapter["YouTubeAdapter<br/>(youtube-transcript-api)"]
-    end
-
-    subgraph Output["Output"]
-        Source["Source<br/>(DB row)"]
-        Doc["NormalizedDocument"]
-    end
-
-    URL --> Router
-    PDF --> PDFAdapter
-    Text --> TextAdapter
-    YT --> Router
-
-    Router -->|youtube.com/youtu.be| YTAdapter
-    Router -->|.pdf or Content-Type: application/pdf| PDFAdapter
-    Router -->|everything else| URLAdapter
-
-    URLAdapter & PDFAdapter & TextAdapter & YTAdapter --> Source & Doc
-```
+![Ingestion Adapter Flow](diagrams/ingestion-flow.svg)
 
 ## IngestService
 

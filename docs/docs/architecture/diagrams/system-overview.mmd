@@ -1,0 +1,82 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4F46E5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730A3', 'lineColor': '#6366F1', 'secondaryColor': '#F0ABFC', 'tertiaryColor': '#E0E7FF', 'fontSize': '14px'}}}%%
+graph TB
+    subgraph Client["<b>Client Layer</b>"]
+        direction LR
+        Web["<b>Web App</b><br/>React + Vite"]
+        Desktop["<b>Desktop App</b><br/>Electron"]
+    end
+
+    subgraph Gateway["<b>Local Gateway</b>&ensp;(FastAPI :7842)"]
+        direction TB
+        subgraph Routes["API Routes"]
+            direction LR
+            IngestR["Ingest"]
+            WikiR["Wiki"]
+            QueryR["Query"]
+            AuthR["Auth"]
+        end
+        subgraph Services["Service Layer"]
+            direction LR
+            IngestS["Ingest<br/>Service"]
+            CompilerS["Compiler<br/>Service"]
+            QueryS["Query<br/>Service"]
+            WikiS["Wiki<br/>Service"]
+        end
+        subgraph Core["Core Engine"]
+            direction LR
+            LLMRouter["LLM Router"]
+            Compiler["Article<br/>Compiler"]
+            QA["Q&A<br/>Agent"]
+            Linter["Wiki<br/>Linter"]
+        end
+        Jobs["ARQ Job Queue"]
+        WS["WebSocket Events"]
+    end
+
+    subgraph Providers["<b>LLM Providers</b>"]
+        direction LR
+        Claude["Anthropic<br/>Claude"]
+        GPT["OpenAI<br/>GPT"]
+        Gemini["Google<br/>Gemini"]
+        Ollama["Ollama<br/>(Local)"]
+    end
+
+    subgraph Storage["<b>Storage</b>"]
+        direction LR
+        DB[("SQLite /<br/>PostgreSQL")]
+        FS["Markdown<br/>Files"]
+        Raw["Raw Source<br/>Files"]
+    end
+
+    subgraph Sidecars["<b>Sidecars</b>"]
+        direction LR
+        Docling["docling-serve<br/>(PDF extraction)"]
+        Redis["Redis<br/>(Job queue)"]
+    end
+
+    Web & Desktop -->|"REST + WebSocket"| Routes
+    Routes --> Services
+    Services --> Core
+    LLMRouter --> Claude & GPT & Gemini & Ollama
+    IngestS --> Docling
+    Jobs --> Redis
+    Core --> Storage
+    Jobs -.->|"background tasks"| Core
+
+    classDef clientNode fill:#818CF8,stroke:#4338CA,color:#fff,rx:8
+    classDef gatewayNode fill:#6366F1,stroke:#4338CA,color:#fff,rx:8
+    classDef routeNode fill:#A5B4FC,stroke:#6366F1,color:#1E1B4B,rx:6
+    classDef serviceNode fill:#C7D2FE,stroke:#6366F1,color:#1E1B4B,rx:6
+    classDef coreNode fill:#E0E7FF,stroke:#6366F1,color:#1E1B4B,rx:6
+    classDef providerNode fill:#F9A8D4,stroke:#DB2777,color:#831843,rx:8
+    classDef storageNode fill:#6EE7B7,stroke:#059669,color:#064E3B,rx:8
+    classDef sidecarNode fill:#FCD34D,stroke:#D97706,color:#78350F,rx:8
+
+    class Web,Desktop clientNode
+    class IngestR,WikiR,QueryR,AuthR routeNode
+    class IngestS,CompilerS,QueryS,WikiS serviceNode
+    class LLMRouter,Compiler,QA,Linter coreNode
+    class Jobs,WS gatewayNode
+    class Claude,GPT,Gemini,Ollama providerNode
+    class DB,FS,Raw storageNode
+    class Docling,Redis sidecarNode

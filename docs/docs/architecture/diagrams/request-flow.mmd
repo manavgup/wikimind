@@ -1,0 +1,38 @@
+%%{init: {'theme': 'base', 'themeVariables': {'actorBkg': '#4F46E5', 'actorTextColor': '#fff', 'actorBorder': '#3730A3', 'activationBorderColor': '#6366F1', 'activationBkgColor': '#E0E7FF', 'signalColor': '#312E81', 'signalTextColor': '#1E1B4B', 'noteBkgColor': '#FEF3C7', 'noteBorderColor': '#F59E0B', 'noteTextColor': '#78350F', 'sequenceNumberColor': '#fff', 'fontSize': '14px'}}}%%
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as FastAPI Gateway
+    participant Adapter as Source Adapter
+    participant Queue as ARQ Job Queue
+    participant LLM as LLM Provider
+    participant Store as Storage
+
+    rect rgba(79, 70, 229, 0.08)
+        Note over User,Store: Phase 1 — Ingestion
+        User->>+API: POST /ingest/url
+        API->>+Adapter: Extract text + metadata
+        Adapter->>Store: Save raw source file
+        Adapter-->>-API: Source (status: ingested)
+        API-->>-User: 201 Created + Source ID
+    end
+
+    rect rgba(219, 39, 119, 0.08)
+        Note over User,Store: Phase 2 — Compilation (background)
+        API->>+Queue: Schedule compile job
+        Queue->>+LLM: Send source + system prompt
+        LLM-->>-Queue: JSON (article + claims + concepts)
+        Queue->>Store: Save article (.md + DB row)
+        Queue->>Store: Upsert concepts + backlinks
+        Queue-->>-API: Job complete
+        API-->>User: WebSocket: compilation.complete
+    end
+
+    rect rgba(5, 150, 105, 0.08)
+        Note over User,Store: Phase 3 — Query
+        User->>+API: POST /query
+        API->>Store: Retrieve relevant articles
+        API->>+LLM: Q&A with wiki context
+        LLM-->>-API: Answer + citations
+        API-->>-User: QueryResult (streamed)
+    end

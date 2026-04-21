@@ -4,20 +4,7 @@ The compiler is the core value-creation step in WikiMind. It transforms raw sour
 
 ## Pipeline Overview
 
-```mermaid
-flowchart LR
-    A["NormalizedDocument"] --> B{"Token count<br/>> 80K?"}
-    B -- No --> C["Single-pass compile"]
-    B -- Yes --> D["Chunked compile<br/>(up to 10 chunks)"]
-    D --> E["Merge results"]
-    C --> F["Parse JSON response"]
-    E --> F
-    F --> G["Save article<br/>(file + DB)"]
-    G --> H["Resolve backlinks"]
-    H --> I["Upsert concepts"]
-    I --> J["Trigger concept pages"]
-    J --> K["Regenerate index"]
-```
+![LLM Compilation Pipeline](diagrams/compilation-pipeline.svg)
 
 ## Prompt Contract
 
