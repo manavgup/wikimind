@@ -4,6 +4,7 @@
 #   gateway  — FastAPI app (uvicorn --reload), code mounted from host
 #   redis    — broker/result store for ARQ background jobs
 #   worker   — ARQ worker consuming the same code mount as the gateway
+#   docling  — PDF extraction sidecar (docling-serve)
 #
 # Bring up:   make docker-up
 # Build:      make docker-build
@@ -23,6 +24,7 @@ services:
       WIKIMIND_SERVER__HOST: 0.0.0.0
       WIKIMIND_SERVER__PORT: "7842"
       WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
     env_file:
       - path: .env
         required: false
@@ -33,6 +35,8 @@ services:
       - wikimind-data:/data
     depends_on:
       redis:
+        condition: service_healthy
+      docling:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7842/health"]
@@ -56,6 +60,7 @@ services:
     environment:
       WIKIMIND_DATA_DIR: /data
       WIKIMIND_REDIS_URL: redis://redis:6379/0
+      WIKIMIND_DOCLING_SERVE_URL: http://docling:5001
     env_file:
       - path: .env
         required: false
@@ -66,6 +71,8 @@ services:
       gateway:
         condition: service_started
       redis:
+        condition: service_healthy
+      docling:
         condition: service_healthy
 
   redis:
@@ -80,6 +87,18 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:latest
+    container_name: wikimind-docling
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   wikimind-data:

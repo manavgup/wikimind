@@ -1,8 +1,8 @@
 """PDF adapter for ingesting PDF files.
 
-Uses docling for structured extraction (heading hierarchy, tables, OCR fallback,
-multi-column layouts) when available. Falls back to plain-text extraction via
-fitz (pymupdf) otherwise.
+Uses docling-serve (an HTTP sidecar) for structured extraction (heading
+hierarchy, tables, OCR fallback, multi-column layouts). Falls back to
+plain-text extraction via fitz (pymupdf) when docling-serve is unavailable.
 
 Both branches honour the dual-file lineage convention from issue #59: the raw
 ``.pdf`` bytes are written to ``~/.wikimind/raw/{source_id}.pdf`` and the cleaned
@@ -12,7 +12,6 @@ pointing at the latter.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import re
 from datetime import date
@@ -20,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import fitz
+import httpx
 import structlog
 
 from wikimind.api.routes.ws import emit_source_progress
@@ -40,45 +40,26 @@ log = structlog.get_logger()
 
 
 # ---------------------------------------------------------------------------
-# Docling integration (issue #57)
+# Docling-serve HTTP client (replaces in-process docling)
 #
-# Docling is a structured document parser that preserves heading hierarchy,
-# tables, multi-column layouts, and OCR'd text. It is a core dependency
-# (installed by default). The PDF adapter falls back to ``fitz`` plain-text
-# extraction only if the import fails (e.g. in a stripped-down CI image).
+# The docling-serve container exposes /v1/convert/source for PDF-to-markdown
+# conversion. Falls back to fitz plain-text extraction if the sidecar is down.
 # ---------------------------------------------------------------------------
 
-try:
-    from docling.document_converter import DocumentConverter as _DocumentConverter
 
-    _DOCLING_AVAILABLE = True
-except ImportError:
-    _DocumentConverter = None  # type: ignore[assignment,misc]
-    _DOCLING_AVAILABLE = False
-
-# Lazy-initialized singleton converter — instantiating ``DocumentConverter``
-# triggers ML model loading (slow, ~500MB), so we defer it until the first PDF
-# is actually ingested.
-_docling_converter: Any = None
-
-
-def _get_docling_converter() -> Any:
-    """Lazy-initialize the Docling converter singleton.
-
-    Loads the underlying ML models on first call. Subsequent calls return the
-    cached converter so model initialization only happens once per process.
-
-    Returns:
-        The shared :class:`docling.document_converter.DocumentConverter`
-        instance. Typed as :class:`Any` because docling is an optional
-        dependency that may not be installed.
-    """
-    global _docling_converter
-    if _docling_converter is None:
-        if _DocumentConverter is None:  # pragma: no cover - guarded by caller
-            raise RuntimeError("Docling is not installed. Install with: pip install -e '.[dev]'")
-        _docling_converter = _DocumentConverter()
-    return _docling_converter
+async def _convert_via_docling_serve(pdf_path: Path) -> str:
+    """Send PDF to docling-serve sidecar, return extracted markdown."""
+    settings = get_settings()
+    url = f"{settings.docling_serve_url}/v1/convert/source"
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        with open(pdf_path, "rb") as f:
+            resp = await client.post(
+                url,
+                files={"source": (pdf_path.name, f, "application/pdf")},
+                data={"options": '{"to_format": "md"}'},
+            )
+        resp.raise_for_status()
+        return resp.json().get("document", {}).get("md_content", resp.text)
 
 
 # ---------------------------------------------------------------------------
@@ -145,11 +126,10 @@ def _first_markdown_heading(text: str) -> str | None:
 class PDFAdapter:
     """Adapter for ingesting PDF files.
 
-    Uses :mod:`docling` for structured extraction (heading hierarchy, tables,
-    OCR fallback, multi-column layouts) when the ``parse-advanced`` extras
-    group is installed. Falls back to plain-text extraction via
-    :mod:`fitz` (pymupdf) when docling is not available, preserving the
-    behaviour the project shipped with before issue #57.
+    Uses docling-serve (HTTP sidecar) for structured extraction (heading
+    hierarchy, tables, OCR fallback, multi-column layouts). Falls back to
+    plain-text extraction via :mod:`fitz` (pymupdf) when docling-serve is
+    unavailable.
 
     Both branches honour the dual-file lineage convention from issue #59: the
     raw ``.pdf`` bytes are written to ``~/.wikimind/raw/{source_id}.pdf`` and
@@ -174,8 +154,7 @@ class PDFAdapter:
             A tuple of the persisted :class:`Source` row and the in-memory
             :class:`NormalizedDocument` ready for compilation.
         """
-        extractor = "docling" if _DOCLING_AVAILABLE else "fitz"
-        log.info("Ingesting PDF", filename=filename, extractor=extractor)
+        log.info("Ingesting PDF", filename=filename)
 
         # Dedup: hash the raw PDF bytes and short-circuit if we've already
         # ingested this exact file (issue #67). The hash is computed before
@@ -213,13 +192,13 @@ class PDFAdapter:
         raw_pdf_path = raw_dir / f"{source.id}.pdf"
         raw_pdf_path.write_bytes(file_bytes)
 
-        # Extract text — prefer Docling for structured output (markdown with
-        # heading hierarchy, table-aware), fall back to fitz plain text when
-        # docling is not installed.  The batched path offloads each Docling
-        # call to a thread and emits extraction progress via WebSocket.
-        if _DOCLING_AVAILABLE:
-            clean_text, page_count = await self._extract_via_docling_batched(raw_pdf_path, source.id)
-        else:
+        # Extract text — prefer docling-serve for structured output (markdown
+        # with heading hierarchy, table-aware), fall back to fitz plain text
+        # when docling-serve is unavailable.
+        try:
+            clean_text, page_count = await self._extract_via_docling(raw_pdf_path, source.id)
+        except (httpx.HTTPError, httpx.ConnectError) as exc:
+            log.warning("docling-serve unavailable, falling back to fitz", error=str(exc))
             clean_text, page_count = self._extract_via_fitz(file_bytes)
 
         # If the title is still the filename fallback (no PDF metadata title),
@@ -260,7 +239,6 @@ class PDFAdapter:
             title=source.title,
             tokens=token_count,
             pages=page_count,
-            extractor=extractor,
         )
         return source, normalized
 
@@ -283,88 +261,28 @@ class PDFAdapter:
         doc.close()
         return "\n\n".join(pages_text), len(pages_text)
 
-    # Image extraction is handled by the frontend FiguresPanel which
-    # reads from ~/.wikimind/images/{source_id}/ populated during
-    # ingestion by the docling PictureItem/TableItem extraction.
-    # See issue #142 for the full design.
+    async def _extract_via_docling(self, raw_pdf_path: Path, source_id: str) -> tuple[str, int]:
+        """Extract PDF text via docling-serve HTTP API.
 
-    @staticmethod
-    def _extract_via_docling(raw_pdf_path: Path) -> tuple[str, int]:
-        """Extract structured markdown from a PDF using :mod:`docling`.
-
-        Docling preserves heading hierarchy, tables, multi-column layouts,
-        and OCR'd text in images. The result is markdown — a strict
-        improvement over fitz plain text for slide decks and academic papers.
-
-        Args:
-            raw_pdf_path: Path to the saved raw PDF on disk. Docling reads
-                from a path rather than a byte stream.
-
-        Returns:
-            A tuple of ``(markdown_text, page_count)``.
-        """
-        converter = _get_docling_converter()
-        result = converter.convert(str(raw_pdf_path))
-        markdown = result.document.export_to_markdown()
-        # Docling exposes pages on the document; fall back to 0 if the
-        # attribute is missing on a future release.
-        pages = getattr(result.document, "pages", None)
-        page_count = len(pages) if pages is not None else 0
-        return markdown, page_count
-
-    async def _extract_via_docling_batched(self, raw_pdf_path: Path, source_id: str) -> tuple[str, int]:
-        """Extract markdown from a PDF in page-range batches with progress.
-
-        Uses ``fitz`` to read the total page count instantly, then converts
-        in batches of ``settings.docling_batch_pages`` pages via
-        ``asyncio.to_thread`` so the event loop is never blocked. Between
-        batches an ``extraction.progress`` WebSocket event is emitted.
-
-        For small PDFs where the total page count is at or below the batch
-        size this collapses to a single batch (functionally identical to the
-        unbatched path, but still non-blocking).
+        Sends the PDF to the docling-serve sidecar for structured markdown
+        extraction (heading hierarchy, tables, multi-column layouts, OCR).
+        Page count is determined via fitz (fast, no ML).
 
         Args:
             raw_pdf_path: Path to the saved raw PDF on disk.
             source_id: Source ID used as the key for progress events.
 
         Returns:
-            A tuple of ``(markdown_text, total_pages)``.
+            A tuple of ``(markdown_text, page_count)``.
         """
-        # Get total page count instantly via fitz (always available).
+        await emit_source_progress(source_id, "Sending to docling-serve...")
+        md_content = await _convert_via_docling_serve(raw_pdf_path)
+        # Count pages via fitz (fast, no ML)
         doc = fitz.open(str(raw_pdf_path))
-        total_pages = doc.page_count
+        page_count = len(doc)
         doc.close()
-
-        settings = get_settings()
-        batch_size = settings.docling_batch_pages
-
-        await emit_source_progress(source_id, f"Extracting PDF ({total_pages} pages)...")
-
-        # Warm up the converter off the event loop — the first call to
-        # _get_docling_converter() triggers ~500 MB of model downloads
-        # and weight loading, which must not block the async event loop.
-        converter = await asyncio.to_thread(_get_docling_converter)
-        markdown_parts: list[str] = []
-
-        for start in range(1, total_pages + 1, batch_size):
-            end = min(start + batch_size - 1, total_pages)
-
-            def _convert_batch(
-                _conv: Any = converter,
-                _path: str = str(raw_pdf_path),
-                _start: int = start,
-                _end: int = end,
-            ) -> str:
-                result = _conv.convert(_path, page_range=(_start, _end))
-                return result.document.export_to_markdown()
-
-            batch_md = await asyncio.to_thread(_convert_batch)
-            markdown_parts.append(batch_md)
-            await emit_source_progress(source_id, f"Extracting pages {end}/{total_pages}...")
-
-        markdown = "\n\n".join(markdown_parts)
-        return markdown, total_pages
+        await emit_source_progress(source_id, "Extraction complete")
+        return md_content, page_count
 
     # -----------------------------------------------------------------------
     # Vision-enhanced slide deck ingestion (issue #68)

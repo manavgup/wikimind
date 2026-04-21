@@ -61,7 +61,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = [
-    "docling>=2.0",
+    # docling is now provided by docling-serve sidecar — no in-process dep needed.
 ]
 search = [
     "chromadb>=0.5.20",
@@ -71,7 +71,7 @@ transcribe = [
     "openai-whisper>=20240930",
 ]
 dev = [
-    "wikimind[test,lint,pdf]",
+    "wikimind[test,lint]",
 ]
 test = [
     "pytest>=8.3.3",

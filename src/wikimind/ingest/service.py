@@ -153,12 +153,9 @@ from wikimind.api.routes.ws import emit_source_progress  # noqa: E402, F401
 from wikimind.config import get_settings  # noqa: E402, F401
 from wikimind.engine.llm_router import get_llm_router  # noqa: E402, F401
 from wikimind.ingest.adapters.pdf import (  # noqa: E402
-    _DOCLING_AVAILABLE,
-    _docling_converter,
-    _DocumentConverter,
+    _convert_via_docling_serve,
     _extract_pdf_metadata,
     _first_markdown_heading,
-    _get_docling_converter,
     _parse_pdf_date,
 )
 from wikimind.ingest.utils import (  # noqa: E402
@@ -171,18 +168,15 @@ from wikimind.ingest.utils import (  # noqa: E402
 )
 
 __all__ = [
-    "_DOCLING_AVAILABLE",
     "IngestService",
     "PDFAdapter",
     "TextAdapter",
     "URLAdapter",
     "YouTubeAdapter",
-    "_DocumentConverter",
     "_check_source_dedup",
-    "_docling_converter",
+    "_convert_via_docling_serve",
     "_extract_pdf_metadata",
     "_first_markdown_heading",
-    "_get_docling_converter",
     "_parse_pdf_date",
     "chunk_text",
     "compute_hash",

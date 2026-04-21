@@ -13,18 +13,14 @@ primary_region = "ord"
 
 [build]
   dockerfile = "Dockerfile"
-  [build.args]
-    TORCH_INDEX = "https://download.pytorch.org/whl/cpu"
 
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
+  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
   # Gunicorn workers (see gunicorn.conf.py).
-  # Each worker loads Docling/PyTorch models (~250-400 MB RSS).
-  # 2 workers fits safely in 2 GB; async handles concurrency within each.
-  # 1 worker — Docling + OCR models consume ~500MB per worker.
-  # Async handles concurrency within the single worker.
-  WEB_CONCURRENCY = "1"
+  # Each worker is lightweight (~50MB RSS) since ML models run in docling-serve sidecar.
+  WEB_CONCURRENCY = "4"
 
 [http_service]
   internal_port = 7842
@@ -36,8 +32,8 @@ primary_region = "ord"
   # Fly spins up additional machines when connections exceed soft_limit.
   [http_service.concurrency]
     type = "connections"
-    hard_limit = 100
-    soft_limit = 80
+    hard_limit = 50
+    soft_limit = 25
 
 
 [deploy]
@@ -48,9 +44,9 @@ primary_region = "ord"
   destination = "/home/wikimind/.wikimind"
 
 [[vm]]
-  memory = "4gb"
+  memory = "1gb"
   cpu_kind = "shared"
-  cpus = 2
+  cpus = 1
 
 [checks]
   [checks.health]

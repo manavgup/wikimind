@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import fitz
+import httpx
 import pytest
 
 from wikimind.config import Settings, get_settings
@@ -409,7 +410,12 @@ class TestVisionIntegrationWithIngest:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The ingest method calls _enhance_with_vision after extraction."""
-        monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", False)
+        # Make docling-serve unavailable so fitz fallback is used
+        monkeypatch.setattr(
+            ingest_service,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        )
 
         mock_enhance = AsyncMock(return_value="enhanced text from vision")
         monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", mock_enhance)
@@ -432,7 +438,12 @@ class TestVisionIntegrationWithIngest:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When vision is disabled, ingest still works (returns fitz text)."""
-        monkeypatch.setattr(ingest_service, "_DOCLING_AVAILABLE", False)
+        # Make docling-serve unavailable so fitz fallback is used
+        monkeypatch.setattr(
+            ingest_service,
+            "_convert_via_docling_serve",
+            AsyncMock(side_effect=httpx.ConnectError("Connection refused")),
+        )
 
         fake_settings = Settings(
             data_dir=str(isolated_data_dir),
