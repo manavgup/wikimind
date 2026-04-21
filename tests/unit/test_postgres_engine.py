@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from wikimind.database import _create_engine_from_url
+from wikimind.database import _create_engine_from_url, _parse_ssl
 
 
 class TestCreateEngineFromUrl:
@@ -33,5 +33,40 @@ class TestCreateEngineFromUrl:
 
     def test_unknown_dialect_raises(self):
         """An unsupported database URL raises ValueError."""
-        with pytest.raises(ValueError, match="Unsupported database dialect"):
+        with pytest.raises(ValueError, match="Unsupported dialect"):
             _create_engine_from_url("mysql+aiomysql://localhost/db")
+
+
+class TestParseSsl:
+    """Verify _parse_ssl extracts sslmode from URL and returns connect_args."""
+
+    def test_no_sslmode_returns_empty(self):
+        url = "postgresql+asyncpg://u:p@host:5432/db"
+        clean, args = _parse_ssl(url)
+        assert clean == url
+        assert args == {}
+
+    def test_sslmode_disable(self):
+        url = "postgresql+asyncpg://u:p@host:5432/db?sslmode=disable"
+        clean, args = _parse_ssl(url)
+        assert "sslmode" not in clean
+        assert args == {"ssl": False}
+
+    def test_sslmode_require(self):
+        url = "postgresql+asyncpg://u:p@host:5432/db?sslmode=require"
+        clean, args = _parse_ssl(url)
+        assert "sslmode" not in clean
+        assert args == {"ssl": True}
+
+    def test_sslmode_with_other_params(self):
+        url = "postgresql+asyncpg://u:p@host:5432/db?sslmode=disable&application_name=test"
+        clean, args = _parse_ssl(url)
+        assert "application_name=test" in clean
+        assert "sslmode" not in clean
+        assert args == {"ssl": False}
+
+    def test_ssl_param_disable(self):
+        url = "postgresql+asyncpg://u:p@host:5432/db?ssl=disable"
+        clean, args = _parse_ssl(url)
+        assert "ssl" not in clean
+        assert args == {"ssl": False}

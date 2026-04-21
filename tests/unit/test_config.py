@@ -3,7 +3,7 @@
 import keyring
 import pytest
 
-from wikimind.config import Settings, get_settings
+from wikimind.config import Settings, _reconcile_providers, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -56,49 +56,43 @@ class TestAutoEnableProviders:
     """A provider whose API key is set should auto-enable on Settings init."""
 
     def test_openai_auto_enables_with_unprefixed_key(self, monkeypatch):
-        # Unprefixed env vars are read by the auto-enable validator
-        # but don't populate the SecretStr field directly (BaseSettings only
-        # picks up prefixed names). get_api_key() handles the fallback.
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
         s = Settings()
+        _reconcile_providers(s)
         assert s.llm.openai.enabled is True
 
     def test_openai_auto_enables_with_prefixed_key(self, monkeypatch):
         monkeypatch.setenv("WIKIMIND_OPENAI_API_KEY", "sk-test-456")
         s = Settings()
+        _reconcile_providers(s)
         assert s.llm.openai.enabled is True
-        # Prefixed env vars DO populate the SecretStr field directly
         assert s.openai_api_key is not None
         assert s.openai_api_key.get_secret_value() == "sk-test-456"
 
     def test_anthropic_disabled_when_no_key(self):
-        # Anthropic defaults to enabled=False like all other providers.
-        # Auto-enable flips False → True only when the API key is present.
         s = Settings()
+        _reconcile_providers(s)
         assert s.llm.anthropic.enabled is False
 
     def test_google_auto_enables_with_key(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "google-test")
         s = Settings()
+        _reconcile_providers(s)
         assert s.llm.google.enabled is True
 
     def test_no_auto_enable_when_no_keys(self):
         s = Settings()
+        _reconcile_providers(s)
         assert s.llm.anthropic.enabled is False
         assert s.llm.openai.enabled is False
         assert s.llm.google.enabled is False
         assert s.llm.ollama.enabled is False
 
     def test_explicit_false_overrides_auto_enable(self, monkeypatch):
-        # If a user explicitly sets enabled=false via env var, that should win.
-        # NOTE: validators run after env loading, so the env-set False is what
-        # the validator sees first. The validator only flips False → True if
-        # a key is present, so explicit-false-with-key gets re-enabled.
-        # This is acceptable: setting a key but disabling the provider is a
-        # contradiction the user probably didn't mean.
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         monkeypatch.setenv("WIKIMIND_LLM__OPENAI__ENABLED", "false")
         s = Settings()
+        _reconcile_providers(s)
         # Auto-enable wins because the key is present
         assert s.llm.openai.enabled is True
 
@@ -139,6 +133,7 @@ class TestKeyringBackendMissing:
         monkeypatch.setattr(keyring, "get_password", raise_no_keyring)
         # Should NOT raise — keyring failure is silently caught
         s = Settings()
+        _reconcile_providers(s)
         # Without any env vars set, no providers should auto-enable
         assert s.llm.openai.enabled is False
         assert s.llm.google.enabled is False
@@ -150,6 +145,7 @@ class TestKeyringBackendMissing:
         monkeypatch.setattr(keyring, "get_password", raise_no_keyring)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         s = Settings()
+        _reconcile_providers(s)
         # Env var path bypasses keyring entirely — auto-enable still works
         assert s.llm.openai.enabled is True
 
@@ -201,47 +197,37 @@ class TestRedisUrlConfig:
         assert s.redis_url == "redis://prefixed:6379/0"
 
 
-class TestSslmodeConversion:
-    """Verify that sslmode in DATABASE_URL is converted to asyncpg-compatible ssl."""
+class TestDatabaseUrlRewrite:
+    """Config rewrites scheme but passes sslmode through (database.py handles SSL)."""
 
-    def test_sslmode_disable_is_stripped(self, monkeypatch):
-        """sslmode=disable should be removed entirely — asyncpg defaults to no SSL."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=disable")
-        s = Settings()
-        assert "sslmode" not in s.database_url
-        assert "ssl" not in s.database_url
-
-    def test_sslmode_require_becomes_ssl_require(self, monkeypatch):
-        """sslmode=require should map to ssl=require."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require")
-        s = Settings()
-        assert "sslmode" not in s.database_url
-        assert "ssl=require" in s.database_url
-
-    def test_sslmode_verify_full_becomes_ssl_verify_full(self, monkeypatch):
-        """sslmode=verify-full should map to ssl=verify-full."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=verify-full")
-        s = Settings()
-        assert "sslmode" not in s.database_url
-        assert "ssl=verify-full" in s.database_url
-
-    def test_sslmode_verify_ca_becomes_ssl_verify_ca(self, monkeypatch):
-        """sslmode=verify-ca should map to ssl=verify-ca."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=verify-ca")
-        s = Settings()
-        assert "sslmode" not in s.database_url
-        assert "ssl=verify-ca" in s.database_url
-
-    def test_existing_ssl_param_not_overwritten(self, monkeypatch):
-        """If ssl= is already set, sslmode should be dropped without overwriting."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require&ssl=prefer")
-        s = Settings()
-        assert "ssl=prefer" in s.database_url
-        assert "sslmode" not in s.database_url
-
-    def test_scheme_rewritten_alongside_sslmode(self, monkeypatch):
-        """Both postgres:// → postgresql+asyncpg:// and sslmode → ssl should happen."""
-        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require")
+    def test_scheme_rewritten_postgres(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db")
         s = Settings()
         assert s.database_url.startswith("postgresql+asyncpg://")
-        assert "ssl=require" in s.database_url
+
+    def test_scheme_rewritten_postgresql(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@host:5432/db")
+        s = Settings()
+        assert s.database_url.startswith("postgresql+asyncpg://")
+
+    def test_sslmode_passes_through(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=disable")
+        s = Settings()
+        assert "sslmode=disable" in s.database_url
+        assert s.database_url.startswith("postgresql+asyncpg://")
+
+    def test_query_params_preserved(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgres://u:p@host:5432/db?sslmode=require&application_name=test")
+        s = Settings()
+        assert "application_name=test" in s.database_url
+        assert "sslmode=require" in s.database_url
+
+    def test_no_rewrite_when_already_postgresql(self, monkeypatch):
+        monkeypatch.setenv("WIKIMIND_DATABASE_URL", "postgresql+asyncpg://u:p@host/db")
+        monkeypatch.setenv("DATABASE_URL", "postgres://other:x@other/other")
+        s = Settings()
+        assert s.database_url == "postgresql+asyncpg://u:p@host/db"
+
+    def test_sqlite_default_when_no_env(self):
+        s = Settings()
+        assert "sqlite+aiosqlite" in s.database_url

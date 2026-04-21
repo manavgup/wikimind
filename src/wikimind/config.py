@@ -12,9 +12,9 @@ defaults so that partial overrides preserve unset fields.
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import keyring
 import keyring.errors
@@ -266,126 +266,15 @@ class Settings(BaseSettings):
     aws_secret_access_key: SecretStr | None = None
 
     @model_validator(mode="after")
-    def _default_database_url(self) -> Settings:
-        """Set database_url default after data_dir is resolved."""
+    def _post_init(self) -> Settings:
+        """Resolve env-var fallbacks that pydantic-settings can't handle natively."""
+        # Database URL: SQLite default, or rewrite unprefixed DATABASE_URL scheme
         if not self.database_url:
             self.database_url = f"sqlite+aiosqlite:///{self.data_dir}/db/wikimind.db"
-        return self
-
-    @model_validator(mode="after")
-    def _fallback_database_url(self) -> Settings:
-        """Fall back to the unprefixed DATABASE_URL env var for managed Postgres services.
-
-        Fly.io, Railway, Render, and Heroku set DATABASE_URL automatically
-        when attaching a managed Postgres instance. This validator lets those
-        deployments work without requiring WIKIMIND_DATABASE_URL to be set
-        manually. The scheme is rewritten from postgres:// or postgresql://
-        to postgresql+asyncpg:// for SQLAlchemy async compatibility.
-
-        Only activates when the current database_url is NOT already a Postgres
-        URL (i.e., when it's the SQLite default from _default_database_url).
-        """
         raw = os.environ.get("DATABASE_URL")
         if raw and not self.database_url.startswith("postgresql"):
-            if raw.startswith("postgres://"):
-                raw = raw.replace("postgres://", "postgresql+asyncpg://", 1)
-            elif raw.startswith("postgresql://"):
-                raw = raw.replace("postgresql://", "postgresql+asyncpg://", 1)
-            # asyncpg uses `ssl` not `sslmode` (a libpq/psycopg2 parameter).
-            # Fly.io sets DATABASE_URL with ?sslmode=disable — convert it.
-            parsed = urlparse(raw)
-            params = parse_qs(parsed.query)
-            sslmode = params.pop("sslmode", [None])[0]
-            if sslmode is not None and "ssl" not in params:
-                if sslmode == "disable":
-                    # Strip entirely — asyncpg defaults to no SSL, so omitting is correct.
-                    pass
-                elif sslmode in ("require", "verify-ca", "verify-full"):
-                    params["ssl"] = [sslmode]
-                else:
-                    log.warning(
-                        "Unhandled sslmode value — passing through as ssl",
-                        sslmode=sslmode,
-                    )
-                    params["ssl"] = [sslmode]
-            # Fly.io internal Postgres doesn't support SSL. When no ssl/sslmode
-            # param is present and we're running on Fly, explicitly disable SSL
-            # to prevent asyncpg's default SSL-first connection attempt.
-            if "ssl" not in params and os.environ.get("FLY_APP_NAME"):
-                params["ssl"] = ["disable"]
-            raw = urlunparse(parsed._replace(query=urlencode(params, doseq=True)))
-            self.database_url = raw
-        return self
-
-    @model_validator(mode="after")
-    def _auto_enable_providers_with_keys(self) -> Settings:
-        """Auto-enable any provider whose API key is configured.
-
-        Resolves the long-standing UX problem where exporting OPENAI_API_KEY
-        was not enough to use OpenAI — users also had to manually flip
-        WIKIMIND_LLM__OPENAI__ENABLED=true. Now any provider whose key is
-        present (env var, prefixed env var, or keyring) is automatically
-        marked enabled.
-
-        If a key is set but the user has explicitly disabled the provider via
-        env var, that override still wins — only the default-disabled state
-        is changed.
-        """
-        for provider_name, (field, raw_env) in _PROVIDER_KEY_FIELDS.items():
-            has_key = bool(
-                getattr(self, field)
-                or os.environ.get(raw_env)
-                or os.environ.get(f"WIKIMIND_{raw_env}")
-                or _safe_keyring_get(provider_name)
-            )
-            if not has_key:
-                continue
-            provider_cfg = getattr(self.llm, provider_name)
-            if not provider_cfg.enabled:
-                provider_cfg.enabled = True
-                log.info(
-                    "auto-enabled provider (key detected)",
-                    provider=provider_name,
-                    model=provider_cfg.model,
-                )
-        return self
-
-    @model_validator(mode="after")
-    def _warn_on_misconfigured_providers(self) -> Settings:
-        """Warn when a provider is enabled but has no key configured."""
-        for provider_name, (field, raw_env) in _PROVIDER_KEY_FIELDS.items():
-            provider_cfg = getattr(self.llm, provider_name)
-            if not provider_cfg.enabled:
-                continue
-            has_key = bool(
-                getattr(self, field)
-                or os.environ.get(raw_env)
-                or os.environ.get(f"WIKIMIND_{raw_env}")
-                or _safe_keyring_get(provider_name)
-            )
-            if not has_key:
-                log.warning(
-                    "provider enabled but no API key configured — calls will fail",
-                    provider=provider_name,
-                    hint=f"set {raw_env} in your environment or .env file",
-                )
-        return self
-
-    @model_validator(mode="after")
-    def _fallback_redis_url(self) -> Settings:
-        """Fall back to the unprefixed REDIS_URL env var when the prefixed form is unset.
-
-        Matches the dual-read pattern used for API keys — lets CI/CD pipelines
-        and production deployments that set the unprefixed ``REDIS_URL``
-        (documented in ADR-002) keep working while docker-compose and .env
-        files that use ``WIKIMIND_REDIS_URL`` (matching every other WikiMind
-        env var) also work out of the box. Precedence: prefixed wins over raw.
-
-        Empty string is treated as unset so that ``WIKIMIND_REDIS_URL=`` in a
-        compose file or .env falls through cleanly to the raw env var (and
-        then to ``None``) instead of being stored as a zero-length URL the
-        worker would later fail to parse.
-        """
+            self.database_url = re.sub(r"^postgres(ql)?://", "postgresql+asyncpg://", raw)
+        # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
         return self
@@ -442,11 +331,24 @@ class Settings(BaseSettings):
         )
 
 
+def _reconcile_providers(settings: Settings) -> None:
+    """Auto-enable providers with keys; warn about enabled ones without."""
+    for name, (_field, raw_env) in _PROVIDER_KEY_FIELDS.items():
+        cfg = getattr(settings.llm, name)
+        has_key = settings._has_provider_key(name)
+        if has_key and not cfg.enabled:
+            cfg.enabled = True
+            log.info("auto-enabled provider (key detected)", provider=name)
+        elif not has_key and cfg.enabled:
+            log.warning("provider enabled but no API key", provider=name, hint=f"set {raw_env}")
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Load and return application settings (cached singleton)."""
     settings = Settings()
     settings.ensure_dirs()
+    _reconcile_providers(settings)
     return settings
 
 
