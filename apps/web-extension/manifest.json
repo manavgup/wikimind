@@ -7,15 +7,8 @@
     "gecko": {
       "id": "wikimind@wikimind.io",
       "data_collection_permissions": {
-        "personally_identifying_info": false,
-        "health_info": false,
-        "financial_info": false,
-        "location_info": false,
-        "authentication_info": false,
-        "communications_info": false,
-        "identifier_info": false,
-        "usage_info": false,
-        "technical_and_interaction_info": true
+        "required": ["technicalAndInteraction"],
+        "optional": []
       }
     }
   },
