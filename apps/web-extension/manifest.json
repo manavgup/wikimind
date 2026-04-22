@@ -5,7 +5,18 @@
   "description": "Clip pages and query your personal knowledge base",
   "browser_specific_settings": {
     "gecko": {
-      "id": "wikimind@wikimind.io"
+      "id": "wikimind@wikimind.io",
+      "data_collection_permissions": {
+        "personally_identifying_info": false,
+        "health_info": false,
+        "financial_info": false,
+        "location_info": false,
+        "authentication_info": false,
+        "communications_info": false,
+        "identifier_info": false,
+        "usage_info": false,
+        "technical_and_interaction_info": true
+      }
     }
   },
   "permissions": ["activeTab", "storage"],
@@ -20,7 +31,8 @@
     }
   },
   "background": {
-    "service_worker": "service-worker.js"
+    "service_worker": "service-worker.js",
+    "scripts": ["service-worker.js"]
   },
   "icons": {
     "16": "icons/icon-16.png",
