@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "WikiMind Clipper",
+  "name": "WikiMind",
   "version": "0.1.0",
-  "description": "One-click web clipper for WikiMind",
+  "description": "Clip pages and query your personal knowledge base",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wikimind@wikimind.io"
+    }
+  },
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "https://wikimind.fly.dev/*"],
   "optional_host_permissions": ["https://*/*", "http://*/*"],

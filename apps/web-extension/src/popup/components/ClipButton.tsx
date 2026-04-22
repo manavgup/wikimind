@@ -1,4 +1,4 @@
-import type { ClipState } from "./App";
+import type { ClipState } from "./ClipTab";
 
 interface Props {
   state: ClipState;
