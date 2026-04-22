@@ -261,6 +261,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make extension-dev` | Build extension with watch mode for development |
 | `make extension-build` | Build browser extension for production |
 | `make extension-verify` | Run extension quality checks (typecheck + build) |
+| `make extension-package` | Build extension and create submission-ready zip |
 
 ### 🐳 DOCKER
 

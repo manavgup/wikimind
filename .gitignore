@@ -13,6 +13,9 @@ venv/
 # Node.js
 node_modules/
 
+# Extension build artifacts
+*.zip
+
 # IDE
 .vscode/
 .idea/

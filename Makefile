@@ -240,6 +240,14 @@ extension-verify: ## Run extension quality checks (typecheck + build)
 	@cd apps/web-extension && [ -d node_modules ] || npm install
 	cd apps/web-extension && npm run typecheck && npm run build
 
+.PHONY: extension-package
+extension-package: extension-build ## Build extension and create submission-ready zip
+	@VERSION=$$(jq -r .version apps/web-extension/manifest.json) && \
+	cd apps/web-extension/dist && \
+	rm -f ../wikimind-extension-v$$VERSION.zip && \
+	zip -r ../wikimind-extension-v$$VERSION.zip . && \
+	echo "Created apps/web-extension/wikimind-extension-v$$VERSION.zip"
+
 ##@ 🐳 DOCKER
 
 .PHONY: docker-build

@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------
+# 🌐  Publish Browser Extension to Chrome Web Store & Firefox AMO
+# ---------------------------------------------------------------
+#
+# Triggered by tags matching `extension/v*` (e.g. extension/v0.1.0).
+#
+# Workflow:
+#   1. Typecheck + test + build the extension
+#   2. Package dist/ into a zip
+#   3. Upload to Chrome Web Store (auto-publishes after Google review)
+#   4. Upload to Firefox AMO (auto-publishes after Mozilla review)
+#   5. Create a GitHub Release with the zip attached
+#
+# Prerequisites (one-time manual setup — see issue #285):
+#   - CHROME_EXTENSION_ID: from Chrome Web Store dashboard after first upload
+#   - CHROME_CLIENT_ID: Google Cloud Console → OAuth 2.0 credentials
+#   - CHROME_CLIENT_SECRET: same
+#   - CHROME_REFRESH_TOKEN: OAuth flow with chromewebstore scope
+#   - FIREFOX_JWT_ISSUER: AMO Developer Hub → API Keys
+#   - FIREFOX_JWT_SECRET: same
+# ---------------------------------------------------------------
+
+name: Extension Publish
+
+on:
+  push:
+    tags:
+      - "extension/v*"
+
+permissions:
+  contents: write  # needed for GitHub Release creation
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web-extension
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#extension/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package zip
+        run: |
+          cd dist
+          zip -r ../wikimind-extension-v${{ steps.version.outputs.version }}.zip .
+
+      - name: Upload to Chrome Web Store
+        if: ${{ vars.EXTENSION_PUBLISH_CHROME == 'true' }}
+        uses: mnao305/chrome-extension-upload@v5.0.0
+        with:
+          file-path: apps/web-extension/wikimind-extension-v${{ steps.version.outputs.version }}.zip
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish: true
+
+      - name: Upload to Firefox AMO
+        if: ${{ vars.EXTENSION_PUBLISH_FIREFOX == 'true' }}
+        uses: yayuyokitano/firefox-addon@v1.0.4
+        with:
+          api_key: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          api_secret: ${{ secrets.FIREFOX_JWT_SECRET }}
+          guid: "wikimind@wikimind.io"
+          xpi_path: apps/web-extension/wikimind-extension-v${{ steps.version.outputs.version }}.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Extension v${{ steps.version.outputs.version }}"
+          body: |
+            Browser extension release v${{ steps.version.outputs.version }}.
+
+            **Install:**
+            - Chrome Web Store: *(link after first publish)*
+            - Firefox Add-ons: *(link after first publish)*
+            - Manual: download the zip below, unzip, load unpacked in `chrome://extensions/`
+          files: apps/web-extension/wikimind-extension-v${{ steps.version.outputs.version }}.zip
