@@ -136,14 +136,15 @@ app.add_middleware(CorrelationIdMiddleware)
 # X-Forwarded-* headers before forwarding to the app.
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
-# Allow Electron renderer and web dev server to connect
+# Allow Electron renderer, web dev server, and browser extensions to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React dev server
-        "http://localhost:5173",  # Vite dev server
-        "app://.",  # Electron
-    ],
+    allow_origin_regex=(
+        r"^http://localhost:\d+$"  # Dev servers (React, Vite, etc.)
+        r"|^app://\.$"  # Electron renderer
+        r"|^chrome-extension://.*$"  # Chrome browser extension
+        r"|^moz-extension://.*$"  # Firefox browser extension
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

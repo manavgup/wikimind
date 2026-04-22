@@ -180,7 +180,7 @@ doc-coverage: ## Measure docstring coverage (fails if below fail-under threshold
 security: bandit vulture ## Run security and dead-code checks
 
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify ## Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop)
+verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension)
 
 .PHONY: coverage-check
 coverage-check: ## Run tests and fail if coverage is under 80%
@@ -220,6 +220,25 @@ desktop: ## Launch the Electron shell for local dev (requires apps/web/dist + .v
 desktop-verify: ## Run desktop typecheck + build (auto-installs deps if needed)
 	@cd apps/desktop && [ -d node_modules ] || npm install
 	cd apps/desktop && npm run typecheck && npm run build
+
+##@ 🌐 BROWSER EXTENSION
+
+.PHONY: extension-install
+extension-install: ## Install browser extension dependencies
+	cd apps/web-extension && npm install
+
+.PHONY: extension-dev
+extension-dev: ## Build extension with watch mode for development
+	cd apps/web-extension && npm run dev
+
+.PHONY: extension-build
+extension-build: ## Build browser extension for production
+	cd apps/web-extension && npm run build
+
+.PHONY: extension-verify
+extension-verify: ## Run extension quality checks (typecheck + build)
+	@cd apps/web-extension && [ -d node_modules ] || npm install
+	cd apps/web-extension && npm run typecheck && npm run build
 
 ##@ 🐳 DOCKER
 
