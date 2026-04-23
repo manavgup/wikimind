@@ -43,7 +43,8 @@ class YouTubeAdapter:
         # Extract video ID
         video_id = self._extract_video_id(url)
         if not video_id:
-            raise ValueError(f"Could not extract YouTube video ID from {url}")
+            msg = f"Could not extract YouTube video ID from {url}"
+            raise ValueError(msg)
 
         # Fetch transcript — offload the synchronous HTTP call to a thread
         # so it doesn't block the uvicorn event loop (issue #181).

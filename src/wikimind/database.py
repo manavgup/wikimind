@@ -68,7 +68,8 @@ def _create_engine_from_url(url: str):
             connect_args=connect_args,
         )
     dialect = url.split("://", maxsplit=1)[0]
-    raise ValueError(f"Unsupported dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg.")
+    msg = f"Unsupported dialect: {dialect}. Use sqlite+aiosqlite or postgresql+asyncpg."
+    raise ValueError(msg)
 
 
 def get_db_path() -> Path:
@@ -405,10 +406,8 @@ def _repair_json_array(raw: str) -> str | None:
         pass
 
     inner = raw.strip()
-    if inner.startswith("["):
-        inner = inner[1:]
-    if inner.endswith("]"):
-        inner = inner[:-1]
+    inner = inner.removeprefix("[")
+    inner = inner.removesuffix("]")
 
     items = [part for part in inner.split('"') if part.strip()]
     return json.dumps(items)

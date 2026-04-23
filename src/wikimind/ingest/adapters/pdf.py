@@ -103,8 +103,7 @@ def _parse_pdf_date(raw: str | None) -> date | None:
         return None
     # Strip the ``D:`` prefix that PDF date strings use.
     cleaned = raw.strip()
-    if cleaned.startswith("D:"):
-        cleaned = cleaned[2:]
+    cleaned = cleaned.removeprefix("D:")
     # We only need YYYYMMDD — ignore time/timezone suffixes.
     if len(cleaned) < 8:
         return None

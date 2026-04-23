@@ -21,7 +21,8 @@ class OpenAIProvider:
     def __init__(self):
         api_key = get_api_key("openai")
         if not api_key:
-            raise ValueError("OpenAI API key not configured")
+            msg = "OpenAI API key not configured"
+            raise ValueError(msg)
         self.client = openai.AsyncOpenAI(api_key=api_key)
 
     async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:

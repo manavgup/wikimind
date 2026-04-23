@@ -11,10 +11,10 @@ from wikimind.api.routes import ingest, jobs, query, settings, wiki, ws  # noqa:
 from wikimind.models import *  # noqa: F403
 
 # Pydantic model_config
-_.model_config  # noqa
+_.model_config
 
 # ARQ worker settings
-_.cron_jobs  # noqa
-_.functions  # noqa
-_.on_startup  # noqa
-_.redis_settings  # noqa
+_.cron_jobs
+_.functions
+_.on_startup
+_.redis_settings

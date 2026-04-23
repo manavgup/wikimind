@@ -67,7 +67,8 @@ class URLAdapter:
         )
 
         if not downloaded:
-            raise ValueError(f"Could not extract content from {url}")
+            msg = f"Could not extract content from {url}"
+            raise ValueError(msg)
 
         # Parse metadata
         meta = trafilatura.extract_metadata(html)

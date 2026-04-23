@@ -21,7 +21,8 @@ class AnthropicProvider:
     def __init__(self):
         api_key = get_api_key("anthropic")
         if not api_key:
-            raise ValueError("Anthropic API key not configured")
+            msg = "Anthropic API key not configured"
+            raise ValueError(msg)
         self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:

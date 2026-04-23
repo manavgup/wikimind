@@ -134,6 +134,12 @@ select = [
     "ARG",    # flake8-unused-arguments
     "C90",    # mccabe — cyclomatic complexity
     "TCH",    # flake8-type-checking
+    "EM",     # flake8-errmsg — no string literals in exceptions
+    "FURB",   # refurb — modern Python idioms
+    "G",      # flake8-logging-format — logging best practices
+    "FA",     # flake8-future-annotations — from __future__ import annotations
+    "PGH",    # pygrep-hooks — misc. code quality (blanket noqa, etc.)
+    "FLY",    # flynt — prefer f-strings over .format()
 ]
 ignore = [
     "E501",   # line too long — handled by formatter
@@ -163,9 +169,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ", "ARG"]
-"scripts/**/*.py" = ["T20", "S"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ", "ARG", "EM"]
+"scripts/**/*.py" = ["T20", "S", "EM"]
 "alembic/**/*.py" = ["N"]
+"vulture_whitelist.py" = ["B018", "F405", "PGH004"]  # Intentional dead-code references for vulture
 
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]

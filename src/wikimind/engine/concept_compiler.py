@@ -184,7 +184,7 @@ class ConceptCompiler:
         source_material = _build_source_material(source_articles, user_id=concept.user_id)
         source_ids = [a.id for a in source_articles]
         ct = await _collect_contradictions(source_ids, session)
-        contradiction_section = ct if ct else "No known contradictions."
+        contradiction_section = ct or "No known contradictions."
         prompt = template.format(
             concept_name=concept.description or concept.name,
             concept_description=concept.description or concept.name,
