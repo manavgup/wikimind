@@ -6,9 +6,17 @@ linter alerts, and sync status as they happen.
 Connections are tracked per ``user_id`` so broadcasts reach only the
 owning user. When ``user_id`` is ``None`` (single-user / legacy mode),
 broadcasts go to all connections.
+
+Multi-replica support
+---------------------
+When ``Settings.redis_url`` is set, broadcasts are published to a Redis
+Pub/Sub channel so that every gateway replica receives the event and
+forwards it to its local WebSocket connections. Without Redis the manager
+falls back to local-only delivery (single-replica dev mode).
 """
 
 import asyncio
+import contextlib
 import json
 
 import structlog
@@ -23,10 +31,134 @@ router = APIRouter()
 # Sentinel key for connections with no user_id (single-user / legacy mode).
 _NO_USER: str = "__no_user__"
 
+# Redis Pub/Sub channel name for cross-replica WebSocket broadcasts.
+_REDIS_WS_CHANNEL: str = "wikimind:ws:broadcast"
+
+
+# ---------------------------------------------------------------------------
+# Redis Pub/Sub helpers
+# ---------------------------------------------------------------------------
+
+_redis_publish_pool = None
+_subscriber_task: asyncio.Task | None = None
+
+
+async def _get_redis():
+    """Return a shared ``redis.asyncio.Redis`` connection for publishing.
+
+    Lazily created on first call. Returns ``None`` when Redis is not
+    configured or the ``redis`` package is unavailable.
+    """
+    global _redis_publish_pool
+    if _redis_publish_pool is not None:
+        return _redis_publish_pool
+
+    redis_url = get_settings().redis_url
+    if not redis_url:
+        return None
+
+    try:
+        from redis.asyncio import Redis  # noqa: PLC0415
+
+        _redis_publish_pool = Redis.from_url(redis_url, decode_responses=True)
+        return _redis_publish_pool
+    except Exception:
+        log.debug("Redis unavailable for WebSocket pub/sub — local-only mode")
+        return None
+
+
+async def _publish_to_redis(event: dict, user_id: str | None) -> bool:
+    """Publish a broadcast payload to the Redis Pub/Sub channel.
+
+    Returns ``True`` if the message was published, ``False`` otherwise
+    (no Redis, connection error, etc.).
+    """
+    redis = await _get_redis()
+    if redis is None:
+        return False
+
+    payload = json.dumps({"event": event, "user_id": user_id})
+    try:
+        await redis.publish(_REDIS_WS_CHANNEL, payload)
+        return True
+    except Exception:
+        log.warning("Failed to publish WebSocket event to Redis", exc_info=True)
+        return False
+
+
+async def _start_redis_subscriber() -> None:
+    """Start a background task that subscribes to the Redis Pub/Sub channel.
+
+    Received messages are forwarded to local WebSocket connections via
+    ``manager._local_broadcast()``. Safe to call multiple times — only
+    one subscriber is started per process.
+    """
+    global _subscriber_task
+    if _subscriber_task is not None:
+        return
+
+    redis_url = get_settings().redis_url
+    if not redis_url:
+        return
+
+    try:
+        from redis.asyncio import Redis  # noqa: PLC0415
+
+        subscriber_redis = Redis.from_url(redis_url, decode_responses=True)
+    except Exception:
+        log.debug("Redis unavailable — skipping WebSocket subscriber")
+        return
+
+    async def _listen() -> None:
+        """Subscribe to the Redis channel and relay events to local clients."""
+        pubsub = subscriber_redis.pubsub()
+        try:
+            await pubsub.subscribe(_REDIS_WS_CHANNEL)
+            log.info("WebSocket Redis subscriber started", channel=_REDIS_WS_CHANNEL)
+            async for raw_message in pubsub.listen():
+                if raw_message["type"] != "message":
+                    continue
+                try:
+                    payload = json.loads(raw_message["data"])
+                    event = payload["event"]
+                    user_id = payload.get("user_id")
+                    await manager._local_broadcast(event, user_id=user_id)
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    log.debug("Ignoring malformed Redis WS message")
+        except asyncio.CancelledError:
+            await pubsub.unsubscribe(_REDIS_WS_CHANNEL)
+            await subscriber_redis.aclose()
+        except Exception:
+            log.warning("Redis WebSocket subscriber error", exc_info=True)
+
+    _subscriber_task = asyncio.create_task(_listen())
+
+
+async def stop_redis_subscriber() -> None:
+    """Cancel the Redis subscriber task (called on shutdown)."""
+    global _subscriber_task, _redis_publish_pool
+    if _subscriber_task is not None:
+        _subscriber_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await _subscriber_task
+        _subscriber_task = None
+    if _redis_publish_pool is not None:
+        await _redis_publish_pool.aclose()
+        _redis_publish_pool = None
+
 
 # Global connection manager
 class ConnectionManager:
-    """Manage active WebSocket connections, scoped per user_id."""
+    """Manage active WebSocket connections, scoped per user_id.
+
+    In multi-replica mode (Redis available), ``broadcast()`` publishes to
+    a Redis Pub/Sub channel. A background subscriber task on each replica
+    receives the message and calls ``_local_broadcast()`` to deliver it to
+    that replica's local WebSocket connections.
+
+    In single-replica mode (no Redis), ``broadcast()`` calls
+    ``_local_broadcast()`` directly.
+    """
 
     def __init__(self) -> None:
         self._connections: dict[str, set[WebSocket]] = {}
@@ -55,10 +187,26 @@ class ConnectionManager:
         log.info("WebSocket disconnected", total=len(self.active))
 
     async def broadcast(self, event: dict, user_id: str | None = None) -> None:
-        """Broadcast *event* to a specific user's connections.
+        """Broadcast *event* to a specific user's connections across all replicas.
+
+        When Redis is available, the event is published to a Pub/Sub channel
+        and the subscriber task on each replica delivers it locally. When
+        Redis is unavailable, falls back to local-only delivery.
 
         When *user_id* is ``None``, the event is sent to **all**
         connections (backward-compatible single-user behaviour).
+        """
+        published = await _publish_to_redis(event, user_id)
+        if not published:
+            # No Redis — deliver locally (single-replica mode).
+            await self._local_broadcast(event, user_id=user_id)
+
+    async def _local_broadcast(self, event: dict, user_id: str | None = None) -> None:
+        """Deliver *event* to this replica's local WebSocket connections only.
+
+        Called directly in single-replica mode, or by the Redis subscriber
+        in multi-replica mode. Never call this from application code — use
+        :meth:`broadcast` instead.
         """
         targets = self.active if user_id is None else self._connections.get(user_id, set())
 
@@ -98,6 +246,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     The optional ``user_id`` query parameter associates the connection
     with a specific user so broadcasts are scoped correctly.
     """
+    # Ensure the Redis subscriber is running (idempotent).
+    await _start_redis_subscriber()
+
     user_id: str | None = websocket.query_params.get("user_id")
     await manager.connect(websocket, user_id=user_id)
     try:

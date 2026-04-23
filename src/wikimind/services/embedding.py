@@ -121,6 +121,12 @@ class EmbeddingService:
 
     Requires the ``[search]`` optional extras (chromadb, sentence-transformers).
     All public methods raise ``RuntimeError`` if the extras are not installed.
+
+    Multi-replica safety: ChromaDB ``PersistentClient`` uses local SQLite,
+    which is not safe for concurrent writers across replicas. Embedding
+    writes (``embed_article``, ``delete_article``) MUST be routed through
+    the ARQ worker (single-writer pattern). Read-only ``search`` calls are
+    safe from any replica because SQLite handles concurrent readers.
     """
 
     def __init__(self) -> None:

@@ -52,11 +52,11 @@ Removed `container_name` from the gateway service. Docker Compose refuses `--sca
 
 ### Known blockers for multi-replica gateway
 
-These must be resolved before running multiple gateway containers behind a load balancer:
+Items 1–3 were resolved in [ADR-026](adr-026-multi-replica-gateway.md) (#212):
 
-1. **WebSocket `ConnectionManager`** — in-process `set[WebSocket]` means broadcasts only reach clients on the same replica. Fix: Redis Pub/Sub for cross-replica event distribution.
-2. **ChromaDB `PersistentClient`** — writes to a local SQLite file, unsafe for concurrent writers across replicas. Fix: managed vector database (Qdrant, Weaviate) or route embedding writes through the worker.
-3. **LLM budget tracking** — `_budget_warning_sent` flags in `LLMRouter` are per-process, causing duplicate alerts. Fix: move budget state to Redis or Postgres.
+1. ~~**WebSocket `ConnectionManager`**~~ — **Resolved.** Redis Pub/Sub for cross-replica event distribution.
+2. ~~**ChromaDB `PersistentClient`**~~ — **Resolved.** Embedding writes already routed through single-writer ARQ.
+3. ~~**LLM budget tracking**~~ — **Resolved.** Budget dedup flags moved to Redis with TTL.
 4. **Frontend `VITE_API_URL`** — baked in at build time, cannot redirect to a different backend without rebuilding. Fix: runtime configuration via `window.__CONFIG__` or relative URLs.
 
 ## Alternatives Considered
