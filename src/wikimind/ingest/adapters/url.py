@@ -6,7 +6,6 @@ and returns a NormalizedDocument for downstream compilation.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -22,6 +21,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
+from wikimind.storage import resolve_raw_path
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,7 +32,12 @@ log = structlog.get_logger()
 class URLAdapter:
     """Adapter for ingesting web URLs."""
 
-    async def ingest(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
+    async def ingest(
+        self,
+        url: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> tuple[Source, NormalizedDocument]:
         """Ingest a web URL and return source and normalized document."""
         log.info("Ingesting URL", url=url)
 
@@ -77,6 +82,7 @@ class URLAdapter:
             author=author,
             status=IngestStatus.PROCESSING,
             content_hash=content_hash,
+            user_id=user_id,
         )
         session.add(source)
         await session.commit()
@@ -84,11 +90,10 @@ class URLAdapter:
 
         # Save clean extracted text (used by the compiler worker) and
         # keep the raw HTML alongside it for reference/reprocessing.
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / f"{source.id}.html").write_text(html, encoding="utf-8")
-        text_path = raw_dir / f"{source.id}.txt"
+        html_path = resolve_raw_path(f"{source.id}.html", user_id=source.user_id)
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        html_path.write_text(html, encoding="utf-8")
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
         text_path.write_text(downloaded, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
 

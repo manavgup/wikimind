@@ -15,7 +15,6 @@ from __future__ import annotations
 import base64
 import re
 from datetime import date
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import fitz
@@ -32,8 +31,11 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType, TaskType
+from wikimind.storage import resolve_raw_path
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
@@ -142,6 +144,7 @@ class PDFAdapter:
         file_bytes: bytes,
         filename: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a PDF file and return source and normalized document.
 
@@ -149,6 +152,7 @@ class PDFAdapter:
             file_bytes: Raw PDF binary contents.
             filename: Original upload filename, used for the source title.
             session: Async database session.
+            user_id: Optional user ID for user-scoped file storage.
 
         Returns:
             A tuple of the persisted :class:`Source` row and the in-memory
@@ -177,6 +181,7 @@ class PDFAdapter:
             published_date=pdf_meta.published_date,
             status=IngestStatus.PROCESSING,
             content_hash=content_hash,
+            user_id=user_id,
         )
         session.add(source)
         await session.commit()
@@ -186,10 +191,8 @@ class PDFAdapter:
         # worker only ever reads the .txt file (see issue #59), so file_path
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        raw_pdf_path = raw_dir / f"{source.id}.pdf"
+        raw_pdf_path = resolve_raw_path(f"{source.id}.pdf", user_id=source.user_id)
+        raw_pdf_path.parent.mkdir(parents=True, exist_ok=True)
         raw_pdf_path.write_bytes(file_bytes)
 
         # Extract text — prefer docling-serve for structured output (markdown
@@ -217,7 +220,7 @@ class PDFAdapter:
         except Exception:  # TODO: narrow once provider error hierarchy is unified
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
-        text_path = raw_dir / f"{source.id}.txt"
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
         text_path.write_text(clean_text, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
 

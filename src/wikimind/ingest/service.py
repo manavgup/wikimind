@@ -44,7 +44,12 @@ class IngestService:
         self.text_adapter = TextAdapter()
         self.youtube_adapter = YouTubeAdapter()
 
-    async def ingest_url(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
+    async def ingest_url(
+        self,
+        url: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> tuple[Source, NormalizedDocument]:
         """Ingest a URL, routing to the appropriate adapter.
 
         Routing order:
@@ -54,12 +59,12 @@ class IngestService:
         3. Everything else -> URLAdapter (trafilatura HTML extraction)
         """
         if "youtube.com" in url or "youtu.be" in url:
-            return await self.youtube_adapter.ingest(url, session)
+            return await self.youtube_adapter.ingest(url, session, user_id=user_id)
 
         if self._looks_like_pdf_url(url):
-            return await self._ingest_pdf_url(url, session)
+            return await self._ingest_pdf_url(url, session, user_id=user_id)
 
-        return await self._ingest_html_url_with_pdf_fallback(url, session)
+        return await self._ingest_html_url_with_pdf_fallback(url, session, user_id=user_id)
 
     # ------------------------------------------------------------------
     # Private helpers for PDF-URL routing
@@ -74,7 +79,12 @@ class IngestService:
         path = urlparse(url).path
         return path.lower().endswith(".pdf")
 
-    async def _ingest_pdf_url(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
+    async def _ingest_pdf_url(
+        self,
+        url: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> tuple[Source, NormalizedDocument]:
         """Download a PDF from *url* and delegate to :class:`PDFAdapter`."""
         timeout = get_settings().ingest.http_timeout_seconds
         async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
@@ -85,14 +95,17 @@ class IngestService:
             response.raise_for_status()
 
         filename = Path(urlparse(url).path).name or "download.pdf"
-        source, doc = await self.pdf_adapter.ingest(response.content, filename, session)
+        source, doc = await self.pdf_adapter.ingest(response.content, filename, session, user_id=user_id)
         source.source_url = url
         session.add(source)
         await session.commit()
         return source, doc
 
     async def _ingest_html_url_with_pdf_fallback(
-        self, url: str, session: AsyncSession
+        self,
+        url: str,
+        session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Source, NormalizedDocument]:
         """Fetch a URL; if the response is a PDF, fall back to the PDF adapter.
 
@@ -113,7 +126,7 @@ class IngestService:
             filename = Path(urlparse(url).path).name or "download.pdf"
             if not filename.lower().endswith(".pdf"):
                 filename += ".pdf"
-            source, doc = await self.pdf_adapter.ingest(response.content, filename, session)
+            source, doc = await self.pdf_adapter.ingest(response.content, filename, session, user_id=user_id)
             source.source_url = url
             session.add(source)
             await session.commit()
@@ -124,19 +137,27 @@ class IngestService:
         # because URLAdapter.ingest() encapsulates the full fetch+extract
         # pipeline. The overhead of a second fetch is acceptable for the
         # non-PDF case.
-        return await self.url_adapter.ingest(url, session)
+        return await self.url_adapter.ingest(url, session, user_id=user_id)
 
     async def ingest_pdf(
-        self, file_bytes: bytes, filename: str, session: AsyncSession
+        self,
+        file_bytes: bytes,
+        filename: str,
+        session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a PDF file."""
-        return await self.pdf_adapter.ingest(file_bytes, filename, session)
+        return await self.pdf_adapter.ingest(file_bytes, filename, session, user_id=user_id)
 
     async def ingest_text(
-        self, content: str, title: str | None, session: AsyncSession
+        self,
+        content: str,
+        title: str | None,
+        session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest raw text content."""
-        return await self.text_adapter.ingest(content, title, session)
+        return await self.text_adapter.ingest(content, title, session, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------

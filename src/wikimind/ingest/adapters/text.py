@@ -6,12 +6,10 @@ are the same ``.txt`` file.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
 
-from wikimind.config import get_settings
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -19,6 +17,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
+from wikimind.storage import resolve_raw_path
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -34,6 +33,7 @@ class TextAdapter:
         content: str,
         title: str | None,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest raw text and return source and normalized document."""
         log.info("Ingesting text", title=title, chars=len(content))
@@ -52,6 +52,7 @@ class TextAdapter:
             status=IngestStatus.PROCESSING,
             token_count=estimate_tokens(content),
             content_hash=content_hash,
+            user_id=user_id,
         )
         session.add(source)
         await session.commit()
@@ -60,10 +61,8 @@ class TextAdapter:
         # Pasted text is already plain text, so the raw and cleaned files are
         # the same .txt file. file_path always points at the .txt the worker
         # reads (see issue #59).
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        text_path = raw_dir / f"{source.id}.txt"
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
+        text_path.parent.mkdir(parents=True, exist_ok=True)
         text_path.write_text(content, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
         session.add(source)
