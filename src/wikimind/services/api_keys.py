@@ -36,10 +36,11 @@ def _derive_fernet_key(salt: bytes) -> bytes:
     settings = get_settings()
     secret = settings.auth.jwt_secret_key
     if not secret:
-        raise ValueError(
+        msg = (
             "JWT_SECRET_KEY must be configured for BYOK encryption. "
             "Set WIKIMIND_AUTH__JWT_SECRET_KEY in your environment."
         )
+        raise ValueError(msg)
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
