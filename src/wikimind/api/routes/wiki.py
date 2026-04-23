@@ -3,6 +3,7 @@
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -177,7 +178,7 @@ async def get_health(
             orphans_count=detail.report.orphans_count,
             status=detail.report.status,
         )
-    except Exception:
+    except (HTTPException, SQLAlchemyError):
         count_result = await session.execute(select(func.count()).select_from(Article))
         return HealthSummaryResponse(
             total_articles=count_result.scalar() or 0,

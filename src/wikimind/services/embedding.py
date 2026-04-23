@@ -275,7 +275,7 @@ class EmbeddingService:
         """
         try:
             self._collection.delete(where={"article_id": article_id})
-        except Exception:
+        except (ValueError, RuntimeError):
             # Collection may be empty or article may not exist -- both are fine
             log.debug("delete_article no-op", article_id=article_id)
 
@@ -302,6 +302,6 @@ def get_embedding_service() -> EmbeddingService | None:
         return None
     try:
         return EmbeddingService()
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         log.warning("Failed to initialize EmbeddingService")
         return None

@@ -213,7 +213,7 @@ class ConceptCompiler:
         try:
             response = await self.router.complete(request, session=session)
             self._last_provider_used = response.provider_used
-        except Exception:
+        except (RuntimeError, ValueError):
             log.warning(
                 "Concept page LLM call failed",
                 concept=concept.name,
@@ -223,7 +223,7 @@ class ConceptCompiler:
         try:
             data = self.router.parse_json_response(response)
             compilation = ConceptCompilationResult(**data)
-        except Exception:
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
             log.warning(
                 "Concept page response parsing failed",
                 concept=concept.name,

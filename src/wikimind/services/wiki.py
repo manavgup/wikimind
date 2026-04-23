@@ -73,7 +73,7 @@ def _read_article_content(file_path: str, user_id: str | None = None) -> str:
     """
     try:
         return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
-    except Exception:
+    except OSError:
         return ""
 
 
@@ -441,7 +441,7 @@ class WikiService:
                 try:
                     semantic_results = embedding_service.search(q, limit=limit)
                     merged = _merge_hybrid_scores(keyword_scores_map, semantic_results)
-                except Exception:
+                except (RuntimeError, ValueError, OSError):
                     log.warning("Semantic search failed, falling back to keyword-only")
                     merged = keyword_scores_map
             else:

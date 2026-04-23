@@ -167,7 +167,7 @@ async def compile_source(
                         )
                         embedding_service.embed_article(article.id, article.title, content)
                         log.info("Article embedded", article_id=article.id)
-                except Exception as embed_err:
+                except (RuntimeError, ValueError, OSError) as embed_err:
                     log.warning(
                         "Embedding failed (non-fatal)",
                         article_id=article.id,
@@ -179,7 +179,7 @@ async def compile_source(
             # idempotent, and safe to fire on every compile.
             await sweep_wikilinks(ctx, user_id=user_id)
 
-        except Exception as e:
+        except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("compile_source failed", source_id=source_id, error=str(e))
 
             source.status = IngestStatus.FAILED
@@ -228,7 +228,7 @@ async def lint_wiki(_ctx, user_id: str | None = None):
 
             log.info("lint_wiki complete", summary=job.result_summary)
 
-        except Exception as e:
+        except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("lint_wiki failed", error=str(e))
             job.status = JobStatus.FAILED
             job.error = str(e)
@@ -338,7 +338,7 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
             log.info("recompile_article complete", article_id=article_id, mode=mode)
 
-        except Exception as e:
+        except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("recompile_article failed", article_id=article_id, error=str(e))
 
             job.status = JobStatus.FAILED

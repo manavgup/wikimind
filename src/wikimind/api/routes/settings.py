@@ -295,7 +295,7 @@ async def test_llm_connection(provider: str):
             status="ok",
             latency_ms=response.latency_ms,
         )
-    except Exception as e:
+    except Exception as e:  # TODO: narrow once provider error hierarchy is unified
         return LLMTestResponse(
             provider=provider,
             status="error",

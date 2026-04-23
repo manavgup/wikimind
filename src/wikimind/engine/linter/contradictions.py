@@ -296,7 +296,7 @@ async def _run_batch(
                     await _create_contradiction_backlink(session, art_a.id, art_b.id, ctx)
             return findings
 
-        except Exception:
+        except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
             if attempt == 0:
                 log.warning("Batch LLM call failed, retrying once", exc_info=True)
             else:
@@ -614,7 +614,7 @@ async def _compare_article_pair(
     try:
         response = await router.complete(request, session=None)
         data = router.parse_json_response(response)
-    except Exception:
+    except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
         log.warning(
             "LLM call failed for contradiction check",
             article_a=article_a.title,

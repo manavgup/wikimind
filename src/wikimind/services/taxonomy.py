@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from wikimind.config import get_settings
@@ -200,7 +201,7 @@ async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
             article = await compiler.compile_concept_page(concept, session)
             if article is not None:
                 compiled.append(concept.name)
-        except Exception:
+        except (RuntimeError, ValueError, SQLAlchemyError):
             log.warning("Concept page compilation failed", concept=concept.name, exc_info=True)
     return compiled
 

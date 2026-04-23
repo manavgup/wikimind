@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -206,7 +206,7 @@ class Compiler:
             result.provider = self._last_provider_used
             result.page_type = PageType.SOURCE
             return result
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             log.error(
                 "Failed to parse compilation response",
                 error=str(e),
@@ -377,7 +377,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             # pairs (issue #152 — greenlet_spawn error).
             async with get_session_factory()() as concept_session:
                 await maybe_trigger_concept_pages(concept_session)
-        except Exception:
+        except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning("taxonomy upsert failed", article_id=article.id)
 
         try:
@@ -386,12 +386,12 @@ Compile this into a wiki article following the JSON schema exactly."""
                 article.title,
                 extra={"source_id": source.id, "article_slug": article.slug},
             )
-        except Exception:
+        except OSError:
             log.warning("activity log write failed", op="compile", article_id=article.id)
 
         try:
             await regenerate_index_md(session)
-        except Exception:
+        except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=article.id)
 
         log.info(
@@ -463,7 +463,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             # also updates concept pages (issue #162).
             async with get_session_factory()() as concept_session:
                 await maybe_trigger_concept_pages(concept_session)
-        except Exception:
+        except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning(
                 "taxonomy upsert failed",
                 article_id=existing.id,
@@ -476,12 +476,12 @@ Compile this into a wiki article following the JSON schema exactly."""
                 existing.title,
                 extra={"source_id": source.id, "article_slug": existing.slug},
             )
-        except Exception:
+        except OSError:
             log.warning("activity log write failed", op="compile", article_id=existing.id)
 
         try:
             await regenerate_index_md(session)
-        except Exception:
+        except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=existing.id)
 
         log.info(

@@ -256,7 +256,7 @@ async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
                 updated=updated_count,
             )
 
-        except Exception as e:
+        except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("sweep_wikilinks failed", error=str(e))
             job.status = JobStatus.FAILED
             job.error = str(e)

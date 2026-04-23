@@ -364,7 +364,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                     filed_article.title,
                     extra={"conversation_id": ctx.conversation.id},
                 )
-        except Exception:
+        except OSError:
             log.warning("activity log write failed", op="query")
 
         await session.refresh(query_record)
@@ -470,7 +470,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 content = "\n".join(lines[1:-1])
             data = json.loads(content)
             result = QueryResult(**data)
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             log.error("Failed to parse streamed QA response", error=str(e))
             result = QueryResult(
                 answer="Error processing answer. Please try again.",
@@ -517,7 +517,7 @@ conversation context contradicts the wiki, prefer the wiki."""
     def _read_article_content(self, file_path: str, user_id: str | None = None) -> str | None:
         try:
             return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
-        except Exception:
+        except OSError:
             return None
 
     async def _query_llm(
@@ -535,7 +535,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         try:
             data = self.router.parse_json_response(response)
             return QueryResult(**data)
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             log.error("Failed to parse QA response", error=str(e))
             return QueryResult(
                 answer="Error processing answer. Please try again.",
