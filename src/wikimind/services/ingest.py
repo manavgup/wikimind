@@ -9,7 +9,6 @@ and cleaned files written by adapters under ``~/.wikimind/raw/`` (see issue
 
 import functools
 from contextlib import suppress
-from pathlib import Path
 
 import httpx
 import structlog
@@ -17,11 +16,11 @@ from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.config import get_settings
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import NormalizedDocument, Source
 from wikimind.services.activity_log import append_log_entry
+from wikimind.storage import resolve_raw_path
 
 log = structlog.get_logger()
 
@@ -57,13 +56,10 @@ class IngestService:
             HTTPException: If ingestion fails due to invalid input or network error.
         """
         try:
-            source, doc = await self._adapter.ingest_url(url, session)
+            source, doc = await self._adapter.ingest_url(url, session, user_id=user_id)
         except (httpx.HTTPError, ValueError, OSError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        source.user_id = user_id
-        session.add(source)
-        await session.commit()
         self._log_ingest(source)
 
         if auto_compile:
@@ -93,10 +89,7 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        source, doc = await self._adapter.ingest_pdf(file_bytes, filename, session)
-        source.user_id = user_id
-        session.add(source)
-        await session.commit()
+        source, doc = await self._adapter.ingest_pdf(file_bytes, filename, session, user_id=user_id)
         self._log_ingest(source)
 
         if auto_compile:
@@ -126,10 +119,7 @@ class IngestService:
         Returns:
             The persisted Source record.
         """
-        source, doc = await self._adapter.ingest_text(content, title, session)
-        source.user_id = user_id
-        session.add(source)
-        await session.commit()
+        source, doc = await self._adapter.ingest_text(content, title, session, user_id=user_id)
         self._log_ingest(source)
 
         if auto_compile:
@@ -259,16 +249,19 @@ class IngestService:
     def _remove_source_files(source: Source) -> None:
         """Remove the cleaned ``.txt`` file and any sibling raw file for a source.
 
-        The cleaned file path is read from ``Source.file_path``. The raw file
-        is discovered by scanning ``~/.wikimind/raw/`` for siblings sharing the
-        ``{source_id}`` stem (e.g. ``{id}.pdf``, ``{id}.html``). Missing files
-        are silently ignored — this method is best-effort cleanup.
+        The cleaned file path is resolved via ``resolve_raw_path()`` which
+        scopes to the user's directory when ``user_id`` is set. The raw
+        sibling is discovered by scanning the same directory for files sharing
+        the ``{source_id}`` stem (e.g. ``{id}.pdf``, ``{id}.html``). Missing
+        files are silently ignored — this method is best-effort cleanup.
         """
         if source.file_path:
+            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)
             with suppress(OSError):
-                Path(source.file_path).unlink(missing_ok=True)
+                resolved.unlink(missing_ok=True)
 
-        raw_dir = Path(get_settings().data_dir) / "raw"
+        # Resolve the user-scoped raw directory to find sibling files
+        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id).parent
         if not raw_dir.is_dir():
             return
         for sibling in raw_dir.glob(f"{source.id}.*"):

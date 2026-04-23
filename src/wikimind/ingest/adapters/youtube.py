@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
 from youtube_transcript_api import YouTubeTranscriptApi
 
-from wikimind.config import get_settings
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -22,6 +20,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
+from wikimind.storage import resolve_raw_path
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,7 +31,12 @@ log = structlog.get_logger()
 class YouTubeAdapter:
     """Adapter for ingesting YouTube videos."""
 
-    async def ingest(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
+    async def ingest(
+        self,
+        url: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> tuple[Source, NormalizedDocument]:
         """Ingest a YouTube video transcript."""
         log.info("Ingesting YouTube", url=url)
 
@@ -65,6 +69,7 @@ class YouTubeAdapter:
             status=IngestStatus.PROCESSING,
             token_count=estimate_tokens(transcript_text),
             content_hash=content_hash,
+            user_id=user_id,
         )
         session.add(source)
         await session.commit()
@@ -72,10 +77,8 @@ class YouTubeAdapter:
 
         # YouTube transcripts are already plain text, so the raw and cleaned
         # files are the same .txt. There is no separate raw video payload.
-        settings = get_settings()
-        raw_dir = Path(settings.data_dir) / "raw"
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        text_path = raw_dir / f"{source.id}.txt"
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
+        text_path.parent.mkdir(parents=True, exist_ok=True)
         text_path.write_text(transcript_text, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
         session.add(source)
