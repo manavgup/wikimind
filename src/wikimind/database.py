@@ -555,7 +555,55 @@ async def _backfill_concepts_from_articles(engine) -> None:
             )
 
 
-async def _backfill_join_tables_from_json(engine) -> None:  # noqa: C901
+async def _backfill_concept_links(conn, article_id: str, concept_ids_raw: str) -> None:
+    """Insert ArticleConcept rows from a JSON-encoded concept list.
+
+    Args:
+        conn: Active async connection (inside a transaction).
+        article_id: The article UUID.
+        concept_ids_raw: JSON string of concept names.
+    """
+    try:
+        concept_names = json.loads(concept_ids_raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(concept_names, list):
+        return
+    for name in concept_names:
+        if name:
+            await conn.execute(
+                sa_text(
+                    "INSERT OR IGNORE INTO articleconcept"
+                    " (article_id, concept_name)"
+                    " VALUES (:article_id, :concept_name)"
+                ),
+                {"article_id": article_id, "concept_name": str(name)},
+            )
+
+
+async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> None:
+    """Insert ArticleSource rows from a JSON-encoded source ID list.
+
+    Args:
+        conn: Active async connection (inside a transaction).
+        article_id: The article UUID.
+        source_ids_raw: JSON string of source UUIDs.
+    """
+    try:
+        source_ids = json.loads(source_ids_raw)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(source_ids, list):
+        return
+    for sid in source_ids:
+        if sid:
+            await conn.execute(
+                sa_text("INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"),
+                {"article_id": article_id, "source_id": str(sid)},
+            )
+
+
+async def _backfill_join_tables_from_json(engine) -> None:
     """Populate ArticleConcept and ArticleSource from legacy JSON columns.
 
     Idempotent: existing rows are skipped via INSERT OR IGNORE (SQLite)
@@ -585,40 +633,10 @@ async def _backfill_join_tables_from_json(engine) -> None:  # noqa: C901
 
         for row in rows:
             article_id, concept_ids_raw, source_ids_raw = row
-
             if concept_ids_raw:
-                try:
-                    concept_names = json.loads(concept_ids_raw)
-                    if isinstance(concept_names, list):
-                        for name in concept_names:
-                            if name:
-                                await conn.execute(
-                                    sa_text(
-                                        "INSERT OR IGNORE INTO articleconcept"
-                                        " (article_id, concept_name)"
-                                        " VALUES (:article_id, :concept_name)"
-                                    ),
-                                    {"article_id": article_id, "concept_name": str(name)},
-                                )
-                except (json.JSONDecodeError, TypeError):
-                    pass
-
+                await _backfill_concept_links(conn, article_id, concept_ids_raw)
             if source_ids_raw:
-                try:
-                    source_ids = json.loads(source_ids_raw)
-                    if isinstance(source_ids, list):
-                        for sid in source_ids:
-                            if sid:
-                                await conn.execute(
-                                    sa_text(
-                                        "INSERT OR IGNORE INTO articlesource"
-                                        " (article_id, source_id)"
-                                        " VALUES (:article_id, :source_id)"
-                                    ),
-                                    {"article_id": article_id, "source_id": str(sid)},
-                                )
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                await _backfill_source_links(conn, article_id, source_ids_raw)
 
 
 async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
