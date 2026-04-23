@@ -25,9 +25,10 @@ dependencies = [
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
 
-    # Job queue
+    # Job queue + cross-replica pub/sub
     "arq>=0.26.1",
     "fakeredis>=2.26.0",
+    "redis>=5.0.0",
 
     # LLM providers
     "anthropic>=0.40.0",

@@ -19,6 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from wikimind.api.routes import admin, auth, export, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
+from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.errors import WikiMindError
@@ -96,9 +97,14 @@ async def lifespan(_app: FastAPI):
             await session.commit()
             log.info("Backfilled article user_id from source", count=backfilled)
 
+    # Start Redis Pub/Sub subscriber for cross-replica WebSocket broadcasts.
+    # Idempotent — no-op when Redis is not configured (single-replica dev mode).
+    await _start_redis_subscriber()
+
     yield
 
     log.info("WikiMind gateway shutting down")
+    await stop_redis_subscriber()
     await close_db()
 
 

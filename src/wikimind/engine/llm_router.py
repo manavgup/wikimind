@@ -31,6 +31,36 @@ log = structlog.get_logger()
 
 
 # ---------------------------------------------------------------------------
+# Redis helper for cross-replica budget flag dedup
+# ---------------------------------------------------------------------------
+
+_budget_redis_pool = None
+
+
+async def _get_budget_redis():
+    """Return a shared Redis connection for budget flag dedup.
+
+    Returns ``None`` when Redis is not configured or unavailable.
+    """
+    global _budget_redis_pool
+    if _budget_redis_pool is not None:
+        return _budget_redis_pool
+
+    redis_url = get_settings().redis_url
+    if not redis_url:
+        return None
+
+    try:
+        from redis.asyncio import Redis  # noqa: PLC0415
+
+        _budget_redis_pool = Redis.from_url(redis_url, decode_responses=True)
+        return _budget_redis_pool
+    except Exception:
+        log.debug("Redis unavailable for budget dedup — per-process flags only")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Pricing (USD per 1M tokens) -- update as providers change pricing
 # ---------------------------------------------------------------------------
 
@@ -172,6 +202,45 @@ class LLMRouter:
         cfg = getattr(self.settings.llm, provider.value, None)
         return cfg.model if cfg else "unknown"
 
+    async def _budget_flag_is_set(self, flag_name: str, month_key: tuple[int, int]) -> bool:
+        """Check whether a budget notification flag is already set.
+
+        Uses Redis when available for cross-replica dedup, falling back
+        to the per-process in-memory flag otherwise.
+        """
+        # Check local cache first (fast path)
+        local_val = getattr(self, flag_name)
+        if local_val == month_key:
+            return True
+
+        redis = await _get_budget_redis()
+        if redis is None:
+            return False
+
+        redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
+        try:
+            return bool(await redis.exists(redis_key))
+        except Exception:
+            return False
+
+    async def _set_budget_flag(self, flag_name: str, month_key: tuple[int, int]) -> None:
+        """Set a budget notification flag in both local memory and Redis.
+
+        The Redis key is set with a TTL of 35 days so it auto-expires
+        shortly after the month rolls over.
+        """
+        setattr(self, flag_name, month_key)
+
+        redis = await _get_budget_redis()
+        if redis is None:
+            return
+
+        redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
+        try:
+            await redis.set(redis_key, "1", ex=35 * 86400)  # 35-day TTL
+        except Exception:
+            log.debug("Failed to set budget flag in Redis", flag=flag_name)
+
     async def _check_budget(self) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
         current_month = utcnow_naive()
@@ -183,7 +252,10 @@ class LLMRouter:
         if self._budget_exceeded_sent and self._budget_exceeded_sent != month_key:
             self._budget_exceeded_sent = None
 
-        if self._budget_warning_sent and self._budget_exceeded_sent:
+        warning_sent = await self._budget_flag_is_set("_budget_warning_sent", month_key)
+        exceeded_sent = await self._budget_flag_is_set("_budget_exceeded_sent", month_key)
+
+        if warning_sent and exceeded_sent:
             return
 
         now = time.time()
@@ -204,7 +276,7 @@ class LLMRouter:
             return
         pct = spend / budget * 100
 
-        if pct >= self.settings.llm.budget_warning_pct * 100 and not self._budget_warning_sent:
+        if pct >= self.settings.llm.budget_warning_pct * 100 and not warning_sent:
             log.warning(
                 "Budget warning threshold reached",
                 spend_usd=spend,
@@ -212,12 +284,12 @@ class LLMRouter:
                 pct=round(pct, 1),
             )
             await emit_budget_warning(spend, budget, pct)
-            self._budget_warning_sent = month_key
+            await self._set_budget_flag("_budget_warning_sent", month_key)
 
-        if pct >= 100.0 and not self._budget_exceeded_sent:
+        if pct >= 100.0 and not exceeded_sent:
             log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
             await emit_budget_exceeded(spend, budget)
-            self._budget_exceeded_sent = month_key
+            await self._set_budget_flag("_budget_exceeded_sent", month_key)
 
     async def _log_cost(
         self,
