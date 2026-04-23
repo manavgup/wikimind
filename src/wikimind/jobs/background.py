@@ -13,6 +13,7 @@ and the raw ``REDIS_URL`` fallback (ADR-002, CI/CD compatibility).
 from __future__ import annotations
 
 import asyncio
+import functools
 import uuid
 from typing import TYPE_CHECKING
 
@@ -203,12 +204,7 @@ class BackgroundCompiler:
             log.exception("in-process sweep failed")
 
 
-_background_compiler: BackgroundCompiler | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_background_compiler() -> BackgroundCompiler:
     """Return a singleton BackgroundCompiler instance."""
-    global _background_compiler
-    if _background_compiler is None:
-        _background_compiler = BackgroundCompiler()
-    return _background_compiler
+    return BackgroundCompiler()

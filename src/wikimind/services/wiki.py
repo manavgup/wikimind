@@ -11,6 +11,7 @@ vector similarity and results are merged via configurable hybrid
 scoring. Otherwise the service falls back to keyword-only search.
 """
 
+import functools
 import json
 from pathlib import Path
 
@@ -624,12 +625,7 @@ class WikiService:
         }
 
 
-_wiki_service: WikiService | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_wiki_service() -> WikiService:
     """Return a singleton WikiService instance for FastAPI dependency injection."""
-    global _wiki_service
-    if _wiki_service is None:
-        _wiki_service = WikiService()
-    return _wiki_service
+    return WikiService()

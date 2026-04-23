@@ -4,6 +4,8 @@ Wraps the BackgroundCompiler and job queue, providing a clean interface
 for triggering compilation, linting, and reindexing from API routes.
 """
 
+import functools
+
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -84,12 +86,7 @@ class CompilerService:
         return JobTriggerResponse(status="queued", message="Reindex job enqueued")
 
 
-_compiler_service: CompilerService | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_compiler_service() -> CompilerService:
     """Return a singleton CompilerService instance for FastAPI dependency injection."""
-    global _compiler_service
-    if _compiler_service is None:
-        _compiler_service = CompilerService()
-    return _compiler_service
+    return CompilerService()

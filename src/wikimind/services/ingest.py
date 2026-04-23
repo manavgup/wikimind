@@ -7,6 +7,7 @@ and cleaned files written by adapters under ``~/.wikimind/raw/`` (see issue
 #59) and removes them on delete.
 """
 
+import functools
 from contextlib import suppress
 from pathlib import Path
 
@@ -274,12 +275,7 @@ class IngestService:
                 sibling.unlink(missing_ok=True)
 
 
-_ingest_service: IngestService | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_ingest_service() -> IngestService:
     """Return a singleton IngestService instance for FastAPI dependency injection."""
-    global _ingest_service
-    if _ingest_service is None:
-        _ingest_service = IngestService()
-    return _ingest_service
+    return IngestService()

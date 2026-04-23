@@ -7,6 +7,7 @@ job system.
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
@@ -245,12 +246,7 @@ class LinterService:
         )
 
 
-_linter_service: LinterService | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_linter_service() -> LinterService:
     """Return a singleton LinterService instance."""
-    global _linter_service
-    if _linter_service is None:
-        _linter_service = LinterService()
-    return _linter_service
+    return LinterService()
