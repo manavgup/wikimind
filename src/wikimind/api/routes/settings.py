@@ -126,6 +126,17 @@ class CostSummaryResponse(BaseModel):
     budget_remaining_usd: float
 
 
+class OnboardingStatusResponse(BaseModel):
+    """Onboarding wizard progress."""
+
+    completed: bool
+    step: int
+
+
+class OnboardingCompleteRequest(BaseModel):
+    """Request to mark onboarding as complete."""
+
+
 # ---------------------------------------------------------------------------
 # DB preference helpers
 # ---------------------------------------------------------------------------
@@ -400,3 +411,30 @@ async def get_llm_cost(
         budget_usd=settings.llm.monthly_budget_usd,
         budget_remaining_usd=round(settings.llm.monthly_budget_usd - total, 4),
     )
+
+
+# ---------------------------------------------------------------------------
+# Onboarding status
+# ---------------------------------------------------------------------------
+
+_ONBOARDING_COMPLETED_KEY = "onboarding.completed"
+_ONBOARDING_STEP_KEY = "onboarding.step"
+
+
+@router.get("/onboarding-status", response_model=OnboardingStatusResponse)
+async def get_onboarding_status():
+    """Return onboarding wizard progress for the current user."""
+    completed_val = await _get_preference(_ONBOARDING_COMPLETED_KEY)
+    step_val = await _get_preference(_ONBOARDING_STEP_KEY)
+    return OnboardingStatusResponse(
+        completed=completed_val == "true",
+        step=int(step_val) if step_val else 0,
+    )
+
+
+@router.post("/onboarding-status", response_model=OnboardingStatusResponse)
+async def complete_onboarding():
+    """Mark onboarding as complete."""
+    await _set_preference(_ONBOARDING_COMPLETED_KEY, "true")
+    await _set_preference(_ONBOARDING_STEP_KEY, "5")
+    return OnboardingStatusResponse(completed=True, step=5)
