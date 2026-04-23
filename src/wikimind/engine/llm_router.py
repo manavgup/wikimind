@@ -23,6 +23,7 @@ from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session_factory
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
+from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -174,18 +175,28 @@ class LLMRouter:
             return True  # No API key needed
         return bool(get_api_key(provider.value))
 
-    async def _get_provider_instance(self, provider: Provider) -> ProviderProtocol:
-        """Return a cached provider instance, creating it on first use."""
-        if provider in self._provider_cache:
+    async def _get_provider_instance(
+        self,
+        provider: Provider,
+        api_key_override: str | None = None,
+    ) -> ProviderProtocol:
+        """Return a provider instance.
+
+        When *api_key_override* is supplied (BYOK), a fresh instance is
+        created with that key and is NOT cached -- the user's key must
+        not leak into the shared singleton cache.  Without an override,
+        the system-wide cached instance is returned.
+        """
+        if api_key_override is None and provider in self._provider_cache:
             return self._provider_cache[provider]
 
         instance: ProviderProtocol
         if provider == Provider.ANTHROPIC:
-            instance = AnthropicProvider()
+            instance = AnthropicProvider(api_key_override=api_key_override)
         elif provider == Provider.OPENAI:
-            instance = OpenAIProvider()
+            instance = OpenAIProvider(api_key_override=api_key_override)
         elif provider == Provider.GOOGLE:
-            instance = GoogleProvider()
+            instance = GoogleProvider(api_key_override=api_key_override)
         elif provider == Provider.OLLAMA:
             instance = OllamaProvider(self.settings.llm.ollama_base_url)
         elif provider == Provider.MOCK:
@@ -194,8 +205,23 @@ class LLMRouter:
             msg = f"Provider {provider} not implemented yet"
             raise ValueError(msg)
 
-        self._provider_cache[provider] = instance
+        # Only cache system-key instances
+        if api_key_override is None:
+            self._provider_cache[provider] = instance
         return instance
+
+    async def _resolve_user_key(self, provider: Provider, user_id: str | None) -> str | None:
+        """Look up a user's BYOK key for the given provider, if any."""
+        if not user_id:
+            return None
+        if provider in (Provider.OLLAMA, Provider.MOCK):
+            return None
+        try:
+            async with get_session_factory()() as session:
+                return await get_user_api_key(session, user_id, provider)
+        except Exception:
+            log.debug("BYOK key lookup failed", provider=provider, exc_info=True)
+            return None
 
     def _get_model(self, provider: Provider) -> str:
         """Return the configured model name for a provider."""
@@ -319,19 +345,32 @@ class LLMRouter:
         self,
         request: CompletionRequest,
         session=None,  # kept for backward compat
+        user_id: str | None = None,
     ) -> CompletionResponse:
-        """Execute LLM completion with provider selection and fallback."""
+        """Execute LLM completion with provider selection and fallback.
+
+        When *user_id* is provided, the router checks for a BYOK key
+        for each candidate provider and uses it instead of the system key.
+        """
         provider_order = self._get_provider_order(request.preferred_provider)
 
         last_error = None
         for provider in provider_order:
-            if not self._is_provider_available(provider):
+            # Check for user BYOK key first
+            user_key = await self._resolve_user_key(provider, user_id)
+            if not user_key and not self._is_provider_available(provider):
                 continue
 
             model = self._get_model(provider)
             try:
-                log.info("LLM call", provider=provider, model=model, task=request.task_type)
-                instance = await self._get_provider_instance(provider)
+                log.info(
+                    "LLM call",
+                    provider=provider,
+                    model=model,
+                    task=request.task_type,
+                    byok=bool(user_key),
+                )
+                instance = await self._get_provider_instance(provider, api_key_override=user_key)
                 response = await instance.complete(request, model)
 
                 # Log cost in independent session
@@ -372,6 +411,7 @@ class LLMRouter:
         temperature: float = 0.3,
         preferred_provider: Provider | None = None,
         session=None,  # kept for backward compat
+        user_id: str | None = None,
     ) -> CompletionResponse:
         """Execute a multimodal LLM completion with images and text.
 
@@ -387,6 +427,7 @@ class LLMRouter:
             temperature: Sampling temperature.
             preferred_provider: Optional provider preference.
             session: Deprecated -- cost logging now uses an independent session.
+            user_id: Optional user ID for BYOK key lookup.
 
         Returns:
             CompletionResponse with the LLM's text output.
@@ -398,7 +439,8 @@ class LLMRouter:
 
         last_error = None
         for provider in provider_order:
-            if not self._is_provider_available(provider):
+            user_key = await self._resolve_user_key(provider, user_id)
+            if not user_key and not self._is_provider_available(provider):
                 continue
 
             model = self._get_model(provider)
@@ -408,8 +450,9 @@ class LLMRouter:
                     provider=provider,
                     model=model,
                     task=task_type,
+                    byok=bool(user_key),
                 )
-                instance = await self._get_provider_instance(provider)
+                instance = await self._get_provider_instance(provider, api_key_override=user_key)
                 response = await instance.complete_multimodal(
                     system=system,
                     content_parts=content_parts,
@@ -441,6 +484,7 @@ class LLMRouter:
     async def stream_complete(
         self,
         request: CompletionRequest,
+        user_id: str | None = None,
     ) -> StreamSession:
         """Create a streaming LLM completion with provider fallback.
 
@@ -450,6 +494,7 @@ class LLMRouter:
 
         Args:
             request: The completion request.
+            user_id: Optional user ID for BYOK key lookup.
 
         Returns:
             A :class:`StreamSession` that yields text chunks.
@@ -461,7 +506,8 @@ class LLMRouter:
 
         last_error = None
         for provider in provider_order:
-            if not self._is_provider_available(provider):
+            user_key = await self._resolve_user_key(provider, user_id)
+            if not user_key and not self._is_provider_available(provider):
                 continue
 
             model = self._get_model(provider)
@@ -471,8 +517,9 @@ class LLMRouter:
                     provider=provider,
                     model=model,
                     task=request.task_type,
+                    byok=bool(user_key),
                 )
-                instance = await self._get_provider_instance(provider)
+                instance = await self._get_provider_instance(provider, api_key_override=user_key)
                 return await instance.stream(request, model)
             except Exception as e:  # TODO: narrow once provider error hierarchy is unified
                 log.warning(

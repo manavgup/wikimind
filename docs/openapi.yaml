@@ -1287,6 +1287,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OnboardingStatusResponse'
+  /api/settings/api-keys/{provider}:
+    put:
+      tags:
+      - Settings
+      summary: Set Api Key
+      description: Store or update an API key for a provider.
+      operationId: set_api_key_api_settings_api_keys__provider__put
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetApiKeyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeySetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Settings
+      summary: Delete Api Key
+      description: Delete a stored API key for a provider.
+      operationId: delete_api_key_api_settings_api_keys__provider__delete
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Provider
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/settings/api-keys:
+    get:
+      tags:
+      - Settings
+      summary: List Api Keys
+      description: List configured providers with masked key hints.
+      operationId: list_api_keys_api_settings_api_keys_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyListResponse'
   /auth/login/{provider}:
     get:
       tags:
@@ -1528,6 +1601,74 @@ components:
       - sync
       title: AllSettingsResponse
       description: Full application settings response.
+    ApiKeyDeleteResponse:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - provider
+      - status
+      title: ApiKeyDeleteResponse
+      description: Response after deleting an API key.
+    ApiKeyInfo:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        key_hint:
+          type: string
+          title: Key Hint
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - provider
+      - key_hint
+      - created_at
+      - updated_at
+      title: ApiKeyInfo
+      description: Summary of a configured API key (no raw key exposed).
+    ApiKeyListResponse:
+      properties:
+        keys:
+          items:
+            $ref: '#/components/schemas/ApiKeyInfo'
+          type: array
+          title: Keys
+      type: object
+      required:
+      - keys
+      title: ApiKeyListResponse
+      description: List of configured API key providers.
+    ApiKeySetResponse:
+      properties:
+        provider:
+          type: string
+          title: Provider
+        key_hint:
+          type: string
+          title: Key Hint
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - provider
+      - key_hint
+      - status
+      title: ApiKeySetResponse
+      description: Response after setting an API key.
     ArticleResponse:
       properties:
         id:
@@ -2905,6 +3046,16 @@ components:
       - resolution
       title: ResolveContradictionResponse
       description: Response after resolving a contradiction.
+    SetApiKeyRequest:
+      properties:
+        api_key:
+          type: string
+          title: Api Key
+      type: object
+      required:
+      - api_key
+      title: SetApiKeyRequest
+      description: Request to store an API key for a provider.
     SettingsUpdateRequest:
       properties:
         monthly_budget_usd:
