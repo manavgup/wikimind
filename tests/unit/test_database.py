@@ -1,15 +1,26 @@
 """Tests for database session lifecycle — commit on success, rollback on error."""
 
+from __future__ import annotations
+
 import contextlib
 import json
 import uuid
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
-from wikimind.database import _repair_json_array, _repair_malformed_json_arrays, get_session
-from wikimind.models import Article, ConfidenceLevel, Source, SourceType
+from wikimind.database import (
+    _cleanup_orphan_concept_rows,
+    _repair_json_array,
+    _repair_malformed_json_arrays,
+    get_session,
+)
+from wikimind.models import Article, Backlink, ConfidenceLevel, PageType, Source, SourceType
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
@@ -170,3 +181,120 @@ class TestRepairMalformedJsonArraysMigration:
         fixed = result.scalar_one()
         parsed = json.loads(fixed.source_ids)
         assert parsed == ["id1", "id2", "id3"]
+
+
+# ---------------------------------------------------------------------------
+# _cleanup_orphan_concept_rows migration tests (issue #169)
+# ---------------------------------------------------------------------------
+
+
+class TestCleanupOrphanConceptRows:
+    async def test_deletes_concept_article_with_missing_file(self, db_session, tmp_path: Path):
+        """Concept article whose .md file doesn't exist on disk is deleted."""
+        article = Article(
+            id=str(uuid.uuid4()),
+            slug="concept-stale-topic",
+            title="Stale Topic",
+            file_path=str(tmp_path / "concept-stale-topic" / "concept-stale-topic.md"),
+            page_type=PageType.CONCEPT,
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        await _cleanup_orphan_concept_rows(db_session)
+
+        result = await db_session.execute(select(Article).where(Article.id == article.id))
+        assert result.scalar_one_or_none() is None
+
+    async def test_keeps_concept_article_with_existing_file(self, db_session, tmp_path: Path):
+        """Concept article whose .md file exists on disk is preserved."""
+        md_dir = tmp_path / "concept-active-topic"
+        md_dir.mkdir(parents=True)
+        md_file = md_dir / "concept-active-topic.md"
+        md_file.write_text("# Active Topic\n")
+
+        article = Article(
+            id=str(uuid.uuid4()),
+            slug="concept-active-topic",
+            title="Active Topic",
+            file_path=str(md_file),
+            page_type=PageType.CONCEPT,
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        await _cleanup_orphan_concept_rows(db_session)
+
+        result = await db_session.execute(select(Article).where(Article.id == article.id))
+        assert result.scalar_one_or_none() is not None
+
+    async def test_leaves_source_articles_untouched(self, db_session, tmp_path: Path):
+        """Source articles with missing files are NOT cleaned up (only concepts)."""
+        article = Article(
+            id=str(uuid.uuid4()),
+            slug="some-source",
+            title="Some Source",
+            file_path=str(tmp_path / "missing-source.md"),
+            page_type=PageType.SOURCE,
+        )
+        db_session.add(article)
+        await db_session.commit()
+
+        await _cleanup_orphan_concept_rows(db_session)
+
+        result = await db_session.execute(select(Article).where(Article.id == article.id))
+        assert result.scalar_one_or_none() is not None
+
+    async def test_deletes_associated_backlinks(self, db_session, tmp_path: Path):
+        """Backlinks referencing an orphaned concept article are also deleted."""
+        orphan = Article(
+            id=str(uuid.uuid4()),
+            slug="concept-orphan",
+            title="Orphan Concept",
+            file_path=str(tmp_path / "concept-orphan" / "concept-orphan.md"),
+            page_type=PageType.CONCEPT,
+        )
+        # A surviving article that links to the orphan
+        md_file = tmp_path / "surviving.md"
+        md_file.write_text("# Surviving\n")
+        survivor = Article(
+            id=str(uuid.uuid4()),
+            slug="surviving-article",
+            title="Surviving Article",
+            file_path=str(md_file),
+            page_type=PageType.SOURCE,
+        )
+        db_session.add_all([orphan, survivor])
+        await db_session.flush()
+
+        backlink = Backlink(
+            source_article_id=survivor.id,
+            target_article_id=orphan.id,
+            context="link to orphan",
+        )
+        db_session.add(backlink)
+        await db_session.commit()
+
+        await _cleanup_orphan_concept_rows(db_session)
+
+        # Orphan article gone
+        result = await db_session.execute(select(Article).where(Article.id == orphan.id))
+        assert result.scalar_one_or_none() is None
+
+        # Backlink also gone
+        result = await db_session.execute(
+            select(Backlink).where(
+                Backlink.source_article_id == survivor.id,
+                Backlink.target_article_id == orphan.id,
+            )
+        )
+        assert result.scalar_one_or_none() is None
+
+        # Survivor remains
+        result = await db_session.execute(select(Article).where(Article.id == survivor.id))
+        assert result.scalar_one_or_none() is not None
+
+    async def test_idempotent_no_orphans(self, db_session, tmp_path: Path):
+        """Running with zero concept articles is a no-op."""
+        await _cleanup_orphan_concept_rows(db_session)
+        # No error, no crash — just a no-op
