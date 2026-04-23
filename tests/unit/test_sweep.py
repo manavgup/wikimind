@@ -48,7 +48,7 @@ async def test_resolves_bracket_and_creates_backlink(db_session: AsyncSession, t
     md_path.write_text("Some text about [[Machine Learning]] in the body.\n")
     source = await _make_article(db_session, "AI Overview", str(md_path), slug="ai-overview")
 
-    changed = await _sweep_single_article(source, db_session)
+    changed = await _sweep_single_article(source.id, db_session)
 
     assert changed is True
     content = md_path.read_text()
@@ -73,7 +73,7 @@ async def test_no_brackets_no_write(db_session: AsyncSession, tmp_path: Path) ->
     md_path.write_text(original)
     article = await _make_article(db_session, "Clean Article", str(md_path))
 
-    changed = await _sweep_single_article(article, db_session)
+    changed = await _sweep_single_article(article.id, db_session)
 
     assert changed is False
     assert md_path.read_text() == original
@@ -86,7 +86,7 @@ async def test_unknown_bracket_stays(db_session: AsyncSession, tmp_path: Path) -
     md_path.write_text("See also [[Nonexistent Topic]] for more.\n")
     article = await _make_article(db_session, "Some Article", str(md_path))
 
-    changed = await _sweep_single_article(article, db_session)
+    changed = await _sweep_single_article(article.id, db_session)
 
     assert changed is False
     content = md_path.read_text()
@@ -105,7 +105,7 @@ async def test_already_resolved_link_not_rewritten(db_session: AsyncSession, tmp
     md_path.write_text(original)
     article = await _make_article(db_session, "Resolved Article", str(md_path))
 
-    changed = await _sweep_single_article(article, db_session)
+    changed = await _sweep_single_article(article.id, db_session)
 
     assert changed is False
     assert md_path.read_text() == original
@@ -120,11 +120,11 @@ async def test_idempotent_rerun_after_sweep(db_session: AsyncSession, tmp_path: 
     source = await _make_article(db_session, "AI Overview", str(md_path), slug="ai-overview")
 
     # First run: should make changes
-    changed1 = await _sweep_single_article(source, db_session)
+    changed1 = await _sweep_single_article(source.id, db_session)
     assert changed1 is True
 
     # Second run: no changes (bracket already resolved, Backlink already exists)
-    changed2 = await _sweep_single_article(source, db_session)
+    changed2 = await _sweep_single_article(source.id, db_session)
     assert changed2 is False
 
 
@@ -136,7 +136,7 @@ async def test_multiple_brackets_partial_resolution(db_session: AsyncSession, tm
     md_path.write_text("Uses [[React]] and [[Unknown Framework]] for UI.\n")
     source = await _make_article(db_session, "Frontend Guide", str(md_path))
 
-    changed = await _sweep_single_article(source, db_session)
+    changed = await _sweep_single_article(source.id, db_session)
 
     assert changed is True
     content = md_path.read_text()
@@ -151,7 +151,7 @@ async def test_self_link_excluded(db_session: AsyncSession, tmp_path: Path) -> N
     md_path.write_text("This article about [[Self Referencing]] itself.\n")
     article = await _make_article(db_session, "Self Referencing", str(md_path), slug="self-referencing")
 
-    changed = await _sweep_single_article(article, db_session)
+    changed = await _sweep_single_article(article.id, db_session)
 
     assert changed is False
     content = md_path.read_text()
@@ -163,5 +163,5 @@ async def test_missing_file_handled_gracefully(db_session: AsyncSession, tmp_pat
     """Article whose file_path doesn't exist -> skip gracefully."""
     article = await _make_article(db_session, "Missing File", str(tmp_path / "does-not-exist.md"))
 
-    changed = await _sweep_single_article(article, db_session)
+    changed = await _sweep_single_article(article.id, db_session)
     assert changed is False

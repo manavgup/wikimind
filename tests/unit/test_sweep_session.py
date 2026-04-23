@@ -56,7 +56,7 @@ async def test_sweep_creates_backlinks(db_session: AsyncSession, tmp_path: Path)
     md_path.write_text("Research on [[Quantum Computing]] is advancing.\n")
     source = await _make_article(db_session, "Physics Overview", str(md_path))
 
-    changed = await _sweep_single_article(source, db_session)
+    changed = await _sweep_single_article(source.id, db_session)
 
     assert changed is True
     content = md_path.read_text()
@@ -103,12 +103,9 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
         target_id = target.id
 
     # Sweep in a fresh session — no SAWarning or IntegrityError should occur.
+    # The function now re-loads the article internally, so we just pass the ID.
     async with factory() as sweep_session:
-        # Re-load the article in this session's identity map.
-        result = await sweep_session.execute(select(Article).where(Article.id == source_id))
-        source_reloaded = result.scalar_one()
-
-        changed = await _sweep_single_article(source_reloaded, sweep_session)
+        changed = await _sweep_single_article(source_id, sweep_session)
 
     assert changed is True
     content = md_path.read_text()
@@ -180,10 +177,10 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=counting_factory):
         await sweep_wikilinks(None)
 
-    # Should have at least 3 calls: 1 job session + 2 per article
-    # (one per article in the loop). The key assertion is > 1.
-    assert counting_factory.call_count >= 3, (
-        f"Expected at least 3 session factory calls (1 job + 2 articles), got {counting_factory.call_count}"
+    # Should have at least 5 calls: 1 job session + 1 cleanup session
+    # + 1 list session + 2 per-article sessions. The key assertion is > 1.
+    assert counting_factory.call_count >= 5, (
+        f"Expected at least 5 session factory calls, got {counting_factory.call_count}"
     )
 
     # Verify the backlink was actually created.

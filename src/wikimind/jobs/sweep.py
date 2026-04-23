@@ -38,7 +38,7 @@ _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
 async def _sweep_single_article(
-    article: Article,
+    article_id: str,
     session: AsyncSession,
 ) -> bool:
     """Resolve unresolved brackets in a single article's .md file.
@@ -47,9 +47,18 @@ async def _sweep_single_article(
     identity-map conflicts when multiple articles create Backlinks for
     overlapping article pairs (issue #163).
 
+    The article is re-loaded from the database inside this session to
+    prevent greenlet_spawn errors caused by accessing attributes on an
+    object bound to a different session (issue #168).
+
     Returns True if any replacement was made (file rewritten + backlinks
     persisted), False if the file was unchanged.
     """
+    article = await session.get(Article, article_id)
+    if article is None:
+        log.warning("sweep: article not found, skipping", article_id=article_id)
+        return False
+
     file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
     if not file_path.exists():
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
@@ -93,10 +102,9 @@ async def _sweep_single_article(
     file_path.write_text(new_content, encoding="utf-8")
 
     # Persist Backlink rows — use get-or-create to handle duplicates
-    # gracefully. The selectin eager loading on Article pre-populates the
-    # identity map with existing Backlinks, so merge() would conflict
-    # (SAWarning + IntegrityError). Instead we check for each backlink
-    # by composite PK and only insert when it doesn't already exist (#163).
+    # gracefully. We check each backlink by composite PK and only insert
+    # when it doesn't already exist, avoiding identity-map conflicts
+    # (#163) and SAWarning/IntegrityError from merge().
     for rb in resolved:
         existing = await session.get(Backlink, (article.id, rb.target_id))
         if existing is not None:
@@ -220,13 +228,18 @@ async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
             if orphan_count:
                 log.info("sweep: cleaned orphaned concept pages", count=orphan_count)
 
-            stmt = select(Article)
-            if user_id is not None:
-                stmt = stmt.where(Article.user_id == user_id)
-            result = await job_session.execute(stmt)
-            articles = list(result.scalars().all())
+            # Load article IDs in a separate short-lived session so the
+            # objects are not bound to job_session.  This avoids greenlet_spawn
+            # errors when per-article sessions access overlapping Backlink
+            # rows that would conflict with job_session's identity map (#168).
+            async with session_factory() as list_session:
+                stmt = select(Article.id)
+                if user_id is not None:
+                    stmt = stmt.where(Article.user_id == user_id)
+                result = await list_session.execute(stmt)
+                article_ids: list[str] = list(result.scalars().all())
 
-            if not articles:
+            if not article_ids:
                 job.status = JobStatus.COMPLETE
                 job.result_summary = "No articles to sweep"
                 job_session.add(job)
@@ -235,24 +248,24 @@ async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
                 return
 
             updated_count = 0
-            for article in articles:
+            for aid in article_ids:
                 # Each article gets its own session to prevent identity-map
                 # conflicts when both the source compiler and the sweep
-                # create Backlinks for overlapping article pairs (#163).
+                # create Backlinks for overlapping article pairs (#163, #168).
                 async with session_factory() as article_session:
-                    changed = await _sweep_single_article(article, article_session)
+                    changed = await _sweep_single_article(aid, article_session)
                     if changed:
                         updated_count += 1
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
-            job.result_summary = f"Swept {len(articles)} articles, updated {updated_count}"
+            job.result_summary = f"Swept {len(article_ids)} articles, updated {updated_count}"
             job_session.add(job)
             await job_session.commit()
 
             log.info(
                 "sweep_wikilinks complete",
-                total=len(articles),
+                total=len(article_ids),
                 updated=updated_count,
             )
 
