@@ -112,6 +112,7 @@ class TaskType(StrEnum):
     LINT = "lint"
     INDEX = "index"
     INGEST = "ingest"
+    EXPORT = "export"
 
 
 # ---------------------------------------------------------------------------
@@ -1112,3 +1113,20 @@ class CompletionResponse(BaseModel):
     output_tokens: int
     cost_usd: float
     latency_ms: int
+
+
+class ExportFormat(StrEnum):
+    """Supported article export formats."""
+
+    PDF = "pdf"
+    LINKEDIN = "linkedin"
+    SLIDES = "slides"
+
+
+class ExportResponse(BaseModel):
+    """Response for text-based exports (LinkedIn, slides)."""
+
+    format: ExportFormat
+    content: str
+    article_id: str
+    article_title: str
