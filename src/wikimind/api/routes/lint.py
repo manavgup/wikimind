@@ -26,7 +26,7 @@ router = APIRouter()
 @router.post("/run", response_model=LintRunResponse)
 async def run_lint(
     service: LinterService = Depends(get_linter_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Trigger a new lint run. Returns immediately with status."""
     return await service.trigger_run(user_id=user_id)
@@ -37,7 +37,7 @@ async def list_reports(
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List lint reports ordered by most recent first."""
     return await service.list_reports(session, limit=limit, user_id=user_id)
@@ -47,7 +47,7 @@ async def list_reports(
 async def get_latest_report(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Get the most recent lint report with all non-dismissed findings."""
     return await service.get_latest(session, user_id=user_id)

@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import Settings, get_settings
 from wikimind.database import get_session
 from wikimind.models import User
@@ -273,7 +274,7 @@ async def me(request: Request, session: AsyncSession = Depends(get_session)) -> 
         if not settings.auth.enabled:
             # Auth disabled — return a stub user so the frontend knows
             # it can skip the login flow.
-            return {"id": "anonymous", "email": "", "name": "Anonymous", "avatar_url": None}
+            return {"id": ANONYMOUS_USER_ID, "email": "", "name": "Anonymous", "avatar_url": None}
         raise HTTPException(status_code=401)
     user = await session.get(User, request.state.user_id)
     if not user:

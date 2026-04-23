@@ -310,7 +310,7 @@ async def test_llm_connection(provider: str):
     response_model=CostBreakdownResponse,
 )
 async def get_llm_cost_breakdown(
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Cost breakdown by provider and task type for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
@@ -382,7 +382,7 @@ async def get_llm_cost_breakdown(
 
 @router.get("/llm/cost", response_model=CostSummaryResponse)
 async def get_llm_cost(
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Cost summary for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)

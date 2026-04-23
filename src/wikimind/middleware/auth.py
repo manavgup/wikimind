@@ -1,8 +1,8 @@
 """JWT authentication middleware for OAuth2-protected endpoints.
 
 When ``settings.auth.enabled`` is False (default), the middleware is a
-pass-through — every request proceeds with ``request.state.user_id = None``,
-preserving backward-compatible single-user mode.
+pass-through — every request proceeds with ``request.state.user_id = None``.
+The ``get_current_user_id`` dependency coalesces this to ``"anonymous"``.
 
 When enabled, the middleware extracts a JWT from the ``wikimind_session``
 HttpOnly cookie (set during the OAuth callback). If no cookie is present,

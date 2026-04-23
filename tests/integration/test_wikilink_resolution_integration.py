@@ -20,6 +20,7 @@ import pytest
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
     Article,
@@ -53,6 +54,7 @@ async def test_wikilink_resolution_end_to_end(
         title="Existing Target",
         file_path=str(tmp_path / "existing-target.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id=ANONYMOUS_USER_ID,
     )
     db_session.add(target)
 
@@ -63,6 +65,7 @@ async def test_wikilink_resolution_end_to_end(
         title="Test Source",
         status=IngestStatus.PROCESSING,
         ingested_at=utcnow_naive(),
+        user_id=ANONYMOUS_USER_ID,
     )
     db_session.add(source)
     await db_session.commit()
@@ -89,7 +92,7 @@ async def test_wikilink_resolution_end_to_end(
     assert backlinks[0].target_article_id == target.id
 
     # 4. Markdown has the resolved link by ID and the unresolved bracket
-    content = resolve_wiki_path(article.file_path).read_text()
+    content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text()
     assert f"[Existing Target](/wiki/{target.id})" in content
     assert "[[Nonexistent Topic]]" in content
 
