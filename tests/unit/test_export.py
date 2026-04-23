@@ -189,6 +189,7 @@ async def _seed_article(db_session, tmp_path: Path) -> Article:
         title="Test Export Article",
         file_path=str(md_path),
         summary="An article about AI agents.",
+        user_id="anonymous",
     )
     db_session.add(article)
     await db_session.commit()

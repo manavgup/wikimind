@@ -67,7 +67,7 @@ async def export_article(
     format: ExportFormat = Query(..., description="Export format: pdf, linkedin, or slides"),
     session: AsyncSession = Depends(get_session),
     service: ExportService = Depends(get_export_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ) -> ExportResponse | HTMLResponse:
     """Export a wiki article in the requested format.
 
