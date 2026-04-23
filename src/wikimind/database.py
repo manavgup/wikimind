@@ -180,14 +180,21 @@ async def init_db():
         ("0003_backfill_concepts", _backfill_concepts_from_articles),
         ("0004_relative_paths", None),  # handled separately (needs session)
         ("0005_backfill_join_tables", _backfill_join_tables_from_json),
+        ("0006_cleanup_orphan_concepts", None),  # handled separately (needs session)
     ]
+
+    # Migrations that need a full AsyncSession (SQLModel ORM) instead of raw SQL
+    _session_migrations = {
+        "0004_relative_paths": _migrate_to_relative_paths,
+        "0006_cleanup_orphan_concepts": _cleanup_orphan_concept_rows,
+    }
 
     for version, migration_fn in _versioned_migrations:
         if await _migration_applied(engine, version):
             continue
-        if version == "0004_relative_paths":
+        if version in _session_migrations:
             async with get_session_factory()() as session:
-                await _migrate_to_relative_paths(session)
+                await _session_migrations[version](session)
         else:
             await migration_fn(engine)  # type: ignore[operator]
         await _record_migration(engine, version)
@@ -612,6 +619,55 @@ async def _backfill_join_tables_from_json(engine) -> None:  # noqa: C901
                                 )
                 except (json.JSONDecodeError, TypeError):
                     pass
+
+
+async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
+    """Delete concept-page Article rows whose markdown files no longer exist on disk.
+
+    Stale rows appear when the naming scheme changes (e.g. the old non-prefixed
+    ``prompt-caching/`` was replaced by ``concept-prompt-caching/``) and the DB
+    rows were never cleaned up.  This removes the Article **and** any Backlink
+    rows that reference it.
+
+    Runs once at startup.  Idempotent -- re-running when no orphans exist is a
+    no-op.  See issue #169.
+    """
+    from sqlalchemy import delete as sa_delete  # noqa: PLC0415
+    from sqlalchemy import or_ as sa_or  # noqa: PLC0415
+
+    from wikimind.models import Article, Backlink, PageType  # noqa: PLC0415
+    from wikimind.storage import resolve_wiki_path  # noqa: PLC0415
+
+    result = await session.execute(select(Article).where(Article.page_type == PageType.CONCEPT))
+    concept_articles = list(result.scalars().all())
+
+    cleaned = 0
+    for article in concept_articles:
+        file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
+        if file_path.exists():
+            continue
+
+        # Remove backlinks referencing the orphaned article first.
+        await session.execute(
+            sa_delete(Backlink).where(
+                sa_or(
+                    Backlink.source_article_id == article.id,
+                    Backlink.target_article_id == article.id,
+                )
+            )
+        )
+        await session.execute(sa_delete(Article).where(Article.id == article.id))
+        cleaned += 1
+        log.warning(
+            "startup: removed orphaned concept page (file missing)",
+            article_id=article.id,
+            slug=article.slug,
+            path=str(file_path),
+        )
+
+    if cleaned:
+        await session.commit()
+        log.info("startup: cleaned orphaned concept rows", count=cleaned)
 
 
 async def _migrate_to_relative_paths(session: AsyncSession) -> None:
