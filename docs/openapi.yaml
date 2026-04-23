@@ -1260,6 +1260,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CostSummaryResponse'
+  /settings/onboarding-status:
+    get:
+      tags:
+      - Settings
+      summary: Get Onboarding Status
+      description: Return onboarding wizard progress for the current user.
+      operationId: get_onboarding_status_settings_onboarding_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusResponse'
+    post:
+      tags:
+      - Settings
+      summary: Complete Onboarding
+      description: Mark onboarding as complete.
+      operationId: complete_onboarding_settings_onboarding_status_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusResponse'
   /auth/login/{provider}:
     get:
       tags:
@@ -2532,6 +2559,20 @@ components:
       - error
       title: LintSeverity
       description: Severity level for a lint finding.
+    OnboardingStatusResponse:
+      properties:
+        completed:
+          type: boolean
+          title: Completed
+        step:
+          type: integer
+          title: Step
+      type: object
+      required:
+      - completed
+      - step
+      title: OnboardingStatusResponse
+      description: Onboarding wizard progress.
     OrphanFinding:
       properties:
         id:

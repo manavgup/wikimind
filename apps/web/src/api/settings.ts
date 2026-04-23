@@ -81,3 +81,18 @@ export function updateSettings(updates: {
     body: updates,
   });
 }
+
+export interface OnboardingStatus {
+  completed: boolean;
+  step: number;
+}
+
+export function getOnboardingStatus(): Promise<OnboardingStatus> {
+  return apiFetch<OnboardingStatus>("/settings/onboarding-status");
+}
+
+export function completeOnboarding(): Promise<OnboardingStatus> {
+  return apiFetch<OnboardingStatus>("/settings/onboarding-status", {
+    method: "POST",
+  });
+}
