@@ -151,6 +151,7 @@ wikimind/
 │   ├── jobs/              # Background compilation worker
 │   └── middleware/        # Correlation ID, logging, security headers
 ├── apps/web/              # React + Vite + TypeScript frontend
+├── apps/web-extension/    # Chrome + Firefox browser extension (MV3)
 ├── tests/                 # pytest unit + integration tests
 ├── docs/                  # ADRs, OpenAPI schema, design specs
 └── scripts/               # Operational scripts (test matrix, doc sync)
@@ -183,6 +184,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | Type checking | mypy + basedpyright |
 | Linting | ruff (with pylint and pydocstyle rules) |
 | Frontend | React 18 + TypeScript + Vite + TanStack Query + Zustand + Tailwind CSS |
+| Browser extension | Preact + TypeScript + Vite, Manifest V3 (Chrome + Firefox) |
 | Testing | pytest + pytest-asyncio + httpx |
 
 ## Make targets
@@ -235,7 +237,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make dead-code` | Alias for vulture — find unused functions, imports, variables |
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
-| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop) |
+| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension) |
 | `make coverage-check` | Run tests and fail if coverage is under 80% |
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
@@ -250,6 +252,16 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make desktop-install` | Install Electron shell dependencies |
 | `make desktop` | Launch the Electron shell for local dev (requires apps/web/dist + .venv) |
 | `make desktop-verify` | Run desktop typecheck + build (auto-installs deps if needed) |
+
+### 🌐 BROWSER EXTENSION
+
+| Target | Description |
+|--------|-------------|
+| `make extension-install` | Install browser extension dependencies |
+| `make extension-dev` | Build extension with watch mode for development |
+| `make extension-build` | Build browser extension for production |
+| `make extension-verify` | Run extension quality checks (typecheck + build) |
+| `make extension-package` | Build extension and create submission-ready zip |
 
 ### 🐳 DOCKER
 

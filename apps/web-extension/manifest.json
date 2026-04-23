@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "WikiMind",
+  "version": "0.1.0",
+  "description": "Clip pages and query your personal knowledge base",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wikimind@wikimind.io",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": ["technicalAndInteraction"]
+      }
+    }
+  },
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "https://wikimind.fly.dev/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "service-worker.js",
+    "scripts": ["service-worker.js"]
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
