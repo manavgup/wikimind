@@ -147,7 +147,7 @@ ignore = [
     "D406",   # section-name-should-end-with-newline — not Google style
     "PLR0913", # too many arguments — common in FastAPI routes
     "PLR2004", # magic value comparison — too noisy for early stage
-    "PLR0915", # too many statements — some functions are legitimately long
+    # PLR0915 — removed: functions refactored to stay within thresholds
     "PLW0603", # global statement — acceptable for singleton patterns (engine, session factory)
     "PIE804",  # unnecessary-dict-kwargs — Pydantic uses **{"alias": ...} patterns intentionally
     "RET504",  # unnecessary-assign — readability-first over short-circuit returns

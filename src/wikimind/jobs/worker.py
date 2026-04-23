@@ -61,6 +61,64 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 
+def _build_normalized_doc(source: Source) -> NormalizedDocument:
+    """Read a source's cleaned text file and build a NormalizedDocument.
+
+    Used as fallback when no pre-built document is passed (ARQ path or
+    recompilation). Every ingest adapter writes a cleaned ``.txt`` and
+    stores its path on the Source record (see issue #59).
+
+    Args:
+        source: The source record with a non-null ``file_path``.
+
+    Returns:
+        A NormalizedDocument ready for compilation.
+
+    Raises:
+        ValueError: If the source has no ``file_path``.
+    """
+    if not source.file_path:
+        raise ValueError("No cleaned text file path for source")
+
+    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+    content = text_path.read_text(encoding="utf-8")
+
+    return NormalizedDocument(
+        raw_source_id=source.id,
+        clean_text=content,
+        title=source.title or "Untitled",
+        author=source.author,
+        published_date=source.published_date,
+        estimated_tokens=_ingest_service.estimate_tokens(content),
+        chunks=_ingest_service.chunk_text(content, source.id),
+    )
+
+
+def _try_embed_article(article: Article) -> None:
+    """Embed article chunks for semantic search (non-blocking, best-effort).
+
+    Silently logs and returns on failure so compilation is never blocked
+    by embedding errors.
+
+    Args:
+        article: The article to embed.
+    """
+    if not _SEARCH_AVAILABLE:
+        return
+    try:
+        embedding_service = get_embedding_service()
+        if embedding_service is not None:
+            content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(encoding="utf-8")
+            embedding_service.embed_article(article.id, article.title, content)
+            log.info("Article embedded", article_id=article.id)
+    except (RuntimeError, ValueError, OSError) as embed_err:
+        log.warning(
+            "Embedding failed (non-fatal)",
+            article_id=article.id,
+            error=str(embed_err),
+        )
+
+
 async def compile_source(
     ctx,
     source_id: str,
@@ -111,27 +169,8 @@ async def compile_source(
 
         try:
             if doc is None:
-                # Fallback: re-read from disk (ARQ path or recompile).
-                # Every adapter writes a cleaned .txt and stores its path on
-                # the Source record (see issue #59). The worker is
-                # format-agnostic and just reads UTF-8 text.
-                if not source.file_path:
-                    raise ValueError("No cleaned text file path for source")
-
-                text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
-                content = text_path.read_text(encoding="utf-8")
-
                 await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
-
-                doc = NormalizedDocument(
-                    raw_source_id=source.id,
-                    clean_text=content,
-                    title=source.title or "Untitled",
-                    author=source.author,
-                    published_date=source.published_date,
-                    estimated_tokens=_ingest_service.estimate_tokens(content),
-                    chunks=_ingest_service.chunk_text(content, source.id),
-                )
+                doc = _build_normalized_doc(source)
 
             await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
 
@@ -156,25 +195,9 @@ async def compile_source(
             await session.commit()
 
             await emit_compilation_complete(article.slug, article.title, user_id=user_id)
-
             log.info("compile_source complete", source_id=source_id, slug=article.slug)
 
-            # Embed article chunks for semantic search (non-blocking)
-            if _SEARCH_AVAILABLE:
-                try:
-                    embedding_service = get_embedding_service()
-                    if embedding_service is not None:
-                        content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(
-                            encoding="utf-8"
-                        )
-                        embedding_service.embed_article(article.id, article.title, content)
-                        log.info("Article embedded", article_id=article.id)
-                except (RuntimeError, ValueError, OSError) as embed_err:
-                    log.warning(
-                        "Embedding failed (non-fatal)",
-                        article_id=article.id,
-                        error=str(embed_err),
-                    )
+            _try_embed_article(article)
 
             # Sweep existing articles — a newly compiled article may resolve
             # brackets that were previously unresolvable. Fast (no LLM),
@@ -257,11 +280,67 @@ async def _get_article_concept_names(article: Article, session) -> list[str]:
     return names
 
 
-async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):  # noqa: C901
+async def _recompile_from_source(article: Article, session) -> None:
+    """Recompile an article by re-reading and re-compiling its primary source.
+
+    Args:
+        article: The article to recompile.
+        session: Async database session.
+
+    Raises:
+        ValueError: If the article has no linked sources or the source file
+            is missing.
+    """
+    source_ids = await _get_article_source_ids(article, session)
+    if not source_ids:
+        raise ValueError("Article has no linked sources")
+
+    source = await session.get(Source, source_ids[0])
+    if not source or not source.file_path:
+        raise ValueError("Source or source file_path not found")
+
+    doc = _build_normalized_doc(source)
+
+    compiler = Compiler()
+    result = await compiler.compile(doc, session)
+    if not result:
+        raise ValueError("Compiler returned no result")
+
+    await compiler.save_article(result, source, session)
+
+
+async def _recompile_from_concept(article: Article, session) -> None:
+    """Recompile an article by regenerating its concept page.
+
+    Args:
+        article: The article to recompile.
+        session: Async database session.
+
+    Raises:
+        ValueError: If the article has no linked concepts or the concept
+            is not found.
+    """
+    concept_names = await _get_article_concept_names(article, session)
+    if not concept_names:
+        raise ValueError("Article has no linked concepts")
+
+    concept_name = concept_names[0]
+    result = await session.execute(select(Concept).where(Concept.name == concept_name))
+    concept = result.scalars().first()
+    if not concept:
+        raise ValueError("Concept not found")
+
+    concept_compiler = ConceptCompiler()
+    result_article = await concept_compiler.compile_concept_page(concept, session)
+    if not result_article:
+        raise ValueError("ConceptCompiler returned no result")
+
+
+async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):
     """Recompile an existing article from its source or concept.
 
     Args:
-        ctx: ARQ context (unused in dev mode).
+        _ctx: ARQ context (unused in dev mode).
         article_id: The article UUID to recompile.
         mode: "source" or "concept".
         _job_id: Pre-created Job record ID to update.
@@ -303,50 +382,9 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
         try:
             if mode == "source":
-                source_ids = await _get_article_source_ids(article, session)
-                if not source_ids:
-                    raise ValueError("Article has no linked sources")
-
-                source = await session.get(Source, source_ids[0])
-                if not source or not source.file_path:
-                    raise ValueError("Source or source file_path not found")
-
-                content = resolve_raw_path(source.file_path, user_id=source.user_id).read_text(encoding="utf-8")
-
-                doc = NormalizedDocument(
-                    raw_source_id=source.id,
-                    clean_text=content,
-                    title=source.title or "Untitled",
-                    author=source.author,
-                    published_date=source.published_date,
-                    estimated_tokens=_ingest_service.estimate_tokens(content),
-                    chunks=_ingest_service.chunk_text(content, source.id),
-                )
-
-                compiler = Compiler()
-                result = await compiler.compile(doc, session)
-
-                if not result:
-                    raise ValueError("Compiler returned no result")
-
-                await compiler.save_article(result, source, session)
-
+                await _recompile_from_source(article, session)
             elif mode == "concept":
-                concept_names = await _get_article_concept_names(article, session)
-                if not concept_names:
-                    raise ValueError("Article has no linked concepts")
-
-                concept_name = concept_names[0]
-                result = await session.execute(select(Concept).where(Concept.name == concept_name))
-                concept = result.scalars().first()
-                if not concept:
-                    raise ValueError("Concept not found")
-
-                concept_compiler = ConceptCompiler()
-                result_article = await concept_compiler.compile_concept_page(concept, session)
-
-                if not result_article:
-                    raise ValueError("ConceptCompiler returned no result")
+                await _recompile_from_concept(article, session)
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
@@ -355,7 +393,6 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
             await session.commit()
 
             await emit_article_recompiled(article_id, article.page_type, "complete", user_id=user_id)
-
             log.info("recompile_article complete", article_id=article_id, mode=mode)
 
         except Exception as e:  # Intentional broad catch — job runner must not crash

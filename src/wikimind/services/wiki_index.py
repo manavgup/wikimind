@@ -70,47 +70,32 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
-async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901, PLR0912
-    """Regenerate the wiki/index.md content catalog from the database.
+async def _group_articles_by_concept(
+    articles: list[Article],
+    session: AsyncSession,
+) -> tuple[dict[str, list[Article]], list[Article]]:
+    """Group articles by concept name and identify uncategorized articles.
 
-    Reads all Articles + their concepts, groups by concept, writes a
-    markdown catalog with page_type frontmatter. Concept pages are shown
-    prominently as entry points. Rewritten in place on every call
-    (NOT append-only).
+    Reads from the ArticleConcept join table with a fallback to the legacy
+    ``Article.concept_ids`` JSON column for pre-migration data.
 
     Args:
+        articles: All articles to categorize.
         session: Async database session.
 
     Returns:
-        The wiki-relative path string of the written file.
+        A tuple of (concept_name -> article list, uncategorized articles).
     """
-    settings = get_settings()
-    wiki_dir = Path(settings.data_dir) / "wiki"
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    index_path = wiki_dir / "index.md"
-
-    # Fetch all articles and concepts
-    articles_result = await session.execute(select(Article))
-    articles: list[Article] = list(articles_result.scalars().all())
-
     concepts_result = await session.execute(select(Concept))
-    concepts: list[Concept] = list(concepts_result.scalars().all())
-    concept_map: dict[str, str] = {c.id: c.name for c in concepts}
+    concept_map: dict[str, str] = {c.id: c.name for c in concepts_result.scalars().all()}
 
-    # Count articles by page_type
-    type_counts: Counter[str] = Counter()
-    for article in articles:
-        type_counts[article.page_type] += 1
-
-    # Group articles by concept name
-    concept_articles: dict[str, list[Article]] = defaultdict(list)
-    uncategorized: list[Article] = []
-
-    # Build article -> concept names mapping from join table
     ac_result = await session.execute(select(ArticleConcept))
     article_concept_map: dict[str, list[str]] = defaultdict(list)
     for ac in ac_result.scalars().all():
         article_concept_map[ac.article_id].append(ac.concept_name)
+
+    concept_articles: dict[str, list[Article]] = defaultdict(list)
+    uncategorized: list[Article] = []
 
     for article in articles:
         raw_ids = article_concept_map.get(article.id, [])
@@ -129,7 +114,24 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901, PLR0
             name = concept_map.get(raw_id, raw_id)
             concept_articles[name].append(article)
 
-    # Build the markdown content with page_type frontmatter
+    return concept_articles, uncategorized
+
+
+def _build_index_lines(
+    articles: list[Article],
+    concept_articles: dict[str, list[Article]],
+    uncategorized: list[Article],
+) -> list[str]:
+    """Build the markdown lines for the wiki index page.
+
+    Args:
+        articles: All articles (for summary counts).
+        concept_articles: Articles grouped by concept name.
+        uncategorized: Articles not tagged with any concept.
+
+    Returns:
+        List of markdown strings to be joined into the index file.
+    """
     now = utcnow_naive()
     frontmatter = (
         f"---\npage_type: index\ntitle: Wiki Index\nslug: index\nscope: global\ngenerated: {now.isoformat()}\n---\n\n"
@@ -139,6 +141,7 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901, PLR0
 
     # Article counts by type
     if articles:
+        type_counts: Counter[str] = Counter(a.page_type for a in articles)
         lines.append(f"**{len(articles)} articles** \u2014 ")
         type_parts: list[str] = []
         for pt in [PageType.SOURCE, PageType.CONCEPT, PageType.ANSWER, PageType.INDEX, PageType.META]:
@@ -151,22 +154,48 @@ async def regenerate_index_md(session: AsyncSession) -> str:  # noqa: C901, PLR0
     concept_page_articles = [a for a in articles if a.page_type == PageType.CONCEPT]
     if concept_page_articles:
         lines.append("## Concept Pages\n\n")
-        lines.extend(_article_entry(article) for article in sorted(concept_page_articles, key=lambda a: a.slug))
+        lines.extend(_article_entry(a) for a in sorted(concept_page_articles, key=lambda a: a.slug))
         lines.append("\n")
 
     # Concepts sorted alphabetically
     for concept_name in sorted(concept_articles):
         lines.append(f"## {concept_name}\n\n")
-        lines.extend(
-            _article_entry(article) for article in sorted(concept_articles[concept_name], key=lambda a: a.slug)
-        )
+        lines.extend(_article_entry(a) for a in sorted(concept_articles[concept_name], key=lambda a: a.slug))
         lines.append("\n")
 
     # Uncategorized section at the bottom
     if uncategorized:
         lines.append("## Uncategorized\n\n")
-        lines.extend(_article_entry(article) for article in sorted(uncategorized, key=lambda a: a.slug))
+        lines.extend(_article_entry(a) for a in sorted(uncategorized, key=lambda a: a.slug))
         lines.append("\n")
+
+    return lines
+
+
+async def regenerate_index_md(session: AsyncSession) -> str:
+    """Regenerate the wiki/index.md content catalog from the database.
+
+    Reads all Articles + their concepts, groups by concept, writes a
+    markdown catalog with page_type frontmatter. Concept pages are shown
+    prominently as entry points. Rewritten in place on every call
+    (NOT append-only).
+
+    Args:
+        session: Async database session.
+
+    Returns:
+        The wiki-relative path string of the written file.
+    """
+    settings = get_settings()
+    wiki_dir = Path(settings.data_dir) / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    index_path = wiki_dir / "index.md"
+
+    articles_result = await session.execute(select(Article))
+    articles: list[Article] = list(articles_result.scalars().all())
+
+    concept_articles, uncategorized = await _group_articles_by_concept(articles, session)
+    lines = _build_index_lines(articles, concept_articles, uncategorized)
 
     index_path.write_text("".join(lines), encoding="utf-8")
     log.info("index.md regenerated", article_count=len(articles))
