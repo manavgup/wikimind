@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 import structlog
 
+from wikimind.config import get_settings
 from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.ingest.adapters.text import TextAdapter
 from wikimind.ingest.adapters.url import URLAdapter
@@ -75,7 +76,8 @@ class IngestService:
 
     async def _ingest_pdf_url(self, url: str, session: AsyncSession) -> tuple[Source, NormalizedDocument]:
         """Download a PDF from *url* and delegate to :class:`PDFAdapter`."""
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        timeout = get_settings().ingest.http_timeout_seconds
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
             response = await client.get(
                 url,
                 headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"},
@@ -98,7 +100,8 @@ class IngestService:
         download gateway). We detect ``application/pdf`` in the
         ``Content-Type`` header and re-route accordingly.
         """
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        timeout = get_settings().ingest.http_timeout_seconds
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
             response = await client.get(
                 url,
                 headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"},
@@ -150,7 +153,6 @@ import trafilatura  # noqa: E402, F401
 from youtube_transcript_api import YouTubeTranscriptApi  # noqa: E402, F401
 
 from wikimind.api.routes.ws import emit_source_progress  # noqa: E402, F401
-from wikimind.config import get_settings  # noqa: E402, F401
 from wikimind.engine.llm_router import get_llm_router  # noqa: E402, F401
 from wikimind.ingest.adapters.pdf import (  # noqa: E402
     _convert_via_docling_serve,

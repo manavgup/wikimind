@@ -209,10 +209,11 @@ async def set_default_provider(request: DefaultProviderRequest):
         )
 
     # Providers that need API keys
-    if request.provider not in ("ollama", "mock") and not get_api_key(request.provider):
+    no_key_providers = {Provider.OLLAMA.value, Provider.MOCK.value}
+    if request.provider not in no_key_providers and not get_api_key(request.provider):
         raise HTTPException(
             status_code=400,
-            detail=(f"Provider {request.provider} has no API key configured"),
+            detail=f"Provider {request.provider} has no API key configured",
         )
 
     await _set_preference("llm.default_provider", request.provider)

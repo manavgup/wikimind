@@ -144,7 +144,11 @@ class TestSynthesizesLinks:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -186,7 +190,11 @@ class TestConceptPageOutput:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -219,7 +227,11 @@ class TestTriggerThreshold:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -250,7 +262,11 @@ class TestTriggerThreshold:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -270,7 +286,11 @@ class TestTriggerThreshold:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=5)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=5),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -303,7 +323,11 @@ class TestWithMockedLLM:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -335,7 +359,11 @@ class TestWithMockedLLM:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2)
+                    data_dir=str(tmp_path),
+                    taxonomy=SimpleNamespace(concept_page_min_sources=2),
+                    compiler=SimpleNamespace(
+                        max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
+                    ),
                 ),
             ),
         ):
@@ -360,7 +388,11 @@ class TestWithMockedLLM:
         mr = AsyncMock()
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
-        s = SimpleNamespace(data_dir=str(tmp_path), taxonomy=SimpleNamespace(concept_page_min_sources=2))
+        s = SimpleNamespace(
+            data_dir=str(tmp_path),
+            taxonomy=SimpleNamespace(concept_page_min_sources=2),
+            compiler=SimpleNamespace(max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000),
+        )
         with (
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=s),

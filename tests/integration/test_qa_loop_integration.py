@@ -41,6 +41,7 @@ _FAKE_QA_SETTINGS = SimpleNamespace(
         max_prior_turns_in_context=5,
         prior_answer_truncate_chars=500,
         conversation_title_max_chars=120,
+        max_tokens=2048,
     ),
 )
 
@@ -85,6 +86,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
                     max_prior_turns_in_context=5,
                     prior_answer_truncate_chars=500,
                     conversation_title_max_chars=120,
+                    max_tokens=2048,
                 ),
             ),
         ),
@@ -245,6 +247,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
                     max_prior_turns_in_context=5,
                     prior_answer_truncate_chars=500,
                     conversation_title_max_chars=120,
+                    max_tokens=2048,
                 ),
             ),
         ),

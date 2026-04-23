@@ -302,7 +302,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         return CompletionRequest(
             system=QA_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
-            max_tokens=2048,
+            max_tokens=self.settings.qa.max_tokens,
             temperature=0.3,
             response_format="json",
             task_type=TaskType.QA,

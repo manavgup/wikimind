@@ -37,7 +37,8 @@ class URLAdapter:
         log.info("Ingesting URL", url=url)
 
         # Fetch page
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        timeout = get_settings().ingest.http_timeout_seconds
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
             response = await client.get(url, headers={"User-Agent": "WikiMind/0.1 (knowledge compiler)"})
             response.raise_for_status()
             html = response.text
