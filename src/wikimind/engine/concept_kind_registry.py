@@ -82,6 +82,5 @@ async def validate_registry_against_prompts(session: AsyncSession) -> None:
         if kind.prompt_template_key not in PROMPT_TEMPLATES
     ]
     if missing:
-        raise RegistryTemplateMismatchError(
-            f"ConceptKindDef rows reference missing prompt templates: {', '.join(missing)}"
-        )
+        msg = f"ConceptKindDef rows reference missing prompt templates: {', '.join(missing)}"
+        raise RegistryTemplateMismatchError(msg)

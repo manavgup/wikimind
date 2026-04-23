@@ -132,7 +132,7 @@ async def backfill(dry_run: bool = False) -> int:
                 log.info("Backfilled images", source_id=source.id, title=source.title, image_count=count)
                 processed += 1
             except Exception:
-                log.error("Failed to process", source_id=source.id, title=source.title, exc_info=True)
+                log.exception("Failed to process", source_id=source.id, title=source.title)
                 errors += 1
 
     log.info("Backfill complete", processed=processed, skipped=skipped, errors=errors)

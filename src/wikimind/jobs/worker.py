@@ -78,7 +78,8 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         ValueError: If the source has no ``file_path``.
     """
     if not source.file_path:
-        raise ValueError("No cleaned text file path for source")
+        msg = "No cleaned text file path for source"
+        raise ValueError(msg)
 
     text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
     content = text_path.read_text(encoding="utf-8")
@@ -181,7 +182,8 @@ async def compile_source(
             result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
 
             if not result:
-                raise ValueError("Compiler returned no result")
+                msg = "Compiler returned no result"
+                raise ValueError(msg)
 
             await emit_source_progress(source_id, "Saving article...", user_id=user_id)
 
@@ -293,18 +295,21 @@ async def _recompile_from_source(article: Article, session) -> None:
     """
     source_ids = await _get_article_source_ids(article, session)
     if not source_ids:
-        raise ValueError("Article has no linked sources")
+        msg = "Article has no linked sources"
+        raise ValueError(msg)
 
     source = await session.get(Source, source_ids[0])
     if not source or not source.file_path:
-        raise ValueError("Source or source file_path not found")
+        msg = "Source or source file_path not found"
+        raise ValueError(msg)
 
     doc = _build_normalized_doc(source)
 
     compiler = Compiler()
     result = await compiler.compile(doc, session)
     if not result:
-        raise ValueError("Compiler returned no result")
+        msg = "Compiler returned no result"
+        raise ValueError(msg)
 
     await compiler.save_article(result, source, session)
 
@@ -322,18 +327,21 @@ async def _recompile_from_concept(article: Article, session) -> None:
     """
     concept_names = await _get_article_concept_names(article, session)
     if not concept_names:
-        raise ValueError("Article has no linked concepts")
+        msg = "Article has no linked concepts"
+        raise ValueError(msg)
 
     concept_name = concept_names[0]
     result = await session.execute(select(Concept).where(Concept.name == concept_name))
     concept = result.scalars().first()
     if not concept:
-        raise ValueError("Concept not found")
+        msg = "Concept not found"
+        raise ValueError(msg)
 
     concept_compiler = ConceptCompiler()
     result_article = await concept_compiler.compile_concept_page(concept, session)
     if not result_article:
-        raise ValueError("ConceptCompiler returned no result")
+        msg = "ConceptCompiler returned no result"
+        raise ValueError(msg)
 
 
 async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):

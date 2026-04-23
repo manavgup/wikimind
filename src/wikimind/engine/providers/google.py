@@ -23,7 +23,8 @@ class GoogleProvider:
     def __init__(self) -> None:
         api_key = get_api_key("google")
         if not api_key:
-            raise ValueError("Google API key not configured")
+            msg = "Google API key not configured"
+            raise ValueError(msg)
         self.client = genai.Client(api_key=api_key)
 
     async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:

@@ -161,7 +161,8 @@ class LLMRouter:
         elif provider == Provider.MOCK:
             instance = MockProvider()
         else:
-            raise ValueError(f"Provider {provider} not implemented yet")
+            msg = f"Provider {provider} not implemented yet"
+            raise ValueError(msg)
 
         self._provider_cache[provider] = instance
         return instance
@@ -287,7 +288,8 @@ class LLMRouter:
                 if not self.settings.llm.fallback_enabled:
                     raise
 
-        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
+        msg = f"All LLM providers failed. Last error: {last_error}"
+        raise RuntimeError(msg)
 
     async def complete_multimodal(
         self,
@@ -361,7 +363,8 @@ class LLMRouter:
                 if not self.settings.llm.fallback_enabled:
                     raise
 
-        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
+        msg = f"All LLM providers failed. Last error: {last_error}"
+        raise RuntimeError(msg)
 
     async def stream_complete(
         self,
@@ -409,7 +412,8 @@ class LLMRouter:
                 if not self.settings.llm.fallback_enabled:
                     raise
 
-        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
+        msg = f"All LLM providers failed. Last error: {last_error}"
+        raise RuntimeError(msg)
 
     def parse_json_response(self, response: CompletionResponse) -> dict:
         """Parse JSON from LLM response, stripping markdown fences if present."""

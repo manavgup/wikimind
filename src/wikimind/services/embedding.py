@@ -125,7 +125,8 @@ class EmbeddingService:
 
     def __init__(self) -> None:
         if not _SEARCH_AVAILABLE:
-            raise RuntimeError("Search extras not installed. Install with: pip install 'wikimind[search]'")
+            msg = "Search extras not installed. Install with: pip install 'wikimind[search]'"
+            raise RuntimeError(msg)
 
         import chromadb  # noqa: PLC0415
 

@@ -206,7 +206,7 @@ async def run_lint(
                 await emit_linter_alert("contradiction", article_titles, user_id=user_id)
 
     except Exception as e:  # Intentional broad catch — job runner must not crash
-        log.error("Lint run failed", error=str(e), exc_info=True)
+        log.exception("Lint run failed", error=str(e))
         report.status = LintReportStatus.FAILED
         report.error_message = str(e)
         report.completed_at = utcnow_naive()

@@ -261,7 +261,8 @@ async def _run_batch(
             elif isinstance(data, dict) and "results" in data:
                 batch_results = data["results"]
             else:
-                raise ValueError(f"Unexpected batch response shape: {type(data)}")
+                msg = f"Unexpected batch response shape: {type(data)}"
+                raise ValueError(msg)
 
             parsed = _parse_batch_response(batch_results, len(pairs_with_claims))
 
