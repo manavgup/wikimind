@@ -63,6 +63,10 @@ dependencies = [
 pdf = [
     # docling is now provided by docling-serve sidecar — no in-process dep needed.
 ]
+export = [
+    # Future: weasyprint or other PDF rendering libs can be added here.
+    # The default export uses markdown-to-HTML which requires no extra deps.
+]
 search = [
     "chromadb>=0.5.20",
     "sentence-transformers>=3.2.1",

@@ -1440,6 +1440,47 @@ paths:
           content:
             application/json:
               schema: {}
+  /wiki/articles/{id_or_slug}/export:
+    post:
+      tags:
+      - Export
+      summary: Export Article
+      description: 'Export a wiki article in the requested format.
+
+
+        - **pdf**: Returns styled HTML (text/html) suitable for browser print-to-PDF.
+
+        - **linkedin**: Returns a LinkedIn post draft (JSON with content field).
+
+        - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content
+        field).'
+      operationId: export_article_wiki_articles__id_or_slug__export_post
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      - name: format
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/ExportFormat'
+          description: 'Export format: pdf, linkedin, or slides'
+        description: 'Export format: pdf, linkedin, or slides'
+      responses:
+        '200':
+          description: Export result (JSON for linkedin/slides, HTML for pdf)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+            text/html: {}
+        '404':
+          description: Article not found
+        '422':
+          description: Invalid export format
   /health:
     get:
       summary: Health
@@ -2061,6 +2102,35 @@ components:
       - finding_id
       title: DismissFindingResponse
       description: Response after dismissing a lint finding.
+    ExportFormat:
+      type: string
+      enum:
+      - pdf
+      - linkedin
+      - slides
+      title: ExportFormat
+      description: Supported article export formats.
+    ExportResponse:
+      properties:
+        format:
+          $ref: '#/components/schemas/ExportFormat'
+        content:
+          type: string
+          title: Content
+        article_id:
+          type: string
+          title: Article Id
+        article_title:
+          type: string
+          title: Article Title
+      type: object
+      required:
+      - format
+      - content
+      - article_id
+      - article_title
+      title: ExportResponse
+      description: Response for text-based exports (LinkedIn, slides).
     FileBackSelectionRequest:
       properties:
         selections:
@@ -3134,5 +3204,7 @@ tags:
   description: System diagnostics and maintenance
 - name: Auth
   description: OAuth2 authentication
+- name: Export
+  description: Export wiki articles as PDF, LinkedIn, or slides
 - name: WebSocket
   description: Real-time progress streams

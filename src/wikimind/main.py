@@ -17,7 +17,7 @@ from sqlmodel import select
 from starlette.responses import FileResponse, HTMLResponse
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from wikimind.api.routes import admin, auth, ingest, jobs, lint, query, wiki, ws
+from wikimind.api.routes import admin, auth, export, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
@@ -116,6 +116,7 @@ app = FastAPI(
         {"name": "Settings", "description": "LLM provider configuration and cost tracking"},
         {"name": "Admin", "description": "System diagnostics and maintenance"},
         {"name": "Auth", "description": "OAuth2 authentication"},
+        {"name": "Export", "description": "Export wiki articles as PDF, LinkedIn, or slides"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
@@ -165,6 +166,7 @@ app.include_router(settings_router.router, prefix="/settings", tags=["Settings"]
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(export.router, prefix="/wiki", tags=["Export"])
 
 # ---------------------------------------------------------------------------
 # Exception handlers — catch domain errors raised inside route handlers
