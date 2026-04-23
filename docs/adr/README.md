@@ -33,6 +33,7 @@ considered, and the consequences.
 | [024](adr-024-gunicorn-autoscaling-horizontal-readiness.md) | Gunicorn Auto-Scaling and Horizontal Scaling Readiness | Unknown |
 | [025](adr-025-docling-serve-sidecar.md) | Docling-Serve Sidecar for PDF Extraction | Unknown |
 | [026](adr-026-article-export-layer.md) | Article Export Layer (PDF, LinkedIn, Slides) | Unknown |
+| [026](adr-026-byok-api-key-encryption.md) | BYOK API Key Encryption at Rest | Accepted |
 | [026](adr-026-multi-replica-gateway.md) | Multi-Replica Gateway — Horizontal Scaling | Unknown |
 | [026](adr-026-onboarding-wizard.md) | First-Run Onboarding Wizard | Accepted |
 

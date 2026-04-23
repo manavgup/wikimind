@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 class AnthropicProvider:
     """Anthropic LLM provider."""
 
-    def __init__(self):
-        api_key = get_api_key("anthropic")
+    def __init__(self, api_key_override: str | None = None):
+        api_key = api_key_override or get_api_key("anthropic")
         if not api_key:
             msg = "Anthropic API key not configured"
             raise ValueError(msg)

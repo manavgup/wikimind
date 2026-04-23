@@ -232,7 +232,7 @@ async def test_router_complete_falls_through_to_next_provider() -> None:
 
     instances = [bad, good]
 
-    async def get_instance(_p):
+    async def get_instance(_p, **_kw):
         return instances.pop(0)
 
     with (
@@ -475,7 +475,7 @@ async def test_router_stream_complete_falls_through_on_error() -> None:
 
     instances = [bad, good]
 
-    async def get_instance(_p):
+    async def get_instance(_p, **_kw):
         return instances.pop(0)
 
     with (

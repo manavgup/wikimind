@@ -45,6 +45,7 @@ dependencies = [
     # Security / keychain
     "keyring>=25.4.1",
     "PyJWT>=2.8.0",
+    "cryptography>=42.0.0",
 
     # Sync
     "boto3>=1.35.49",

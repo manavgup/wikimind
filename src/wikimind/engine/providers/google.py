@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 class GoogleProvider:
     """Google Gemini LLM provider."""
 
-    def __init__(self) -> None:
-        api_key = get_api_key("google")
+    def __init__(self, api_key_override: str | None = None) -> None:
+        api_key = api_key_override or get_api_key("google")
         if not api_key:
             msg = "Google API key not configured"
             raise ValueError(msg)

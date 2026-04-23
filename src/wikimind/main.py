@@ -17,7 +17,7 @@ from sqlmodel import select
 from starlette.responses import FileResponse, HTMLResponse
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from wikimind.api.routes import admin, auth, export, ingest, jobs, lint, query, wiki, ws
+from wikimind.api.routes import admin, api_keys, auth, export, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
 from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
 from wikimind.config import get_settings
@@ -169,6 +169,7 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 app.include_router(lint.router, prefix="/lint", tags=["Lint"])
 app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
+app.include_router(api_keys.router, prefix="/api/settings/api-keys", tags=["Settings"])
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])

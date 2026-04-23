@@ -367,6 +367,25 @@ class SyncLog(SQLModel, table=True):
     error: str | None = None
 
 
+class UserApiKey(SQLModel, table=True):
+    """Encrypted user-provided API key for an LLM provider (BYOK).
+
+    Each row stores a Fernet-encrypted API key with a per-row salt.
+    The encryption key is derived from ``JWT_SECRET_KEY + salt`` via
+    PBKDF2-HMAC-SHA256.  See ADR-026.
+    """
+
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_userapikey_user_provider"),)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    provider: Provider
+    encrypted_key: str  # Fernet-encrypted API key (base64)
+    salt: str  # Per-row salt (hex-encoded)
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
 class UserPreference(SQLModel, table=True):
     """Lightweight key-value store for runtime settings overrides.
 

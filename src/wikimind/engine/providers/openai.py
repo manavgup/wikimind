@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 class OpenAIProvider:
     """OpenAI LLM provider."""
 
-    def __init__(self):
-        api_key = get_api_key("openai")
+    def __init__(self, api_key_override: str | None = None):
+        api_key = api_key_override or get_api_key("openai")
         if not api_key:
             msg = "OpenAI API key not configured"
             raise ValueError(msg)
