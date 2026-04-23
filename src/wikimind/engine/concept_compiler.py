@@ -16,6 +16,8 @@ from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
+    ArticleConcept,
+    ArticleSource,
     Backlink,
     CompletionRequest,
     Concept,
@@ -103,24 +105,12 @@ def get_prompt_template(template_key: str) -> str | None:
 
 async def _collect_source_articles(concept_name: str, session: AsyncSession) -> list[Article]:
     normalized = slugify(concept_name)
-    result = await session.execute(select(Article))
-    articles: list[Article] = []
-    for article in result.scalars().all():
-        if article.page_type != PageType.SOURCE:
-            continue
-        if not article.concept_ids:
-            continue
-        try:
-            concept_ids = json.loads(article.concept_ids)
-        except (TypeError, ValueError):
-            continue
-        if not isinstance(concept_ids, list):
-            continue
-        for cid in concept_ids:
-            if slugify(str(cid)) == normalized:
-                articles.append(article)
-                break
-    return articles
+    result = await session.execute(
+        select(Article)
+        .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
+        .where(ArticleConcept.concept_name == normalized, Article.page_type == PageType.SOURCE)
+    )
+    return list(result.scalars().all())
 
 
 def _build_source_material(articles: list[Article], user_id: str | None = None) -> str:
@@ -269,6 +259,13 @@ class ConceptCompiler:
             )
             for bl in old_links.scalars().all():
                 await session.delete(bl)
+            # Refresh join tables
+            old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == existing.id))
+            for ac in old_ac.scalars().all():
+                await session.delete(ac)
+            old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == existing.id))
+            for a_s in old_as.scalars().all():
+                await session.delete(a_s)
             await session.commit()
             await session.refresh(existing)
             article = existing
@@ -290,6 +287,11 @@ class ConceptCompiler:
         # Write the file AFTER DB commit — prevents orphaned DB rows
         # pointing at files that were never written (#169).
         await self._write_concept_file(compilation, concept, source_articles)
+        # Populate join tables
+        session.add(ArticleConcept(article_id=article.id, concept_name=concept.name))
+        for sid in source_ids:
+            session.add(ArticleSource(article_id=article.id, source_id=sid))
+        await session.commit()
         await self._create_synthesizes_links(article.id, source_ids, session)
         await self._create_related_to_links(article, compilation.related_concepts, session)
         return article

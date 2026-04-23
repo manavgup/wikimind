@@ -14,11 +14,13 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from slugify import slugify
 
 from wikimind.engine.compiler import Compiler
 from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.models import (
     Article,
+    ArticleConcept,
     CompilationResult,
     CompletionResponse,
     Concept,
@@ -78,6 +80,9 @@ async def _mk_source_article(session, tmp_path: Path, slug: str, title: str, con
     session.add(a)
     await session.commit()
     await session.refresh(a)
+    for concept_name in concepts:
+        session.add(ArticleConcept(article_id=a.id, concept_name=slugify(concept_name)))
+    await session.commit()
     return a
 
 

@@ -15,6 +15,7 @@ from wikimind.engine.backlink_enforcer import enforce_backlinks, ensure_bidirect
 from wikimind.engine.linter.contradictions import detect_contradictions
 from wikimind.models import (
     Article,
+    ArticleConcept,
     Backlink,
     Concept,
     LintReport,
@@ -174,6 +175,9 @@ async def test_contradiction_detection_creates_typed_backlink(db_session, _isola
     )
     db_session.add(art_a)
     db_session.add(art_b)
+    await db_session.commit()
+    db_session.add(ArticleConcept(article_id="a1", concept_name="testing"))
+    db_session.add(ArticleConcept(article_id="a2", concept_name="testing"))
     await db_session.commit()
     mock_router = MagicMock()
     mock_router.complete = AsyncMock(return_value=MagicMock())

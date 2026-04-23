@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from slugify import slugify
 from sqlmodel import select
 
 from wikimind.engine.concept_compiler import (
@@ -19,6 +20,7 @@ from wikimind.engine.concept_compiler import (
 )
 from wikimind.models import (
     Article,
+    ArticleConcept,
     Backlink,
     CompletionResponse,
     Concept,
@@ -74,6 +76,9 @@ async def _mk_art(s, tp, slug, title, concepts, summary="Sum."):
     s.add(a)
     await s.commit()
     await s.refresh(a)
+    for concept_name in concepts:
+        s.add(ArticleConcept(article_id=a.id, concept_name=slugify(concept_name)))
+    await s.commit()
     return a
 
 

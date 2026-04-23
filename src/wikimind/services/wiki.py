@@ -17,15 +17,15 @@ from pathlib import Path
 
 import structlog
 from fastapi import HTTPException
-from sqlalchemy import literal_column
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
-from wikimind.db_compat import is_sqlite, json_array_elements_subquery
 from wikimind.models import (
     Article,
+    ArticleConcept,
     ArticleResponse,
+    ArticleSource,
     ArticleSourceSummary,
     ArticleSummaryResponse,
     Backlink,
@@ -50,6 +50,9 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
 
     Used to assign ``GraphNode.concept_cluster`` — the primary concept
     that colors the node in the knowledge graph (ADR-012).
+
+    This is a legacy helper that still parses the JSON column for backward
+    compatibility. New code should query the ``ArticleConcept`` join table.
 
     Args:
         concept_ids_json: Raw JSON string from ``Article.concept_ids``.
@@ -124,6 +127,36 @@ async def _fetch_sources(session: AsyncSession, source_ids: list[str]) -> list[S
     return [by_id[sid] for sid in source_ids if sid in by_id]
 
 
+async def _fetch_source_ids_from_join(session: AsyncSession, article_id: str) -> list[str]:
+    """Fetch source IDs from the ArticleSource join table.
+
+    Falls back to parsing the legacy JSON column if no join rows exist.
+    """
+    result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article_id))
+    ids = [row[0] for row in result.all()]
+    if ids:
+        return ids
+    # Fallback: read from legacy JSON column
+    art_result = await session.execute(select(Article.source_ids).where(Article.id == article_id))
+    row = art_result.first()
+    return _parse_source_ids(row[0] if row else None)
+
+
+async def _fetch_concept_names_from_join(session: AsyncSession, article_id: str) -> list[str]:
+    """Fetch concept names from the ArticleConcept join table.
+
+    Falls back to parsing the legacy JSON column if no join rows exist.
+    """
+    result = await session.execute(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article_id))
+    names = [row[0] for row in result.all()]
+    if names:
+        return names
+    # Fallback: read from legacy JSON column
+    art_result = await session.execute(select(Article.concept_ids).where(Article.id == article_id))
+    row = art_result.first()
+    return _parse_source_ids(row[0] if row else None)
+
+
 def _to_source_response(source: Source) -> SourceResponse:
     """Project a :class:`Source` row into the API-facing :class:`SourceResponse`."""
     return SourceResponse(
@@ -154,8 +187,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     Returns:
         Summary response with a minimal source list attached.
     """
-    source_ids = _parse_source_ids(article.source_ids)
-    concepts = _parse_source_ids(article.concept_ids)
+    source_ids = await _fetch_source_ids_from_join(session, article.id)
+    concepts = await _fetch_concept_names_from_join(session, article.id)
     sources = await _fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
     return ArticleSummaryResponse(
@@ -255,12 +288,9 @@ class WikiService:
         if user_id:
             query = query.where(Article.user_id == user_id)
         if concept:
-            settings = get_settings()
-            dialect = "sqlite" if is_sqlite(settings.database_url) else "postgresql"
-            from_clause, value_ref = json_array_elements_subquery(dialect, "article", "concept_ids")
             query = query.where(
-                literal_column("article.id").in_(
-                    select(literal_column("article.id")).select_from(from_clause).where(value_ref == concept)
+                Article.id.in_(  # type: ignore[attr-defined]
+                    select(ArticleConcept.article_id).where(ArticleConcept.concept_name == concept)
                 )
             )
         if confidence:
@@ -333,10 +363,10 @@ class WikiService:
             for row in bl_out_result.all()
         ]
 
-        source_ids = _parse_source_ids(article.source_ids)
+        source_ids = await _fetch_source_ids_from_join(session, article.id)
         sources = await _fetch_sources(session, source_ids)
 
-        concepts = _parse_source_ids(article.concept_ids)
+        concepts = await _fetch_concept_names_from_join(session, article.id)
 
         return ArticleResponse(
             id=article.id,
