@@ -20,7 +20,7 @@ async def ingest_url(
     request: IngestURLRequest,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Ingest a web URL or YouTube video."""
     return await service.ingest_url(request.url, session, auto_compile=request.auto_compile, user_id=user_id)
@@ -32,7 +32,7 @@ async def ingest_pdf(
     auto_compile: bool = True,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Upload and ingest a PDF.
 
@@ -50,7 +50,7 @@ async def ingest_text(
     request: IngestTextRequest,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Ingest raw text or a note."""
     return await service.ingest_text(
@@ -69,7 +69,7 @@ async def list_sources(
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List all ingested sources."""
     return await service.list_sources(session, status=status, limit=limit, offset=offset, user_id=user_id)

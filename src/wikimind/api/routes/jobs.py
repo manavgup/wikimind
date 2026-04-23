@@ -24,7 +24,7 @@ async def list_jobs(
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List jobs with optional status filter."""
     return await service.list_jobs(session, status=status, limit=limit, user_id=user_id)

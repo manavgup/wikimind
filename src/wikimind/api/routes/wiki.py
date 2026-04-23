@@ -60,7 +60,7 @@ async def list_articles(
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List wiki articles with optional filtering and source provenance."""
     return await service.list_articles(
@@ -83,7 +83,7 @@ async def get_article(
     id_or_slug: str,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Get full article by ID or slug, with content, backlinks, and source provenance."""
     return await service.get_article(id_or_slug, session, user_id=user_id)
@@ -93,7 +93,7 @@ async def get_article(
 async def get_graph(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Full knowledge graph -- nodes and edges."""
     return await service.get_graph(session, user_id=user_id)
@@ -105,7 +105,7 @@ async def search(
     limit: int = 20,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Full-text search across wiki articles with source provenance."""
     return await service.search(q, session, limit=limit, user_id=user_id)
@@ -116,7 +116,7 @@ async def get_concepts(
     include_empty: bool = True,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Concept taxonomy tree."""
     return await service.get_concepts(session, include_empty=include_empty, user_id=user_id)
@@ -139,7 +139,7 @@ async def get_concept(
     name: str,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Concept detail with linked articles."""
     return await service.get_concept(name, session, user_id=user_id)
@@ -152,7 +152,7 @@ async def get_concept_articles(
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Articles tagged with this concept."""
     return await service.get_concept_articles(name, session, limit=limit, offset=offset, user_id=user_id)

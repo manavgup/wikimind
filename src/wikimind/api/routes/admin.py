@@ -20,7 +20,7 @@ router = APIRouter()
 async def get_stats(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Aggregate system statistics."""
     return await service.get_stats(session, user_id=user_id)
@@ -30,7 +30,7 @@ async def get_stats(
 async def get_orphans(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Articles with missing wiki files."""
     return await service.get_orphan_articles(session, user_id=user_id)
@@ -40,7 +40,7 @@ async def get_orphans(
 async def get_eligible_concepts(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Concepts eligible for page generation."""
     return await service.get_eligible_concepts(session, user_id=user_id)
@@ -49,7 +49,7 @@ async def get_eligible_concepts(
 @router.post("/sweep")
 async def trigger_sweep(
     service: AdminService = Depends(get_admin_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Trigger wikilink sweep manually."""
     return await service.trigger_sweep(user_id=user_id)

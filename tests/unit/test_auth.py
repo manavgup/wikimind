@@ -74,8 +74,8 @@ async def test_middleware_passthrough_when_disabled(client):
 
 
 @pytest.mark.asyncio
-async def test_middleware_sets_user_id_none_when_disabled(client):
-    """When auth.enabled=False, request.state.user_id should be None."""
+async def test_middleware_sets_anonymous_user_id_when_disabled(client):
+    """When auth.enabled=False, get_current_user_id returns 'anonymous'."""
     # The /health endpoint succeeds without auth — that proves the middleware passed through
     response = await client.get("/health")
     assert response.status_code == 200

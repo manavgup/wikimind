@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import get_settings
 from wikimind.engine.backlink_enforcer import enforce_backlinks, ensure_bidirectional
 from wikimind.engine.linter.contradictions import detect_contradictions
@@ -280,8 +281,8 @@ async def test_resolve_contradiction_422_invalid(client, async_engine):
 async def test_graph_api_includes_relation_type(client, async_engine):
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     async with factory() as session:
-        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md"))
-        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md"))
+        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=ANONYMOUS_USER_ID))
+        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=ANONYMOUS_USER_ID))
         session.add(
             Backlink(
                 source_article_id="a1",

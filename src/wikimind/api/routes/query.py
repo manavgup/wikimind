@@ -31,7 +31,7 @@ async def ask(
     request: QueryRequest,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Ask a question against the wiki and receive an answer with citations.
 
@@ -46,7 +46,7 @@ async def ask(
 async def ask_stream(
     request: QueryRequest,
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ) -> StreamingResponse:
     """Stream an answer token-by-token via Server-Sent Events.
 
@@ -84,7 +84,7 @@ async def query_history(
     limit: int = 50,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List past queries (legacy endpoint — UI uses /conversations instead)."""
     return await service.query_history(session, limit=limit, user_id=user_id)
@@ -95,7 +95,7 @@ async def list_conversations(
     limit: int = 50,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """List conversations ordered by most recently updated first."""
     return await service.list_conversations(session, limit=limit, user_id=user_id)
@@ -106,7 +106,7 @@ async def get_conversation(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Return a single conversation with all its turns."""
     return await service.get_conversation(conversation_id, session, user_id=user_id)
@@ -131,7 +131,7 @@ async def file_back_selection(
     request: FileBackSelectionRequest,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """File selected turns from one or more conversations back to the wiki as a single article."""
     return await service.file_back_selection(request, session, user_id=user_id)
@@ -142,7 +142,7 @@ async def file_back_conversation(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """File the entire conversation back to the wiki as a single article."""
     return await service.file_back_conversation(conversation_id, session, user_id=user_id)
@@ -154,7 +154,7 @@ async def fork_conversation(
     fork_request: ForkRequest,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
-    user_id: str | None = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Fork a conversation at a specific turn with a new question.
 
