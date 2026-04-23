@@ -9,6 +9,7 @@ they are not installed.
 from __future__ import annotations
 
 import functools
+import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -20,23 +21,12 @@ from wikimind.config import get_settings
 log = structlog.get_logger()
 
 # ---------------------------------------------------------------------------
-# Optional dependency availability check (mirrors _DOCLING_AVAILABLE pattern)
+# Optional dependency availability check
 # ---------------------------------------------------------------------------
 
-_chromadb: Any = None
-_SentenceTransformer: Any = None
-_SEARCH_AVAILABLE = False
-
-try:
-    import chromadb
-
-    _chromadb = chromadb
-    from sentence_transformers import SentenceTransformer
-
-    _SentenceTransformer = SentenceTransformer
-    _SEARCH_AVAILABLE = True
-except ImportError:
-    pass
+_SEARCH_AVAILABLE = (
+    importlib.util.find_spec("chromadb") is not None and importlib.util.find_spec("sentence_transformers") is not None
+)
 
 
 @dataclass
@@ -137,11 +127,13 @@ class EmbeddingService:
         if not _SEARCH_AVAILABLE:
             raise RuntimeError("Search extras not installed. Install with: pip install 'wikimind[search]'")
 
+        import chromadb  # noqa: PLC0415
+
         settings = get_settings()
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
         chroma_path.mkdir(parents=True, exist_ok=True)
 
-        self._client: Any = _chromadb.PersistentClient(path=str(chroma_path))
+        self._client: Any = chromadb.PersistentClient(path=str(chroma_path))
         self._collection: Any = self._client.get_or_create_collection(
             name="wikimind_chunks",
             metadata={"hnsw:space": "cosine"},
@@ -162,7 +154,9 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            self._model = _SentenceTransformer(self._model_name)
+            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+
+            self._model = SentenceTransformer(self._model_name)
         return self._model
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
