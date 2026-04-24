@@ -14,6 +14,7 @@ session is always left in a clean state.
 """
 
 import functools
+import importlib
 import json
 import uuid
 from collections.abc import AsyncGenerator
@@ -23,7 +24,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import structlog
 from slugify import slugify
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import or_ as sa_or
 from sqlalchemy import text as sa_text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -32,8 +35,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import wikimind.models  # noqa: F401 — register SQLModel tables in metadata
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres, is_sqlite
+from wikimind.models import (
+    Article,
+    ArticleConcept,
+    ArticleSource,
+    Backlink,
+    MigrationHistory,
+    PageType,
+    Source,
+    User,
+)
+from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
 
@@ -44,8 +59,6 @@ def _dialect_insert(conn) -> Any:
     SQLAlchemy's ``on_conflict_do_nothing()`` is only available on
     dialect-specific insert constructs, not the generic ``sqlalchemy.insert``.
     """
-    import importlib  # noqa: PLC0415
-
     module_name = "sqlalchemy.dialects." + ("sqlite" if conn.dialect.name == "sqlite" else "postgresql")
     return importlib.import_module(module_name).insert
 
@@ -159,8 +172,6 @@ async def _migration_applied(engine, version: str) -> bool:
 
 async def _record_migration(engine, version: str) -> None:
     """Record a migration version as applied."""
-    from wikimind.models import MigrationHistory  # noqa: PLC0415
-
     async with AsyncSession(engine) as session:
         session.add(MigrationHistory(version=version, applied_at=utcnow_naive()))
         await session.commit()
@@ -174,9 +185,6 @@ async def _ensure_anonymous_user(engine) -> None:
     Tables with ``user_id`` FK constraints need this row to exist.
     Idempotent — skips if the row is already present.
     """
-    from wikimind.api.deps import ANONYMOUS_USER_ID  # noqa: PLC0415
-    from wikimind.models import User  # noqa: PLC0415
-
     async with AsyncSession(engine) as session:
         existing = await session.get(User, ANONYMOUS_USER_ID)
         if existing is None:
@@ -402,8 +410,6 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
     async with engine.begin() as conn:
 
         def _table_exists(sync_conn, name: str) -> bool:
-            from sqlalchemy import inspect as sa_inspect  # noqa: PLC0415
-
             return name in sa_inspect(sync_conn).get_table_names()
 
         if not await conn.run_sync(lambda c: _table_exists(c, "query")):
@@ -620,8 +626,6 @@ async def _backfill_concept_links(conn, article_id: str, concept_ids_raw: str) -
         return
     if not isinstance(concept_names, list):
         return
-    from wikimind.models import ArticleConcept  # noqa: PLC0415
-
     _insert = _dialect_insert(conn)
     for name in concept_names:
         if name:
@@ -650,8 +654,6 @@ async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> 
         return
     if not isinstance(source_ids, list):
         return
-    from wikimind.models import ArticleSource  # noqa: PLC0415
-
     _insert = _dialect_insert(conn)
     for sid in source_ids:
         if sid:
@@ -713,12 +715,6 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
     Runs once at startup.  Idempotent -- re-running when no orphans exist is a
     no-op.  See issue #169.
     """
-    from sqlalchemy import delete as sa_delete  # noqa: PLC0415
-    from sqlalchemy import or_ as sa_or  # noqa: PLC0415
-
-    from wikimind.models import Article, Backlink, PageType  # noqa: PLC0415
-    from wikimind.storage import resolve_wiki_path  # noqa: PLC0415
-
     result = await session.execute(select(Article).where(Article.page_type == PageType.CONCEPT))
     concept_articles = list(result.scalars().all())
 
@@ -756,8 +752,6 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
 
     Runs once at startup. Idempotent -- already-relative paths are skipped.
     """
-    from wikimind.models import Article, Source  # noqa: PLC0415
-
     settings = get_settings()
     wiki_prefix = str(Path(settings.data_dir) / "wiki") + "/"
     raw_prefix = str(Path(settings.data_dir) / "raw") + "/"

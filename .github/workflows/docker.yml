@@ -39,6 +39,10 @@ on:
       - ".dockerignore"
       - "pyproject.toml"
       - "src/**"
+      - "alembic/**"
+      - "docker/**"
+      - "fly.toml"
+      - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -48,6 +52,10 @@ on:
       - "docker-compose.yml"
       - ".dockerignore"
       - "pyproject.toml"
+      - "alembic/**"
+      - "docker/**"
+      - "fly.toml"
+      - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
   schedule:
     # Weekly rebuild against the latest base image — catches bit-rot.

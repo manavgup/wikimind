@@ -27,6 +27,12 @@ log = structlog.get_logger()
 _SEARCH_AVAILABLE = (
     importlib.util.find_spec("chromadb") is not None and importlib.util.find_spec("sentence_transformers") is not None
 )
+if _SEARCH_AVAILABLE:
+    import chromadb
+    from sentence_transformers import SentenceTransformer
+else:
+    chromadb = None  # pyright: ignore[reportAssignmentType]
+    SentenceTransformer = None  # pyright: ignore[reportAssignmentType]
 
 
 @dataclass
@@ -134,12 +140,11 @@ class EmbeddingService:
             msg = "Search extras not installed. Install with: pip install 'wikimind[search]'"
             raise RuntimeError(msg)
 
-        import chromadb  # noqa: PLC0415
-
         settings = get_settings()
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
         chroma_path.mkdir(parents=True, exist_ok=True)
 
+        assert chromadb is not None  # guaranteed by _SEARCH_AVAILABLE guard above
         self._client: Any = chromadb.PersistentClient(path=str(chroma_path))
         self._collection: Any = self._client.get_or_create_collection(
             name="wikimind_chunks",
@@ -161,8 +166,7 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
-
+            assert SentenceTransformer is not None  # guaranteed by _SEARCH_AVAILABLE guard
             self._model = SentenceTransformer(self._model_name)
         return self._model
 

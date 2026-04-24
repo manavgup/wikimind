@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import importlib.util
 import json
 import time
 from dataclasses import dataclass, field
@@ -30,6 +31,11 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+_REDIS_AVAILABLE = importlib.util.find_spec("redis") is not None
+if _REDIS_AVAILABLE:
+    from redis.asyncio import Redis as _Redis
+else:
+    _Redis = None  # type: ignore[assignment,misc]
 
 # ---------------------------------------------------------------------------
 # Redis helper for cross-replica budget flag dedup
@@ -50,11 +56,12 @@ async def _get_budget_redis():
     redis_url = get_settings().redis_url
     if not redis_url:
         return None
+    if not _REDIS_AVAILABLE:
+        return None
 
     try:
-        from redis.asyncio import Redis  # noqa: PLC0415
-
-        _budget_redis_pool = Redis.from_url(redis_url, decode_responses=True)
+        assert _Redis is not None  # guarded by _REDIS_AVAILABLE above
+        _budget_redis_pool = _Redis.from_url(redis_url, decode_responses=True)
         return _budget_redis_pool
     except Exception:
         log.debug("Redis unavailable for budget dedup — per-process flags only")

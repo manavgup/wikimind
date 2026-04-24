@@ -223,12 +223,11 @@ match-dir = "(?!tests).*"
 [tool.mypy]
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
-warn_return_any = false         # Surfaces 17 legitimate `Any` propagations (SQLModel queries etc.);
-                                # deferred to a dedicated strict-mode PR that fixes them with cast().
+warn_return_any = false         # SQLModel queries propagate Any; fix requires cast() in ~17 places
 warn_unused_configs = true
-warn_redundant_casts = true     # Step toward strict mode (issue #217 phase 3)
+warn_redundant_casts = true
 warn_unused_ignores = true
-disallow_untyped_defs = false
+disallow_untyped_defs = false   # 104 violations — enable in a dedicated strict-mode PR
 ignore_missing_imports = true
 check_untyped_defs = true
 
@@ -248,6 +247,8 @@ markers = [
     "e2e: end-to-end tests requiring full stack",
     "external: tests that call external APIs",
     "postgres: tests that require a running PostgreSQL instance",
+    "security: security-focused tests (auth, injection, OWASP)",
+    "auth: authentication and authorization tests",
 ]
 
 # ---------- Coverage ----------

@@ -105,3 +105,65 @@ jobs:
 
       - name: 🔍  Mypy strict
         run: uv run mypy src/wikimind
+
+  # -----------------------------------------------------------
+  # Job 3 — Bandit: security linter (SAST)
+  # -----------------------------------------------------------
+  bandit:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: bandit (security)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: 🔒  Bandit security scan
+        run: uv run bandit -r src/wikimind -c pyproject.toml -q
+
+  # -----------------------------------------------------------
+  # Job 4 — Interrogate: docstring coverage
+  # -----------------------------------------------------------
+  interrogate:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: interrogate (docstrings)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: 📝  Docstring coverage
+        run: uv run interrogate -v src/wikimind

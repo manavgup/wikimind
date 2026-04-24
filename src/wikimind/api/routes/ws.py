@@ -17,12 +17,19 @@ falls back to local-only delivery (single-replica dev mode).
 
 import asyncio
 import contextlib
+import importlib.util
 import json
 
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from wikimind.config import get_settings
+
+_REDIS_AVAILABLE = importlib.util.find_spec("redis") is not None
+if _REDIS_AVAILABLE:
+    from redis.asyncio import Redis as _Redis
+else:
+    _Redis = None  # type: ignore[assignment,misc]
 
 log = structlog.get_logger()
 
@@ -56,11 +63,12 @@ async def _get_redis():
     redis_url = get_settings().redis_url
     if not redis_url:
         return None
+    if not _REDIS_AVAILABLE:
+        return None
 
     try:
-        from redis.asyncio import Redis  # noqa: PLC0415
-
-        _redis_publish_pool = Redis.from_url(redis_url, decode_responses=True)
+        assert _Redis is not None  # guarded by _REDIS_AVAILABLE above
+        _redis_publish_pool = _Redis.from_url(redis_url, decode_responses=True)
         return _redis_publish_pool
     except Exception:
         log.debug("Redis unavailable for WebSocket pub/sub — local-only mode")
@@ -101,10 +109,12 @@ async def _start_redis_subscriber() -> None:
     if not redis_url:
         return
 
-    try:
-        from redis.asyncio import Redis  # noqa: PLC0415
+    if not _REDIS_AVAILABLE:
+        return
 
-        subscriber_redis = Redis.from_url(redis_url, decode_responses=True)
+    try:
+        assert _Redis is not None  # guarded by _REDIS_AVAILABLE above
+        subscriber_redis = _Redis.from_url(redis_url, decode_responses=True)
     except Exception:
         log.debug("Redis unavailable — skipping WebSocket subscriber")
         return

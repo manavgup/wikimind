@@ -6,6 +6,7 @@ use the LLM router to rewrite content into the target format.
 """
 
 import functools
+import re
 
 import structlog
 
@@ -225,8 +226,6 @@ def _escape_html(text: str) -> str:
 
 def _inline_format(text: str) -> str:
     """Apply inline markdown formatting (bold, italic, code, links)."""
-    import re  # noqa: PLC0415 — only used within this helper
-
     result = _escape_html(text)
     # Inline code (must be before bold/italic to avoid conflict)
     result = re.sub(r"`([^`]+)`", r"<code>\1</code>", result)

@@ -33,6 +33,14 @@ repos:
       - id: ruff-format
         args: ["--config=pyproject.toml"]
 
+  # ── YAML linting ─────────────────────────────────────────────────────────
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: ["-d", "{extends: relaxed, rules: {line-length: {max: 200}}}"]
+        exclude: "^(apps/|docs/mkdocs\\.yml$)"
+
   # ── Secret detection ─────────────────────────────────────────────────────
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
