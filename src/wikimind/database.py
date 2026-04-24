@@ -167,6 +167,32 @@ async def _record_migration(engine, version: str) -> None:
     log.info("migration applied", version=version)
 
 
+async def _ensure_anonymous_user(engine) -> None:
+    """Create the 'anonymous' user row if it doesn't exist.
+
+    When auth is disabled, ``get_current_user_id()`` returns ``"anonymous"``.
+    Tables with ``user_id`` FK constraints need this row to exist.
+    Idempotent — skips if the row is already present.
+    """
+    from wikimind.api.deps import ANONYMOUS_USER_ID  # noqa: PLC0415
+    from wikimind.models import User  # noqa: PLC0415
+
+    async with AsyncSession(engine) as session:
+        existing = await session.get(User, ANONYMOUS_USER_ID)
+        if existing is None:
+            session.add(
+                User(
+                    id=ANONYMOUS_USER_ID,
+                    email="anonymous@localhost",
+                    name="Anonymous",
+                    auth_provider="none",
+                    auth_provider_id="anonymous",
+                )
+            )
+            await session.commit()
+            log.info("created anonymous user for no-auth mode")
+
+
 async def init_db():
     """Create all tables and run idempotent data migrations.
 
@@ -187,6 +213,10 @@ async def init_db():
         await conn.run_sync(SQLModel.metadata.create_all)
     if is_sqlite(settings.database_url):
         await _migrate_added_columns(engine)
+
+    # Ensure the "anonymous" user row exists so FK constraints are satisfied
+    # when auth is disabled (get_current_user_id returns "anonymous").
+    await _ensure_anonymous_user(engine)
 
     # Versioned data migrations — each runs at most once
     _versioned_migrations: list[tuple[str, object]] = [
