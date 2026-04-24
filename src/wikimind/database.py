@@ -568,14 +568,24 @@ async def _backfill_concept_links(conn, article_id: str, concept_ids_raw: str) -
         return
     if not isinstance(concept_names, list):
         return
+    dialect = conn.dialect.name
     for name in concept_names:
         if name:
-            await conn.execute(
-                sa_text(
+            if dialect == "sqlite":
+                sql = (
                     "INSERT OR IGNORE INTO articleconcept"
                     " (article_id, concept_name)"
                     " VALUES (:article_id, :concept_name)"
-                ),
+                )
+            else:
+                sql = (
+                    "INSERT INTO articleconcept"
+                    " (article_id, concept_name)"
+                    " VALUES (:article_id, :concept_name)"
+                    " ON CONFLICT DO NOTHING"
+                )
+            await conn.execute(
+                sa_text(sql),
                 {"article_id": article_id, "concept_name": str(name)},
             )
 
@@ -594,12 +604,14 @@ async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> 
         return
     if not isinstance(source_ids, list):
         return
+    dialect = conn.dialect.name
     for sid in source_ids:
         if sid:
-            await conn.execute(
-                sa_text("INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"),
-                {"article_id": article_id, "source_id": str(sid)},
-            )
+            if dialect == "sqlite":
+                sql = "INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"
+            else:
+                sql = "INSERT INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id) ON CONFLICT DO NOTHING"
+            await conn.execute(sa_text(sql), {"article_id": article_id, "source_id": str(sid)})
 
 
 async def _backfill_join_tables_from_json(engine) -> None:
