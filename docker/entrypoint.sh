@@ -17,6 +17,11 @@ if [[ -z "${WEB_CONCURRENCY:-}" ]]; then
     unset WEB_CONCURRENCY
 fi
 
-# Run directly from the venv — avoids `uv run` re-syncing the editable
-# install on every container start (adds ~100ms + "Building wikimind" noise).
-exec .venv/bin/"$@"
+# Run from the venv when the command exists there (gunicorn, python, etc.),
+# otherwise fall back to PATH (system commands like sh, bash, find).
+# This avoids `uv run` re-syncing the editable install on every start.
+if [[ -x ".venv/bin/$1" ]]; then
+    exec .venv/bin/"$@"
+else
+    exec "$@"
+fi
