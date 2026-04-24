@@ -18,6 +18,7 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import structlog
@@ -29,11 +30,24 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import wikimind.models  # noqa: F401 — register SQLModel tables in metadata
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres, is_sqlite
 
 log = structlog.get_logger()
+
+
+def _dialect_insert(conn) -> Any:
+    """Return the dialect-specific ``insert`` function for upsert support.
+
+    SQLAlchemy's ``on_conflict_do_nothing()`` is only available on
+    dialect-specific insert constructs, not the generic ``sqlalchemy.insert``.
+    """
+    import importlib  # noqa: PLC0415
+
+    module_name = "sqlalchemy.dialects." + ("sqlite" if conn.dialect.name == "sqlite" else "postgresql")
+    return importlib.import_module(module_name).insert
 
 
 def _parse_ssl(url: str) -> tuple[str, dict]:
@@ -148,9 +162,35 @@ async def _record_migration(engine, version: str) -> None:
     async with engine.begin() as conn:
         await conn.execute(
             sa_text("INSERT INTO migrationhistory (version, applied_at) VALUES (:v, :ts)"),
-            {"v": version, "ts": utcnow_naive().isoformat()},
+            {"v": version, "ts": utcnow_naive()},
         )
     log.info("migration applied", version=version)
+
+
+async def _ensure_anonymous_user(engine) -> None:
+    """Create the 'anonymous' user row if it doesn't exist.
+
+    When auth is disabled, ``get_current_user_id()`` returns ``"anonymous"``.
+    Tables with ``user_id`` FK constraints need this row to exist.
+    Idempotent — skips if the row is already present.
+    """
+    from wikimind.api.deps import ANONYMOUS_USER_ID  # noqa: PLC0415
+    from wikimind.models import User  # noqa: PLC0415
+
+    async with AsyncSession(engine) as session:
+        existing = await session.get(User, ANONYMOUS_USER_ID)
+        if existing is None:
+            session.add(
+                User(
+                    id=ANONYMOUS_USER_ID,
+                    email="anonymous@localhost",
+                    name="Anonymous",
+                    auth_provider="none",
+                    auth_provider_id="anonymous",
+                )
+            )
+            await session.commit()
+            log.info("created anonymous user for no-auth mode")
 
 
 async def init_db():
@@ -173,6 +213,10 @@ async def init_db():
         await conn.run_sync(SQLModel.metadata.create_all)
     if is_sqlite(settings.database_url):
         await _migrate_added_columns(engine)
+
+    # Ensure the "anonymous" user row exists so FK constraints are satisfied
+    # when auth is disabled (get_current_user_id returns "anonymous").
+    await _ensure_anonymous_user(engine)
 
     # Versioned data migrations — each runs at most once
     _versioned_migrations: list[tuple[str, object]] = [
@@ -356,6 +400,14 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
     title_max = settings.qa.conversation_title_max_chars
 
     async with engine.begin() as conn:
+
+        def _table_exists(sync_conn, name: str) -> bool:
+            from sqlalchemy import inspect as sa_inspect  # noqa: PLC0415
+
+            return name in sa_inspect(sync_conn).get_table_names()
+
+        if not await conn.run_sync(lambda c: _table_exists(c, "query")):
+            return  # Fresh DB — no legacy data to backfill
 
         def _select_legacy(sync_conn):
             return sync_conn.execute(
@@ -568,16 +620,20 @@ async def _backfill_concept_links(conn, article_id: str, concept_ids_raw: str) -
         return
     if not isinstance(concept_names, list):
         return
+    from wikimind.models import ArticleConcept  # noqa: PLC0415
+
+    _insert = _dialect_insert(conn)
     for name in concept_names:
         if name:
-            await conn.execute(
-                sa_text(
-                    "INSERT OR IGNORE INTO articleconcept"
-                    " (article_id, concept_name)"
-                    " VALUES (:article_id, :concept_name)"
-                ),
-                {"article_id": article_id, "concept_name": str(name)},
+            stmt = (
+                _insert(ArticleConcept)
+                .values(
+                    article_id=article_id,
+                    concept_name=str(name),
+                )
+                .on_conflict_do_nothing()
             )
+            await conn.execute(stmt)
 
 
 async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> None:
@@ -594,12 +650,20 @@ async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> 
         return
     if not isinstance(source_ids, list):
         return
+    from wikimind.models import ArticleSource  # noqa: PLC0415
+
+    _insert = _dialect_insert(conn)
     for sid in source_ids:
         if sid:
-            await conn.execute(
-                sa_text("INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"),
-                {"article_id": article_id, "source_id": str(sid)},
+            stmt = (
+                _insert(ArticleSource)
+                .values(
+                    article_id=article_id,
+                    source_id=str(sid),
+                )
+                .on_conflict_do_nothing()
             )
+            await conn.execute(stmt)
 
 
 async def _backfill_join_tables_from_json(engine) -> None:
