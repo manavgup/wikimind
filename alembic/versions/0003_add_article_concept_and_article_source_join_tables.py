@@ -60,13 +60,12 @@ def upgrade() -> None:  # noqa: C901, PLR0912
                 if isinstance(concept_names, list):
                     for name in concept_names:
                         if name:
-                            conn.execute(
-                                sa.text(
-                                    "INSERT OR IGNORE INTO articleconcept (article_id, concept_name) "
-                                    "VALUES (:article_id, :concept_name)"
-                                ),
-                                {"article_id": article_id, "concept_name": str(name)},
-                            )
+                            dialect = conn.dialect.name
+                            if dialect == "sqlite":
+                                sql = "INSERT OR IGNORE INTO articleconcept (article_id, concept_name) VALUES (:article_id, :concept_name)"
+                            else:
+                                sql = "INSERT INTO articleconcept (article_id, concept_name) VALUES (:article_id, :concept_name) ON CONFLICT DO NOTHING"
+                            conn.execute(sa.text(sql), {"article_id": article_id, "concept_name": str(name)})
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -76,13 +75,12 @@ def upgrade() -> None:  # noqa: C901, PLR0912
                 if isinstance(source_ids, list):
                     for sid in source_ids:
                         if sid:
-                            conn.execute(
-                                sa.text(
-                                    "INSERT OR IGNORE INTO articlesource (article_id, source_id) "
-                                    "VALUES (:article_id, :source_id)"
-                                ),
-                                {"article_id": article_id, "source_id": str(sid)},
-                            )
+                            dialect = conn.dialect.name
+                            if dialect == "sqlite":
+                                sql = "INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"
+                            else:
+                                sql = "INSERT INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id) ON CONFLICT DO NOTHING"
+                            conn.execute(sa.text(sql), {"article_id": article_id, "source_id": str(sid)})
             except (json.JSONDecodeError, TypeError):
                 pass
 
