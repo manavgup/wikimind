@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import wikimind.models  # noqa: F401 — register SQLModel tables in metadata
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres, is_sqlite
@@ -148,7 +149,7 @@ async def _record_migration(engine, version: str) -> None:
     async with engine.begin() as conn:
         await conn.execute(
             sa_text("INSERT INTO migrationhistory (version, applied_at) VALUES (:v, :ts)"),
-            {"v": version, "ts": utcnow_naive().isoformat()},
+            {"v": version, "ts": utcnow_naive()},
         )
     log.info("migration applied", version=version)
 
@@ -356,6 +357,14 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
     title_max = settings.qa.conversation_title_max_chars
 
     async with engine.begin() as conn:
+
+        def _table_exists(sync_conn, name: str) -> bool:
+            from sqlalchemy import inspect as sa_inspect  # noqa: PLC0415
+
+            return name in sa_inspect(sync_conn).get_table_names()
+
+        if not await conn.run_sync(lambda c: _table_exists(c, "query")):
+            return  # Fresh DB — no legacy data to backfill
 
         def _select_legacy(sync_conn):
             return sync_conn.execute(
