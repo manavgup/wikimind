@@ -1,8 +1,15 @@
 # WikiMind
 
+[![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/test.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/test.yml)
+[![Lint & Static Analysis](https://github.com/manavgup/wikimind/actions/workflows/lint.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/lint.yml)
+
 > You never write the wiki. You feed it. Every question makes it smarter.
 
 WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube videos, podcasts, or papers — it compiles them into a structured wiki and answers questions with full source attribution.
+
+## 📖 Read More
+
+[**Building a Personal Knowledge OS with LLMs**](https://manavgup.github.io/shipai/blog/2026/04/21/building-wikimind-personal-knowledge-os/) — architecture deep-dive, design decisions, and lessons learned.
 
 ## What it is
 

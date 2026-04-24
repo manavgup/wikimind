@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import func, select
@@ -9,9 +11,12 @@ from sqlmodel import func, select
 from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_api_key, get_settings, set_api_key
-from wikimind.database import get_session_factory
+from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import get_llm_router
-from wikimind.models import CompletionRequest, CostLog, Provider, TaskType, UserPreference
+from wikimind.models import Article, CompletionRequest, CostLog, Provider, TaskType, UserPreference
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
@@ -422,12 +427,28 @@ _ONBOARDING_STEP_KEY = "onboarding.step"
 
 
 @router.get("/onboarding-status", response_model=OnboardingStatusResponse)
-async def get_onboarding_status():
-    """Return onboarding wizard progress for the current user."""
+async def get_onboarding_status(
+    session: AsyncSession = Depends(get_session),
+):
+    """Return onboarding wizard progress for the current user.
+
+    If the user has never explicitly completed onboarding but already has
+    articles in the wiki, treat onboarding as implicitly complete — they
+    are clearly past the first-run stage.
+    """
     completed_val = await _get_preference(_ONBOARDING_COMPLETED_KEY)
+    if completed_val == "true":
+        step_val = await _get_preference(_ONBOARDING_STEP_KEY)
+        return OnboardingStatusResponse(completed=True, step=int(step_val) if step_val else 5)
+
+    # Implicit completion: existing articles mean the user already knows the app.
+    result = await session.execute(select(Article.id).limit(1))
+    if result.scalar_one_or_none() is not None:
+        return OnboardingStatusResponse(completed=True, step=5)
+
     step_val = await _get_preference(_ONBOARDING_STEP_KEY)
     return OnboardingStatusResponse(
-        completed=completed_val == "true",
+        completed=False,
         step=int(step_val) if step_val else 0,
     )
 
