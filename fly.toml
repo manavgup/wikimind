@@ -18,9 +18,10 @@ primary_region = "ord"
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
-  # Gunicorn workers — keep low on 1-CPU/1GB Fly.io machines to avoid
-  # memory pressure and startup timeout cascades.
-  WEB_CONCURRENCY = "2"
+  # Gunicorn workers — 4 ensures at least one worker can respond to health
+  # checks while others are still initializing (DB init, migrations).
+  # Fewer workers caused deploy timeouts (health check fails within 5 min).
+  WEB_CONCURRENCY = "4"
 
 [http_service]
   internal_port = 7842
