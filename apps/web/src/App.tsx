@@ -27,22 +27,23 @@ function AuthenticatedApp() {
 
   return (
     <Layout>
-      {showWizard && (
+      {showWizard ? (
         <OnboardingWizard
           onComplete={() => navigate("/wiki")}
         />
+      ) : (
+        <Routes>
+          <Route path="/inbox" element={<InboxView />} />
+          <Route path="/ask" element={<AskView />} />
+          <Route path="/ask/:conversationId" element={<AskView />} />
+          <Route path="/wiki" element={<WikiExplorerView />} />
+          <Route path="/wiki/:slug" element={<WikiExplorerView />} />
+          <Route path="/graph" element={<GraphView />} />
+          <Route path="/health" element={<HealthView />} />
+          <Route path="/settings" element={<SettingsView />} />
+          <Route path="*" element={<Navigate to="/inbox" replace />} />
+        </Routes>
       )}
-      <Routes>
-        <Route path="/inbox" element={<InboxView />} />
-        <Route path="/ask" element={<AskView />} />
-        <Route path="/ask/:conversationId" element={<AskView />} />
-        <Route path="/wiki" element={<WikiExplorerView />} />
-        <Route path="/wiki/:slug" element={<WikiExplorerView />} />
-        <Route path="/graph" element={<GraphView />} />
-        <Route path="/health" element={<HealthView />} />
-        <Route path="/settings" element={<SettingsView />} />
-        <Route path="*" element={<Navigate to="/inbox" replace />} />
-      </Routes>
     </Layout>
   );
 }
