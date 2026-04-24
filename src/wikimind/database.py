@@ -159,11 +159,11 @@ async def _migration_applied(engine, version: str) -> bool:
 
 async def _record_migration(engine, version: str) -> None:
     """Record a migration version as applied."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            sa_text("INSERT INTO migrationhistory (version, applied_at) VALUES (:v, :ts)"),
-            {"v": version, "ts": utcnow_naive()},
-        )
+    from wikimind.models import MigrationHistory  # noqa: PLC0415
+
+    async with AsyncSession(engine) as session:
+        session.add(MigrationHistory(version=version, applied_at=utcnow_naive()))
+        await session.commit()
     log.info("migration applied", version=version)
 
 
