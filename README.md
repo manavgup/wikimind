@@ -240,7 +240,10 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 |--------|-------------|
 | `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
 | `make serve` | Run production server on :7842 (gunicorn) |
-| `make dev-postgres` | Run dev server against Postgres (set WIKIMIND_DATABASE_URL in .env) |
+| `make pg-up` | Start local Postgres (docker-compose.dev.yml, port 5433) |
+| `make pg-down` | Stop local Postgres |
+| `make dev-postgres` | Run dev server against local Postgres (make pg-up first) |
+| `make test-postgres` | Run tests against local Postgres (make pg-up first) |
 | `make worker` | Start ARQ background job worker |
 
 ### 🔍 QUALITY
