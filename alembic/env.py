@@ -16,6 +16,7 @@ from alembic import context
 # Import all models so metadata is populated
 from wikimind import models  # noqa: F401
 from wikimind.config import get_settings
+from wikimind.database import _parse_ssl, is_postgres
 
 config = context.config
 
@@ -53,7 +54,10 @@ def do_run_migrations(connection) -> None:
 async def run_async_migrations() -> None:
     """Run migrations in async 'online' mode."""
     url = get_url()
-    connectable = create_async_engine(url, poolclass=pool.NullPool)
+    connect_args: dict = {}
+    if is_postgres(url):
+        url, connect_args = _parse_ssl(url)
+    connectable = create_async_engine(url, poolclass=pool.NullPool, connect_args=connect_args)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()
