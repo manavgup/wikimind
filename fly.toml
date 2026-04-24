@@ -18,8 +18,9 @@ primary_region = "ord"
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
-  # Gunicorn workers — lightweight now that ML runs in docling-serve sidecar.
-  WEB_CONCURRENCY = "4"
+  # Gunicorn workers — keep low on 1-CPU/1GB Fly.io machines to avoid
+  # memory pressure and startup timeout cascades.
+  WEB_CONCURRENCY = "2"
 
 [http_service]
   internal_port = 7842

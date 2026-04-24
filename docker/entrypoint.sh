@@ -7,7 +7,7 @@ set -euo pipefail
 _db_url="${WIKIMIND_DATABASE_URL:-${DATABASE_URL:-}}"
 if [[ "$_db_url" == postgres* ]]; then
     echo "Running Alembic migrations..."
-    uv run python -m alembic upgrade head
+    .venv/bin/python -m alembic upgrade head
     echo "Migrations complete."
 fi
 
@@ -17,5 +17,11 @@ if [[ -z "${WEB_CONCURRENCY:-}" ]]; then
     unset WEB_CONCURRENCY
 fi
 
-# Hand off to CMD (gunicorn in prod, or whatever compose overrides).
-exec uv run "$@"
+# Run from the venv when the command exists there (gunicorn, python, etc.),
+# otherwise fall back to PATH (system commands like sh, bash, find).
+# This avoids `uv run` re-syncing the editable install on every start.
+if [[ -x ".venv/bin/$1" ]]; then
+    exec .venv/bin/"$@"
+else
+    exec "$@"
+fi
