@@ -1265,7 +1265,14 @@ paths:
       tags:
       - Settings
       summary: Get Onboarding Status
-      description: Return onboarding wizard progress for the current user.
+      description: 'Return onboarding wizard progress for the current user.
+
+
+        If the user has never explicitly completed onboarding but already has
+
+        articles in the wiki, treat onboarding as implicitly complete — they
+
+        are clearly past the first-run stage.'
       operationId: get_onboarding_status_settings_onboarding_status_get
       responses:
         '200':
