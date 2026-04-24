@@ -1,0 +1,63 @@
+# fly.staging.toml — Fly.io deployment for WikiMind staging environment.
+#
+# Pre-prod environment used by CI to run smoke tests before promoting
+# to production.  Same machine specs as production (fly.toml).
+#
+# First-time setup:
+#   fly apps create wikimind-staging
+#   fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
+#   fly postgres attach wikimind-db --app wikimind-staging   # or a separate staging DB
+#   fly secrets set --app wikimind-staging \
+#     ANTHROPIC_API_KEY=... \
+#     WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32) \
+#     WIKIMIND_AUTH__GOOGLE_CLIENT_ID=... \
+#     WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
+#
+# Manual deploy:
+#   fly deploy --config fly.staging.toml --remote-only
+
+app = "wikimind-staging"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  WIKIMIND_SERVER__HOST = "0.0.0.0"
+  WIKIMIND_SERVER__PORT = "7842"
+  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
+  WEB_CONCURRENCY = "4"
+
+[http_service]
+  internal_port = 7842
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 25
+
+
+[deploy]
+  strategy = "rolling"
+
+[mounts]
+  source = "wikimind_staging_data"
+  destination = "/home/wikimind/.wikimind"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 7842
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"

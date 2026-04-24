@@ -1,12 +1,18 @@
 # ---------------------------------------------------------------
-# 🚀  Deploy to Fly.io
+# Deploy to Fly.io  (staging -> smoke tests -> production)
 # ---------------------------------------------------------------
 #
 # Chains after the Docker workflow: when Docker builds, scans,
 # and publishes a multi-arch image to GHCR on push to main,
-# this workflow pulls that image and deploys it to Fly.io.
+# this workflow pulls that image and deploys it.
 #
-# Prerequisites:
+# Pipeline:
+#   deploy-staging -> smoke-test-staging -> deploy-production -> verify-production
+#
+# If staging smoke tests fail, production is NOT deployed and
+# a GitHub Actions summary alert is created.
+#
+# Prerequisites (production — already set up):
 #   1. Fly app created:  fly apps create wikimind
 #   2. Volume created:   fly volumes create wikimind_data --region ord --size 1
 #   3. Postgres attached: fly postgres create --name wikimind-db && fly postgres attach wikimind-db
@@ -15,8 +21,15 @@
 #        fly secrets set WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
 #        fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
 #        fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
-#   5. FLY_API_TOKEN added as a GitHub repository secret:
-#        fly tokens create deploy -x 999999h
+#   5. FLY_API_TOKEN added as a GitHub repository secret
+#
+# Prerequisites (staging):
+#   1. fly apps create wikimind-staging
+#   2. fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
+#   3. fly postgres attach wikimind-db --app wikimind-staging
+#   4. Secrets set (same as production, or use test values):
+#        fly secrets set --app wikimind-staging ANTHROPIC_API_KEY=...
+#        fly secrets set --app wikimind-staging WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
 # ---------------------------------------------------------------
 
 name: Deploy
@@ -35,46 +48,137 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
-    name: deploy to Fly.io
+  # -----------------------------------------------------------
+  # 1. Deploy to staging
+  # -----------------------------------------------------------
+  deploy-staging:
+    name: deploy to staging
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Only deploy when Docker workflow succeeded on a push (not schedule or PR)
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: ⬇️  Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🪁  Install flyctl
+      - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: 🧠  Deploy docling-serve sidecar
+      - name: Deploy docling-serve sidecar
         run: |
           flyctl status --app wikimind-docling 2>/dev/null || flyctl apps create wikimind-docling --org personal
           flyctl deploy --config fly.docling.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: 🚀  Deploy to Fly.io
+      - name: Deploy to staging
+        run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:latest --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # -----------------------------------------------------------
+  # 2. Smoke-test staging
+  # -----------------------------------------------------------
+  smoke-test-staging:
+    name: smoke-test staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: deploy-staging
+
+    steps:
+      - name: Wait for staging to become healthy
+        run: |
+          echo "Waiting for staging to become healthy..."
+          for i in $(seq 1 30); do
+            status=$(curl -sf https://wikimind-staging.fly.dev/health \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
+              2>/dev/null || echo "")
+            if [ "$status" = "ok" ]; then
+              echo "Staging healthy after $((i*2))s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::Staging health check failed after 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: "Smoke: GET /health returns 200"
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/health)
+          echo "/health -> $code"
+          [ "$code" = "200" ] || { echo "::error::/health returned $code"; exit 1; }
+
+      - name: "Smoke: GET /docs returns 200"
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/docs)
+          echo "/docs -> $code"
+          [ "$code" = "200" ] || { echo "::error::/docs returned $code"; exit 1; }
+
+      - name: "Smoke: GET /auth/me returns 200 or 401"
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/auth/me)
+          echo "/auth/me -> $code"
+          if [ "$code" != "200" ] && [ "$code" != "401" ]; then
+            echo "::error::/auth/me returned $code (expected 200 or 401)"
+            exit 1
+          fi
+
+      - name: Create alert on failure
+        if: failure()
+        run: |
+          echo "## Staging smoke tests failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production deploy was **skipped** because staging smoke tests did not pass." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the failed steps above for details." >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------
+  # 3. Deploy to production (only if staging passed)
+  # -----------------------------------------------------------
+  deploy-production:
+    name: deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: smoke-test-staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:latest --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: ✅  Verify deployment health
+  # -----------------------------------------------------------
+  # 4. Verify production
+  # -----------------------------------------------------------
+  verify-production:
+    name: verify production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: deploy-production
+
+    steps:
+      - name: Verify deployment health
         run: |
-          echo "Waiting for deployment to become healthy..."
+          echo "Waiting for production to become healthy..."
           for i in $(seq 1 30); do
             status=$(curl -sf https://wikimind.fly.dev/health \
               | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
               2>/dev/null || echo "")
             if [ "$status" = "ok" ]; then
-              echo "Deployment healthy after $((i*2))s"
+              echo "Production healthy after $((i*2))s"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::Health check failed after 60s"
+          echo "::error::Production health check failed after 60s"
           exit 1
