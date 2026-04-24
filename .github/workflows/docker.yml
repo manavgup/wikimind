@@ -247,3 +247,62 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=prod
           cache-to: type=gha,scope=prod,mode=max
+
+  # ---------------------------------------------------------------
+  # Alert — auto-create an issue when the deploy pipeline breaks
+  # Only fires on main pushes so PR failures don't create noise.
+  # ---------------------------------------------------------------
+  notify-failure:
+    if: >-
+      failure() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    name: alert on deploy-pipeline failure
+    needs: [build, scan, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: 🚨  Create issue for pipeline failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Deploy pipeline blocked — Docker workflow failed on main';
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'deploy-blocked',
+              per_page: 5,
+            });
+            if (existing.data.some(i => i.title === title)) {
+              console.log('Issue already exists — skipping duplicate.');
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: [
+                '## Deploy pipeline is blocked',
+                '',
+                `The Docker workflow failed on \`main\` and GHCR publish was skipped.`,
+                `Deploys to Fly.io will not proceed until this is fixed.`,
+                '',
+                `**Failed run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                `**Commit:** ${context.sha.slice(0, 7)}`,
+                '',
+                '### Common causes',
+                '- Trivy CVE scan found a HIGH/CRITICAL vulnerability with a fix available',
+                '- Docker build failed (dependency resolution, base image issue)',
+                '',
+                '### To fix',
+                '1. Click the failed run link above',
+                '2. Check which job failed (usually CVE scan)',
+                '3. Fix the issue (e.g. bump the vulnerable dependency)',
+                '4. Push to main — the pipeline will retry automatically',
+              ].join('\n'),
+              labels: ['bug', 'infra', 'deploy-blocked'],
+            });
