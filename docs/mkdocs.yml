@@ -129,6 +129,10 @@ nav:
           - ADR-023 Container architecture: architecture/adr/adr-023-production-container-architecture.md
           - ADR-024 Gunicorn autoscaling: architecture/adr/adr-024-gunicorn-autoscaling-horizontal-readiness.md
           - ADR-025 docling-serve sidecar: architecture/adr/adr-025-docling-serve-sidecar.md
+          - ADR-026 Article export layer: architecture/adr/adr-026-article-export-layer.md
+          - ADR-026 BYOK API key encryption: architecture/adr/adr-026-byok-api-key-encryption.md
+          - ADR-026 Multi-replica gateway: architecture/adr/adr-026-multi-replica-gateway.md
+          - ADR-026 Onboarding wizard: architecture/adr/adr-026-onboarding-wizard.md
   - API Reference:
       - OpenAPI: api/openapi.md
   - Development:
