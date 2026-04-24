@@ -18,6 +18,7 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import structlog
@@ -35,6 +36,18 @@ from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres, is_sqlite
 
 log = structlog.get_logger()
+
+
+def _dialect_insert(conn) -> Any:
+    """Return the dialect-specific ``insert`` function for upsert support.
+
+    SQLAlchemy's ``on_conflict_do_nothing()`` is only available on
+    dialect-specific insert constructs, not the generic ``sqlalchemy.insert``.
+    """
+    import importlib  # noqa: PLC0415
+
+    module_name = "sqlalchemy.dialects." + ("sqlite" if conn.dialect.name == "sqlite" else "postgresql")
+    return importlib.import_module(module_name).insert
 
 
 def _parse_ssl(url: str) -> tuple[str, dict]:
@@ -577,26 +590,20 @@ async def _backfill_concept_links(conn, article_id: str, concept_ids_raw: str) -
         return
     if not isinstance(concept_names, list):
         return
-    dialect = conn.dialect.name
+    from wikimind.models import ArticleConcept  # noqa: PLC0415
+
+    _insert = _dialect_insert(conn)
     for name in concept_names:
         if name:
-            if dialect == "sqlite":
-                sql = (
-                    "INSERT OR IGNORE INTO articleconcept"
-                    " (article_id, concept_name)"
-                    " VALUES (:article_id, :concept_name)"
+            stmt = (
+                _insert(ArticleConcept)
+                .values(
+                    article_id=article_id,
+                    concept_name=str(name),
                 )
-            else:
-                sql = (
-                    "INSERT INTO articleconcept"
-                    " (article_id, concept_name)"
-                    " VALUES (:article_id, :concept_name)"
-                    " ON CONFLICT DO NOTHING"
-                )
-            await conn.execute(
-                sa_text(sql),
-                {"article_id": article_id, "concept_name": str(name)},
+                .on_conflict_do_nothing()
             )
+            await conn.execute(stmt)
 
 
 async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> None:
@@ -613,14 +620,20 @@ async def _backfill_source_links(conn, article_id: str, source_ids_raw: str) -> 
         return
     if not isinstance(source_ids, list):
         return
-    dialect = conn.dialect.name
+    from wikimind.models import ArticleSource  # noqa: PLC0415
+
+    _insert = _dialect_insert(conn)
     for sid in source_ids:
         if sid:
-            if dialect == "sqlite":
-                sql = "INSERT OR IGNORE INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id)"
-            else:
-                sql = "INSERT INTO articlesource (article_id, source_id) VALUES (:article_id, :source_id) ON CONFLICT DO NOTHING"
-            await conn.execute(sa_text(sql), {"article_id": article_id, "source_id": str(sid)})
+            stmt = (
+                _insert(ArticleSource)
+                .values(
+                    article_id=article_id,
+                    source_id=str(sid),
+                )
+                .on_conflict_do_nothing()
+            )
+            await conn.execute(stmt)
 
 
 async def _backfill_join_tables_from_json(engine) -> None:
