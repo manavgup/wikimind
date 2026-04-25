@@ -225,3 +225,53 @@ class TestAPIRoutes:
             json={"api_key": "some-key"},
         )
         assert resp.status_code == 400
+
+    async def test_set_key_without_jwt_secret(self, client: AsyncClient, monkeypatch):
+        """PUT returns 500 with descriptive error when JWT_SECRET_KEY is missing."""
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
+        get_settings.cache_clear()
+        try:
+            resp = await client.put(
+                "/api/settings/api-keys/openai",
+                json={"api_key": "sk-test-key-1234"},
+            )
+            assert resp.status_code == 500
+            assert "JWT_SECRET_KEY" in resp.json()["detail"]
+        finally:
+            get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# Settings "configured" status — BYOK keys show as configured
+# ---------------------------------------------------------------------------
+
+
+class TestProviderConfiguredStatus:
+    """GET /settings reflects BYOK database keys in provider configured status."""
+
+    @pytest.fixture(autouse=True)
+    def _set_jwt_secret(self, monkeypatch):
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "test-secret-key-for-byok")
+        get_settings.cache_clear()
+        yield
+        get_settings.cache_clear()
+
+    async def test_provider_configured_with_env_var(self, client: AsyncClient, monkeypatch):
+        """Provider shows configured when an env var API key is set."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-env")
+        get_settings.cache_clear()
+        try:
+            resp = await client.get("/settings")
+            assert resp.status_code == 200
+            providers = resp.json()["llm"]["providers"]
+            assert providers["anthropic"]["configured"] is True
+        finally:
+            get_settings.cache_clear()
+
+    async def test_provider_not_configured_by_default(self, client: AsyncClient):
+        """Provider shows not configured when no key exists."""
+        resp = await client.get("/settings")
+        assert resp.status_code == 200
+        providers = resp.json()["llm"]["providers"]
+        # OpenAI has no env var set in test → not configured
+        assert providers["openai"]["configured"] is False
