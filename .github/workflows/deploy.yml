@@ -1,29 +1,83 @@
+# ===============================================================
+# 🚀  Deploy to Fly.io — Staging-Gated Production Pipeline
+# ===============================================================
+#
+#   - chains after the Docker workflow (build → scan → GHCR publish)
+#   - deploys staging first, smoke-tests it, then promotes to prod
+#   - auto-provisions apps, volumes, Postgres, and secrets
+#   - fails loudly on real errors; suppresses only idempotent ones
+#
 # ---------------------------------------------------------------
-# Deploy to Fly.io  (staging -> smoke tests -> production)
+# Pipeline
 # ---------------------------------------------------------------
 #
-# Chains after the Docker workflow: when Docker builds, scans,
-# and publishes a multi-arch image to GHCR on push to main,
-# this workflow pulls that image and deploys it.
+#   Docker (build + Trivy + GHCR publish)
+#     │
+#     ▼
+#   1️⃣  deploy-staging
+#     │  • ensure app + volume exist
+#     │  • ensure Postgres cluster + attach
+#     │  • stage secrets (--stage, no restart)
+#     │  • deploy docling-serve sidecar
+#     │  • deploy app from GHCR :latest
+#     │
+#     ▼
+#   2️⃣  smoke-test-staging
+#     │  • GET /health  → 200
+#     │  • GET /docs    → 200
+#     │  • GET /auth/me → 200 or 401
+#     │  ✖ failure → summary alert, prod skipped
+#     │
+#     ▼
+#   3️⃣  deploy-production
+#     │  • same provisioning as staging
+#     │  • deploy docling-serve sidecar
+#     │  • deploy app from GHCR :latest
+#     │
+#     ▼
+#   4️⃣  verify-production
+#        • poll /health for 60s
 #
-# Pipeline:
-#   deploy-staging -> smoke-test-staging -> deploy-production -> verify-production
+# ---------------------------------------------------------------
+# Auto-provisioning (both environments)
+# ---------------------------------------------------------------
 #
-# If staging smoke tests fail, production is NOT deployed and
-# a GitHub Actions summary alert is created.
+#   Resource          │ Behavior
+#   ──────────────────┼─────────────────────────────────────────
+#   Fly app           │ Created if missing
+#   Volume            │ Created if missing (1 GB)
+#   Postgres cluster  │ Created if missing (⚠️ WARNING emitted)
+#   Postgres attach   │ Idempotent; real errors fail the job
+#   Secrets           │ Staged (--stage) from GitHub secrets
+#   Docling sidecar   │ App created if missing, deployed
 #
-# Fully automated provisioning (zero manual steps):
-#   - App + volume created if they don't exist
-#   - Postgres cluster created if it doesn't exist (with WARNING)
-#   - Postgres attach (idempotent, fails loudly on real errors)
-#   - Secrets staged (no restart) from GitHub repository secrets
+#   Why ⚠️ on Postgres create: a new cluster has empty data.
+#   If the old cluster was deleted, you've lost data. The warning
+#   ensures operators notice and investigate.
 #
-# Required GitHub repository secrets:
-#   - FLY_API_TOKEN (deploy token with access to all apps)
-#   - ANTHROPIC_API_KEY
-#   - WIKIMIND_AUTH__JWT_SECRET_KEY
-#   - WIKIMIND_AUTH__GOOGLE_CLIENT_ID
-#   - WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET
+# ---------------------------------------------------------------
+# Required GitHub repository secrets
+# ---------------------------------------------------------------
+#
+#   Secret                              │ Purpose
+#   ────────────────────────────────────┼────────────────────────
+#   FLY_API_TOKEN                       │ Fly.io deploy token
+#   ANTHROPIC_API_KEY                   │ LLM provider key
+#   WIKIMIND_AUTH__JWT_SECRET_KEY        │ JWT signing key
+#   WIKIMIND_AUTH__GOOGLE_CLIENT_ID      │ OAuth client ID
+#   WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET  │ OAuth client secret
+#
+# ---------------------------------------------------------------
+# Fly.io apps managed by this workflow
+# ---------------------------------------------------------------
+#
+#   App               │ Config             │ Purpose
+#   ──────────────────┼────────────────────┼──────────────────
+#   wikimind-staging  │ fly.staging.toml   │ Pre-prod gate
+#   wikimind          │ fly.toml           │ Production
+#   wikimind-docling  │ fly.docling.toml   │ PDF sidecar
+#   wikimind-db       │ (Postgres cluster) │ Shared database
+#
 # ---------------------------------------------------------------
 
 name: Deploy
@@ -43,7 +97,7 @@ permissions:
 
 jobs:
   # -----------------------------------------------------------
-  # 1. Deploy to staging
+  # 1️⃣  Deploy to staging
   # -----------------------------------------------------------
   deploy-staging:
     name: deploy to staging
@@ -54,13 +108,14 @@ jobs:
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: Checkout code
+      - name: ⬇️  Checkout code
         uses: actions/checkout@v4
 
-      - name: Install flyctl
+      - name: 🪁  Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Validate required secrets
+      # 0️⃣  Pre-flight: ensure all secrets are configured
+      - name: 🔐  Validate required secrets
         run: |
           missing=0
           for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
@@ -76,20 +131,23 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      - name: Ensure staging app exists
+      # 1️⃣  Ensure staging infrastructure exists
+      - name: 🏗️  Ensure staging app exists
         run: |
           if ! flyctl status --app wikimind-staging 2>/dev/null; then
             echo "Creating staging app..."
             flyctl apps create wikimind-staging --org personal
             flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
           fi
-          # Ensure Postgres cluster exists.
+
+          # Postgres cluster — created if missing, with loud warning
           if ! flyctl status --app wikimind-db 2>/dev/null; then
             echo "::warning::Creating NEW Postgres cluster — database will be empty!"
             flyctl postgres create --name wikimind-db --org personal --region ord \
               --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
           fi
-          # Attach is idempotent — only suppress "already attached" errors.
+
+          # Attach — idempotent; only suppress "already attached" errors
           output=$(flyctl postgres attach wikimind-db --app wikimind-staging 2>&1) || {
             if echo "$output" | grep -qi "already attached\|already exists"; then
               echo "Postgres already attached to staging"
@@ -101,7 +159,8 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Stage secrets for staging
+      # 2️⃣  Stage secrets (--stage avoids double-restart before deploy)
+      - name: 🔑  Stage secrets for staging
         run: |
           flyctl secrets set --stage --app wikimind-staging \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
@@ -115,20 +174,21 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      - name: Deploy docling-serve sidecar
+      # 3️⃣  Deploy sidecar + app
+      - name: 🧠  Deploy docling-serve sidecar
         run: |
           flyctl status --app wikimind-docling 2>/dev/null || flyctl apps create wikimind-docling --org personal
           flyctl deploy --config fly.docling.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Deploy to staging
+      - name: 🚀  Deploy to staging
         run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:latest --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   # -----------------------------------------------------------
-  # 2. Smoke-test staging
+  # 2️⃣  Smoke-test staging
   # -----------------------------------------------------------
   smoke-test-staging:
     name: smoke-test staging
@@ -137,7 +197,7 @@ jobs:
     needs: deploy-staging
 
     steps:
-      - name: Wait for staging to become healthy
+      - name: ⏳  Wait for staging to become healthy
         run: |
           echo "Waiting for staging to become healthy..."
           for i in $(seq 1 30); do
@@ -155,19 +215,19 @@ jobs:
             sleep 2
           done
 
-      - name: "Smoke: GET /health returns 200"
+      - name: "🩺  Smoke: GET /health → 200"
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/health)
           echo "/health -> $code"
           [ "$code" = "200" ] || { echo "::error::/health returned $code"; exit 1; }
 
-      - name: "Smoke: GET /docs returns 200"
+      - name: "📖  Smoke: GET /docs → 200"
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/docs)
           echo "/docs -> $code"
           [ "$code" = "200" ] || { echo "::error::/docs returned $code"; exit 1; }
 
-      - name: "Smoke: GET /auth/me returns 200 or 401"
+      - name: "🔐  Smoke: GET /auth/me → 200 or 401"
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' https://wikimind-staging.fly.dev/auth/me)
           echo "/auth/me -> $code"
@@ -176,7 +236,7 @@ jobs:
             exit 1
           fi
 
-      - name: Create alert on failure
+      - name: 🚨  Create alert on failure
         if: failure()
         run: |
           echo "## Staging smoke tests failed" >> "$GITHUB_STEP_SUMMARY"
@@ -186,7 +246,7 @@ jobs:
           echo "Check the failed steps above for details." >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------
-  # 3. Deploy to production (only if staging passed)
+  # 3️⃣  Deploy to production (only if staging passed)
   # -----------------------------------------------------------
   deploy-production:
     name: deploy to production
@@ -195,24 +255,26 @@ jobs:
     needs: smoke-test-staging
 
     steps:
-      - name: Checkout code
+      - name: ⬇️  Checkout code
         uses: actions/checkout@v4
 
-      - name: Install flyctl
+      - name: 🪁  Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Ensure production app exists
+      - name: 🏗️  Ensure production app exists
         run: |
           if ! flyctl status --app wikimind 2>/dev/null; then
             echo "Creating production app..."
             flyctl apps create wikimind --org personal
             flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
           fi
+
           if ! flyctl status --app wikimind-db 2>/dev/null; then
             echo "::warning::Creating NEW Postgres cluster — database will be empty!"
             flyctl postgres create --name wikimind-db --org personal --region ord \
               --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
           fi
+
           output=$(flyctl postgres attach wikimind-db --app wikimind 2>&1) || {
             if echo "$output" | grep -qi "already attached\|already exists"; then
               echo "Postgres already attached to production"
@@ -224,7 +286,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Stage secrets for production
+      - name: 🔑  Stage secrets for production
         run: |
           flyctl secrets set --stage --app wikimind \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
@@ -238,20 +300,20 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      - name: Deploy docling-serve sidecar
+      - name: 🧠  Deploy docling-serve sidecar
         run: |
           flyctl status --app wikimind-docling 2>/dev/null || flyctl apps create wikimind-docling --org personal
           flyctl deploy --config fly.docling.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Deploy to production
+      - name: 🚀  Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:latest --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   # -----------------------------------------------------------
-  # 4. Verify production
+  # 4️⃣  Verify production
   # -----------------------------------------------------------
   verify-production:
     name: verify production
@@ -260,7 +322,7 @@ jobs:
     needs: deploy-production
 
     steps:
-      - name: Verify deployment health
+      - name: ✅  Verify deployment health
         run: |
           echo "Waiting for production to become healthy..."
           for i in $(seq 1 30); do
