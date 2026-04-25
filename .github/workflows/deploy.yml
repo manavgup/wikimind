@@ -23,13 +23,12 @@
 #        fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
 #   5. FLY_API_TOKEN added as a GitHub repository secret
 #
-# Prerequisites (staging):
-#   1. fly apps create wikimind-staging
-#   2. fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
-#   3. fly postgres attach wikimind-db --app wikimind-staging
-#   4. Secrets set (same as production, or use test values):
-#        fly secrets set --app wikimind-staging ANTHROPIC_API_KEY=...
-#        fly secrets set --app wikimind-staging WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
+# Staging is auto-provisioned by the workflow:
+#   - App created if it doesn't exist
+#   - Volume created if it doesn't exist
+#   - Secrets copied from production
+#   - Only manual prerequisite: Postgres must be attached once
+#     (fly postgres attach wikimind-db --app wikimind-staging)
 # ---------------------------------------------------------------
 
 name: Deploy
@@ -65,6 +64,37 @@ jobs:
 
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Ensure staging app exists
+        run: |
+          if ! flyctl status --app wikimind-staging 2>/dev/null; then
+            echo "Creating staging app..."
+            flyctl apps create wikimind-staging --org personal
+            flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
+            echo "::warning::Staging app created. You must manually run: fly postgres attach wikimind-db --app wikimind-staging"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Sync secrets from production to staging
+        run: |
+          echo "Copying secrets from wikimind to wikimind-staging..."
+          # Export prod secrets (key=value), import to staging.
+          # flyctl secrets list outputs NAME | DIGEST | DEPLOYED — we need
+          # to re-set them from the prod app. Since we can't read secret
+          # values via CLI, we use the same GitHub secrets the prod app uses.
+          flyctl secrets set --app wikimind-staging \
+            ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+            WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
+            WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+            2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
       - name: Deploy docling-serve sidecar
         run: |
