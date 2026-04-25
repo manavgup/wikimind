@@ -1,0 +1,1 @@
+../../../adr/adr-026-multi-replica-gateway.md

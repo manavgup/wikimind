@@ -6,12 +6,15 @@ on:
     paths:
       - "docs/**"
       - "src/**"
+  pull_request:
+    paths:
+      - "docs/**"
 
 permissions:
   contents: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +30,22 @@ jobs:
 
       - name: Build documentation
         run: cd docs && mkdocs build --strict
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs dependencies
+        run: pip install -r docs/requirements.txt
 
       - name: Deploy to GitHub Pages
         run: cd docs && mkdocs gh-deploy --force

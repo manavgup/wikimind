@@ -1,0 +1,1 @@
+../../../adr/adr-026-byok-api-key-encryption.md
