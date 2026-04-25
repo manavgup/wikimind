@@ -12,23 +12,18 @@
 # If staging smoke tests fail, production is NOT deployed and
 # a GitHub Actions summary alert is created.
 #
-# Prerequisites (production — already set up):
-#   1. Fly app created:  fly apps create wikimind
-#   2. Volume created:   fly volumes create wikimind_data --region ord --size 1
-#   3. Postgres attached: fly postgres create --name wikimind-db && fly postgres attach wikimind-db
-#   4. Secrets set:
-#        fly secrets set ANTHROPIC_API_KEY=...
-#        fly secrets set WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
-#        fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
-#        fly secrets set WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
-#   5. FLY_API_TOKEN added as a GitHub repository secret
+# Both staging and production are auto-provisioned:
+#   - App + volume created if they don't exist
+#   - Secrets synced from GitHub repository secrets
+#   - Only manual prerequisite: Postgres must be attached once per app
+#     (fly postgres attach wikimind-db --app <APP_NAME>)
 #
-# Staging is auto-provisioned by the workflow:
-#   - App created if it doesn't exist
-#   - Volume created if it doesn't exist
-#   - Secrets copied from production
-#   - Only manual prerequisite: Postgres must be attached once
-#     (fly postgres attach wikimind-db --app wikimind-staging)
+# Required GitHub repository secrets:
+#   - FLY_API_TOKEN (deploy token with access to both apps)
+#   - ANTHROPIC_API_KEY
+#   - WIKIMIND_AUTH__JWT_SECRET_KEY
+#   - WIKIMIND_AUTH__GOOGLE_CLIENT_ID
+#   - WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET
 # ---------------------------------------------------------------
 
 name: Deploy
@@ -181,6 +176,32 @@ jobs:
 
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Ensure production app exists
+        run: |
+          if ! flyctl status --app wikimind 2>/dev/null; then
+            echo "Creating production app..."
+            flyctl apps create wikimind --org personal
+            flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
+            echo "::warning::Production app created. You must manually run: fly postgres attach wikimind-db --app wikimind"
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Sync secrets to production
+        run: |
+          flyctl secrets set --app wikimind \
+            ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+            WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
+            WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+            2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
       - name: Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:latest --remote-only
