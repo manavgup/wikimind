@@ -149,7 +149,7 @@ jobs:
 
           # Attach — idempotent; only suppress "already attached" errors
           output=$(flyctl postgres attach wikimind-db --app wikimind-staging 2>&1) || {
-            if echo "$output" | grep -qi "already attached\|already exists"; then
+            if echo "$output" | grep -qi "already attached\|already exists\|already contains"; then
               echo "Postgres already attached to staging"
             else
               echo "::error::Postgres attach failed: $output"
@@ -276,7 +276,7 @@ jobs:
           fi
 
           output=$(flyctl postgres attach wikimind-db --app wikimind 2>&1) || {
-            if echo "$output" | grep -qi "already attached\|already exists"; then
+            if echo "$output" | grep -qi "already attached\|already exists\|already contains"; then
               echo "Postgres already attached to production"
             else
               echo "::error::Postgres attach failed: $output"
