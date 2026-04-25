@@ -12,15 +12,11 @@
 # If staging smoke tests fail, production is NOT deployed and
 # a GitHub Actions summary alert is created.
 #
-# Auto-provisioning:
+# Fully automated provisioning (zero manual steps):
 #   - App + volume created if they don't exist
+#   - Postgres cluster created if it doesn't exist (with WARNING)
 #   - Postgres attach (idempotent, fails loudly on real errors)
 #   - Secrets staged (no restart) from GitHub repository secrets
-#   - Postgres cluster must exist — NOT auto-created (data-loss risk)
-#
-# One-time manual setup (per environment):
-#   fly postgres create --name wikimind-db --org personal --region ord \
-#     --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
 #
 # Required GitHub repository secrets:
 #   - FLY_API_TOKEN (deploy token with access to all apps)
@@ -87,7 +83,12 @@ jobs:
             flyctl apps create wikimind-staging --org personal
             flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
           fi
-          # Postgres cluster must already exist (manual one-time setup).
+          # Ensure Postgres cluster exists.
+          if ! flyctl status --app wikimind-db 2>/dev/null; then
+            echo "::warning::Creating NEW Postgres cluster — database will be empty!"
+            flyctl postgres create --name wikimind-db --org personal --region ord \
+              --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
+          fi
           # Attach is idempotent — only suppress "already attached" errors.
           output=$(flyctl postgres attach wikimind-db --app wikimind-staging 2>&1) || {
             if echo "$output" | grep -qi "already attached\|already exists"; then
@@ -206,6 +207,11 @@ jobs:
             echo "Creating production app..."
             flyctl apps create wikimind --org personal
             flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
+          fi
+          if ! flyctl status --app wikimind-db 2>/dev/null; then
+            echo "::warning::Creating NEW Postgres cluster — database will be empty!"
+            flyctl postgres create --name wikimind-db --org personal --region ord \
+              --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
           fi
           output=$(flyctl postgres attach wikimind-db --app wikimind 2>&1) || {
             if echo "$output" | grep -qi "already attached\|already exists"; then
