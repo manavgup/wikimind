@@ -12,14 +12,18 @@
 # If staging smoke tests fail, production is NOT deployed and
 # a GitHub Actions summary alert is created.
 #
-# Both staging and production are auto-provisioned:
+# Auto-provisioning:
 #   - App + volume created if they don't exist
-#   - Secrets synced from GitHub repository secrets
-#   - Only manual prerequisite: Postgres must be attached once per app
-#     (fly postgres attach wikimind-db --app <APP_NAME>)
+#   - Postgres attach (idempotent, fails loudly on real errors)
+#   - Secrets staged (no restart) from GitHub repository secrets
+#   - Postgres cluster must exist — NOT auto-created (data-loss risk)
+#
+# One-time manual setup (per environment):
+#   fly postgres create --name wikimind-db --org personal --region ord \
+#     --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
 #
 # Required GitHub repository secrets:
-#   - FLY_API_TOKEN (deploy token with access to both apps)
+#   - FLY_API_TOKEN (deploy token with access to all apps)
 #   - ANTHROPIC_API_KEY
 #   - WIKIMIND_AUTH__JWT_SECRET_KEY
 #   - WIKIMIND_AUTH__GOOGLE_CLIENT_ID
@@ -60,6 +64,22 @@ jobs:
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
+      - name: Validate required secrets
+        run: |
+          missing=0
+          for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Required secret ${var} is empty or not configured"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
+
       - name: Ensure staging app exists
         run: |
           if ! flyctl status --app wikimind-staging 2>/dev/null; then
@@ -67,31 +87,26 @@ jobs:
             flyctl apps create wikimind-staging --org personal
             flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
           fi
-          # Ensure Postgres cluster exists and is attached.
-          # fly postgres create is NOT idempotent — it errors if the cluster
-          # already exists, so we check first.
-          if ! flyctl status --app wikimind-db 2>/dev/null; then
-            echo "Creating Postgres cluster..."
-            flyctl postgres create --name wikimind-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
-          fi
-          # Attach is idempotent — errors harmlessly if already attached.
-          flyctl postgres attach wikimind-db --app wikimind-staging 2>/dev/null || true
+          # Postgres cluster must already exist (manual one-time setup).
+          # Attach is idempotent — only suppress "already attached" errors.
+          output=$(flyctl postgres attach wikimind-db --app wikimind-staging 2>&1) || {
+            if echo "$output" | grep -qi "already attached\|already exists"; then
+              echo "Postgres already attached to staging"
+            else
+              echo "::error::Postgres attach failed: $output"
+              exit 1
+            fi
+          }
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Sync secrets from production to staging
+      - name: Stage secrets for staging
         run: |
-          echo "Copying secrets from wikimind to wikimind-staging..."
-          # Export prod secrets (key=value), import to staging.
-          # flyctl secrets list outputs NAME | DIGEST | DEPLOYED — we need
-          # to re-set them from the prod app. Since we can't read secret
-          # values via CLI, we use the same GitHub secrets the prod app uses.
-          flyctl secrets set --app wikimind-staging \
+          flyctl secrets set --stage --app wikimind-staging \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            2>/dev/null || true
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -192,28 +207,37 @@ jobs:
             flyctl apps create wikimind --org personal
             flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
           fi
-          if ! flyctl status --app wikimind-db 2>/dev/null; then
-            echo "Creating Postgres cluster..."
-            flyctl postgres create --name wikimind-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
-          fi
-          flyctl postgres attach wikimind-db --app wikimind 2>/dev/null || true
+          output=$(flyctl postgres attach wikimind-db --app wikimind 2>&1) || {
+            if echo "$output" | grep -qi "already attached\|already exists"; then
+              echo "Postgres already attached to production"
+            else
+              echo "::error::Postgres attach failed: $output"
+              exit 1
+            fi
+          }
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Sync secrets to production
+      - name: Stage secrets for production
         run: |
-          flyctl secrets set --app wikimind \
+          flyctl secrets set --stage --app wikimind \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            2>/dev/null || true
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
+
+      - name: Deploy docling-serve sidecar
+        run: |
+          flyctl status --app wikimind-docling 2>/dev/null || flyctl apps create wikimind-docling --org personal
+          flyctl deploy --config fly.docling.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:latest --remote-only
