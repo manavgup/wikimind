@@ -99,16 +99,6 @@ async def test_settings_get_all(client) -> None:
     assert "llm" in resp.json()
 
 
-async def test_settings_set_api_key_invalid(client) -> None:
-    resp = await client.post("/settings/llm/api-key", json={"provider": "bogus", "api_key": "x"})
-    assert resp.status_code == 400
-
-
-async def test_settings_set_api_key_ok(client) -> None:
-    resp = await client.post("/settings/llm/api-key", json={"provider": "anthropic", "api_key": "k"})
-    assert resp.status_code == 200
-
-
 async def test_settings_test_llm_error(client) -> None:
     # No API key configured -> raises -> caught -> error status
     resp = await client.post("/settings/llm/test", params={"provider": "anthropic"})

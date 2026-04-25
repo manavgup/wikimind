@@ -10,22 +10,16 @@ from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import get_current_user_id
-from wikimind.config import get_api_key, get_settings, set_api_key
+from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import Article, CompletionRequest, CostLog, Provider, TaskType, UserPreference
+from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
-
-
-class APIKeyRequest(BaseModel):
-    """Request to set an API key."""
-
-    provider: str
-    api_key: str
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -80,13 +74,6 @@ class SettingsUpdateResponse(BaseModel):
     """Response after updating settings."""
 
     status: str
-
-
-class ProviderKeyResponse(BaseModel):
-    """Response after setting a provider API key."""
-
-    provider: str
-    configured: bool
 
 
 class DefaultProviderResponse(BaseModel):
@@ -166,7 +153,10 @@ async def _set_preference(key: str, value: str) -> None:
 
 
 @router.get("", response_model=AllSettingsResponse)
-async def get_all_settings():
+async def get_all_settings(
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+):
     """Return all application settings, with DB overrides applied."""
     settings = get_settings()
 
@@ -177,14 +167,16 @@ async def get_all_settings():
     fallback_pref = await _get_preference("llm.fallback_enabled")
     fallback_enabled = (fallback_pref.lower() == "true") if fallback_pref else settings.llm.fallback_enabled
 
-    providers = {
-        p.value: ProviderDetail(
+    # Check both env var/keyring keys and per-user BYOK database keys
+    providers = {}
+    for p in Provider:
+        has_system_key = bool(get_api_key(p.value))
+        has_user_key = bool(await get_user_api_key(session, user_id, p)) if not has_system_key else False
+        providers[p.value] = ProviderDetail(
             enabled=getattr(settings.llm, p.value).enabled,
             model=getattr(settings.llm, p.value).model,
-            configured=bool(get_api_key(p.value)),
+            configured=has_system_key or has_user_key,
         )
-        for p in Provider
-    }
 
     return AllSettingsResponse(
         data_dir=settings.data_dir,
@@ -269,20 +261,6 @@ async def update_settings(request: SettingsUpdateRequest):
         settings.llm.default_provider = request.default_provider
 
     return SettingsUpdateResponse(status="ok")
-
-
-@router.post("/llm/api-key", response_model=ProviderKeyResponse)
-async def set_provider_api_key(request: APIKeyRequest):
-    """Store API key in OS keychain."""
-    valid_providers = [p.value for p in Provider]
-    if request.provider not in valid_providers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown provider: {request.provider}",
-        )
-
-    set_api_key(request.provider, request.api_key)
-    return ProviderKeyResponse(provider=request.provider, configured=True)
 
 
 @router.post("/llm/test", response_model=LLMTestResponse)

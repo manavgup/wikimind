@@ -105,6 +105,23 @@ fly secrets set ANTHROPIC_API_KEY=sk-...
 
 Fly.io auto-scales machines based on connection count (see `fly.toml`).
 
+#### Staging environment
+
+CI deploys to a staging app (`wikimind-staging`) before production. Smoke tests
+run against staging; production is only promoted when they pass. See
+`.github/workflows/deploy.yml` for the full pipeline.
+
+First-time staging setup:
+
+```bash
+fly apps create wikimind-staging
+fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
+fly postgres attach wikimind-db --app wikimind-staging
+fly secrets set --app wikimind-staging ANTHROPIC_API_KEY=... WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
+```
+
+Manual deploy: `fly deploy --config fly.staging.toml --remote-only`
+
 ### PostgreSQL without Docker
 
 For shared access across multiple devices without the full Docker stack:

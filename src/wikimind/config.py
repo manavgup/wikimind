@@ -413,13 +413,3 @@ def get_api_key(provider: str) -> str | None:
 
     # Fall back to keychain
     return _safe_keyring_get(provider)
-
-
-def set_api_key(provider: str, key: str) -> None:
-    """Store API key in OS keychain."""
-    keyring.set_password(KEYRING_SERVICE, provider, key)
-
-
-def delete_api_key(provider: str) -> None:
-    """Remove API key from OS keychain."""
-    keyring.delete_password(KEYRING_SERVICE, provider)

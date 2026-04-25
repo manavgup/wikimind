@@ -1179,32 +1179,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /settings/llm/api-key:
-    post:
-      tags:
-      - Settings
-      summary: Set Provider Api Key
-      description: Store API key in OS keychain.
-      operationId: set_provider_api_key_settings_llm_api_key_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIKeyRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProviderKeyResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /settings/llm/test:
     post:
       tags:
@@ -1574,20 +1548,6 @@ paths:
               schema: {}
 components:
   schemas:
-    APIKeyRequest:
-      properties:
-        provider:
-          type: string
-          title: Provider
-        api_key:
-          type: string
-          title: Api Key
-      type: object
-      required:
-      - provider
-      - api_key
-      title: APIKeyRequest
-      description: Request to set an API key.
     AllSettingsResponse:
       properties:
         data_dir:
@@ -2874,20 +2834,6 @@ components:
       - configured
       title: ProviderDetail
       description: Provider status.
-    ProviderKeyResponse:
-      properties:
-        provider:
-          type: string
-          title: Provider
-        configured:
-          type: boolean
-          title: Configured
-      type: object
-      required:
-      - provider
-      - configured
-      title: ProviderKeyResponse
-      description: Response after setting a provider API key.
     QueryRequest:
       properties:
         question:

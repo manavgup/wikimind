@@ -52,9 +52,9 @@ export function getCostBreakdown(): Promise<CostBreakdown> {
 }
 
 export function setApiKey(provider: string, apiKey: string): Promise<void> {
-  return apiFetch<void>("/settings/llm/api-key", {
-    method: "POST",
-    body: { provider, api_key: apiKey },
+  return apiFetch<void>(`/api/settings/api-keys/${provider}`, {
+    method: "PUT",
+    body: { api_key: apiKey },
   });
 }
 

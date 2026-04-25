@@ -107,7 +107,10 @@ async def set_api_key(
     if not request.api_key.strip():
         raise HTTPException(status_code=400, detail="API key must not be empty")
 
-    await set_user_api_key(session, user_id, p, request.api_key.strip())
+    try:
+        await set_user_api_key(session, user_id, p, request.api_key.strip())
+    except ValueError as err:
+        raise HTTPException(status_code=500, detail=str(err)) from err
     hint = mask_api_key(request.api_key.strip())
     return ApiKeySetResponse(provider=p.value, key_hint=hint, status="ok")
 
