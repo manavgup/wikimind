@@ -268,7 +268,7 @@ exclude_lines = [
 # ---------- Bandit ----------
 [tool.bandit]
 exclude_dirs = ["tests", "build", "dist"]
-skips = ["B101", "B105"]  # B101: assert ok; B105: false positives on key-name mappings
+skips = ["B101", "B105", "B311"]  # B101: assert; B105: key-name mappings; B311: random for non-security use
 
 # ---------- Interrogate (docstring coverage) ----------
 [tool.interrogate]
