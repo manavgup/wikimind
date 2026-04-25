@@ -233,7 +233,7 @@ class TestAPIRoutes:
         try:
             resp = await client.put(
                 "/api/settings/api-keys/openai",
-                json={"api_key": "sk-test-key-1234"},
+                json={"api_key": "sk-test-key-1234"},  # pragma: allowlist secret
             )
             assert resp.status_code == 500
             assert "JWT_SECRET_KEY" in resp.json()["detail"]
