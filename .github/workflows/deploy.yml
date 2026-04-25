@@ -66,8 +66,16 @@ jobs:
             echo "Creating staging app..."
             flyctl apps create wikimind-staging --org personal
             flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
-            echo "::warning::Staging app created. You must manually run: fly postgres attach wikimind-db --app wikimind-staging"
           fi
+          # Ensure Postgres cluster exists and is attached.
+          # fly postgres create is NOT idempotent — it errors if the cluster
+          # already exists, so we check first.
+          if ! flyctl status --app wikimind-db 2>/dev/null; then
+            echo "Creating Postgres cluster..."
+            flyctl postgres create --name wikimind-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
+          fi
+          # Attach is idempotent — errors harmlessly if already attached.
+          flyctl postgres attach wikimind-db --app wikimind-staging 2>/dev/null || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -183,8 +191,12 @@ jobs:
             echo "Creating production app..."
             flyctl apps create wikimind --org personal
             flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
-            echo "::warning::Production app created. You must manually run: fly postgres attach wikimind-db --app wikimind"
           fi
+          if ! flyctl status --app wikimind-db 2>/dev/null; then
+            echo "Creating Postgres cluster..."
+            flyctl postgres create --name wikimind-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
+          fi
+          flyctl postgres attach wikimind-db --app wikimind 2>/dev/null || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
