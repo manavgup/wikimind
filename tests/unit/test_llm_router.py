@@ -20,6 +20,7 @@ from wikimind.engine.llm_router import (
     OpenAIProvider,
     StreamSession,
     _calc_cost,
+    _sanitize_json_control_chars,
     get_llm_router,
 )
 from wikimind.engine.providers import anthropic as anthropic_provider_mod
@@ -44,6 +45,38 @@ def _req(**kw) -> CompletionRequest:
     }
     base.update(kw)
     return CompletionRequest(**base)
+
+
+def test_sanitize_json_control_chars_newlines() -> None:
+    """Bare newlines inside JSON strings are escaped so json.loads succeeds."""
+    raw = '{"text": "line1\nline2"}'
+    result = _sanitize_json_control_chars(raw)
+    parsed = json.loads(result)
+    assert parsed["text"] == "line1\nline2"
+
+
+def test_sanitize_json_control_chars_tabs() -> None:
+    """Bare tabs inside JSON strings are escaped so json.loads succeeds."""
+    raw = '{"text": "col1\tcol2"}'
+    result = _sanitize_json_control_chars(raw)
+    parsed = json.loads(result)
+    assert parsed["text"] == "col1\tcol2"
+
+
+def test_sanitize_json_control_chars_preserves_structural_whitespace() -> None:
+    """Newlines between JSON keys/values (structural whitespace) are preserved."""
+    raw = '{\n  "a": "1",\n  "b": "2"\n}'
+    result = _sanitize_json_control_chars(raw)
+    assert json.loads(result) == {"a": "1", "b": "2"}
+
+
+def test_sanitize_json_control_chars_mixed() -> None:
+    """Mix of structural whitespace and control chars inside strings."""
+    raw = '{\n  "title": "Hello\nWorld",\n  "body": "Tab\there"\n}'
+    result = _sanitize_json_control_chars(raw)
+    parsed = json.loads(result)
+    assert parsed["title"] == "Hello\nWorld"
+    assert parsed["body"] == "Tab\there"
 
 
 def test_calc_cost_known_model() -> None:
@@ -117,6 +150,28 @@ async def test_ollama_provider_complete() -> None:
     assert resp.content == "hi"
     assert resp.cost_usd == 0.0
     assert resp.provider_used == Provider.OLLAMA
+
+
+async def test_ollama_provider_passes_json_format() -> None:
+    """Ollama provider should pass format='json' when response_format is json."""
+    fake_client = SimpleNamespace(chat=AsyncMock(return_value={"message": {"content": '{"a":1}'}}))
+    with patch.object(ollama_provider_mod.ollama, "AsyncClient", return_value=fake_client):
+        provider = OllamaProvider("http://localhost")
+        req = _req(response_format="json")
+        await provider.complete(req, "llama3")
+    call_kwargs = fake_client.chat.call_args.kwargs
+    assert call_kwargs["format"] == "json"
+
+
+async def test_ollama_provider_no_format_for_text() -> None:
+    """Ollama provider should not pass format when response_format is text."""
+    fake_client = SimpleNamespace(chat=AsyncMock(return_value={"message": {"content": "hello"}}))
+    with patch.object(ollama_provider_mod.ollama, "AsyncClient", return_value=fake_client):
+        provider = OllamaProvider("http://localhost")
+        req = _req(response_format="text")
+        await provider.complete(req, "llama3")
+    call_kwargs = fake_client.chat.call_args.kwargs
+    assert "format" not in call_kwargs
 
 
 def _router_with_settings(default="anthropic", **provider_overrides):
@@ -287,6 +342,106 @@ def test_parse_json_response_plain() -> None:
         latency_ms=0,
     )
     assert router.parse_json_response(resp) == {"b": 2}
+
+
+def test_parse_json_response_surrounding_text() -> None:
+    """Ollama models sometimes emit text before/after the JSON object."""
+    router = _router_with_settings()
+    resp = CompletionResponse(
+        content='Here is the JSON:\n{"title": "Test"}\nDone!',
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    assert router.parse_json_response(resp) == {"title": "Test"}
+
+
+def test_parse_json_response_control_chars_in_strings() -> None:
+    """Ollama models may emit raw control characters inside JSON string values."""
+    router = _router_with_settings()
+    # Simulate a JSON string with a literal newline inside a value
+    raw = '{"title": "Test\nDocument", "summary": "Line1\tLine2"}'
+    resp = CompletionResponse(
+        content=raw,
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    result = router.parse_json_response(resp)
+    assert result["title"] == "Test\nDocument"
+    assert result["summary"] == "Line1\tLine2"
+
+
+def test_parse_json_response_control_chars_with_surrounding_text() -> None:
+    """Combined: surrounding text AND control characters inside strings."""
+    router = _router_with_settings()
+    raw = 'Sure, here is the JSON:\n{"claim": "value\nwith newline"}\nEnd.'
+    resp = CompletionResponse(
+        content=raw,
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    result = router.parse_json_response(resp)
+    assert result["claim"] == "value\nwith newline"
+
+
+def test_parse_json_response_fences_with_language_tag() -> None:
+    """Markdown fences with ```json tag should be handled."""
+    router = _router_with_settings()
+    resp = CompletionResponse(
+        content='```json\n{"key": "value"}\n```\n',
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    assert router.parse_json_response(resp) == {"key": "value"}
+
+
+def test_parse_json_response_nested_objects() -> None:
+    """Ensure nested JSON objects parse correctly even with surrounding text."""
+    router = _router_with_settings()
+    nested = '{"title": "Test", "claims": [{"claim": "A", "confidence": "sourced"}]}'
+    resp = CompletionResponse(
+        content=f"Output:\n{nested}\n",
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    result = router.parse_json_response(resp)
+    assert result["title"] == "Test"
+    assert len(result["claims"]) == 1
+
+
+def test_parse_json_response_invalid_json_raises() -> None:
+    """Totally invalid content should still raise JSONDecodeError."""
+    router = _router_with_settings()
+    resp = CompletionResponse(
+        content="This is not JSON at all",
+        provider_used=Provider.OLLAMA,
+        model_used="llama3",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    with pytest.raises(json.JSONDecodeError):
+        router.parse_json_response(resp)
 
 
 def test_get_llm_router_singleton() -> None:

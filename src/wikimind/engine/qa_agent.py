@@ -18,7 +18,7 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.llm_router import _sanitize_json_control_chars, get_llm_router
 from wikimind.models import (
     Article,
     CompletionRequest,
@@ -462,13 +462,29 @@ conversation context contradicts the wiki, prefer the wiki."""
             session.add(cost_entry)
             await session.commit()
 
-        # Parse the accumulated JSON
+        # Parse the accumulated JSON, handling markdown fences and control chars
         try:
             content = full_text.strip()
             if content.startswith("```"):
                 lines = content.split("\n")
-                content = "\n".join(lines[1:-1])
-            data = json.loads(content)
+                body_lines = lines[1:]
+                for i, line in enumerate(body_lines):
+                    if line.strip() == "```":
+                        content = "\n".join(body_lines[:i])
+                        break
+            try:
+                data = json.loads(content)
+            except json.JSONDecodeError:
+                first_brace = content.find("{")
+                last_brace = content.rfind("}")
+                if first_brace != -1 and last_brace > first_brace:
+                    extracted = content[first_brace : last_brace + 1]
+                    try:
+                        data = json.loads(extracted)
+                    except json.JSONDecodeError:
+                        data = json.loads(_sanitize_json_control_chars(extracted))
+                else:
+                    data = json.loads(content)
             result = QueryResult(**data)
         except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             log.error("Failed to parse streamed QA response", error=str(e))
