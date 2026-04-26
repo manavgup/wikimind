@@ -411,13 +411,15 @@ async def get_llm_cost(
 # Onboarding status
 # ---------------------------------------------------------------------------
 
-_ONBOARDING_COMPLETED_KEY = "onboarding.completed"
-_ONBOARDING_STEP_KEY = "onboarding.step"
+def _onboarding_key(base: str, user_id: str) -> str:
+    """Namespace onboarding preference keys per user."""
+    return f"{base}:{user_id}"
 
 
 @router.get("/onboarding-status", response_model=OnboardingStatusResponse)
 async def get_onboarding_status(
     session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Return onboarding wizard progress for the current user.
 
@@ -425,17 +427,22 @@ async def get_onboarding_status(
     articles in the wiki, treat onboarding as implicitly complete — they
     are clearly past the first-run stage.
     """
-    completed_val = await _get_preference(_ONBOARDING_COMPLETED_KEY)
+    completed_key = _onboarding_key("onboarding.completed", user_id)
+    step_key = _onboarding_key("onboarding.step", user_id)
+
+    completed_val = await _get_preference(completed_key)
     if completed_val == "true":
-        step_val = await _get_preference(_ONBOARDING_STEP_KEY)
+        step_val = await _get_preference(step_key)
         return OnboardingStatusResponse(completed=True, step=int(step_val) if step_val else 5)
 
-    # Implicit completion: existing articles mean the user already knows the app.
-    result = await session.execute(select(Article.id).limit(1))
+    # Implicit completion: existing articles for THIS user mean they know the app.
+    result = await session.execute(
+        select(Article.id).where(Article.user_id == user_id).limit(1)
+    )
     if result.scalar_one_or_none() is not None:
         return OnboardingStatusResponse(completed=True, step=5)
 
-    step_val = await _get_preference(_ONBOARDING_STEP_KEY)
+    step_val = await _get_preference(step_key)
     return OnboardingStatusResponse(
         completed=False,
         step=int(step_val) if step_val else 0,
@@ -443,8 +450,10 @@ async def get_onboarding_status(
 
 
 @router.post("/onboarding-status", response_model=OnboardingStatusResponse)
-async def complete_onboarding():
-    """Mark onboarding as complete."""
-    await _set_preference(_ONBOARDING_COMPLETED_KEY, "true")
-    await _set_preference(_ONBOARDING_STEP_KEY, "5")
+async def complete_onboarding(
+    user_id: str = Depends(get_current_user_id),
+):
+    """Mark onboarding as complete for the current user."""
+    await _set_preference(_onboarding_key("onboarding.completed", user_id), "true")
+    await _set_preference(_onboarding_key("onboarding.step", user_id), "5")
     return OnboardingStatusResponse(completed=True, step=5)
