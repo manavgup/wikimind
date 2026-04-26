@@ -2,206 +2,206 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://manavgup.github.io/wikimind/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/api/openapi/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/compiler/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/ingest/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/storage/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-001-fastapi-async-sqlite/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-002-arq-fakeredis/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-003-multi-provider-llm-router/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-004-markdown-files-sqlite-metadata/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-005-confidence-tagged-claims/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-006-chunked-compilation/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-007-structured-json-prompt-contract/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-008-pydantic-basesettings/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-009-decoupled-ingest-compilation/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-010-llm-provider-auto-enable/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-011-conversational-qa-thread-model/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-012-knowledge-graph-architecture/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-013-react-force-graph-2d/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-014-hybrid-search-architecture/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-015-cpu-first-docker-packaging/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-016-article-recompilation/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-017-backlink-enforcer-lint-phase/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-018-batched-contradiction-detection/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-019-runtime-user-preferences/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-021-postgres-compatibility/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-022-multi-user-authentication/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-023-production-container-architecture/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-024-gunicorn-autoscaling-horizontal-readiness/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-025-docling-serve-sidecar/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-026-article-export-layer/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-026-byok-api-key-encryption/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-026-multi-replica-gateway/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/architecture/adr/adr-026-onboarding-wizard/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/configuration/auth/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/configuration/llm-providers/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/configuration/settings/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/deployment/docker/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/deployment/fly-io/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/deployment/local/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/development/ci-cd/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/development/contributing/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/development/testing/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/overview/features/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/overview/quick-start/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/overview/ui-guide/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/using/ask/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/using/concepts/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/using/ingestion/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
     <url>
          <loc>https://manavgup.github.io/wikimind/using/wiki/</loc>
-         <lastmod>2026-04-25</lastmod>
+         <lastmod>2026-04-26</lastmod>
     </url>
 </urlset>
