@@ -27,11 +27,15 @@ class OllamaProvider:
         messages = [{"role": "system", "content": request.system}]
         messages.extend(request.messages)
 
-        response = await self.client.chat(
-            model=model,
-            messages=messages,
-            options={"temperature": request.temperature},
-        )
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "options": {"temperature": request.temperature},
+        }
+        if request.response_format == "json":
+            kwargs["format"] = "json"
+
+        response = await self.client.chat(**kwargs)
 
         latency_ms = int((time.monotonic() - start) * 1000)
         content = response["message"]["content"]
@@ -111,14 +115,18 @@ class OllamaProvider:
         messages.extend(request.messages)
         start = time.monotonic()
 
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "options": {"temperature": request.temperature},
+            "stream": True,
+        }
+        if request.response_format == "json":
+            kwargs["format"] = "json"
+
         async def _generate() -> AsyncIterator[str]:
             full_text_parts: list[str] = []
-            response_stream = await self.client.chat(
-                model=model,
-                messages=messages,
-                options={"temperature": request.temperature},
-                stream=True,
-            )
+            response_stream = await self.client.chat(**kwargs)
             async for chunk in response_stream:
                 text = chunk["message"]["content"]
                 if text:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -130,6 +131,33 @@ from wikimind.engine.providers.mock import (  # noqa: E402, F401 -- backward com
     _MOCK_LINT_RESPONSE,
     _MOCK_QA_RESPONSE,
 )
+
+# ---------------------------------------------------------------------------
+# JSON sanitization helper
+# ---------------------------------------------------------------------------
+
+# Matches C0 control characters (U+0000..U+001F) that are illegal inside
+# JSON strings per RFC 8259.  \n, \r, and \t are replaced with their
+# standard escape sequences; all others are replaced with a space.
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _replace_control_chars_in_json_string(match: re.Match) -> str:
+    """Escape bare control characters inside a single JSON string literal."""
+    s = match.group(0)
+    s = s.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+    s = _CONTROL_CHAR_RE.sub(" ", s)
+    return s
+
+
+def _sanitize_json_control_chars(text: str) -> str:
+    """Replace illegal JSON control characters inside string values.
+
+    Only operates inside quoted strings so that structural JSON whitespace
+    (the newlines and spaces between keys/values) is left intact.
+    """
+    return re.sub(r'"(?:[^"\\]|\\.)*"', _replace_control_chars_in_json_string, text)
+
 
 # ---------------------------------------------------------------------------
 # Router
@@ -552,18 +580,44 @@ class LLMRouter:
         raise RuntimeError(msg)
 
     def parse_json_response(self, response: CompletionResponse) -> dict:
-        """Parse JSON from LLM response, stripping markdown fences if present."""
+        """Parse JSON from LLM response, handling common formatting issues.
+
+        Handles markdown fences, leading/trailing text around JSON, and
+        invalid control characters that local models (e.g. Ollama) may
+        emit inside string values.
+        """
         content = response.content.strip()
+
+        # Strip markdown code fences (```json ... ```)
         if content.startswith("```"):
-            # Find the closing ``` fence (not just the last line)
             lines = content.split("\n")
-            # Skip the opening ```json line
             body_lines = lines[1:]
-            # Find the closing ``` and take everything before it
             for i, line in enumerate(body_lines):
                 if line.strip() == "```":
                     content = "\n".join(body_lines[:i])
                     break
+
+        # Try strict parse first (fast path for well-behaved providers)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # Extract the outermost JSON object if there is surrounding text
+        first_brace = content.find("{")
+        last_brace = content.rfind("}")
+        if first_brace != -1 and last_brace > first_brace:
+            extracted = content[first_brace : last_brace + 1]
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError:
+                # Sanitize control characters inside string values and retry.
+                # Local models sometimes emit raw \n, \t, or other C0 control
+                # chars inside JSON strings which are illegal per RFC 8259.
+                sanitized = _sanitize_json_control_chars(extracted)
+                return json.loads(sanitized)
+
+        # Nothing recoverable — re-raise with the original content
         return json.loads(content)
 
 
