@@ -172,8 +172,9 @@ async def get_all_settings(
     for p in Provider:
         has_system_key = bool(get_api_key(p.value))
         has_user_key = bool(await get_user_api_key(session, user_id, p)) if not has_system_key else False
+        config_enabled = getattr(settings.llm, p.value).enabled
         providers[p.value] = ProviderDetail(
-            enabled=getattr(settings.llm, p.value).enabled,
+            enabled=config_enabled or has_user_key,
             model=getattr(settings.llm, p.value).model,
             configured=has_system_key or has_user_key,
         )
