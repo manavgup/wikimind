@@ -146,9 +146,10 @@ Rules:
 class Compiler:
     """Compile normalized documents into wiki articles."""
 
-    def __init__(self):
+    def __init__(self, user_id: str | None = None):
         self.router = get_llm_router()
         self.settings = get_settings()
+        self.user_id = user_id
         # Provider that handled the most recent successful `complete()` call.
         self._last_provider_used: Provider | None = None
         # Typed backlink suggestions from the most recent `compile()` call.
@@ -188,7 +189,8 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
-        response = await self.router.complete(request, session=session, user_id=user_id)
+        effective_user_id = user_id or self.user_id
+        response = await self.router.complete(request, session=session, user_id=effective_user_id)
         self._last_provider_used = response.provider_used
 
         try:

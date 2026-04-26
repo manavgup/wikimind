@@ -44,9 +44,10 @@ async def get_job(
 async def trigger_compile(
     source_id: str,
     service: CompilerService = Depends(get_compiler_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Trigger compilation for a source."""
-    return await service.trigger_compile(source_id)
+    return await service.trigger_compile(source_id, user_id=user_id)
 
 
 @router.post("/lint", response_model=JobTriggerResponse)
