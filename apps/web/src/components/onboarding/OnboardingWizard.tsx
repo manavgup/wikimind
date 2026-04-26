@@ -4,7 +4,7 @@ import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
 import { ApiError } from "../../api/client";
-import { setApiKey, testProvider, completeOnboarding } from "../../api/settings";
+import { setApiKey, testProvider, setDefaultProvider, completeOnboarding } from "../../api/settings";
 import { ingestUrl } from "../../api/sources";
 import { useWebSocketStore } from "../../store/websocket";
 import type { WSEvent } from "../../types/api";
@@ -122,6 +122,8 @@ function ConfigureLLMStep({
       setTestState("testing");
       const result = await testProvider(provider);
       if (result.status === "ok") {
+        await setDefaultProvider(provider);
+        queryClient.invalidateQueries({ queryKey: ["settings"] });
         setTestState("success");
       } else {
         setTestState("error");

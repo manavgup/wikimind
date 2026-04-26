@@ -126,6 +126,7 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
     async def _override_session() -> AsyncGenerator[AsyncSession, None]:
         async with factory() as session:
             yield session
+            await session.commit()
 
     app.dependency_overrides[get_session] = _override_session
 

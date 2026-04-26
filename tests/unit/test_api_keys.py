@@ -275,3 +275,80 @@ class TestProviderConfiguredStatus:
         providers = resp.json()["llm"]["providers"]
         # OpenAI has no env var set in test → not configured
         assert providers["openai"]["configured"] is False
+
+
+# ---------------------------------------------------------------------------
+# Settings "enabled" status — BYOK keys imply provider enabled
+# ---------------------------------------------------------------------------
+
+
+class TestProviderEnabledStatus:
+    """GET /settings reflects BYOK database keys in provider enabled status."""
+
+    @pytest.fixture(autouse=True)
+    def _set_jwt_secret(self, monkeypatch):
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "test-secret-key-for-byok")
+        get_settings.cache_clear()
+        yield
+        get_settings.cache_clear()
+
+    async def test_byok_provider_shows_enabled(self, client: AsyncClient):
+        """Provider shows enabled after user stores a BYOK key."""
+        resp = await client.put(
+            "/api/settings/api-keys/openai",
+            json={"api_key": "sk-test-openai-key-1234"},  # pragma: allowlist secret
+        )
+        assert resp.status_code == 200
+
+        resp = await client.get("/settings")
+        assert resp.status_code == 200
+        providers = resp.json()["llm"]["providers"]
+        assert providers["openai"]["enabled"] is True
+        assert providers["openai"]["configured"] is True
+
+    async def test_provider_without_key_stays_disabled(self, client: AsyncClient):
+        """Provider without any key remains disabled."""
+        resp = await client.get("/settings")
+        assert resp.status_code == 200
+        providers = resp.json()["llm"]["providers"]
+        assert providers["openai"]["enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# Set default provider — accepts BYOK-configured providers
+# ---------------------------------------------------------------------------
+
+
+class TestSetDefaultProvider:
+    """POST /settings/llm/default-provider accepts BYOK-configured providers."""
+
+    @pytest.fixture(autouse=True)
+    def _set_jwt_secret(self, monkeypatch):
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "test-secret-key-for-byok")
+        get_settings.cache_clear()
+        yield
+        get_settings.cache_clear()
+
+    async def test_set_default_with_byok_key(self, client: AsyncClient):
+        """Can set a BYOK-configured provider as default."""
+        resp = await client.put(
+            "/api/settings/api-keys/openai",
+            json={"api_key": "sk-test-openai-key-5678"},  # pragma: allowlist secret
+        )
+        assert resp.status_code == 200
+
+        resp = await client.post(
+            "/settings/llm/default-provider",
+            json={"provider": "openai"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["provider"] == "openai"
+        assert resp.json()["status"] == "ok"
+
+    async def test_set_default_rejects_no_key(self, client: AsyncClient):
+        """Cannot set a provider with no key at all as default."""
+        resp = await client.post(
+            "/settings/llm/default-provider",
+            json={"provider": "google"},
+        )
+        assert resp.status_code == 400

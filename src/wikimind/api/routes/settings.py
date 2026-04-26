@@ -172,8 +172,9 @@ async def get_all_settings(
     for p in Provider:
         has_system_key = bool(get_api_key(p.value))
         has_user_key = bool(await get_user_api_key(session, user_id, p)) if not has_system_key else False
+        config_enabled = getattr(settings.llm, p.value).enabled
         providers[p.value] = ProviderDetail(
-            enabled=getattr(settings.llm, p.value).enabled,
+            enabled=config_enabled or has_user_key,
             model=getattr(settings.llm, p.value).model,
             configured=has_system_key or has_user_key,
         )
@@ -199,7 +200,11 @@ async def get_all_settings(
     "/llm/default-provider",
     response_model=DefaultProviderResponse,
 )
-async def set_default_provider(request: DefaultProviderRequest):
+async def set_default_provider(
+    request: DefaultProviderRequest,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+):
     """Set the default LLM provider. Persists to DB, survives restarts."""
     valid_providers = [p.value for p in Provider]
     if request.provider not in valid_providers:
@@ -210,7 +215,8 @@ async def set_default_provider(request: DefaultProviderRequest):
 
     settings = get_settings()
     provider_cfg = getattr(settings.llm, request.provider, None)
-    if not provider_cfg or not provider_cfg.enabled:
+    has_user_key = bool(await get_user_api_key(session, user_id, Provider(request.provider)))
+    if not provider_cfg or (not provider_cfg.enabled and not has_user_key):
         raise HTTPException(
             status_code=400,
             detail=f"Provider {request.provider} is not enabled",
@@ -218,11 +224,13 @@ async def set_default_provider(request: DefaultProviderRequest):
 
     # Providers that need API keys
     no_key_providers = {Provider.OLLAMA.value, Provider.MOCK.value}
-    if request.provider not in no_key_providers and not get_api_key(request.provider):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Provider {request.provider} has no API key configured",
-        )
+    if request.provider not in no_key_providers:
+        has_system_key = bool(get_api_key(request.provider))
+        if not has_system_key and not has_user_key:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {request.provider} has no API key configured",
+            )
 
     await _set_preference("llm.default_provider", request.provider)
     settings.llm.default_provider = request.provider
