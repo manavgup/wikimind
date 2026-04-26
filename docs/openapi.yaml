@@ -1259,7 +1259,7 @@ paths:
       tags:
       - Settings
       summary: Complete Onboarding
-      description: Mark onboarding as complete.
+      description: Mark onboarding as complete for the current user.
       operationId: complete_onboarding_settings_onboarding_status_post
       responses:
         '200':

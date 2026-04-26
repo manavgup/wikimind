@@ -411,6 +411,7 @@ async def get_llm_cost(
 # Onboarding status
 # ---------------------------------------------------------------------------
 
+
 def _onboarding_key(base: str, user_id: str) -> str:
     """Namespace onboarding preference keys per user."""
     return f"{base}:{user_id}"
@@ -436,9 +437,7 @@ async def get_onboarding_status(
         return OnboardingStatusResponse(completed=True, step=int(step_val) if step_val else 5)
 
     # Implicit completion: existing articles for THIS user mean they know the app.
-    result = await session.execute(
-        select(Article.id).where(Article.user_id == user_id).limit(1)
-    )
+    result = await session.execute(select(Article.id).where(Article.user_id == user_id).limit(1))
     if result.scalar_one_or_none() is not None:
         return OnboardingStatusResponse(completed=True, step=5)
 
