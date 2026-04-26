@@ -467,6 +467,13 @@ class QueryService:
         Returns:
             Dict with article metadata (id, slug, title) and a was_update flag.
         """
+        # Ownership check before delegating to QAAgent
+        conversation = await session.get(Conversation, conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if user_id and conversation.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
         article, was_update = await self._qa_agent._file_back_thread(conversation_id, session, user_id=user_id)
         return {
             "article": {"id": article.id, "slug": article.slug, "title": article.title},
