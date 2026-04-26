@@ -31,7 +31,7 @@ from wikimind.errors import WikiMindError
 from wikimind.middleware import logging_config
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import _sanitize_event_dict
-from wikimind.models import Conversation, Query
+from wikimind.models import CompletionResponse, Conversation, Provider, Query
 
 # ----- ws ConnectionManager -----
 
@@ -104,6 +104,34 @@ async def test_settings_test_llm_error(client) -> None:
     resp = await client.post("/settings/llm/test", params={"provider": "anthropic"})
     assert resp.status_code == 200
     assert resp.json()["status"] in ("ok", "error")
+
+
+async def test_settings_test_llm_uses_provider_safe_token_budget(client) -> None:
+    seen = {}
+    settings = get_settings()
+
+    class _Router:
+        def __init__(self) -> None:
+            self.settings = settings
+
+        async def complete(self, request, user_id=None):
+            seen["request"] = request
+            return CompletionResponse(
+                content='{"status":"ok"}',
+                provider_used=Provider.OPENAI_COMPATIBLE,
+                model_used="test-model",
+                input_tokens=1,
+                output_tokens=1,
+                cost_usd=0.0,
+                latency_ms=5,
+            )
+
+    with patch("wikimind.api.routes.settings.get_llm_router", return_value=_Router()):
+        resp = await client.post("/settings/llm/test", params={"provider": "openai_compatible"})
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    assert seen["request"].max_tokens >= 16
 
 
 async def test_settings_get_cost(client, async_engine) -> None:

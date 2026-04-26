@@ -159,13 +159,14 @@ class Compiler:
         doc: NormalizedDocument,
         session: AsyncSession,
         progress_callback: Callable[[str], Awaitable[None]] | None = None,
+        user_id: str | None = None,
     ) -> CompilationResult | None:
         """Compile a normalized document into a wiki article."""
         log.info("Compiling document", title=doc.title, tokens=doc.estimated_tokens)
 
         # For large documents, compile in chunks and merge
         if doc.estimated_tokens > 80_000:
-            return await self._compile_chunked(doc, session, progress_callback)
+            return await self._compile_chunked(doc, session, progress_callback, user_id=user_id)
 
         user_prompt = self._build_user_prompt(doc)
 
@@ -187,7 +188,7 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
-        response = await self.router.complete(request, session=session)
+        response = await self.router.complete(request, session=session, user_id=user_id)
         self._last_provider_used = response.provider_used
 
         try:
@@ -239,6 +240,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         doc: NormalizedDocument,
         session: AsyncSession,
         progress_callback: Callable[[str], Awaitable[None]] | None = None,
+        user_id: str | None = None,
     ) -> CompilationResult | None:
         """Compile large documents in chunks and merge results."""
         total_chunks = min(len(doc.chunks), 10)
@@ -256,7 +258,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                 published_date=doc.published_date,
                 estimated_tokens=chunk.token_count,
             )
-            result = await self.compile(chunk_doc, session)
+            result = await self.compile(chunk_doc, session, user_id=user_id)
             if result:
                 chunk_results.append(result)
 

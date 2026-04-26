@@ -70,7 +70,7 @@ Feed --> Compile --> Query --> Answer files back --> Wiki gets smarter --> Repea
 | Backend gateway | Python 3.11+ / FastAPI |
 | Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
 | Database | SQLite (dev) / PostgreSQL (prod) via SQLModel |
-| LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
+| LLM providers | Anthropic Claude, OpenAI GPT, OpenAI-compatible endpoints, Google Gemini, Ollama |
 | PDF extraction | [docling-serve](https://github.com/docling-project/docling-serve) sidecar; pymupdf fallback |
 | Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
 | Frontend | React 18 + TypeScript + Vite + TanStack Query + Zustand + Tailwind CSS |

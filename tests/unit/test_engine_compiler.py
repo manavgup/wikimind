@@ -114,12 +114,12 @@ async def test_compile_chunked_path(db_session) -> None:
     doc = _doc(tokens=100_000, chunks=chunks)
     chunk_result = _result()
 
-    async def fake_compile(d, sess):
+    async def fake_compile(d, sess, user_id=None):
         # Avoid infinite recursion: only return for sub-chunks
         if d.estimated_tokens < 80_000:
             return chunk_result
         # call original
-        return await Compiler.compile(c, d, sess)
+        return await Compiler.compile(c, d, sess, user_id=user_id)
 
     with patch.object(c, "compile", side_effect=fake_compile):
         merged = await c._compile_chunked(doc, db_session)

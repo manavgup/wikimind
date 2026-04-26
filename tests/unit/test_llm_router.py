@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -18,13 +19,13 @@ from wikimind.engine.llm_router import (
     MockProvider,
     OllamaProvider,
     OpenAIProvider,
-    StreamSession,
-    _calc_cost,
     get_llm_router,
 )
+from wikimind.engine.provider_base import StreamSession, _calc_cost
 from wikimind.engine.providers import anthropic as anthropic_provider_mod
 from wikimind.engine.providers import ollama as ollama_provider_mod
-from wikimind.engine.providers import openai as openai_provider_mod
+from wikimind.engine.providers import openai_compatible as openai_compatible_provider_mod
+from wikimind.engine.providers.openai_compatible import OpenAICompatibleProvider
 from wikimind.models import (
     CompilationResult,
     CompletionRequest,
@@ -59,6 +60,14 @@ def test_calc_cost_ollama_wildcard() -> None:
     assert _calc_cost(Provider.OLLAMA, "llama3", 1000, 1000) == 0
 
 
+def test_providers_package_imports_without_router_cycle() -> None:
+    """Provider modules should be importable without re-entering the router."""
+    providers = importlib.import_module("wikimind.engine.providers")
+    compatible = importlib.import_module("wikimind.engine.providers.openai_compatible")
+
+    assert providers.OpenAICompatibleProvider is compatible.OpenAICompatibleProvider
+
+
 def test_anthropic_provider_missing_key() -> None:
     with patch.object(anthropic_provider_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
         AnthropicProvider()
@@ -84,7 +93,7 @@ async def test_anthropic_provider_complete() -> None:
 
 
 def test_openai_provider_missing_key() -> None:
-    with patch.object(openai_provider_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
+    with patch.object(openai_compatible_provider_mod, "get_api_key", return_value=None), pytest.raises(ValueError):
         OpenAIProvider()
 
 
@@ -97,8 +106,8 @@ async def test_openai_provider_complete_json() -> None:
     create = AsyncMock(return_value=fake_response)
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     with (
-        patch.object(openai_provider_mod, "get_api_key", return_value="key"),
-        patch.object(openai_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
+        patch.object(openai_compatible_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_compatible_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
     ):
         provider = OpenAIProvider()
         resp = await provider.complete(_req(response_format="json"), "gpt-4o-mini")
@@ -107,6 +116,137 @@ async def test_openai_provider_complete_json() -> None:
     assert resp.provider_used == Provider.OPENAI
     kwargs = create.call_args.kwargs
     assert kwargs["response_format"] == {"type": "json_object"}
+
+
+async def test_openai_compatible_provider_uses_custom_endpoint_and_flags() -> None:
+    fake_choice = SimpleNamespace(message=SimpleNamespace(content="ok"))
+    fake_response = SimpleNamespace(
+        choices=[fake_choice],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=7),
+    )
+    create = AsyncMock(return_value=fake_response)
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    headers = {"X-Title": "WikiMind"}
+    with (
+        patch.object(openai_compatible_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_compatible_provider_mod.openai, "AsyncOpenAI", return_value=fake_client) as client_cls,
+    ):
+        provider = OpenAICompatibleProvider(
+            provider=Provider.OPENAI_COMPATIBLE,
+            api_key_name="openai_compatible",
+            base_url="https://openrouter.ai/api/v1",
+            default_headers=headers,
+            supports_json_response_format=False,
+            supports_stream_usage=False,
+            max_tokens_field="max_completion_tokens",
+        )
+        resp = await provider.complete(_req(response_format="json"), "openai/gpt-4o-mini")
+
+    assert resp.content == "ok"
+    assert resp.provider_used == Provider.OPENAI_COMPATIBLE
+    client_cls.assert_called_once_with(
+        api_key="key",
+        base_url="https://openrouter.ai/api/v1",
+        default_headers=headers,
+    )
+    kwargs = create.call_args.kwargs
+    assert kwargs["max_completion_tokens"] == 64
+    assert "max_tokens" not in kwargs
+    assert "response_format" not in kwargs
+
+
+def test_openai_compatible_default_headers_use_openrouter_title() -> None:
+    headers = openai_compatible_provider_mod.ConfiguredOpenAICompatibleProvider._default_headers(
+        site_url="https://wikimind.example",
+        app_name="WikiMind",
+    )
+
+    assert headers == {
+        "HTTP-Referer": "https://wikimind.example",
+        "X-Title": "WikiMind",
+    }
+    assert "X-OpenRouter-Title" not in headers
+
+
+async def test_openai_compatible_provider_sends_openrouter_reasoning() -> None:
+    fake_choice = SimpleNamespace(message=SimpleNamespace(content="ok"))
+    fake_response = SimpleNamespace(
+        choices=[fake_choice],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=7),
+    )
+    create = AsyncMock(return_value=fake_response)
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with (
+        patch.object(openai_compatible_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_compatible_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
+    ):
+        provider = OpenAICompatibleProvider(
+            provider=Provider.OPENAI_COMPATIBLE,
+            api_key_name="openai_compatible",
+            base_url="https://openrouter.ai/api/v1",
+            reasoning_format="openrouter",
+        )
+        await provider.complete(_req(reasoning_effort="high"), "anthropic/claude-3.7-sonnet:thinking")
+
+    kwargs = create.call_args.kwargs
+    assert kwargs["extra_body"] == {"reasoning": {"effort": "high"}}
+    assert "reasoning" not in kwargs
+    assert "reasoning_effort" not in kwargs
+
+
+async def test_openai_compatible_provider_sends_openai_reasoning_effort() -> None:
+    fake_choice = SimpleNamespace(message=SimpleNamespace(content="ok"))
+    fake_response = SimpleNamespace(
+        choices=[fake_choice],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=7),
+    )
+    create = AsyncMock(return_value=fake_response)
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with (
+        patch.object(openai_compatible_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_compatible_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
+    ):
+        provider = OpenAICompatibleProvider(
+            provider=Provider.OPENAI_COMPATIBLE,
+            api_key_name="openai_compatible",
+            base_url="https://example.com/v1",
+            reasoning_format="openai",
+        )
+        await provider.complete(_req(reasoning_effort="medium"), "gpt-5")
+
+    kwargs = create.call_args.kwargs
+    assert kwargs["reasoning_effort"] == "medium"
+    assert "reasoning" not in kwargs
+    assert "extra_body" not in kwargs
+
+
+async def test_openai_compatible_provider_omits_reasoning_when_disabled_or_unset() -> None:
+    fake_choice = SimpleNamespace(message=SimpleNamespace(content="ok"))
+    fake_response = SimpleNamespace(
+        choices=[fake_choice],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=7),
+    )
+    create = AsyncMock(return_value=fake_response)
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with (
+        patch.object(openai_compatible_provider_mod, "get_api_key", return_value="key"),
+        patch.object(openai_compatible_provider_mod.openai, "AsyncOpenAI", return_value=fake_client),
+    ):
+        provider = OpenAICompatibleProvider(
+            provider=Provider.OPENAI_COMPATIBLE,
+            api_key_name="openai_compatible",
+            base_url="https://example.com/v1",
+            supports_reasoning_effort=False,
+            reasoning_format="openrouter",
+        )
+        await provider.complete(_req(reasoning_effort="high"), "non-reasoning-model")
+        await provider.complete(_req(), "non-reasoning-model")
+
+    for call in create.call_args_list:
+        kwargs = call.kwargs
+        assert "reasoning" not in kwargs
+        assert "reasoning_effort" not in kwargs
+        assert "extra_body" not in kwargs
 
 
 async def test_ollama_provider_complete() -> None:
@@ -123,6 +263,7 @@ def _router_with_settings(default="anthropic", **provider_overrides):
     cfgs = {
         "anthropic": SimpleNamespace(enabled=True, model="claude-sonnet-4-5"),
         "openai": SimpleNamespace(enabled=True, model="gpt-4o-mini"),
+        "openai_compatible": SimpleNamespace(enabled=False, model="gpt-4o-mini", base_url=""),
         "google": SimpleNamespace(enabled=False, model="gemini-2.0-flash"),
         "ollama": SimpleNamespace(enabled=True, model="llama3"),
     }
@@ -170,6 +311,24 @@ def test_is_provider_available_ollama_no_key_needed() -> None:
     assert router._is_provider_available(Provider.OLLAMA) is True
 
 
+def test_is_provider_available_openai_compatible_requires_key_and_base_url() -> None:
+    router = _router_with_settings(
+        openai_compatible=SimpleNamespace(
+            enabled=True,
+            model="openai/gpt-4o-mini",
+            base_url="https://openrouter.ai/api/v1",
+        ),
+    )
+    with patch.object(llm_router_mod, "get_api_key", return_value="key"):
+        assert router._is_provider_available(Provider.OPENAI_COMPATIBLE) is True
+
+    router = _router_with_settings(
+        openai_compatible=SimpleNamespace(enabled=True, model="openai/gpt-4o-mini", base_url="")
+    )
+    with patch.object(llm_router_mod, "get_api_key", return_value="key"):
+        assert router._is_provider_available(Provider.OPENAI_COMPATIBLE) is False
+
+
 def test_get_model_returns_unknown_for_missing_cfg() -> None:
     router = _router_with_settings()
     # Force an unknown attribute by removing a provider attribute
@@ -183,15 +342,18 @@ async def test_get_provider_instance_dispatch() -> None:
         patch.object(llm_router_mod, "get_api_key", return_value="k"),
         patch.object(llm_router_mod, "AnthropicProvider") as ant,
         patch.object(llm_router_mod, "OpenAIProvider") as opn,
+        patch.object(llm_router_mod, "ConfiguredOpenAICompatibleProvider") as opc,
         patch.object(llm_router_mod, "GoogleProvider") as ggl,
         patch.object(llm_router_mod, "OllamaProvider") as oll,
     ):
         ant.return_value = "a"
         opn.return_value = "o"
+        opc.return_value = "oc"
         ggl.return_value = "g"
         oll.return_value = "l"
         assert await router._get_provider_instance(Provider.ANTHROPIC) == "a"
         assert await router._get_provider_instance(Provider.OPENAI) == "o"
+        assert await router._get_provider_instance(Provider.OPENAI_COMPATIBLE) == "oc"
         assert await router._get_provider_instance(Provider.GOOGLE) == "g"
         assert await router._get_provider_instance(Provider.OLLAMA) == "l"
 

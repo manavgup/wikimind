@@ -4,6 +4,7 @@ export interface ProviderInfo {
   enabled: boolean;
   model: string;
   configured: boolean;
+  base_url?: string | null;
 }
 
 export interface SettingsResponse {
@@ -75,6 +76,13 @@ export function setDefaultProvider(provider: string): Promise<{ provider: string
 export function updateSettings(updates: {
   monthly_budget_usd?: number;
   fallback_enabled?: boolean;
+  openai_compatible_base_url?: string;
+  openai_compatible_model?: string;
+  openai_compatible_supports_json_response_format?: boolean;
+  openai_compatible_supports_stream_usage?: boolean;
+  openai_compatible_supports_reasoning_effort?: boolean;
+  openai_compatible_max_tokens_field?: "max_tokens" | "max_completion_tokens";
+  openai_compatible_reasoning_format?: "none" | "openai" | "openrouter";
 }): Promise<{ status: string }> {
   return apiFetch("/settings", {
     method: "PATCH",

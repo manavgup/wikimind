@@ -38,6 +38,7 @@ make check-env
 # 2. Configure at least one LLM provider — copy .env.example and edit
 cp .env.example .env
 # Add: OPENAI_API_KEY=sk-... (or ANTHROPIC_API_KEY, GOOGLE_API_KEY)
+# For OpenRouter/other OpenAI-compatible gateways, see .env.example.
 # Providers auto-enable when their key is detected.
 
 # 3. Start the local gateway (FastAPI on :7842)
@@ -158,6 +159,8 @@ WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
 ```
 
 When disabled (default), WikiMind runs in single-user mode with no login required.
+Keep `WIKIMIND_AUTH__JWT_SECRET_KEY` set if users store API keys through the
+Settings UI, because BYOK encryption derives from that secret.
 
 ## Architecture
 
@@ -186,13 +189,25 @@ wikimind/
 All configuration lives in `.env` (gitignored). See `.env.example` for the full list of options.
 
 The most common case: just set ONE LLM API key and the provider will auto-enable.
+If you save API keys through the Settings UI instead of environment variables,
+also set `WIKIMIND_AUTH__JWT_SECRET_KEY`; it is used to encrypt stored keys.
 
 ```bash
 # In .env:
 OPENAI_API_KEY=sk-...
+WIKIMIND_AUTH__JWT_SECRET_KEY=<random-hex-or-token>
 ```
 
 For more advanced configuration (model selection, fallback chain, monthly budget), see `.env.example`.
+
+OpenAI-compatible gateways such as OpenRouter can be used through a separate configurable provider:
+
+```bash
+OPENAI_COMPATIBLE_API_KEY=sk-or-...
+WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL=https://openrouter.ai/api/v1
+WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL=openai/gpt-4o-mini
+WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
+```
 
 ## Tech stack
 
@@ -201,7 +216,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | Backend gateway | Python 3.11+ / FastAPI |
 | Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
 | Database | SQLite via SQLModel + aiosqlite |
-| LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
+| LLM providers | Anthropic Claude, OpenAI GPT, OpenAI-compatible endpoints, Google Gemini, Ollama |
 | PDF extraction | [docling-serve](https://github.com/docling-project/docling-serve) sidecar; pymupdf (fitz) fallback |
 | Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
 | Logging | structlog (JSON in prod, console in dev) |

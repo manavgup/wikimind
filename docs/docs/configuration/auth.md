@@ -23,6 +23,10 @@ WIKIMIND_AUTH__ENABLED=true
 WIKIMIND_AUTH__JWT_SECRET_KEY=your-random-secret-here
 ```
 
+`WIKIMIND_AUTH__JWT_SECRET_KEY` is also required when authentication is disabled
+if you store provider API keys through the Settings UI. WikiMind uses that
+secret to encrypt BYOK keys at rest.
+
 !!! warning "Generate a strong secret"
     The JWT secret key must be a random string. Generate one with:
     ```bash

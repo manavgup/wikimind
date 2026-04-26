@@ -6,7 +6,7 @@ Get WikiMind running locally in 5 minutes.
 
 - **Python 3.11+** (3.12 recommended)
 - **Node.js 20+** (for the React frontend, optional)
-- An LLM API key (any one of: Anthropic, OpenAI, Google, or a local Ollama instance)
+- An LLM API key (Anthropic, OpenAI, Google, OpenAI-compatible, or a local Ollama instance)
 
 ## 1. Clone and set up
 
@@ -42,6 +42,15 @@ GOOGLE_API_KEY=...
 ```
 
 That is all you need. WikiMind auto-detects which providers have keys configured and enables them automatically.
+
+!!! tip "Using OpenRouter or another OpenAI-compatible endpoint"
+    Configure the separate `openai_compatible` provider:
+    ```bash
+    OPENAI_COMPATIBLE_API_KEY=sk-or-...
+    WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL=https://openrouter.ai/api/v1
+    WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL=openai/gpt-4o-mini
+    WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
+    ```
 
 !!! tip "Using Ollama (no API key needed)"
     If you have [Ollama](https://ollama.ai) running locally, enable it explicitly:

@@ -233,6 +233,7 @@ async def _run_batch(
     settings: Settings,
     report_id: str,
     session: AsyncSession,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Run a batched LLM call for multiple pairs.
 
@@ -253,7 +254,7 @@ async def _run_batch(
 
     for attempt in range(2):
         try:
-            response = await router.complete(request, session=None)
+            response = await router.complete(request, session=None, user_id=user_id)
             data = router.parse_json_response(response)
             # The response may be a list directly or wrapped in a key
             if isinstance(data, list):
@@ -301,7 +302,16 @@ async def _run_batch(
     # Fallback: per-pair calls
     fallback_findings: list[ContradictionFinding] = []
     for art_a, art_b, _ca, _cb in pairs_with_claims:
-        pair_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report_id, session)
+        pair_findings = await _compare_article_pair(
+            art_a,
+            art_b,
+            concept_id,
+            router,
+            settings,
+            report_id,
+            session,
+            user_id=user_id,
+        )
         fallback_findings.extend(pair_findings)
     return fallback_findings
 
@@ -401,6 +411,7 @@ async def _process_uncached_pairs(
     report: LintReport,
     session: AsyncSession,
     checked: int,
+    user_id: str | None = None,
 ) -> tuple[list[ContradictionFinding], int]:
     """Process uncached pairs via batch or per-pair LLM calls.
 
@@ -412,7 +423,7 @@ async def _process_uncached_pairs(
     if cfg.contradiction_batch_enabled and len(uncached_pairs) > 1:
         for batch_start in range(0, len(uncached_pairs), cfg.contradiction_batch_size):
             batch = uncached_pairs[batch_start : batch_start + cfg.contradiction_batch_size]
-            batch_findings = await _run_batch(batch, concept_id, router, settings, report.id, session)
+            batch_findings = await _run_batch(batch, concept_id, router, settings, report.id, session, user_id=user_id)
             findings.extend(batch_findings)
 
             for _idx, (art_a, art_b, _ca, _cb) in enumerate(batch):
@@ -427,7 +438,16 @@ async def _process_uncached_pairs(
                 await session.flush()
     else:
         for art_a, art_b, _ca, _cb in uncached_pairs:
-            new_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report.id, session)
+            new_findings = await _compare_article_pair(
+                art_a,
+                art_b,
+                concept_id,
+                router,
+                settings,
+                report.id,
+                session,
+                user_id=user_id,
+            )
             findings.extend(new_findings)
             if cfg.enable_pair_cache:
                 await _save_pair_cache(session, art_a, art_b, _cache_data_from_findings(new_findings))
@@ -505,7 +525,14 @@ async def detect_contradictions(
 
         # Process uncached pairs: batch or per-pair
         new_findings, checked = await _process_uncached_pairs(
-            uncached_pairs, concept_id, router, settings, report, session, checked
+            uncached_pairs,
+            concept_id,
+            router,
+            settings,
+            report,
+            session,
+            checked,
+            user_id=report.user_id,
         )
         findings.extend(new_findings)
 
@@ -525,6 +552,7 @@ async def _compare_article_pair(
     settings: Settings,
     report_id: str,
     session: AsyncSession | None = None,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
@@ -554,7 +582,7 @@ async def _compare_article_pair(
     )
 
     try:
-        response = await router.complete(request, session=None)
+        response = await router.complete(request, session=None, user_id=user_id)
         data = router.parse_json_response(response)
     except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
         log.warning(

@@ -179,7 +179,7 @@ async def compile_source(
                 await emit_source_progress(source_id, message, user_id=user_id)
 
             compiler = Compiler()
-            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
+            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress, user_id=user_id)
 
             if not result:
                 msg = "Compiler returned no result"
@@ -306,7 +306,7 @@ async def _recompile_from_source(article: Article, session) -> None:
     doc = _build_normalized_doc(source)
 
     compiler = Compiler()
-    result = await compiler.compile(doc, session)
+    result = await compiler.compile(doc, session, user_id=source.user_id)
     if not result:
         msg = "Compiler returned no result"
         raise ValueError(msg)

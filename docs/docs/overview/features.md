@@ -34,6 +34,7 @@ WikiMind supports multiple LLM providers with automatic fallback:
 |---|---|---|
 | Anthropic | claude-sonnet-4-5 | Default provider |
 | OpenAI | gpt-4o | |
+| OpenAI-compatible | gpt-4o-mini | Custom Chat Completions base URL |
 | Google | gemini-2.0-flash | |
 | Ollama | llama3.2 | Local, no API key needed |
 

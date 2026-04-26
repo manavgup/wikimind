@@ -201,7 +201,7 @@ class ConceptCompiler:
             task_type=TaskType.COMPILE,
         )
         try:
-            response = await self.router.complete(request, session=session)
+            response = await self.router.complete(request, session=session, user_id=concept.user_id)
             self._last_provider_used = response.provider_used
         except (RuntimeError, ValueError):
             log.warning(

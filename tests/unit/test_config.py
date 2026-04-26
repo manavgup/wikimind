@@ -36,6 +36,9 @@ class TestNestedEnvVars:
         assert s.llm.default_provider == "anthropic"
         assert s.llm.openai.model == "gpt-4o"  # default preserved
         assert s.llm.openai.enabled is False
+        assert s.llm.openai_compatible.base_url == ""
+        assert s.llm.openai_compatible.supports_reasoning_effort is True
+        assert s.llm.openai_compatible.reasoning_format == "openai"
 
     def test_nested_env_var_override(self, monkeypatch):
         monkeypatch.setenv("WIKIMIND_LLM__DEFAULT_PROVIDER", "openai")
@@ -50,6 +53,19 @@ class TestNestedEnvVars:
         monkeypatch.setenv("WIKIMIND_LLM__OPENAI__MODEL", "gpt-4o-mini")
         s = Settings()
         assert s.llm.openai.model == "gpt-4o-mini"
+
+    def test_openai_compatible_nested_env_vars(self, monkeypatch):
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL", "https://openrouter.ai/api/v1")
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL", "openai/gpt-4o-mini")
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_STREAM_USAGE", "false")
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_REASONING_EFFORT", "false")
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__REASONING_FORMAT", "openrouter")
+        s = Settings()
+        assert s.llm.openai_compatible.base_url == "https://openrouter.ai/api/v1"
+        assert s.llm.openai_compatible.model == "openai/gpt-4o-mini"
+        assert s.llm.openai_compatible.supports_stream_usage is False
+        assert s.llm.openai_compatible.supports_reasoning_effort is False
+        assert s.llm.openai_compatible.reasoning_format == "openrouter"
 
 
 class TestAutoEnableProviders:
@@ -80,11 +96,25 @@ class TestAutoEnableProviders:
         _reconcile_providers(s)
         assert s.llm.google.enabled is True
 
+    def test_openai_compatible_auto_enables_with_key_and_base_url(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "openrouter-test")
+        monkeypatch.setenv("WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL", "https://openrouter.ai/api/v1")
+        s = Settings()
+        _reconcile_providers(s)
+        assert s.llm.openai_compatible.enabled is True
+
+    def test_openai_compatible_does_not_auto_enable_without_base_url(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "openrouter-test")
+        s = Settings()
+        _reconcile_providers(s)
+        assert s.llm.openai_compatible.enabled is False
+
     def test_no_auto_enable_when_no_keys(self):
         s = Settings()
         _reconcile_providers(s)
         assert s.llm.anthropic.enabled is False
         assert s.llm.openai.enabled is False
+        assert s.llm.openai_compatible.enabled is False
         assert s.llm.google.enabled is False
         assert s.llm.ollama.enabled is False
 
@@ -105,6 +135,7 @@ class TestSecurityStatus:
         status = s.get_security_status()
         assert status["anthropic_api_key"] is False
         assert status["openai_api_key"] is False
+        assert status["openai_compatible_api_key"] is False
         assert status["google_api_key"] is False
         assert "keyring_backend" in status
 

@@ -19,6 +19,8 @@ from wikimind.services.api_keys import get_user_api_key
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
+    from wikimind.config import Settings
+
 router = APIRouter()
 
 
@@ -28,6 +30,13 @@ class SettingsUpdateRequest(BaseModel):
     monthly_budget_usd: float | None = None
     default_provider: str | None = None
     fallback_enabled: bool | None = None
+    openai_compatible_base_url: str | None = None
+    openai_compatible_model: str | None = None
+    openai_compatible_supports_json_response_format: bool | None = None
+    openai_compatible_supports_stream_usage: bool | None = None
+    openai_compatible_supports_reasoning_effort: bool | None = None
+    openai_compatible_max_tokens_field: str | None = None
+    openai_compatible_reasoning_format: str | None = None
 
 
 class DefaultProviderRequest(BaseModel):
@@ -42,6 +51,7 @@ class ProviderDetail(BaseModel):
     enabled: bool
     model: str
     configured: bool
+    base_url: str | None = None
 
 
 class LLMSettingsResponse(BaseModel):
@@ -129,6 +139,70 @@ class OnboardingCompleteRequest(BaseModel):
     """Request to mark onboarding as complete."""
 
 
+_OPENAI_COMPATIBLE_PREF_MAP = {
+    "llm.openai_compatible.base_url": "base_url",
+    "llm.openai_compatible.model": "model",
+    "llm.openai_compatible.supports_json_response_format": "supports_json_response_format",
+    "llm.openai_compatible.supports_stream_usage": "supports_stream_usage",
+    "llm.openai_compatible.supports_reasoning_effort": "supports_reasoning_effort",
+    "llm.openai_compatible.max_tokens_field": "max_tokens_field",
+    "llm.openai_compatible.reasoning_format": "reasoning_format",
+}
+_OPENAI_COMPATIBLE_TOKEN_FIELDS = {"max_tokens", "max_completion_tokens"}
+_OPENAI_COMPATIBLE_REASONING_FORMATS = {"none", "openai", "openrouter"}
+_OPENAI_COMPATIBLE_RUNTIME_REQUEST_FIELDS = (
+    "openai_compatible_base_url",
+    "openai_compatible_model",
+    "openai_compatible_supports_json_response_format",
+    "openai_compatible_supports_stream_usage",
+    "openai_compatible_supports_reasoning_effort",
+    "openai_compatible_max_tokens_field",
+    "openai_compatible_reasoning_format",
+)
+
+
+async def apply_runtime_llm_preferences() -> None:
+    """Apply persisted LLM runtime preferences to the in-memory settings singleton."""
+    settings = get_settings()
+    async with get_session_factory()() as session:
+        result = await session.execute(select(UserPreference))
+        for pref in result.scalars().all():
+            if pref.key == "llm.default_provider":
+                settings.llm.default_provider = pref.value
+            elif pref.key == "llm.monthly_budget_usd":
+                settings.llm.monthly_budget_usd = float(pref.value)
+            elif pref.key == "llm.fallback_enabled":
+                settings.llm.fallback_enabled = pref.value.lower() == "true"
+            elif pref.key in _OPENAI_COMPATIBLE_PREF_MAP:
+                field_name = _OPENAI_COMPATIBLE_PREF_MAP[pref.key]
+                current_value = getattr(settings.llm.openai_compatible, field_name)
+                value = pref.value.lower() == "true" if isinstance(current_value, bool) else pref.value
+                setattr(settings.llm.openai_compatible, field_name, value)
+
+    cfg = settings.llm.openai_compatible
+    cfg.enabled = bool((cfg.enabled or get_api_key(Provider.OPENAI_COMPATIBLE.value)) and cfg.base_url and cfg.model)
+
+
+def _has_required_provider_config(provider: Provider) -> bool:
+    """Return whether non-secret runtime config exists for a provider."""
+    if provider != Provider.OPENAI_COMPATIBLE:
+        return True
+    cfg = get_settings().llm.openai_compatible
+    return bool(cfg.base_url and cfg.model)
+
+
+def _refresh_openai_compatible_enabled(settings: Settings) -> None:
+    """Refresh derived enabled state after runtime config changes."""
+    cfg = settings.llm.openai_compatible
+    cfg.enabled = bool((cfg.enabled or get_api_key(Provider.OPENAI_COMPATIBLE.value)) and cfg.base_url and cfg.model)
+    get_llm_router()._provider_cache.pop(Provider.OPENAI_COMPATIBLE, None)
+
+
+def _has_openai_compatible_runtime_update(request: SettingsUpdateRequest) -> bool:
+    """Return true when a request changes global OpenAI-compatible runtime config."""
+    return any(getattr(request, field_name) is not None for field_name in _OPENAI_COMPATIBLE_RUNTIME_REQUEST_FIELDS)
+
+
 # ---------------------------------------------------------------------------
 # DB preference helpers
 # ---------------------------------------------------------------------------
@@ -152,6 +226,70 @@ async def _set_preference(key: str, value: str) -> None:
         await session.commit()
 
 
+async def _update_openai_compatible_settings(request: SettingsUpdateRequest, settings: Settings) -> bool:
+    """Persist runtime OpenAI-compatible settings and update the singleton."""
+    updated = False
+    cfg = settings.llm.openai_compatible
+
+    if settings.auth.enabled and _has_openai_compatible_runtime_update(request):
+        raise HTTPException(
+            status_code=403,
+            detail="OpenAI-compatible runtime settings are global and cannot be changed by users when auth is enabled",
+        )
+
+    if request.openai_compatible_base_url is not None:
+        base_url = request.openai_compatible_base_url.strip().rstrip("/")
+        if base_url and not base_url.startswith(("http://", "https://")):
+            raise HTTPException(status_code=400, detail="OpenAI-compatible base URL must start with http:// or https://")
+        await _set_preference("llm.openai_compatible.base_url", base_url)
+        cfg.base_url = base_url
+        updated = True
+
+    if request.openai_compatible_model is not None:
+        model = request.openai_compatible_model.strip()
+        if not model:
+            raise HTTPException(status_code=400, detail="OpenAI-compatible model must not be empty")
+        await _set_preference("llm.openai_compatible.model", model)
+        cfg.model = model
+        updated = True
+
+    bool_updates = {
+        "supports_json_response_format": request.openai_compatible_supports_json_response_format,
+        "supports_stream_usage": request.openai_compatible_supports_stream_usage,
+        "supports_reasoning_effort": request.openai_compatible_supports_reasoning_effort,
+    }
+    for field_name, value in bool_updates.items():
+        if value is None:
+            continue
+        await _set_preference(f"llm.openai_compatible.{field_name}", str(value).lower())
+        setattr(cfg, field_name, value)
+        updated = True
+
+    if request.openai_compatible_max_tokens_field is not None:
+        max_tokens_field = request.openai_compatible_max_tokens_field.strip()
+        if max_tokens_field not in _OPENAI_COMPATIBLE_TOKEN_FIELDS:
+            raise HTTPException(
+                status_code=400,
+                detail="OpenAI-compatible max token field must be max_tokens or max_completion_tokens",
+            )
+        await _set_preference("llm.openai_compatible.max_tokens_field", max_tokens_field)
+        cfg.max_tokens_field = max_tokens_field
+        updated = True
+
+    if request.openai_compatible_reasoning_format is not None:
+        reasoning_format = request.openai_compatible_reasoning_format.strip()
+        if reasoning_format not in _OPENAI_COMPATIBLE_REASONING_FORMATS:
+            raise HTTPException(
+                status_code=400,
+                detail="OpenAI-compatible reasoning format must be none, openai, or openrouter",
+            )
+        await _set_preference("llm.openai_compatible.reasoning_format", reasoning_format)
+        cfg.reasoning_format = reasoning_format
+        updated = True
+
+    return updated
+
+
 @router.get("", response_model=AllSettingsResponse)
 async def get_all_settings(
     session: AsyncSession = Depends(get_session),
@@ -173,10 +311,12 @@ async def get_all_settings(
         has_system_key = bool(get_api_key(p.value))
         has_user_key = bool(await get_user_api_key(session, user_id, p)) if not has_system_key else False
         config_enabled = getattr(settings.llm, p.value).enabled
+        has_required_config = _has_required_provider_config(p)
         providers[p.value] = ProviderDetail(
-            enabled=config_enabled or has_user_key,
+            enabled=(config_enabled or has_user_key) and has_required_config,
             model=getattr(settings.llm, p.value).model,
             configured=has_system_key or has_user_key,
+            base_url=getattr(settings.llm, p.value).base_url if p == Provider.OPENAI_COMPATIBLE else None,
         )
 
     return AllSettingsResponse(
@@ -221,6 +361,11 @@ async def set_default_provider(
             status_code=400,
             detail=f"Provider {request.provider} is not enabled",
         )
+    if not _has_required_provider_config(Provider(request.provider)):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Provider {request.provider} is missing required configuration",
+        )
 
     # Providers that need API keys
     no_key_providers = {Provider.OLLAMA.value, Provider.MOCK.value}
@@ -258,6 +403,9 @@ async def update_settings(request: SettingsUpdateRequest):
         )
         settings.llm.fallback_enabled = request.fallback_enabled
 
+    if await _update_openai_compatible_settings(request, settings):
+        _refresh_openai_compatible_enabled(settings)
+
     if request.default_provider is not None:
         valid_providers = [p.value for p in Provider]
         if request.default_provider not in valid_providers:
@@ -272,7 +420,10 @@ async def update_settings(request: SettingsUpdateRequest):
 
 
 @router.post("/llm/test", response_model=LLMTestResponse)
-async def test_llm_connection(provider: str):
+async def llm_connection_test(
+    provider: str,
+    user_id: str = Depends(get_current_user_id),
+):
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
     # Temporarily disable fallback so we only test the requested provider
@@ -287,11 +438,11 @@ async def test_llm_connection(provider: str):
                     "content": ('Respond with the json object: {"status": "ok"}'),
                 }
             ],
-            max_tokens=10,
+            max_tokens=32,
             task_type=TaskType.QA,
             preferred_provider=Provider(provider),
         )
-        response = await router_instance.complete(request)
+        response = await router_instance.complete(request, user_id=user_id)
         return LLMTestResponse(
             provider=provider,
             status="ok",

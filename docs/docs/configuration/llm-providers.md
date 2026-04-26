@@ -8,6 +8,7 @@ WikiMind supports multiple LLM providers with automatic selection, fallback, and
 |---|---|---|---|
 | Anthropic | claude-sonnet-4-5 | `ANTHROPIC_API_KEY` | Default provider |
 | OpenAI | gpt-4o | `OPENAI_API_KEY` | |
+| OpenAI-compatible | gpt-4o-mini | `OPENAI_COMPATIBLE_API_KEY` | Custom Chat Completions base URL |
 | Google Gemini | gemini-2.0-flash | `GOOGLE_API_KEY` | |
 | Ollama | llama3.2 | -- | Local, no key needed |
 | Mock | mock-1 | -- | CI/testing only |
@@ -70,8 +71,48 @@ Override the default model for any provider:
 ```bash
 WIKIMIND_LLM__ANTHROPIC__MODEL=claude-haiku-4-5-20251001
 WIKIMIND_LLM__OPENAI__MODEL=gpt-4o-mini
+WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL=openai/gpt-4o-mini
 WIKIMIND_LLM__GOOGLE__MODEL=gemini-2.0-flash
 WIKIMIND_LLM__OLLAMA__MODEL=mistral
+```
+
+## OpenAI-Compatible Endpoints
+
+Use `openai_compatible` for OpenRouter, Together, Fireworks, LM Studio,
+vLLM, LocalAI, or any endpoint that supports the OpenAI Chat Completions API.
+It is separate from the official `openai` provider so cost logs and article
+provenance show that a gateway/custom endpoint was used.
+
+OpenRouter example:
+
+```bash
+OPENAI_COMPATIBLE_API_KEY=sk-or-...
+WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL=https://openrouter.ai/api/v1
+WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL=openai/gpt-4o-mini
+WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
+```
+
+Optional compatibility switches:
+
+```bash
+WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_JSON_RESPONSE_FORMAT=true
+WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_STREAM_USAGE=true
+WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_REASONING_EFFORT=true
+WIKIMIND_LLM__OPENAI_COMPATIBLE__REASONING_FORMAT=openai
+WIKIMIND_LLM__OPENAI_COMPATIBLE__MAX_TOKENS_FIELD=max_tokens
+```
+
+For gateways with OpenRouter-style reasoning payloads, set:
+
+```bash
+WIKIMIND_LLM__OPENAI_COMPATIBLE__REASONING_FORMAT=openrouter
+```
+
+For OpenRouter attribution headers:
+
+```bash
+WIKIMIND_LLM__OPENAI_COMPATIBLE__SITE_URL=https://wikimind.local
+WIKIMIND_LLM__OPENAI_COMPATIBLE__APP_NAME=WikiMind
 ```
 
 ## Ollama (Local Models)
@@ -112,6 +153,7 @@ Current pricing (USD per 1M tokens):
 | Anthropic | claude-haiku-4-5-20251001 | $0.80 | $4.00 |
 | OpenAI | gpt-4o | $2.50 | $10.00 |
 | OpenAI | gpt-4o-mini | $0.15 | $0.60 |
+| OpenAI-compatible | * | $0.00 | $0.00 |
 | Google | gemini-2.0-flash | $0.10 | $0.40 |
 | Ollama | * | $0.00 | $0.00 |
 
