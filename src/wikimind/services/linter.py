@@ -178,7 +178,7 @@ class LinterService:
         if not report:
             raise HTTPException(status_code=404, detail="No lint reports exist yet")
 
-        return await self.get_report(session, report.id)
+        return await self.get_report(session, report.id, user_id=user_id)
 
     async def dismiss_finding(
         self,
