@@ -19,28 +19,74 @@ const EXAMPLE_URLS = [
 
 export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
+  const queryClient = useQueryClient();
+
+  const dismissMutation = useMutation({
+    mutationFn: completeOnboarding,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
+      onComplete();
+    },
+  });
+
+  const handleDismiss = () => {
+    dismissMutation.mutate();
+  };
+
+  const lastStep = STEPS.length - 1;
+
+  const handleSkip = (currentStep: number) => {
+    if (currentStep >= lastStep) {
+      handleDismiss();
+    } else {
+      setStep(currentStep + 1);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60">
-      <Card className="w-full max-w-lg p-0">
+      <Card className="relative w-full max-w-lg p-0">
+        <button
+          type="button"
+          onClick={handleDismiss}
+          disabled={dismissMutation.isPending}
+          className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          aria-label="Skip onboarding"
+        >
+          &#x2715;
+        </button>
         <StepIndicator current={step} steps={STEPS} />
         <div className="p-6">
-          {step === 0 && <WelcomeStep onNext={() => setStep(1)} />}
+          {step === 0 && (
+            <WelcomeStep
+              onNext={() => setStep(1)}
+              onSkip={() => handleSkip(0)}
+            />
+          )}
           {step === 1 && (
             <ConfigureLLMStep
               onNext={() => setStep(2)}
-              onSkip={() => setStep(2)}
+              onSkip={() => handleSkip(1)}
             />
           )}
           {step === 2 && (
             <AddSourceStep
               onNext={() => setStep(3)}
+              onSkip={() => handleSkip(2)}
             />
           )}
           {step === 3 && (
-            <CompilingStep onNext={() => setStep(4)} />
+            <CompilingStep
+              onNext={() => setStep(4)}
+              onSkip={() => handleSkip(3)}
+            />
           )}
-          {step === 4 && <DoneStep onComplete={onComplete} />}
+          {step === 4 && (
+            <DoneStep
+              onComplete={onComplete}
+              onSkip={handleDismiss}
+            />
+          )}
         </div>
       </Card>
     </div>
@@ -76,7 +122,13 @@ function StepIndicator({ current, steps }: { current: number; steps: string[] })
   );
 }
 
-function WelcomeStep({ onNext }: { onNext: () => void }) {
+function WelcomeStep({
+  onNext,
+  onSkip,
+}: {
+  onNext: () => void;
+  onSkip: () => void;
+}) {
   return (
     <div className="text-center">
       <h2 className="mb-3 text-xl font-bold text-slate-900">
@@ -92,7 +144,12 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         it into a wiki article, then <strong>explore</strong> and{" "}
         <strong>ask</strong> questions.
       </p>
-      <Button onClick={onNext}>Get Started</Button>
+      <div className="flex items-center justify-center gap-3">
+        <Button variant="ghost" onClick={onSkip}>
+          Skip for now
+        </Button>
+        <Button onClick={onNext}>Get Started</Button>
+      </div>
     </div>
   );
 }
@@ -217,7 +274,13 @@ function ConfigureLLMStep({
   );
 }
 
-function AddSourceStep({ onNext }: { onNext: () => void }) {
+function AddSourceStep({
+  onNext,
+  onSkip,
+}: {
+  onNext: () => void;
+  onSkip: () => void;
+}) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -282,7 +345,10 @@ function AddSourceStep({ onNext }: { onNext: () => void }) {
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-between">
+          <Button variant="ghost" onClick={onSkip}>
+            Skip for now
+          </Button>
           <Button
             type="submit"
             disabled={!url.trim() || mutation.isPending || submitted}
@@ -295,7 +361,13 @@ function AddSourceStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-function CompilingStep({ onNext }: { onNext: () => void }) {
+function CompilingStep({
+  onNext,
+  onSkip,
+}: {
+  onNext: () => void;
+  onSkip: () => void;
+}) {
   const lastEvent = useWebSocketStore((s) => s.lastEvent);
   const sourceStatus = useWebSocketStore((s) => s.sourceStatus);
 
@@ -329,9 +401,12 @@ function CompilingStep({ onNext }: { onNext: () => void }) {
           {latestMessage && (
             <p className="mb-4 text-sm text-slate-500">{latestMessage}</p>
           )}
-          <p className="text-xs text-slate-400">
+          <p className="mb-4 text-xs text-slate-400">
             This usually takes 30-60 seconds depending on the source.
           </p>
+          <Button variant="ghost" onClick={onSkip}>
+            Skip for now
+          </Button>
         </>
       )}
 
@@ -357,7 +432,13 @@ function CompilingStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-function DoneStep({ onComplete }: { onComplete: () => void }) {
+function DoneStep({
+  onComplete,
+  onSkip,
+}: {
+  onComplete: () => void;
+  onSkip: () => void;
+}) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -377,12 +458,17 @@ function DoneStep({ onComplete }: { onComplete: () => void }) {
         Your wiki is ready. Keep adding sources from the Inbox, explore your
         knowledge graph, and ask questions against your wiki.
       </p>
-      <Button
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-      >
-        {mutation.isPending ? "Finishing..." : "Go to Wiki Explorer"}
-      </Button>
+      <div className="flex items-center justify-center gap-3">
+        <Button variant="ghost" onClick={onSkip}>
+          Skip for now
+        </Button>
+        <Button
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? "Finishing..." : "Go to Wiki Explorer"}
+        </Button>
+      </div>
     </div>
   );
 }
