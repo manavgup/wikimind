@@ -75,6 +75,7 @@ class LinterService:
         report_id: str,
         *,
         include_dismissed: bool = False,
+        user_id: str | None = None,
     ) -> LintReportDetail:
         """Get a single report with all its findings.
 
@@ -82,15 +83,18 @@ class LinterService:
             session: Async database session.
             report_id: The report UUID.
             include_dismissed: If True, include dismissed findings.
+            user_id: Optional user ID for ownership verification.
 
         Returns:
             LintReportDetail with report metadata and grouped findings.
 
         Raises:
-            HTTPException: 404 if report not found.
+            HTTPException: 404 if report not found or not owned by user.
         """
         report = await session.get(LintReport, report_id)
         if not report:
+            raise HTTPException(status_code=404, detail="Lint report not found")
+        if user_id and report.user_id != user_id:
             raise HTTPException(status_code=404, detail="Lint report not found")
 
         contradiction_query = select(ContradictionFinding).where(ContradictionFinding.report_id == report_id)
@@ -181,6 +185,8 @@ class LinterService:
         session: AsyncSession,
         kind: LintFindingKind,
         finding_id: str,
+        *,
+        user_id: str | None = None,
     ) -> DismissFindingResponse:
         """Dismiss a finding and record it for cross-run suppression.
 
@@ -188,6 +194,8 @@ class LinterService:
             session: Async database session.
             kind: The finding kind (determines which table to query).
             finding_id: The finding UUID.
+            user_id: Optional user ID for auth enforcement (ownership
+                verification deferred to Issue #344).
 
         Returns:
             DismissFindingResponse confirming dismissal.

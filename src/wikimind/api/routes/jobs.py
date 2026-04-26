@@ -35,6 +35,7 @@ async def get_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
 ):
     """Get job by ID."""
     return await service.get_job(job_id, session)
@@ -53,18 +54,20 @@ async def trigger_compile(
 @router.post("/lint", response_model=JobTriggerResponse)
 async def trigger_lint(
     service: LinterService = Depends(get_linter_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Trigger wiki linting.
 
     DEPRECATED: Use POST /lint/run instead. This endpoint delegates
     to the new LinterService for backward compatibility.
     """
-    return await service.trigger_run()
+    return await service.trigger_run(user_id=user_id)
 
 
 @router.post("/reindex", response_model=JobTriggerResponse)
 async def trigger_reindex(
     service: CompilerService = Depends(get_compiler_service),
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
 ):
     """Trigger wiki reindexing."""
     return await service.trigger_reindex()
