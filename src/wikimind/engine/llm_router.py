@@ -354,6 +354,13 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
+        # When a user_id is present, also consider BYOK-capable providers
+        # that aren't config-enabled — the user may have stored a key.
+        if user_id:
+            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+                if p not in provider_order:
+                    provider_order.append(p)
+
         last_error = None
         for provider in provider_order:
             # Check for user BYOK key first
@@ -437,6 +444,11 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(preferred_provider)
 
+        if user_id:
+            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+                if p not in provider_order:
+                    provider_order.append(p)
+
         last_error = None
         for provider in provider_order:
             user_key = await self._resolve_user_key(provider, user_id)
@@ -503,6 +515,11 @@ class LLMRouter:
             RuntimeError: When all providers fail during stream creation.
         """
         provider_order = self._get_provider_order(request.preferred_provider)
+
+        if user_id:
+            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+                if p not in provider_order:
+                    provider_order.append(p)
 
         last_error = None
         for provider in provider_order:

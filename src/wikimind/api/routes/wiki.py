@@ -258,6 +258,7 @@ async def recompile_article(
     article_id: str,
     mode: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Schedule an async recompilation job for an article."""
     if mode is not None and mode not in _VALID_RECOMPILE_MODES:
@@ -282,6 +283,6 @@ async def recompile_article(
     await session.refresh(job)
 
     compiler = get_background_compiler()
-    await compiler.schedule_recompile(article_id, effective_mode, job.id)
+    await compiler.schedule_recompile(article_id, effective_mode, job.id, user_id=user_id)
 
     return RecompileResponse(status="scheduled", job_id=job.id)

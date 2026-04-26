@@ -162,9 +162,10 @@ async def _collect_contradictions(source_article_ids: list[str], session: AsyncS
 class ConceptCompiler:
     """Registry-driven compiler that synthesizes concept pages from source articles."""
 
-    def __init__(self) -> None:
+    def __init__(self, user_id: str | None = None) -> None:
         self.router = get_llm_router()
         self.settings = get_settings()
+        self.user_id = user_id
         self._last_provider_used: Provider | None = None
 
     async def compile_concept_page(self, concept: Concept, session: AsyncSession) -> Article | None:
@@ -201,7 +202,7 @@ class ConceptCompiler:
             task_type=TaskType.COMPILE,
         )
         try:
-            response = await self.router.complete(request, session=session)
+            response = await self.router.complete(request, session=session, user_id=self.user_id)
             self._last_provider_used = response.provider_used
         except (RuntimeError, ValueError):
             log.warning(

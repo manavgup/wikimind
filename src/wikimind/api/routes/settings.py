@@ -272,7 +272,10 @@ async def update_settings(request: SettingsUpdateRequest):
 
 
 @router.post("/llm/test", response_model=LLMTestResponse)
-async def test_llm_connection(provider: str):
+async def test_llm_connection(
+    provider: str,
+    user_id: str = Depends(get_current_user_id),  # noqa: PT028
+):
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
     # Temporarily disable fallback so we only test the requested provider
@@ -291,7 +294,7 @@ async def test_llm_connection(provider: str):
             task_type=TaskType.QA,
             preferred_provider=Provider(provider),
         )
-        response = await router_instance.complete(request)
+        response = await router_instance.complete(request, user_id=user_id)
         return LLMTestResponse(
             provider=provider,
             status="ok",
