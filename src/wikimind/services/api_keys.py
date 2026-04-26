@@ -118,7 +118,7 @@ async def set_user_api_key(
     result = await session.execute(
         select(UserApiKey).where(
             UserApiKey.user_id == user_id,
-            UserApiKey.provider == provider,
+            UserApiKey.provider == provider.name,
         )
     )
     existing = result.scalar_one_or_none()
@@ -160,7 +160,7 @@ async def get_user_api_key(
     result = await session.execute(
         select(UserApiKey).where(
             UserApiKey.user_id == user_id,
-            UserApiKey.provider == provider,
+            UserApiKey.provider == provider.name,
         )
     )
     record = result.scalar_one_or_none()
@@ -204,7 +204,7 @@ async def delete_user_api_key(
     result = await session.execute(
         select(UserApiKey).where(
             UserApiKey.user_id == user_id,
-            UserApiKey.provider == provider,
+            UserApiKey.provider == provider.name,
         )
     )
     record = result.scalar_one_or_none()
