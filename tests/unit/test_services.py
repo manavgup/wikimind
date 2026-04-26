@@ -235,6 +235,38 @@ async def test_ingest_service_delete_missing(db_session) -> None:
         await svc.delete_source("nope", db_session)
 
 
+async def test_ingest_service_get_source_wrong_user(db_session) -> None:
+    """get_source returns 404 when user_id doesn't match the source owner."""
+    svc = IngestService()
+    s = Source(source_type=SourceType.TEXT, title="t", user_id="user-a")
+    db_session.add(s)
+    await db_session.commit()
+    with pytest.raises(HTTPException) as exc_info:
+        await svc.get_source(s.id, db_session, user_id="user-b")
+    assert exc_info.value.status_code == 404
+
+
+async def test_ingest_service_get_source_correct_user(db_session) -> None:
+    """get_source succeeds when user_id matches the source owner."""
+    svc = IngestService()
+    s = Source(source_type=SourceType.TEXT, title="t", user_id="user-a")
+    db_session.add(s)
+    await db_session.commit()
+    got = await svc.get_source(s.id, db_session, user_id="user-a")
+    assert got.id == s.id
+
+
+async def test_ingest_service_delete_source_wrong_user(db_session) -> None:
+    """delete_source returns 404 when user_id doesn't match the source owner."""
+    svc = IngestService()
+    s = Source(source_type=SourceType.TEXT, title="t", user_id="user-a")
+    db_session.add(s)
+    await db_session.commit()
+    with pytest.raises(HTTPException) as exc_info:
+        await svc.delete_source(s.id, db_session, user_id="user-b")
+    assert exc_info.value.status_code == 404
+
+
 def test_ingest_service_singleton() -> None:
     ingest_mod._ingest_service = None
     a = get_ingest_service()

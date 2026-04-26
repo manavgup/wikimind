@@ -80,9 +80,10 @@ async def get_source(
     source_id: str,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Get source by ID."""
-    return await service.get_source(source_id, session)
+    return await service.get_source(source_id, session, user_id=user_id)
 
 
 @router.delete("/sources/{source_id}")
@@ -90,9 +91,10 @@ async def delete_source(
     source_id: str,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Delete a source by ID."""
-    return await service.delete_source(source_id, session)
+    return await service.delete_source(source_id, session, user_id=user_id)
 
 
 @router.get("/sources/{source_id}/original")
@@ -100,17 +102,18 @@ async def get_source_original(
     source_id: str,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Stream the original source document (PDF, HTML, etc.).
 
     Returns the raw binary stored during ingest — not the extracted text.
     Sources that have no original (text, YouTube) return 404.
     """
-    source = await service.get_source(source_id, session)
+    source = await service.get_source(source_id, session, user_id=user_id)
     if not source.file_path:
         raise HTTPException(status_code=404, detail="No original document available")
 
-    txt_path = resolve_raw_path(source.file_path)
+    txt_path = resolve_raw_path(source.file_path, user_id=source.user_id)
     original = find_original_sibling(txt_path)
     if original is None:
         raise HTTPException(status_code=404, detail="No original document available")

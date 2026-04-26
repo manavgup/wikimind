@@ -198,25 +198,38 @@ class IngestService:
         result = await session.execute(query)
         return list(result.scalars().all())
 
-    async def get_source(self, source_id: str, session: AsyncSession) -> Source:
+    async def get_source(
+        self,
+        source_id: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> Source:
         """Retrieve a single source by ID.
 
         Args:
             source_id: The source UUID.
             session: Async database session.
+            user_id: When provided, verify the source belongs to this user.
 
         Returns:
             The Source record.
 
         Raises:
-            HTTPException: If the source is not found.
+            HTTPException: If the source is not found or doesn't belong to the user.
         """
         source = await session.get(Source, source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+        if user_id and source.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Source not found")
         return source
 
-    async def delete_source(self, source_id: str, session: AsyncSession) -> dict[str, str]:
+    async def delete_source(
+        self,
+        source_id: str,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> dict[str, str]:
         """Delete a source by ID and remove its raw and cleaned files from disk.
 
         Adapters write a cleaned ``{id}.txt`` and may also write a sibling raw
@@ -228,15 +241,18 @@ class IngestService:
         Args:
             source_id: The source UUID.
             session: Async database session.
+            user_id: When provided, verify the source belongs to this user.
 
         Returns:
             Confirmation dict with the deleted ID.
 
         Raises:
-            HTTPException: If the source is not found.
+            HTTPException: If the source is not found or doesn't belong to the user.
         """
         source = await session.get(Source, source_id)
         if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        if user_id and source.user_id != user_id:
             raise HTTPException(status_code=404, detail="Source not found")
 
         self._remove_source_files(source)
