@@ -14,6 +14,7 @@ from wikimind.models import (
     Article,
     Conversation,
     FileBackSelectionRequest,
+    ForkRequest,
     Query,
     QueryRequest,
     Source,
@@ -529,3 +530,195 @@ class TestFileBackSelection:
         article = await db_session.get(Article, result["article"]["id"])
         content = Path(article.file_path).read_text(encoding="utf-8")
         assert "# My Custom Title" in content
+
+
+# ---------------------------------------------------------------------------
+# Ownership validation tests (issue #341)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_owned_conversation(
+    db_session, conv_id: str = "conv-owned-1", user_id: str = "user-a"
+) -> tuple[Conversation, list[Query]]:
+    """Persist a conversation with user ownership and two Q&A turns."""
+    conv = Conversation(
+        id=conv_id,
+        title="Owned Conversation",
+        user_id=user_id,
+        created_at=datetime(2026, 4, 10, 12, 0, 0),
+        updated_at=datetime(2026, 4, 10, 12, 5, 0),
+    )
+    db_session.add(conv)
+    await db_session.flush()
+
+    q1 = Query(
+        id=f"q-{conv_id}-0",
+        question="What is X?",
+        answer="X is a thing.",
+        confidence="high",
+        source_article_ids=json.dumps([]),
+        related_article_ids=json.dumps([]),
+        conversation_id=conv_id,
+        turn_index=0,
+        user_id=user_id,
+    )
+    q2 = Query(
+        id=f"q-{conv_id}-1",
+        question="How does X work?",
+        answer="X works by Y.",
+        confidence="medium",
+        source_article_ids=json.dumps([]),
+        related_article_ids=json.dumps([]),
+        conversation_id=conv_id,
+        turn_index=1,
+        user_id=user_id,
+    )
+    db_session.add_all([q1, q2])
+    await db_session.commit()
+    return conv, [q1, q2]
+
+
+@pytest.mark.asyncio
+class TestGetConversationOwnership:
+    async def test_get_conversation_succeeds_for_owner(self, db_session):
+        """get_conversation returns data when user_id matches the owner."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        detail = await service.get_conversation("conv-owned-1", db_session, user_id="user-a")
+        assert detail.conversation.id == "conv-owned-1"
+        assert len(detail.queries) == 2
+
+    async def test_get_conversation_404_for_wrong_user(self, db_session):
+        """get_conversation raises 404 when user_id doesn't match the owner."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_conversation("conv-owned-1", db_session, user_id="user-b")
+        assert exc_info.value.status_code == 404
+
+    async def test_get_conversation_allows_none_user_id(self, db_session):
+        """get_conversation skips ownership check when user_id is None."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        detail = await service.get_conversation("conv-owned-1", db_session, user_id=None)
+        assert detail.conversation.id == "conv-owned-1"
+
+
+@pytest.mark.asyncio
+class TestForkConversationOwnership:
+    async def test_fork_404_for_wrong_user(self, db_session):
+        """fork_conversation raises 404 when parent isn't owned by user."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+        fork_request = ForkRequest(turn_index=1, new_question="Different Q?")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.fork_conversation("conv-owned-1", fork_request, db_session, user_id="user-b")
+        assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+class TestExportConversationOwnership:
+    async def test_export_succeeds_for_owner(self, db_session):
+        """export_conversation returns markdown for the owning user."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        response = await service.export_conversation("conv-owned-1", db_session, user_id="user-a")
+        assert response.media_type == "text/markdown"
+
+    async def test_export_404_for_wrong_user(self, db_session):
+        """export_conversation raises 404 when user_id doesn't match."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.export_conversation("conv-owned-1", db_session, user_id="user-b")
+        assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+class TestFileBackSelectionOwnership:
+    async def test_file_back_selection_404_for_wrong_user(self, db_session):
+        """file_back_selection raises 404 when conversation isn't owned by user."""
+        await _seed_owned_conversation(db_session)
+        service = QueryService()
+
+        request = FileBackSelectionRequest(
+            selections=[
+                TurnSelection(conversation_id="conv-owned-1", turn_indices=[0]),
+            ],
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await service.file_back_selection(request, db_session, user_id="user-b")
+        assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+class TestBuildCitationsOwnership:
+    async def test_build_citations_filters_by_user_id(self, db_session, tmp_path):
+        """_build_citations only returns articles belonging to the specified user."""
+        file_path = tmp_path / "owned-article.md"
+        file_path.write_text("# Owned Article", encoding="utf-8")
+
+        article = Article(
+            slug="owned-article",
+            title="Owned Article Title",
+            file_path=str(file_path),
+            summary="A summary",
+            source_ids=json.dumps([]),
+            user_id="user-a",
+        )
+        db_session.add(article)
+        await db_session.flush()
+
+        query = Query(
+            question="What about owned article?",
+            answer="It belongs to user-a.",
+            confidence="high",
+            source_article_ids=json.dumps(["Owned Article Title"]),
+            related_article_ids=json.dumps([]),
+        )
+        db_session.add(query)
+        await db_session.commit()
+
+        # user-a can see the citation
+        citations_a = await _build_citations(query, db_session, user_id="user-a")
+        assert len(citations_a) == 1
+        assert citations_a[0].article.title == "Owned Article Title"
+
+        # user-b cannot see the citation (title collision attack blocked)
+        citations_b = await _build_citations(query, db_session, user_id="user-b")
+        assert citations_b == []
+
+    async def test_build_citations_no_filter_when_user_id_none(self, db_session, tmp_path):
+        """_build_citations returns all matching articles when user_id is None."""
+        file_path = tmp_path / "any-article.md"
+        file_path.write_text("# Any", encoding="utf-8")
+
+        article = Article(
+            slug="any-article",
+            title="Any Article",
+            file_path=str(file_path),
+            summary="A summary",
+            source_ids=json.dumps([]),
+            user_id="user-a",
+        )
+        db_session.add(article)
+        await db_session.flush()
+
+        query = Query(
+            question="Any?",
+            answer="Yes.",
+            confidence="high",
+            source_article_ids=json.dumps(["Any Article"]),
+            related_article_ids=json.dumps([]),
+        )
+        db_session.add(query)
+        await db_session.commit()
+
+        citations = await _build_citations(query, db_session, user_id=None)
+        assert len(citations) == 1

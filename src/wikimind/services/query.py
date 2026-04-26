@@ -101,7 +101,7 @@ def _parse_article_titles(raw: str | None) -> list[str]:
     return [str(item) for item in parsed if item]
 
 
-async def _build_citations(query: Query, session: AsyncSession) -> list[CitationResponse]:
+async def _build_citations(query: Query, session: AsyncSession, user_id: str | None = None) -> list[CitationResponse]:
     """Resolve a Q&A record into a full citation chain.
 
     Walks ``Query.source_article_ids`` (which the QA agent populates with
@@ -113,6 +113,7 @@ async def _build_citations(query: Query, session: AsyncSession) -> list[Citation
     Args:
         query: The persisted Query record.
         session: Async database session.
+        user_id: Optional user ID to filter articles by ownership.
 
     Returns:
         Resolved citation list with full source provenance for each
@@ -122,7 +123,10 @@ async def _build_citations(query: Query, session: AsyncSession) -> list[Citation
     if not titles:
         return []
 
-    article_result = await session.execute(select(Article).where(Article.title.in_(titles)))  # type: ignore[attr-defined]
+    stmt = select(Article).where(Article.title.in_(titles))  # type: ignore[attr-defined]
+    if user_id:
+        stmt = stmt.where(Article.user_id == user_id)
+    article_result = await session.execute(stmt)
     articles_by_title = {a.title: a for a in article_result.scalars().all()}
 
     citations: list[CitationResponse] = []
@@ -262,7 +266,7 @@ class QueryService:
             :class:`AskResponse` with the new query and its parent conversation.
         """
         query, conversation = await self._qa_agent.answer(request, session, user_id=user_id)
-        citations = await _build_citations(query, session)
+        citations = await _build_citations(query, session, user_id=user_id)
         return AskResponse(
             query=_to_query_response(query, citations),
             conversation=_to_conversation_response(conversation),
@@ -299,7 +303,7 @@ class QueryService:
                 else:
                     # Final tuple: (Query, Conversation)
                     query_record, conversation = item
-                    citations = await _build_citations(query_record, session)
+                    citations = await _build_citations(query_record, session, user_id=user_id)
                     done_payload = AskResponse(
                         query=_to_query_response(query_record, citations),
                         conversation=_to_conversation_response(conversation),
@@ -417,6 +421,8 @@ class QueryService:
         conversation = await session.get(Conversation, conversation_id)
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        if user_id and conversation.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Use thread materialization for forked conversations
         if conversation.parent_conversation_id is not None:
@@ -432,7 +438,7 @@ class QueryService:
         # Build full QueryResponse for each turn (with citations)
         query_responses: list[QueryResponse] = []
         for q in queries:
-            citations = await _build_citations(q, session)
+            citations = await _build_citations(q, session, user_id=user_id)
             query_responses.append(_to_query_response(q, citations))
 
         return ConversationDetail(
@@ -497,6 +503,8 @@ class QueryService:
         parent = await session.get(Conversation, conversation_id)
         if parent is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        if user_id and parent.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Validate turn_index: must be >= 0 and there must be at least that
         # many turns in the parent (or its materialized thread)
@@ -520,7 +528,7 @@ class QueryService:
             conversation_id=fork_conv.id,
         )
         query, conversation = await self._qa_agent.answer(ask_request, session, user_id=user_id)
-        citations = await _build_citations(query, session)
+        citations = await _build_citations(query, session, user_id=user_id)
         fork_count = await _count_forks(fork_conv.id, session)
         return AskResponse(
             query=_to_query_response(query, citations),
@@ -559,6 +567,11 @@ class QueryService:
         for selection in request.selections:
             conversation = await session.get(Conversation, selection.conversation_id)
             if conversation is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Conversation not found: {selection.conversation_id}",
+                )
+            if user_id and conversation.user_id != user_id:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Conversation not found: {selection.conversation_id}",
@@ -631,6 +644,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> Response:
         """Export conversation as markdown. Read-only, no DB writes.
 
@@ -641,6 +655,7 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to export.
             session: Async database session.
+            user_id: Optional user ID for data isolation.
 
         Returns:
             :class:`Response` with ``text/markdown`` content and a
@@ -651,6 +666,8 @@ class QueryService:
         """
         conversation = await session.get(Conversation, conversation_id)
         if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if user_id and conversation.user_id != user_id:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         result = await session.execute(
