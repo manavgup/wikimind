@@ -107,11 +107,29 @@ dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
 serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842
 
+DEV_PG_URL := postgresql+asyncpg://wikimind:wikimind@localhost:5433/wikimind
+
+.PHONY: pg-up
+pg-up: ## Start local Postgres (docker-compose.dev.yml, port 5433)
+	$(COMPOSE_CMD) -f docker-compose.dev.yml up -d
+	@echo "Postgres running on localhost:5433"
+	@echo "  WIKIMIND_DATABASE_URL=$(DEV_PG_URL)"
+
+.PHONY: pg-down
+pg-down: ## Stop local Postgres
+	$(COMPOSE_CMD) -f docker-compose.dev.yml down
+
 .PHONY: dev-postgres
-dev-postgres: check-venv ## Run dev server against Postgres (set WIKIMIND_DATABASE_URL in .env)
-	@test -n "$${WIKIMIND_DATABASE_URL:-}" || { echo "ERROR: Set WIKIMIND_DATABASE_URL in .env or environment"; exit 1; }
+dev-postgres: check-venv ## Run dev server against local Postgres (make pg-up first)
+	WIKIMIND_DATABASE_URL=$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)} \
 	$(BIN)/python -m alembic upgrade head
+	WIKIMIND_DATABASE_URL=$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)} \
 	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
+
+.PHONY: test-postgres
+test-postgres: ## Run tests against local Postgres (make pg-up first)
+	WIKIMIND_DATABASE_URL=$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)} \
+	$(BIN)/pytest $(ARGS)
 
 .PHONY: worker
 worker: ## Start ARQ background job worker

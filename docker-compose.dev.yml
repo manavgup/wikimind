@@ -1,0 +1,31 @@
+# Local Postgres for development — matches the Fly.io environment.
+#
+# This runs ONLY Postgres, not the full app stack. The app still runs
+# on the host via `make dev-postgres` (uvicorn with --reload).
+#
+# Usage:
+#   make pg-up          # start Postgres
+#   make dev-postgres   # run the app against it
+#   make test-postgres  # run tests against it
+#   make pg-down        # stop Postgres
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wikimind-dev-postgres
+    environment:
+      POSTGRES_USER: wikimind
+      POSTGRES_PASSWORD: wikimind
+      POSTGRES_DB: wikimind
+    ports:
+      - "5433:5432"
+    volumes:
+      - wikimind-dev-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wikimind"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  wikimind-dev-pgdata:
