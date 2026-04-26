@@ -178,7 +178,7 @@ async def compile_source(
             async def _on_chunk_progress(message: str) -> None:
                 await emit_source_progress(source_id, message, user_id=user_id)
 
-            compiler = Compiler()
+            compiler = Compiler(user_id=user_id)
             result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
 
             if not result:
@@ -282,12 +282,13 @@ async def _get_article_concept_names(article: Article, session) -> list[str]:
     return names
 
 
-async def _recompile_from_source(article: Article, session) -> None:
+async def _recompile_from_source(article: Article, session, user_id: str | None = None) -> None:
     """Recompile an article by re-reading and re-compiling its primary source.
 
     Args:
         article: The article to recompile.
         session: Async database session.
+        user_id: Optional owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked sources or the source file
@@ -305,7 +306,7 @@ async def _recompile_from_source(article: Article, session) -> None:
 
     doc = _build_normalized_doc(source)
 
-    compiler = Compiler()
+    compiler = Compiler(user_id=user_id)
     result = await compiler.compile(doc, session)
     if not result:
         msg = "Compiler returned no result"
@@ -314,12 +315,13 @@ async def _recompile_from_source(article: Article, session) -> None:
     await compiler.save_article(result, source, session)
 
 
-async def _recompile_from_concept(article: Article, session) -> None:
+async def _recompile_from_concept(article: Article, session, user_id: str | None = None) -> None:
     """Recompile an article by regenerating its concept page.
 
     Args:
         article: The article to recompile.
         session: Async database session.
+        user_id: Optional owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked concepts or the concept
@@ -337,7 +339,7 @@ async def _recompile_from_concept(article: Article, session) -> None:
         msg = "Concept not found"
         raise ValueError(msg)
 
-    concept_compiler = ConceptCompiler()
+    concept_compiler = ConceptCompiler(user_id=user_id)
     result_article = await concept_compiler.compile_concept_page(concept, session)
     if not result_article:
         msg = "ConceptCompiler returned no result"
@@ -390,9 +392,9 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
         try:
             if mode == "source":
-                await _recompile_from_source(article, session)
+                await _recompile_from_source(article, session, user_id=user_id)
             elif mode == "concept":
-                await _recompile_from_concept(article, session)
+                await _recompile_from_concept(article, session, user_id=user_id)
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
