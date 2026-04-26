@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 from starlette.responses import FileResponse, HTMLResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from wikimind.api.routes import admin, api_keys, auth, export, ingest, jobs, lint, query, wiki, ws
@@ -32,6 +33,60 @@ from wikimind.middleware.security_headers import SecurityHeadersMiddleware
 from wikimind.models import Article, IngestStatus, Source, UserPreference
 
 log = structlog.get_logger()
+
+# ---------------------------------------------------------------------------
+# SPA fallback middleware — intercepts browser navigations that would
+# otherwise hit API routes sharing the same path (e.g. /settings, /health).
+# ---------------------------------------------------------------------------
+# Paths/prefixes that should always be handled by FastAPI, never the SPA.
+_API_ONLY_PREFIXES = (
+    "/api/",
+    "/assets/",
+    "/images/",
+    "/auth/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/ws",
+)
+
+
+class SPAFallbackMiddleware:
+    """Serve index.html for browser navigations to SPA routes.
+
+    When the frontend static build is present, browser requests (Accept:
+    text/html) to paths that are *not* API-only are answered with
+    index.html before FastAPI routing runs.  This prevents API route
+    handlers mounted at top-level paths (e.g. /settings, /health) from
+    returning JSON when the user refreshes a browser page.
+
+    Programmatic API calls (Accept: application/json) are always passed
+    through to FastAPI unchanged.
+    """
+
+    def __init__(self, app: ASGIApp, *, static_dir: Path) -> None:
+        self._app = app
+        self._index_bytes = (static_dir / "index.html").read_bytes()
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Intercept browser navigations and serve index.html for SPA routes."""
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        path: str = scope.get("path", "/")
+        headers = dict(scope.get("headers", []))
+        accept = (headers.get(b"accept", b"") or b"").decode("latin-1")
+
+        is_html_request = "text/html" in accept and "application/json" not in accept
+        is_api_path = any(path.startswith(p) for p in _API_ONLY_PREFIXES)
+
+        if is_html_request and not is_api_path:
+            response = HTMLResponse(self._index_bytes)
+            await response(scope, receive, send)
+            return
+
+        await self._app(scope, receive, send)
 
 
 async def _apply_db_preferences() -> None:
@@ -221,9 +276,21 @@ for _candidate in [Path("/app/static"), Path(__file__).resolve().parent.parent.p
 if _static_dir is not None:
     _index_html = (_static_dir / "index.html").read_text()
 
+    # Middleware intercepts browser navigations to SPA routes that would
+    # otherwise collide with top-level API routes (e.g. /settings, /health).
+    # Must be added here (after static dir discovery) so the index.html
+    # content is available.  Starlette evaluates middleware outermost-first,
+    # so this wraps all preceding middleware and runs first on every request.
+    app.add_middleware(SPAFallbackMiddleware, static_dir=_static_dir)
+
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
-        """Serve index.html for all SPA routes (catch-all)."""
+        """Serve index.html for all SPA routes (catch-all).
+
+        Handles SPA routes that do NOT collide with an API route (e.g.
+        /inbox, /wiki, /ask).  Colliding paths (/settings, /health) are
+        handled earlier by ``SPAFallbackMiddleware`` for browser requests.
+        """
         # Check if the path matches a real static file
         assert _static_dir is not None  # guarded by outer `if`
         static_file = (_static_dir / path).resolve()
