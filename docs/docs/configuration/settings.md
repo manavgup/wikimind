@@ -19,6 +19,7 @@ Set at least one API key. The provider auto-enables when a key is detected.
 |---|---|
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_COMPATIBLE_API_KEY` | API key for a custom OpenAI-compatible endpoint |
 | `GOOGLE_API_KEY` | Google Gemini API key |
 
 !!! tip
@@ -28,7 +29,7 @@ Set at least one API key. The provider auto-enables when a key is detected.
 
 | Variable | Default | Description |
 |---|---|---|
-| `WIKIMIND_LLM__DEFAULT_PROVIDER` | `anthropic` | Default LLM provider (`anthropic`, `openai`, `google`, `ollama`, `mock`) |
+| `WIKIMIND_LLM__DEFAULT_PROVIDER` | `anthropic` | Default LLM provider (`anthropic`, `openai`, `openai_compatible`, `google`, `ollama`, `mock`) |
 | `WIKIMIND_LLM__FALLBACK_ENABLED` | `true` | Fall back to other providers when the default fails |
 | `WIKIMIND_LLM__MONTHLY_BUDGET_USD` | `50.0` | Monthly spending ceiling across all providers (USD) |
 | `WIKIMIND_LLM__BUDGET_WARNING_PCT` | `0.8` | Budget warning threshold (fraction 0.0-1.0) |
@@ -44,6 +45,16 @@ Each provider has `model` and `enabled` settings:
 | `WIKIMIND_LLM__ANTHROPIC__ENABLED` | auto | Enabled when API key detected |
 | `WIKIMIND_LLM__OPENAI__MODEL` | `gpt-4o` | OpenAI model name |
 | `WIKIMIND_LLM__OPENAI__ENABLED` | auto | Enabled when API key detected |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL` | `gpt-4o-mini` | OpenAI-compatible endpoint model name |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__ENABLED` | auto | Enabled when API key and base URL are detected |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL` | -- | Custom Chat Completions base URL |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_JSON_RESPONSE_FORMAT` | `true` | Send OpenAI JSON response format for JSON requests |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_STREAM_USAGE` | `true` | Request usage metadata in streaming responses |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__SUPPORTS_REASONING_EFFORT` | `true` | Allow explicit reasoning effort payloads when requested |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__REASONING_FORMAT` | `openai` | Reasoning payload style (`none`, `openai`, or `openrouter`) |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__MAX_TOKENS_FIELD` | `max_tokens` | Token limit field (`max_tokens` or `max_completion_tokens`) |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__SITE_URL` | -- | Optional attribution site URL for gateways such as OpenRouter |
+| `WIKIMIND_LLM__OPENAI_COMPATIBLE__APP_NAME` | -- | Optional attribution app title for gateways such as OpenRouter |
 | `WIKIMIND_LLM__GOOGLE__MODEL` | `gemini-2.0-flash` | Google Gemini model name |
 | `WIKIMIND_LLM__GOOGLE__ENABLED` | auto | Enabled when API key detected |
 | `WIKIMIND_LLM__OLLAMA__MODEL` | `llama3.2` | Ollama model name |
@@ -155,7 +166,7 @@ See the [Authentication](auth.md) page for detailed setup.
 | Variable | Default | Description |
 |---|---|---|
 | `WIKIMIND_AUTH__ENABLED` | `false` | Enable multi-user authentication |
-| `WIKIMIND_AUTH__JWT_SECRET_KEY` | -- | Secret key for JWT signing (required when auth enabled) |
+| `WIKIMIND_AUTH__JWT_SECRET_KEY` | -- | Secret key for JWT signing and BYOK API-key encryption (required for auth and Settings UI key storage) |
 | `WIKIMIND_AUTH__JWT_ALGORITHM` | `HS256` | JWT algorithm |
 | `WIKIMIND_AUTH__JWT_EXPIRY_MINUTES` | `1440` | JWT expiry (24 hours) |
 | `WIKIMIND_AUTH__COOKIE_NAME` | `wikimind_session` | Session cookie name |

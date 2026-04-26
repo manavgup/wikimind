@@ -54,4 +54,6 @@ docs/site/
 
 # Serena MCP tool — auto-generated per-worktree config + cache + memories
 .serena/
+.codex
+.codex/
 .venv

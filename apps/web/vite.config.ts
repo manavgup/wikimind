@@ -19,6 +19,7 @@ const API_PREFIXES = [
   "/jobs",
   "/lint",
   "/settings",
+  "/api",
   "/health",
   "/images",
 ];

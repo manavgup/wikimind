@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from google.genai import types as genai_types
 
-from wikimind.engine.llm_router import StreamSession, _calc_cost
+from wikimind.engine.provider_base import StreamSession, _calc_cost
 from wikimind.engine.providers import google as google_provider_mod
 from wikimind.engine.providers.google import GoogleProvider
 from wikimind.models import CompletionRequest, CompletionResponse, Provider, TaskType

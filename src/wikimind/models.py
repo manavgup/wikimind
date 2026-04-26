@@ -8,6 +8,7 @@ Pydantic models carry data through the ingest → compile → query pipeline.
 import uuid
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, computed_field
 from sqlalchemy import Column, String, UniqueConstraint
@@ -99,6 +100,7 @@ class Provider(StrEnum):
 
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
+    OPENAI_COMPATIBLE = "openai_compatible"
     GOOGLE = "google"
     OLLAMA = "ollama"
     MOCK = "mock"
@@ -1120,6 +1122,7 @@ class CompletionRequest(BaseModel):
     response_format: str = "json"  # text | json
     task_type: TaskType = TaskType.COMPILE
     preferred_provider: Provider | None = None
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
 
 
 class CompletionResponse(BaseModel):

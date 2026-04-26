@@ -2843,6 +2843,11 @@ components:
         configured:
           type: boolean
           title: Configured
+        base_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Url
       type: object
       required:
       - enabled
@@ -3042,6 +3047,41 @@ components:
           - type: boolean
           - type: 'null'
           title: Fallback Enabled
+        openai_compatible_base_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Openai Compatible Base Url
+        openai_compatible_model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Openai Compatible Model
+        openai_compatible_supports_json_response_format:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Openai Compatible Supports Json Response Format
+        openai_compatible_supports_stream_usage:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Openai Compatible Supports Stream Usage
+        openai_compatible_supports_reasoning_effort:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Openai Compatible Supports Reasoning Effort
+        openai_compatible_max_tokens_field:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Openai Compatible Max Tokens Field
+        openai_compatible_reasoning_format:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Openai Compatible Reasoning Format
       type: object
       title: SettingsUpdateRequest
       description: Request to update settings.

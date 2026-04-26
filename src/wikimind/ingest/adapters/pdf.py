@@ -215,7 +215,7 @@ class PDFAdapter:
         # step that merges LLM descriptions for diagrams/charts/covers
         # back into the extracted text.
         try:
-            clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id)
+            clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id, user_id=source.user_id)
         except Exception:  # TODO: narrow once provider error hierarchy is unified
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
@@ -359,6 +359,7 @@ class PDFAdapter:
         images: list[bytes],
         page_indices: list[int],
         max_per_batch: int,
+        user_id: str | None = None,
     ) -> dict[int, str]:
         """Send rendered page images to the multimodal LLM for description.
 
@@ -370,6 +371,7 @@ class PDFAdapter:
             images: PNG bytes for each sparse page (parallel to page_indices).
             page_indices: Zero-based page indices corresponding to each image.
             max_per_batch: Maximum images per LLM call.
+            user_id: Optional user ID for BYOK key resolution.
 
         Returns:
             A dict mapping page index to its LLM-generated description.
@@ -428,6 +430,7 @@ class PDFAdapter:
                 task_type=TaskType.INGEST,
                 max_tokens=4096,
                 temperature=0.2,
+                user_id=user_id,
             )
 
             # Parse the response — assign descriptions to page indices.
@@ -487,6 +490,7 @@ class PDFAdapter:
         file_bytes: bytes,
         clean_text: str,
         source_id: str,
+        user_id: str | None = None,
     ) -> str:
         """Apply vision enhancement to PDF text extraction.
 
@@ -498,6 +502,7 @@ class PDFAdapter:
             file_bytes: Raw PDF binary contents.
             clean_text: The text already extracted (fitz or docling).
             source_id: Source ID for progress logging.
+            user_id: Optional user ID for BYOK key resolution.
 
         Returns:
             Enhanced text with LLM descriptions for sparse pages merged in.
@@ -531,6 +536,7 @@ class PDFAdapter:
             images,
             sparse,
             settings.vision_max_pages_per_batch,
+            user_id=user_id,
         )
 
         # Append vision descriptions to the original clean_text (which may

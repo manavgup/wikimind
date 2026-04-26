@@ -114,7 +114,7 @@ async def test_compile_chunked_path(db_session) -> None:
     doc = _doc(tokens=100_000, chunks=chunks)
     chunk_result = _result()
 
-    async def fake_compile(d, sess):
+    async def fake_compile(d, sess, user_id=None):
         # Avoid infinite recursion: only return for sub-chunks
         if d.estimated_tokens < 80_000:
             return chunk_result
