@@ -5,7 +5,8 @@ When auth is disabled (single-user mode), user_id defaults to
 ``ANONYMOUS_USER_ID`` so every record has a non-null owner.
 """
 
-from fastapi import Depends, HTTPException, Request
+import jwt
+from fastapi import Depends, HTTPException, Request, WebSocket
 
 from wikimind.config import get_settings
 
@@ -26,3 +27,36 @@ async def require_user_id(user_id: str = Depends(get_current_user_id)) -> str:
     if settings.auth.enabled and user_id == ANONYMOUS_USER_ID:
         raise HTTPException(status_code=401, detail="Authentication required")
     return user_id
+
+
+async def get_ws_user_id(websocket: WebSocket) -> str:
+    """Extract user_id from JWT cookie on WebSocket upgrade.
+
+    Falls back to ANONYMOUS_USER_ID when auth is disabled.
+
+    Uses the same JWT decoding logic as :class:`wikimind.middleware.auth.AuthMiddleware`:
+    reads the session cookie (``settings.auth.cookie_name``), then falls back to a
+    ``token`` query parameter (for clients that cannot set cookies on the WS upgrade).
+    """
+    settings = get_settings()
+    if not settings.auth.enabled:
+        return ANONYMOUS_USER_ID
+
+    token = websocket.cookies.get(settings.auth.cookie_name)
+    if not token:
+        # Allow passing the JWT as a query parameter (NOT user_id) for clients
+        # that cannot attach cookies to the WebSocket upgrade request.
+        token = websocket.query_params.get("token")
+
+    if not token:
+        return ANONYMOUS_USER_ID
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.auth.jwt_secret_key,
+            algorithms=[settings.auth.jwt_algorithm],
+        )
+        return payload.get("sub") or ANONYMOUS_USER_ID
+    except jwt.InvalidTokenError:
+        return ANONYMOUS_USER_ID

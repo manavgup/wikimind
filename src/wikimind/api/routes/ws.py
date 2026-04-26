@@ -22,6 +22,7 @@ import json
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from wikimind.api.deps import get_ws_user_id
 from wikimind.config import get_settings
 
 log = structlog.get_logger()
@@ -243,13 +244,13 @@ def get_connection_manager() -> ConnectionManager:
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle WebSocket connections for real-time events.
 
-    The optional ``user_id`` query parameter associates the connection
-    with a specific user so broadcasts are scoped correctly.
+    The user is identified from the JWT session cookie (or a ``token``
+    query parameter) so broadcasts are scoped to the authenticated user.
     """
     # Ensure the Redis subscriber is running (idempotent).
     await _start_redis_subscriber()
 
-    user_id: str | None = websocket.query_params.get("user_id")
+    user_id = await get_ws_user_id(websocket)
     await manager.connect(websocket, user_id=user_id)
     try:
         # Send initial connection ack
