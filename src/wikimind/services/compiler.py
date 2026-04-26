@@ -54,17 +54,18 @@ class CompilerService:
         """
         return await session.get(Job, job_id)
 
-    async def trigger_compile(self, source_id: str) -> JobTriggerResponse:
+    async def trigger_compile(self, source_id: str, user_id: str | None = None) -> JobTriggerResponse:
         """Schedule a compilation job for a source.
 
         Args:
             source_id: The source UUID to compile.
+            user_id: Optional owner — used to resolve BYOK API keys.
 
         Returns:
             JobTriggerResponse with job_id and status.
         """
         bg = get_background_compiler()
-        job_id = await bg.schedule_compile(source_id)
+        job_id = await bg.schedule_compile(source_id, user_id=user_id)
         return JobTriggerResponse(job_id=job_id, status="queued")
 
     async def trigger_lint(self) -> JobTriggerResponse:
