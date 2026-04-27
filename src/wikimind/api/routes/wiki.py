@@ -125,6 +125,7 @@ async def get_concepts(
 @router.post("/concepts/rebuild", response_model=RebuildConceptsResponse)
 async def rebuild_concepts(
     session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
 ):
     """Trigger LLM-powered taxonomy hierarchy rebuild."""
     await rebuild_taxonomy(session)
@@ -162,6 +163,7 @@ async def get_concept_articles(
 async def get_health(
     session: AsyncSession = Depends(get_session),
     linter_service: LinterService = Depends(get_linter_service),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Latest wiki health report from linter.
 
@@ -169,7 +171,7 @@ async def get_health(
     delegates to the new LinterService for backward compatibility.
     """
     try:
-        detail = await linter_service.get_latest(session)
+        detail = await linter_service.get_latest(session, user_id=user_id)
         return HealthSummaryResponse(
             generated_at=detail.report.generated_at,
             total_articles=detail.report.article_count,
@@ -195,6 +197,7 @@ async def resolve_contradiction(
     target_id: str,
     body: ResolveContradictionRequest,
     session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add backlink ownership check
 ):
     """Resolve a contradiction between two articles."""
     valid = {r.value for r in ContradictionResolution}

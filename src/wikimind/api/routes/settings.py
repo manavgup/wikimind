@@ -238,7 +238,10 @@ async def set_default_provider(
 
 
 @router.patch("", response_model=SettingsUpdateResponse)
-async def update_settings(request: SettingsUpdateRequest):
+async def update_settings(
+    request: SettingsUpdateRequest,
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
+):
     """Update runtime settings. Changes persist to DB across restarts."""
     settings = get_settings()
 

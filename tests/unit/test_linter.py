@@ -549,3 +549,40 @@ async def test_lint_latest_endpoint_returns_404_when_empty(client) -> None:
     """GET /lint/reports/latest returns 404 when no reports exist."""
     response = await client.get("/lint/reports/latest")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_report_rejects_other_user(db_session, _isolated_data_dir) -> None:
+    """get_report returns 404 when user_id does not match report owner."""
+    report = LintReport(
+        id="r-owned",
+        status=LintReportStatus.COMPLETE,
+        article_count=1,
+        user_id="user-a",
+    )
+    db_session.add(report)
+    await db_session.commit()
+
+    svc = LinterService()
+    # Owner can access
+    detail = await svc.get_report(db_session, "r-owned", user_id="user-a")
+    assert detail.report.id == "r-owned"
+
+    # Different user gets 404
+    with pytest.raises(HTTPException) as exc_info:
+        await svc.get_report(db_session, "r-owned", user_id="user-b")
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_lint_report_by_id_endpoint(client) -> None:
+    """GET /lint/reports/{report_id} returns 404 when report missing."""
+    response = await client.get("/lint/reports/nonexistent")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_lint_dismiss_endpoint_returns_404_for_missing(client) -> None:
+    """POST /lint/findings/{kind}/{id}/dismiss returns 404 for missing finding."""
+    response = await client.post("/lint/findings/contradiction/nonexistent/dismiss")
+    assert response.status_code == 404

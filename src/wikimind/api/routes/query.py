@@ -121,9 +121,10 @@ async def export_conversation(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
+    user_id: str = Depends(get_current_user_id),
 ) -> Response:
     """Export a conversation as standalone markdown. Pure read, no DB writes."""
-    return await service.export_conversation(conversation_id, session)
+    return await service.export_conversation(conversation_id, session, user_id=user_id)
 
 
 @router.post("/conversations/file-back")
