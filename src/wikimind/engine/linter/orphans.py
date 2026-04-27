@@ -1,4 +1,4 @@
-"""Orphan detection — pure SQL check for articles with no backlinks.
+"""Orphan detection — find articles with no backlinks.
 
 Identifies articles with zero inbound AND zero outbound backlinks.
 Gated by ``settings.linter.enable_orphan_detection`` (default False)
@@ -11,9 +11,11 @@ import hashlib
 from typing import TYPE_CHECKING
 
 import structlog
-from sqlalchemy import text
+from sqlmodel import select
 
 from wikimind.models import (
+    Article,
+    Backlink,
     LintFindingKind,
     LintSeverity,
     OrphanFinding,
@@ -60,33 +62,29 @@ async def detect_orphans(
         log.info("Orphan detection disabled (enable_orphan_detection=False)")
         return []
 
-    sql = "SELECT a.id, a.title FROM article a "
-    params: dict[str, str] = {}
+    # Build LEFT JOINs for inbound/outbound backlinks, scoped by user_id
+    # when provided so another user's backlinks don't mask orphans.
+    inbound_join = Backlink.target_article_id == Article.id  # type: ignore[arg-type]
+    outbound_join = Backlink.source_article_id == Article.id  # type: ignore[arg-type]
     if user_id is not None:
-        sql += (
-            "LEFT JOIN backlink bl_in ON bl_in.target_article_id = a.id"
-            " AND bl_in.user_id = :uid "
-            "LEFT JOIN backlink bl_out ON bl_out.source_article_id = a.id"
-            " AND bl_out.user_id = :uid "
-            "WHERE bl_in.target_article_id IS NULL "
-            "AND bl_out.source_article_id IS NULL "
-            "AND a.user_id = :uid"
-        )
-        params["uid"] = user_id
-    else:
-        sql += (
-            "LEFT JOIN backlink bl_in ON bl_in.target_article_id = a.id "
-            "LEFT JOIN backlink bl_out ON bl_out.source_article_id = a.id "
-            "WHERE bl_in.target_article_id IS NULL "
-            "AND bl_out.source_article_id IS NULL"
-        )
+        inbound_join = inbound_join & (Backlink.user_id == user_id)  # type: ignore[assignment]
+        outbound_join = outbound_join & (Backlink.user_id == user_id)  # type: ignore[assignment]
 
-    result = await session.execute(text(sql), params)
-    rows = result.fetchall()
+    bl_in = select(Backlink.target_article_id).where(inbound_join).correlate(Article)
+    bl_out = select(Backlink.source_article_id).where(outbound_join).correlate(Article)
+
+    stmt = select(Article.id, Article.title).where(
+        ~bl_in.exists(),  # type: ignore[union-attr]
+        ~bl_out.exists(),  # type: ignore[union-attr]
+    )
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+
+    result = await session.execute(stmt)
+    rows = result.all()
 
     findings: list[OrphanFinding] = []
-    for row in rows:
-        article_id, article_title = row
+    for article_id, article_title in rows:
         findings.append(
             OrphanFinding(
                 report_id=report_id,
