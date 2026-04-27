@@ -82,7 +82,7 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 The project uses:
 
 - **Dependency Review** on pull requests that change Python dependency files or frontend `package.json` / `package-lock.json` files
-- **bandit** for Python security scanning (`make bandit`) and SARIF upload in CI
+- **bandit** for Python security scanning (`make bandit`) with JSON-to-SARIF conversion and code scanning upload in CI
 - **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds

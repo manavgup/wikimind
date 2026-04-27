@@ -4,7 +4,7 @@
 #
 #   - mirrors local `make bandit` usage against `src/wikimind`
 #   - uses the shared `[tool.bandit]` config from `pyproject.toml`
-#   - uploads SARIF findings into GitHub code scanning
+#   - converts Bandit JSON into SARIF and uploads findings into GitHub code scanning
 # ---------------------------------------------------------------
 
 name: Bandit Security Scan
@@ -61,11 +61,14 @@ jobs:
         run: uv sync --frozen --extra lint
 
       - name: 🔐  Run Bandit
-        run: uv run bandit -r src/wikimind -c pyproject.toml -f sarif -o bandit.sarif
+        run: |
+          status=0
+          uv run bandit -r src/wikimind -c pyproject.toml -f json -o bandit.json || status=$?
+          uv run python scripts/bandit_json_to_sarif.py bandit.json bandit.sarif
+          exit "$status"
 
       - name: 📤  Upload Bandit SARIF
         if: always() && hashFiles('bandit.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
-
