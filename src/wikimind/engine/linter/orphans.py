@@ -64,18 +64,18 @@ async def detect_orphans(
 
     # Build LEFT JOINs for inbound/outbound backlinks, scoped by user_id
     # when provided so another user's backlinks don't mask orphans.
-    inbound_join = Backlink.target_article_id == Article.id  # type: ignore[arg-type]
-    outbound_join = Backlink.source_article_id == Article.id  # type: ignore[arg-type]
+    inbound_join = Backlink.target_article_id == Article.id
+    outbound_join = Backlink.source_article_id == Article.id
     if user_id is not None:
-        inbound_join = inbound_join & (Backlink.user_id == user_id)  # type: ignore[assignment]
-        outbound_join = outbound_join & (Backlink.user_id == user_id)  # type: ignore[assignment]
+        inbound_join = inbound_join & (Backlink.user_id == user_id)
+        outbound_join = outbound_join & (Backlink.user_id == user_id)
 
     bl_in = select(Backlink.target_article_id).where(inbound_join).correlate(Article)
     bl_out = select(Backlink.source_article_id).where(outbound_join).correlate(Article)
 
     stmt = select(Article.id, Article.title).where(
-        ~bl_in.exists(),  # type: ignore[union-attr]
-        ~bl_out.exists(),  # type: ignore[union-attr]
+        ~bl_in.exists(),
+        ~bl_out.exists(),
     )
     if user_id is not None:
         stmt = stmt.where(Article.user_id == user_id)

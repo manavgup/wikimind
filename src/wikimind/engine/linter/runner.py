@@ -121,6 +121,18 @@ async def _apply_dismiss_suppression(
             finding.dismissed_at = now
 
 
+async def _check_in_progress(
+    session: AsyncSession,
+    user_id: str | None,
+) -> LintReport | None:
+    """Return an existing in-progress report for this user, if any."""
+    stmt = select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS)
+    if user_id is not None:
+        stmt = stmt.where(LintReport.user_id == user_id)
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+
 async def run_lint(
     session: AsyncSession,
     job_id: str | None = None,
@@ -139,14 +151,7 @@ async def run_lint(
     settings = get_settings()
     router = get_llm_router()
 
-    # Guard against concurrent runs (scoped to user when provided)
-    guard_stmt = select(LintReport).where(
-        LintReport.status == LintReportStatus.IN_PROGRESS
-    )
-    if user_id is not None:
-        guard_stmt = guard_stmt.where(LintReport.user_id == user_id)
-    existing = await session.execute(guard_stmt)
-    in_progress = existing.scalars().first()
+    in_progress = await _check_in_progress(session, user_id)
     if in_progress:
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
