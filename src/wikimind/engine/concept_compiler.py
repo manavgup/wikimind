@@ -294,9 +294,7 @@ class ConceptCompiler:
             session.add(ArticleSource(article_id=article.id, source_id=sid))
         await session.commit()
         await self._create_synthesizes_links(article.id, source_ids, session, user_id=article.user_id)
-        await self._create_related_to_links(
-            article, compilation.related_concepts, session, user_id=article.user_id
-        )
+        await self._create_related_to_links(article, compilation.related_concepts, session, user_id=article.user_id)
         return article
 
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
