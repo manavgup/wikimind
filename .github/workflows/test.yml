@@ -1,3 +1,14 @@
+#
+# ===============================================================
+# 🧪  PyTest & Coverage — Quality Gate
+# ===============================================================
+#
+#   - runs the backend test suite on the pinned CI Python version
+#   - measures branch + line coverage via `pyproject.toml` (fails < 80%)
+#   - uploads the HTML coverage report as a build artifact
+#   - executes on every push / PR to `main` when backend test inputs change
+# ---------------------------------------------------------------
+
 name: Tests & Coverage
 
 on:
@@ -38,6 +49,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # We pin to a single Python version. The matrix is preserved as a
+        # 1-element list so we can re-add 3.11/3.13 cheaply if needed.
         python: ["3.12"]
 
     env:
@@ -45,11 +58,17 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
     steps:
+      # -----------------------------------------------------------
+      # 0️⃣  Checkout
+      # -----------------------------------------------------------
       - name: ⬇️  Checkout code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
+      # -----------------------------------------------------------
+      # 1️⃣  Set up Python + uv
+      # -----------------------------------------------------------
       - name: 🐍  Setup Python ${{ matrix.python }}
         uses: actions/setup-python@v5
         with:
@@ -60,9 +79,15 @@ jobs:
         with:
           enable-cache: true
 
+      # -----------------------------------------------------------
+      # 2️⃣  Install dependencies (pinned by uv.lock)
+      # -----------------------------------------------------------
       - name: 📦  Install dependencies
         run: uv sync --frozen --extra dev
 
+      # -----------------------------------------------------------
+      # 3️⃣  Run the tests with coverage
+      # -----------------------------------------------------------
       - name: 🧪  Run pytest
         run: |
           uv run pytest \
@@ -73,6 +98,9 @@ jobs:
             --cov-report=xml:coverage.xml \
             -v
 
+      # -----------------------------------------------------------
+      # 4️⃣  Upload coverage artifacts (HTML report)
+      # -----------------------------------------------------------
       - name: 📤  Upload HTML coverage
         if: always() && matrix.python == '3.12'
         uses: actions/upload-artifact@v4
@@ -82,6 +110,9 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # -----------------------------------------------------------
+      # 5️⃣  Upload coverage to Codecov (main branch only)
+      # -----------------------------------------------------------
       - name: 📈  Codecov upload
         if: matrix.python == '3.12' && github.event_name == 'push'
         uses: codecov/codecov-action@v4
