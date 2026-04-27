@@ -2,14 +2,16 @@
 
 [![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/test.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/test.yml)
 [![Lint & Static Analysis](https://github.com/manavgup/wikimind/actions/workflows/lint.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/lint.yml)
+[![Deploy](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> You never write the wiki. You feed it. Every question makes it smarter.
+> I feed it everything I read. It writes my wiki for me. When I ask questions, it cites its sources.
 
-WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube videos, podcasts, or papers — it compiles them into a structured wiki and answers questions with full source attribution.
+WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube videos, or papers — it compiles them into a structured wiki and answers questions with full source attribution.
 
-## 📖 Read More
-
-[**Building a Personal Knowledge OS with LLMs**](https://manavgup.github.io/shipai/blog/2026/04/21/building-wikimind-personal-knowledge-os/) — architecture deep-dive, design decisions, and lessons learned.
+<p align="center">
+  <img src="docs/images/wikimind-demo.gif" alt="WikiMind demo — ingest sources, compile wiki, ask questions" width="720">
+</p>
 
 ## What it is
 
@@ -24,6 +26,32 @@ It is the synthesis layer that sits above everything you consume.
 ```
 Feed → Compile → Query → Answer files back → Wiki gets smarter → Repeat
 ```
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-source ingest** | URLs, PDFs, YouTube transcripts, plain text |
+| **LLM compilation** | Articles compiled by Claude, GPT-4, Gemini, or Ollama |
+| **Knowledge graph** | Auto-generated concepts, backlinks, and taxonomy |
+| **Ask with citations** | Q&A against your wiki with source attribution |
+| **Export** | PDF, LinkedIn draft, Marp slides |
+| **Browser extension** | Chrome + Firefox clipper — save any page in one click |
+| **Self-hosted** | Your data, your API keys, your models |
+
+## Compare
+
+| | WikiMind | Obsidian | Notion | ChatGPT |
+|---|:---:|:---:|:---:|:---:|
+| You write the content | | Yes | Yes | |
+| LLM compiles for you | Yes | | | |
+| Persistent wiki output | Yes | Yes | Yes | |
+| Source attribution | Yes | | | |
+| Knowledge graph | Yes | Yes | | |
+| Self-hosted | Yes | | | |
+| Multi-provider LLM | Yes | | | Yes |
+
+## Read more
+
+[**Building a Personal Knowledge OS with LLMs**](https://manavgup.github.io/shipai/blog/2026/04/21/building-wikimind-personal-knowledge-os/) — architecture deep-dive, design decisions, and lessons learned.
 
 ## Quick start
 
