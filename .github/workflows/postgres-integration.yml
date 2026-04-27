@@ -41,7 +41,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: wikimind
-          POSTGRES_PASSWORD: wikimind
+          POSTGRES_PASSWORD: wikimind # pragma: allowlist secret
           POSTGRES_DB: wikimind
         ports:
           - 5432:5432
@@ -54,8 +54,8 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
-      WIKIMIND_DATABASE_URL: "postgresql+asyncpg://wikimind:wikimind@localhost:5432/wikimind"
-      WIKIMIND_TEST_POSTGRES_URL: "postgresql+asyncpg://wikimind:wikimind@localhost:5432/wikimind"
+      WIKIMIND_DATABASE_URL: "postgresql+asyncpg://wikimind:wikimind@localhost:5432/wikimind" # pragma: allowlist secret
+      WIKIMIND_TEST_POSTGRES_URL: "postgresql+asyncpg://wikimind:wikimind@localhost:5432/wikimind" # pragma: allowlist secret
 
     steps:
       - name: Checkout code
