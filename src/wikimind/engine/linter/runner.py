@@ -45,12 +45,24 @@ def _structural_content_hash(article_id: str, violation_type: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def run_enforcer_checks(session: AsyncSession, report: LintReport) -> list[StructuralFinding]:
+async def run_enforcer_checks(
+    session: AsyncSession,
+    report: LintReport,
+    user_id: str | None = None,
+) -> list[StructuralFinding]:
     """Run the backlink enforcer on all articles and return StructuralFinding rows.
 
     Phase 3 of the lint pipeline — runs after contradictions and orphans.
+
+    Args:
+        session: Async database session.
+        report: The parent LintReport.
+        user_id: Optional user ID to scope the check to a single user's articles.
     """
-    result = await session.execute(select(Article))
+    stmt = select(Article)
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
     articles = list(result.scalars().all())
 
     findings: list[StructuralFinding] = []
@@ -70,6 +82,7 @@ async def run_enforcer_checks(session: AsyncSession, report: LintReport) -> list
                 violation_type=violation.violation_type,
                 auto_repaired=violation.auto_repaired,
                 detail=violation.detail,
+                user_id=user_id,
             )
             findings.append(finding)
 
@@ -152,13 +165,24 @@ async def run_lint(
 
     try:
         # Phase 1: Contradictions
-        contradictions = await detect_contradictions(session, router, settings, report)
+        contradictions = await detect_contradictions(
+            session,
+            router,
+            settings,
+            report,
+            user_id=user_id,
+        )
 
         # Phase 2: Orphans
-        orphans = await detect_orphans(session, settings, report.id)
+        orphans = await detect_orphans(
+            session,
+            settings,
+            report.id,
+            user_id=user_id,
+        )
 
         # Phase 3: Structural integrity (backlink enforcer)
-        structurals = await run_enforcer_checks(session, report)
+        structurals = await run_enforcer_checks(session, report, user_id=user_id)
 
         # Apply dismiss suppression
         await _apply_dismiss_suppression(session, contradictions, orphans, structurals)

@@ -96,13 +96,26 @@ def _extract_claims(article: Article) -> list[str]:
     return claims
 
 
-async def _get_articles_for_concept(session: AsyncSession, concept_name: str) -> list[Article]:
-    """Load articles tagged with the given concept via the ArticleConcept join table."""
-    result = await session.execute(
+async def _get_articles_for_concept(
+    session: AsyncSession,
+    concept_name: str,
+    user_id: str | None = None,
+) -> list[Article]:
+    """Load articles tagged with the given concept via the ArticleConcept join table.
+
+    Args:
+        session: Async database session.
+        concept_name: The concept name to look up.
+        user_id: Optional user ID to scope results to a single user's articles.
+    """
+    stmt = (
         select(Article)
         .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(ArticleConcept.concept_name == concept_name)
     )
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
@@ -158,6 +171,7 @@ async def _create_contradiction_backlink(
     article_a_id: str,
     article_b_id: str,
     context: str,
+    user_id: str | None = None,
 ) -> None:
     """Create a ``contradicts`` typed Backlink for an article pair (bidirectional)."""
     for src, tgt in [(article_a_id, article_b_id), (article_b_id, article_a_id)]:
@@ -175,6 +189,7 @@ async def _create_contradiction_backlink(
                 target_article_id=tgt,
                 relation_type=RelationType.CONTRADICTS,
                 context=context,
+                user_id=user_id,
             )
         )
     await session.flush()
@@ -233,6 +248,7 @@ async def _run_batch(
     settings: Settings,
     report_id: str,
     session: AsyncSession,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Run a batched LLM call for multiple pairs.
 
@@ -283,10 +299,17 @@ async def _run_batch(
                             article_b_claim=claim_b,
                             llm_confidence=c.get("confidence", "medium"),
                             shared_concept_id=concept_id,
+                            user_id=user_id,
                         )
                     )
                     ctx = f"{claim_a} vs {claim_b}"
-                    await _create_contradiction_backlink(session, art_a.id, art_b.id, ctx)
+                    await _create_contradiction_backlink(
+                        session,
+                        art_a.id,
+                        art_b.id,
+                        ctx,
+                        user_id=user_id,
+                    )
             return findings
 
         except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
@@ -301,7 +324,16 @@ async def _run_batch(
     # Fallback: per-pair calls
     fallback_findings: list[ContradictionFinding] = []
     for art_a, art_b, _ca, _cb in pairs_with_claims:
-        pair_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report_id, session)
+        pair_findings = await _compare_article_pair(
+            art_a,
+            art_b,
+            concept_id,
+            router,
+            settings,
+            report_id,
+            session,
+            user_id=user_id,
+        )
         fallback_findings.extend(pair_findings)
     return fallback_findings
 
@@ -314,24 +346,37 @@ async def _run_batch(
 async def _collect_work(
     session: AsyncSession,
     cfg: LinterConfig,
+    user_id: str | None = None,
 ) -> list[tuple[str | None, str, list[tuple[Article, Article]]]]:
-    """Build the list of (concept_id, concept_name, pairs) work items."""
-    concept_result = await session.execute(
+    """Build the list of (concept_id, concept_name, pairs) work items.
+
+    Args:
+        session: Async database session.
+        cfg: Linter configuration.
+        user_id: Optional user ID to scope queries to a single user's data.
+    """
+    concept_stmt = (
         select(Concept)
         .order_by(Concept.article_count.desc())  # type: ignore[attr-defined]
         .limit(cfg.max_concepts_per_run)
     )
+    if user_id is not None:
+        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
+    concept_result = await session.execute(concept_stmt)
     concepts = list(concept_result.scalars().all())
 
     all_work: list[tuple[str | None, str, list[tuple[Article, Article]]]] = []
 
     if not concepts:
         log.info("No concepts found, falling back to top-N article comparison")
-        article_result = await session.execute(
+        article_stmt = (
             select(Article)
             .order_by(Article.updated_at.desc())  # type: ignore[attr-defined]
             .limit(cfg.max_contradiction_pairs_per_concept * 2)
         )
+        if user_id is not None:
+            article_stmt = article_stmt.where(Article.user_id == user_id)
+        article_result = await session.execute(article_stmt)
         articles = list(article_result.scalars().all())
         pairs = list(itertools.combinations(articles, 2))
         if len(pairs) > cfg.max_contradiction_pairs_per_concept:
@@ -340,7 +385,7 @@ async def _collect_work(
     else:
         for concept_obj in concepts:
             cid, cname = concept_obj.id, concept_obj.name
-            articles = await _get_articles_for_concept(session, cname)
+            articles = await _get_articles_for_concept(session, cname, user_id=user_id)
             if len(articles) < 2:
                 continue
             pairs = list(itertools.combinations(articles, 2))
@@ -357,6 +402,7 @@ def _findings_from_cached(
     article_a: Article,
     article_b: Article,
     concept_id: str | None,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Convert cached pair data into ContradictionFinding objects."""
     results: list[ContradictionFinding] = []
@@ -375,6 +421,7 @@ def _findings_from_cached(
                 article_b_claim=claim_b,
                 llm_confidence=c.get("confidence", "medium"),
                 shared_concept_id=concept_id,
+                user_id=user_id,
             )
         )
     return results
@@ -401,6 +448,7 @@ async def _process_uncached_pairs(
     report: LintReport,
     session: AsyncSession,
     checked: int,
+    user_id: str | None = None,
 ) -> tuple[list[ContradictionFinding], int]:
     """Process uncached pairs via batch or per-pair LLM calls.
 
@@ -412,7 +460,15 @@ async def _process_uncached_pairs(
     if cfg.contradiction_batch_enabled and len(uncached_pairs) > 1:
         for batch_start in range(0, len(uncached_pairs), cfg.contradiction_batch_size):
             batch = uncached_pairs[batch_start : batch_start + cfg.contradiction_batch_size]
-            batch_findings = await _run_batch(batch, concept_id, router, settings, report.id, session)
+            batch_findings = await _run_batch(
+                batch,
+                concept_id,
+                router,
+                settings,
+                report.id,
+                session,
+                user_id=user_id,
+            )
             findings.extend(batch_findings)
 
             for _idx, (art_a, art_b, _ca, _cb) in enumerate(batch):
@@ -427,7 +483,16 @@ async def _process_uncached_pairs(
                 await session.flush()
     else:
         for art_a, art_b, _ca, _cb in uncached_pairs:
-            new_findings = await _compare_article_pair(art_a, art_b, concept_id, router, settings, report.id, session)
+            new_findings = await _compare_article_pair(
+                art_a,
+                art_b,
+                concept_id,
+                router,
+                settings,
+                report.id,
+                session,
+                user_id=user_id,
+            )
             findings.extend(new_findings)
             if cfg.enable_pair_cache:
                 await _save_pair_cache(session, art_a, art_b, _cache_data_from_findings(new_findings))
@@ -449,12 +514,21 @@ async def detect_contradictions(
     router: LLMRouter,
     settings: Settings,
     report: LintReport,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
-    """For each concept, LLM-compare article pairs within that concept bucket."""
+    """For each concept, LLM-compare article pairs within that concept bucket.
+
+    Args:
+        session: Async database session.
+        router: LLM router for making completion requests.
+        settings: Application settings with linter config.
+        report: The parent LintReport to attach findings to.
+        user_id: Optional user ID to scope queries to a single user's data.
+    """
     cfg = settings.linter
     findings: list[ContradictionFinding] = []
 
-    all_work = await _collect_work(session, cfg)
+    all_work = await _collect_work(session, cfg, user_id=user_id)
 
     total_pairs = sum(len(pairs) for _, _, pairs in all_work)
     report.total_pairs = total_pairs
@@ -481,11 +555,24 @@ async def detect_contradictions(
                         a=article_a.title[:30],
                         b=article_b.title[:30],
                     )
-                    cached_findings = _findings_from_cached(cached, report.id, article_a, article_b, concept_id)
+                    cached_findings = _findings_from_cached(
+                        cached,
+                        report.id,
+                        article_a,
+                        article_b,
+                        concept_id,
+                        user_id=user_id,
+                    )
                     findings.extend(cached_findings)
                     for f in cached_findings:
                         ctx = f"{f.article_a_claim} vs {f.article_b_claim}"
-                        await _create_contradiction_backlink(session, article_a.id, article_b.id, ctx)
+                        await _create_contradiction_backlink(
+                            session,
+                            article_a.id,
+                            article_b.id,
+                            ctx,
+                            user_id=user_id,
+                        )
                     checked += 1
                     report.checked_pairs = checked
                     session.add(report)
@@ -505,7 +592,14 @@ async def detect_contradictions(
 
         # Process uncached pairs: batch or per-pair
         new_findings, checked = await _process_uncached_pairs(
-            uncached_pairs, concept_id, router, settings, report, session, checked
+            uncached_pairs,
+            concept_id,
+            router,
+            settings,
+            report,
+            session,
+            checked,
+            user_id=user_id,
         )
         findings.extend(new_findings)
 
@@ -525,6 +619,7 @@ async def _compare_article_pair(
     settings: Settings,
     report_id: str,
     session: AsyncSession | None = None,
+    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
@@ -583,11 +678,18 @@ async def _compare_article_pair(
             article_b_claim=claim_b,
             llm_confidence=c.get("confidence", "medium"),
             shared_concept_id=concept_id,
+            user_id=user_id,
         )
         findings.append(finding)
 
         if session is not None:
             ctx = f"{claim_a} vs {claim_b}"
-            await _create_contradiction_backlink(session, article_a.id, article_b.id, ctx)
+            await _create_contradiction_backlink(
+                session,
+                article_a.id,
+                article_b.id,
+                ctx,
+                user_id=user_id,
+            )
 
     return findings
