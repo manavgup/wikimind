@@ -293,7 +293,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
 | `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension) |
-| `make coverage-check` | Run tests and fail if coverage is under 80% |
+| `make coverage-check` | Run non-E2E tests with coverage (policy is configured in pyproject.toml) |
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
 | `make frontend-build` | Build frontend production bundle |

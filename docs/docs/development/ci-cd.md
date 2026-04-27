@@ -4,7 +4,7 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 ## CI Pipeline
 
-The CI pipeline runs on every pull request and push to `main`.
+WikiMind splits CI across multiple GitHub Actions workflows. For test policy, the relevant workflow is `test.yml`, which runs on pushes to `main` and pull requests targeting `main` when backend test inputs change.
 
 ### Quality Gates
 
@@ -17,7 +17,7 @@ The following checks must pass before merging:
 | Type check | `make typecheck` | mypy static type checking |
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
-| Tests | `make coverage-check` | pytest with 80% coverage threshold |
+| Tests | `make coverage-check` | pytest coverage gate for non-E2E tests with an 80% threshold |
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
@@ -32,6 +32,8 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=mock
 ```
 
 The mock provider returns deterministic JSON responses for compile, Q&A, and lint operations.
+
+The test workflow currently runs on Python 3.12, excludes `@pytest.mark.e2e` tests from the default coverage gate, enforces branch coverage via `pyproject.toml`, uploads `htmlcov/` as an artifact, and uploads `coverage.xml` to Codecov on pushes to `main`.
 
 ## Pre-Commit Hooks
 
