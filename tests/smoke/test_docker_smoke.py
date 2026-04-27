@@ -439,9 +439,20 @@ class TestContainerBasics:
             assert resp.status_code == 200
 
     def test_non_root_user(self, container_url: str):
-        """The container should run as non-root (wikimind user)."""
+        """The application process should run as non-root (wikimind user).
+
+        The container starts as root (for volume chown), then drops to
+        wikimind via gosu. Check the gunicorn worker's effective user.
+        """
         result = subprocess.run(
-            ["docker", "exec", CONTAINER_NAME, "whoami"],
+            [
+                "docker",
+                "exec",
+                CONTAINER_NAME,
+                "sh",
+                "-c",
+                "ps -o user= -p $(pgrep -f 'gunicorn.*worker' | head -1) 2>/dev/null || id -un",
+            ],
             capture_output=True,
             text=True,
             check=False,
