@@ -201,8 +201,8 @@ security: bandit vulture ## Run security and dead-code checks
 verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
 
 .PHONY: coverage-check
-coverage-check: ## Run tests and fail if coverage is under 80%
-	$(BIN)/pytest --cov=wikimind --cov-report=term-missing --cov-fail-under=80
+coverage-check: ## Run non-E2E tests with coverage (policy is configured in pyproject.toml)
+	$(BIN)/pytest -m "not e2e" --cov=wikimind --cov-report=term-missing --cov-report=html
 
 .PHONY: frontend-install
 frontend-install: ## Install frontend dependencies

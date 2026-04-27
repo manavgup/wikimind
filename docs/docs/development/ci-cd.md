@@ -4,7 +4,7 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 ## CI Pipeline
 
-The CI pipeline runs on every pull request and push to `main`.
+WikiMind splits CI across multiple GitHub Actions workflows. For test policy, the relevant workflow is `test.yml`, which runs on pushes to `main` and pull requests targeting `main` when backend test inputs change.
 
 `Full Verify` is the required merge gate. It runs `make verify` in CI so the authoritative verification sequence stays in the `Makefile` instead of being duplicated in workflow YAML.
 It also installs the repo-root Node tooling manifest so `basedpyright` is pinned in-version-controlled metadata instead of being fetched ad hoc via `npx`.
@@ -20,11 +20,14 @@ The following checks must pass before merging:
 | Type check | `make typecheck` | mypy static type checking |
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
-| Tests | `make coverage-check` | pytest with 80% coverage threshold |
+| Tests | `make coverage-check` | pytest coverage gate for non-E2E tests with an 80% threshold |
+| Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Extension | `make extension-verify` | Browser extension typecheck + build |
-| Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
+| Dependency review | GitHub Action | Blocks vulnerable dependency changes in Python and frontend lockfiles |
+| Bandit | `make bandit` | Python security scan for `src/wikimind` |
+| CodeQL | GitHub Action | Repository code scanning for Python and TypeScript/JavaScript |
 
 ### Required vs supplemental workflows
 
@@ -42,6 +45,8 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=mock
 ```
 
 The mock provider returns deterministic JSON responses for compile, Q&A, and lint operations.
+
+The test workflow currently runs on Python 3.12, excludes `@pytest.mark.e2e` tests from the default coverage gate, enforces branch coverage via `pyproject.toml`, uploads `htmlcov/` as an artifact, and uploads `coverage.xml` to Codecov on pushes to `main`.
 
 ## Pre-Commit Hooks
 
@@ -88,6 +93,8 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 
 The project uses:
 
-- **bandit** for Python security scanning (`make bandit`)
+- **Dependency Review** on pull requests that change Python dependency files or frontend `package.json` / `package-lock.json` files
+- **bandit** for Python security scanning (`make bandit`) with JSON-to-SARIF conversion, code scanning upload in CI, and merge blocking only for medium-or-higher severity findings
+- **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds
