@@ -110,7 +110,12 @@ def _try_embed_article(article: Article) -> None:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
             content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(encoding="utf-8")
-            embedding_service.embed_article(article.id, article.title, content)
+            embedding_service.embed_article(
+                article.id,
+                article.title,
+                content,
+                user_id=article.user_id,
+            )
             log.info("Article embedded", article_id=article.id)
     except (RuntimeError, ValueError, OSError) as embed_err:
         log.warning(

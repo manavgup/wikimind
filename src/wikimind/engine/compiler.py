@@ -377,9 +377,9 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
 
         try:
-            await upsert_concepts(result.concepts, session)
-            await update_article_counts(session)
-            await maybe_trigger_taxonomy_rebuild(session)
+            await upsert_concepts(result.concepts, session, user_id=source.user_id)
+            await update_article_counts(session, user_id=source.user_id)
+            await maybe_trigger_taxonomy_rebuild(session, user_id=source.user_id)
             # Concept page generation must use its own session to avoid
             # identity-map conflicts when both the source compiler and
             # concept compiler create Backlinks for overlapping article
@@ -394,12 +394,13 @@ Compile this into a wiki article following the JSON schema exactly."""
                 "compile",
                 article.title,
                 extra={"source_id": source.id, "article_slug": article.slug},
+                user_id=source.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="compile", article_id=article.id)
 
         try:
-            await regenerate_index_md(session)
+            await regenerate_index_md(session, user_id=source.user_id)
         except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=article.id)
 
@@ -483,9 +484,16 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
 
         try:
-            await upsert_concepts(result.concepts, session)
-            await update_article_counts(session)
-            await maybe_trigger_taxonomy_rebuild(session)
+            await upsert_concepts(
+                result.concepts,
+                session,
+                user_id=source.user_id,
+            )
+            await update_article_counts(session, user_id=source.user_id)
+            await maybe_trigger_taxonomy_rebuild(
+                session,
+                user_id=source.user_id,
+            )
             # Concept page generation must use its own session to avoid
             # identity-map conflicts (same pattern as _create_article,
             # issue #152).  Added here so recompiling an existing source
@@ -504,12 +512,13 @@ Compile this into a wiki article following the JSON schema exactly."""
                 "compile",
                 existing.title,
                 extra={"source_id": source.id, "article_slug": existing.slug},
+                user_id=source.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="compile", article_id=existing.id)
 
         try:
-            await regenerate_index_md(session)
+            await regenerate_index_md(session, user_id=source.user_id)
         except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=existing.id)
 

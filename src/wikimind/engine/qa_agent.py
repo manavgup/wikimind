@@ -357,12 +357,13 @@ conversation context contradicts the wiki, prefer the wiki."""
         await session.commit()
 
         try:
-            append_log_entry("query", request.question[:120])
+            append_log_entry("query", request.question[:120], user_id=user_id)
             if filed_article is not None:
                 append_log_entry(
                     "filed",
                     filed_article.title,
                     extra={"conversation_id": ctx.conversation.id},
+                    user_id=user_id,
                 )
         except OSError:
             log.warning("activity log write failed", op="query")

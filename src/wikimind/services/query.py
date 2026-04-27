@@ -611,7 +611,10 @@ class QueryService:
         markdown = serialize_selected_turns_to_markdown(selected_turns, title=request.title)
 
         settings = get_settings()
-        wiki_dir = Path(settings.data_dir) / "wiki" / "qa-answers"
+        wiki_dir = Path(settings.data_dir) / "wiki"
+        if user_id:
+            wiki_dir = wiki_dir / user_id
+        wiki_dir = wiki_dir / "qa-answers"
         wiki_dir.mkdir(parents=True, exist_ok=True)
 
         now = utcnow_naive()

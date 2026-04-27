@@ -172,7 +172,13 @@ class EmbeddingService:
         embeddings = model.encode(texts, show_progress_bar=False)
         return [e.tolist() for e in embeddings]
 
-    def embed_article(self, article_id: str, title: str, content: str) -> int:
+    def embed_article(
+        self,
+        article_id: str,
+        title: str,
+        content: str,
+        user_id: str | None = None,
+    ) -> int:
         """Chunk and embed an article's content into ChromaDB.
 
         Any existing embeddings for the article are deleted first so
@@ -182,6 +188,7 @@ class EmbeddingService:
             article_id: UUID of the article.
             title: Article title (stored as metadata).
             content: Full markdown content of the article.
+            user_id: Optional user ID stored as metadata for per-user filtering.
 
         Returns:
             Number of chunks embedded.
@@ -201,6 +208,7 @@ class EmbeddingService:
                 "article_id": article_id,
                 "article_title": title,
                 "chunk_index": i,
+                **({"user_id": user_id} if user_id else {}),
             }
             for i in range(len(chunks))
         ]
@@ -220,12 +228,18 @@ class EmbeddingService:
         )
         return len(chunks)
 
-    def search(self, query: str, limit: int = 20) -> list[SemanticSearchResult]:
+    def search(
+        self,
+        query: str,
+        limit: int = 20,
+        user_id: str | None = None,
+    ) -> list[SemanticSearchResult]:
         """Query ChromaDB for semantically similar chunks.
 
         Args:
             query: Natural language search query.
             limit: Maximum number of results.
+            user_id: Optional user ID to filter results by ownership.
 
         Returns:
             Ranked list of :class:`SemanticSearchResult`.
@@ -234,11 +248,14 @@ class EmbeddingService:
             return []
 
         query_embedding = self._encode([query])
-        results = self._collection.query(
-            query_embeddings=query_embedding,
-            n_results=min(limit, self._collection.count()),
-            include=["documents", "metadatas", "distances"],
-        )
+        query_kwargs: dict[str, Any] = {
+            "query_embeddings": query_embedding,
+            "n_results": min(limit, self._collection.count()),
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if user_id:
+            query_kwargs["where"] = {"user_id": user_id}
+        results = self._collection.query(**query_kwargs)
 
         search_results: list[SemanticSearchResult] = []
         if not results["ids"] or not results["ids"][0]:

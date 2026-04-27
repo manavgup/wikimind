@@ -17,7 +17,12 @@ log = structlog.get_logger()
 _LOG_HEADER = "# Activity Log\n\n"
 
 
-def append_log_entry(op: str, title: str, extra: dict | None = None) -> None:
+def append_log_entry(
+    op: str,
+    title: str,
+    extra: dict | None = None,
+    user_id: str | None = None,
+) -> None:
     """Append an entry to wiki/log.md.
 
     Line format::
@@ -33,8 +38,11 @@ def append_log_entry(op: str, title: str, extra: dict | None = None) -> None:
         title: Human-readable subject of the entry.
         extra: Optional dict of supplementary key/value pairs written as
             indented detail lines beneath the heading.
+        user_id: Optional user ID for path scoping.
     """
     wiki_dir = Path(get_settings().data_dir) / "wiki"
+    if user_id:
+        wiki_dir = wiki_dir / user_id
     wiki_dir.mkdir(parents=True, exist_ok=True)
     log_path = wiki_dir / "log.md"
 
