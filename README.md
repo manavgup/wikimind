@@ -317,6 +317,8 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make test` | Run unit + integration tests with pytest |
 | `make test-unit` | Run unit tests only |
 | `make test-integration` | Run integration tests only |
+| `make test-auth-multiuser` | Run focused auth and multi-user regression tests |
+| `make test-postgres-integration` | Run PostgreSQL-backed integration regression tests |
 | `make coverage` | Run tests with coverage report and HTML output |
 | `make test-matrix` | Show how to run the LLM × document type benchmark |
 
