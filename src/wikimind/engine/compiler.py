@@ -337,6 +337,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             result.backlink_suggestions,
             session,
             relation_types=self._last_typed_suggestions,
+            user_id=source.user_id,
         )
 
         relative_path = await self._write_article_file(result, source, slug, resolved, unresolved)
@@ -368,7 +369,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             session.add(ArticleConcept(article_id=article.id, concept_name=concept_name))
         await session.commit()
 
-        await self._persist_resolved_backlinks(article.id, resolved, session)
+        await self._persist_resolved_backlinks(
+            article.id,
+            resolved,
+            session,
+            user_id=source.user_id,
+        )
 
         try:
             await upsert_concepts(result.concepts, session)
@@ -424,6 +430,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             session,
             exclude_article_id=existing.id,
             relation_types=self._last_typed_suggestions,
+            user_id=source.user_id,
         )
 
         relative_path = await self._write_article_file(result, source, existing.slug, resolved, unresolved)
@@ -468,7 +475,12 @@ Compile this into a wiki article following the JSON schema exactly."""
             session.add(ArticleConcept(article_id=existing.id, concept_name=concept_name))
         await session.commit()
 
-        await self._persist_resolved_backlinks(existing.id, resolved, session)
+        await self._persist_resolved_backlinks(
+            existing.id,
+            resolved,
+            session,
+            user_id=source.user_id,
+        )
 
         try:
             await upsert_concepts(result.concepts, session)
@@ -516,6 +528,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         source_article_id: str,
         resolved: list[ResolvedBacklink],
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> None:
         """Insert one Backlink row per resolved candidate with relation_type."""
         for rb in resolved:
@@ -528,6 +541,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                 target_article_id=rb.target_id,
                 context=rb.candidate_text,
                 relation_type=rel,
+                user_id=user_id,
             )
             session.add(bl)
             try:
