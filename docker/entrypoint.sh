@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Fix volume ownership — Fly.io volumes may retain root ownership across deploys
 if [ "$(id -u)" = "0" ]; then
-    chown -R wikimind:wikimind "${WIKIMIND_DATA_DIR:-/data}"
+    chown -R wikimind:wikimind "${WIKIMIND_DATA_DIR:-/home/wikimind/.wikimind}"
     exec gosu wikimind "$0" "$@"
 fi
 
