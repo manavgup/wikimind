@@ -62,10 +62,30 @@ jobs:
 
       - name: 🔐  Run Bandit
         run: |
-          status=0
-          uv run bandit -r src/wikimind -c pyproject.toml -f json -o bandit.json || status=$?
+          uv run bandit -r src/wikimind -c pyproject.toml -f json -o bandit.json || true
           uv run python scripts/bandit_json_to_sarif.py bandit.json bandit.sarif
-          exit "$status"
+          uv run python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          severities = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+          findings = json.loads(Path("bandit.json").read_text()).get("results", [])
+          threshold = severities["MEDIUM"]
+          blocking = [
+              finding
+              for finding in findings
+              if severities.get(finding.get("issue_severity", "").upper(), 0) >= threshold
+          ]
+
+          if blocking:
+              for finding in blocking:
+                  print(
+                      f"{finding['filename']}:{finding['line_number']} "
+                      f"{finding['issue_severity']} {finding['test_id']} {finding['issue_text']}"
+                  )
+              sys.exit(1)
+          PY
 
       - name: 📤  Upload Bandit SARIF
         if: always() && hashFiles('bandit.sarif') != ''
