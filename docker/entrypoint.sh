@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Fix volume ownership — Fly.io volumes may retain root ownership across deploys
+if [ "$(id -u)" = "0" ]; then
+    chown -R wikimind:wikimind "${WIKIMIND_DATA_DIR:-/data}"
+    exec gosu wikimind "$0" "$@"
+fi
+
 # Run Alembic migrations when using PostgreSQL.
 # SQLite uses create_all() at startup — no Alembic needed.
 # Check both WIKIMIND_DATABASE_URL (explicit) and DATABASE_URL (Fly.io/Railway auto-set).

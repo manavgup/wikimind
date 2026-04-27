@@ -25,6 +25,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
+        gosu \
         libmupdf-dev \
         libsqlite3-0 \
     && pip install --upgrade pip setuptools wheel \
@@ -113,8 +114,6 @@ RUN chmod +x docker-entrypoint.sh
 RUN useradd --create-home --uid 1000 wikimind \
     && mkdir -p /home/wikimind/.wikimind \
     && chown -R wikimind:wikimind /home/wikimind /app
-USER wikimind
-
 ENV WIKIMIND_DATA_DIR=/home/wikimind/.wikimind \
     WIKIMIND_SERVER__HOST=0.0.0.0
 
