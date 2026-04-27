@@ -74,7 +74,7 @@ jobs:
         env:
           POSTGRES_DB: wikimind_test
           POSTGRES_USER: wikimind
-          POSTGRES_PASSWORD: wikimind
+          POSTGRES_PASSWORD: wikimind # pragma: allowlist secret
         ports:
           - 5432:5432
         options: >-
@@ -86,7 +86,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
-      WIKIMIND_TEST_POSTGRES_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_test
+      WIKIMIND_TEST_POSTGRES_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_test # pragma: allowlist secret
 
     steps:
       - name: ⬇️  Checkout code
