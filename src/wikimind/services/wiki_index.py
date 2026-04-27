@@ -227,7 +227,8 @@ async def _fetch_health_data(
     backlink_stmt = select(Backlink)
     if user_id:
         backlink_stmt = backlink_stmt.where(
-            Backlink.source_article_id.in_(article_ids)  # type: ignore[attr-defined]
+            Backlink.source_article_id.in_(article_ids),  # type: ignore[attr-defined]
+            Backlink.target_article_id.in_(article_ids),  # type: ignore[attr-defined]
         )
     backlinks_result = await session.execute(backlink_stmt)
     backlinks: list[Backlink] = list(backlinks_result.scalars().all())
