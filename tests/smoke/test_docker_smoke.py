@@ -442,7 +442,9 @@ class TestContainerBasics:
         """The application process should run as non-root (wikimind user).
 
         The container starts as root (for volume chown), then drops to
-        wikimind via gosu. Check the gunicorn worker's effective user.
+        wikimind via gosu. PID 1 should be the gunicorn master running
+        as the wikimind user. We check /proc/1/status which is always
+        available on Linux — no dependency on ps or pgrep.
         """
         result = subprocess.run(
             [
@@ -451,14 +453,15 @@ class TestContainerBasics:
                 CONTAINER_NAME,
                 "sh",
                 "-c",
-                "ps -o user= -p $(pgrep -f 'gunicorn.*worker' | head -1) 2>/dev/null || id -un",
+                "awk '/^Uid:/{print $2}' /proc/1/status",
             ],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            assert result.stdout.strip() == "wikimind"
+            uid = result.stdout.strip()
+            assert uid != "0", "PID 1 is running as root (UID 0), expected wikimind"
 
     def test_data_dir_writable(self, container_url: str):
         """The data directory should be writable by the container user."""
