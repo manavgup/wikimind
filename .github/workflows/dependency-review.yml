@@ -17,9 +17,11 @@ on:
     types: [opened, synchronize, ready_for_review]
     branches: ["main"]
     paths:
+      - "apps/**/package.json"
       - "pyproject.toml"
       - "uv.lock"
       - "requirements*.txt"
+      - "apps/**/package-lock.json"
       - ".github/workflows/dependency-review.yml"
 
 concurrency:

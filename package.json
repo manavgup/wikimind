@@ -1,0 +1,8 @@
+{
+  "name": "@wikimind/tooling",
+  "private": true,
+  "version": "0.1.0",
+  "devDependencies": {
+    "basedpyright": "1.31.4"
+  }
+}

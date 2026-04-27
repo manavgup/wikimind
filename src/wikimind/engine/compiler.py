@@ -385,7 +385,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             # concept compiler create Backlinks for overlapping article
             # pairs (issue #152 — greenlet_spawn error).
             async with get_session_factory()() as concept_session:
-                await maybe_trigger_concept_pages(concept_session)
+                await maybe_trigger_concept_pages(concept_session, user_id=source.user_id)
         except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning("taxonomy upsert failed", article_id=article.id)
 
@@ -499,7 +499,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             # issue #152).  Added here so recompiling an existing source
             # also updates concept pages (issue #162).
             async with get_session_factory()() as concept_session:
-                await maybe_trigger_concept_pages(concept_session)
+                await maybe_trigger_concept_pages(concept_session, user_id=source.user_id)
         except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning(
                 "taxonomy upsert failed",
