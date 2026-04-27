@@ -256,7 +256,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make format` | Format source code with ruff |
 | `make format-check` | Check formatting without modifying files |
 | `make typecheck` | Run mypy type checking |
-| `make pyright` | Run basedpyright type checking (requires Node.js) |
+| `make pyright` | Run basedpyright type checking (requires `npm install` at repo root) |
 | `make pylint` | Run pylint static analysis (fails under 9.0/10) |
 | `make docstyle` | Run pydocstyle docstring checks |
 | `make bandit` | Run bandit security scanner |
@@ -264,7 +264,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make dead-code` | Alias for vulture — find unused functions, imports, variables |
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
-| `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension) |
+| `make verify` | Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync) |
 | `make coverage-check` | Run tests and fail if coverage is under 80% |
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
