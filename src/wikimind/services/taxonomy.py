@@ -223,7 +223,7 @@ async def maybe_trigger_concept_pages(
         return []
     from wikimind.engine.concept_compiler import ConceptCompiler  # noqa: PLC0415
 
-    compiler = ConceptCompiler()
+    compiler = ConceptCompiler(user_id=user_id)
     compiled: list[str] = []
     for concept in eligible:
         try:
