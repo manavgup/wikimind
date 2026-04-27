@@ -4,7 +4,7 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 ## CI Pipeline
 
-The CI pipeline runs on every pull request and push to `main`.
+The primary CI pipeline runs on every pull request and push to `main`.
 
 ### Quality Gates
 
@@ -17,7 +17,7 @@ The following checks must pass before merging:
 | Type check | `make typecheck` | mypy static type checking |
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
-| Tests | `make coverage-check` | pytest with 80% coverage threshold |
+| Tests | `make coverage-ci` | backend pytest suite with HTML + XML coverage artifacts and an 80% repo floor in CI |
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
@@ -32,6 +32,34 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=mock
 ```
 
 The mock provider returns deterministic JSON responses for compile, Q&A, and lint operations.
+
+## Nightly Full-Stack Workflow
+
+The `nightly.yml` workflow runs every day at `06:00 UTC` and can also be started manually with `workflow_dispatch`.
+
+Nightly covers the runtime and integration surfaces that path-filtered PR CI can miss:
+
+- backend coverage run via `make coverage-ci`
+- PostgreSQL integration tests via `make test-postgres-ci`
+- Playwright end-to-end coverage of the web app against the FastAPI backend
+- Docker smoke tests against the production image
+- Bandit security scanning via `make security-check`
+
+This workflow is intentionally broader than PR CI because its job is drift detection: dependency breakage, runtime regressions, and environment-sensitive failures that may not be exercised by a narrow diff-triggered workflow.
+
+## Coverage Gates
+
+WikiMind now uses two separate coverage guardrails:
+
+- Total backend coverage: the GitHub Actions backend test job still enforces a repository-wide floor via `make coverage-ci`.
+- Changed-code coverage: Codecov receives the same `coverage.xml` upload on both pushes and pull requests, and `codecov.yml` defines a `codecov/patch` status for PRs.
+
+Current Codecov policy:
+
+- `codecov/project`: tracks overall backend coverage for the uploaded `backend` flag and allows a small 1% drop threshold.
+- `codecov/patch`: requires `80%` coverage on changed backend lines in pull requests.
+
+To make patch coverage a required merge gate, add the `codecov/patch` status check to the repository branch protection rules for `main`.
 
 ## Pre-Commit Hooks
 
@@ -79,5 +107,6 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 The project uses:
 
 - **bandit** for Python security scanning (`make bandit`)
+- a nightly Bandit run in `.github/workflows/nightly.yml`
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds
