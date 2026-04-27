@@ -1373,7 +1373,7 @@ paths:
       - Auth
       summary: Auth Callback
       description: Handle OAuth2 callback — exchange code for token, upsert user,
-        return JWT.
+        set cookie.
       operationId: auth_callback_auth_callback_get
       parameters:
       - name: code
@@ -1405,7 +1405,7 @@ paths:
       tags:
       - Auth
       summary: Me
-      description: Return current user profile.
+      description: Return current user profile, auto-provisioning if needed.
       operationId: me_auth_me_get
       responses:
         '200':
@@ -1429,6 +1429,22 @@ paths:
           content:
             application/json:
               schema: {}
+  /auth/account:
+    delete:
+      tags:
+      - Auth
+      summary: Delete Account
+      description: Delete the current user's account and all owned data.
+      operationId: delete_account_auth_account_delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Delete Account Auth Account Delete
   /admin/stats:
     get:
       tags:

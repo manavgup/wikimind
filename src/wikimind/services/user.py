@@ -324,22 +324,22 @@ class UserService:
         if conv_ids:
             await session.execute(
                 delete(Query).where(
-                    Query.conversation_id.in_(conv_ids)  # type: ignore[attr-defined]
+                    Query.conversation_id.in_(conv_ids)  # type: ignore[union-attr]
                 )
             )
 
         # 4. Delete all user-owned rows
-        await session.execute(delete(Backlink).where(Backlink.user_id == user_id))
-        await session.execute(delete(Article).where(Article.user_id == user_id))
-        await session.execute(delete(Source).where(Source.user_id == user_id))
-        await session.execute(delete(Concept).where(Concept.user_id == user_id))
-        await session.execute(delete(Conversation).where(Conversation.user_id == user_id))
-        await session.execute(delete(Job).where(Job.user_id == user_id))
-        await session.execute(delete(CostLog).where(CostLog.user_id == user_id))
-        await session.execute(delete(SyncLog).where(SyncLog.user_id == user_id))
-        await session.execute(delete(LintReport).where(LintReport.user_id == user_id))
-        await session.execute(delete(UserApiKey).where(UserApiKey.user_id == user_id))
-        await session.execute(delete(UserPreference).where(UserPreference.user_id == user_id))
+        await session.execute(delete(Backlink).where(Backlink.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(Article).where(Article.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(Source).where(Source.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(Concept).where(Concept.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(Conversation).where(Conversation.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(Job).where(Job.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(CostLog).where(CostLog.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(SyncLog).where(SyncLog.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(LintReport).where(LintReport.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(UserApiKey).where(UserApiKey.user_id == user_id))  # type: ignore[arg-type]
+        await session.execute(delete(UserPreference).where(UserPreference.user_id == user_id))  # type: ignore[arg-type]
 
         # 5. Delete the user
         await session.delete(user)

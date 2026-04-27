@@ -7,7 +7,7 @@ deletion). The JWT is stored in an HttpOnly cookie.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
 from wikimind.config import get_settings
