@@ -265,7 +265,9 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
 | `make verify` | Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension) |
+| `make coverage-ci` | Run backend CI tests with terminal, HTML, and XML coverage outputs |
 | `make coverage-check` | Run tests and fail if coverage is under 80% |
+| `make security-check` | Run the scheduled CI security scan set |
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
 | `make frontend-build` | Build frontend production bundle |
@@ -317,6 +319,7 @@ For more advanced configuration (model selection, fallback chain, monthly budget
 | `make test` | Run unit + integration tests with pytest |
 | `make test-unit` | Run unit tests only |
 | `make test-integration` | Run integration tests only |
+| `make test-postgres-ci` | Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL) |
 | `make coverage` | Run tests with coverage report and HTML output |
 | `make test-matrix` | Show how to run the LLM × document type benchmark |
 
