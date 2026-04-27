@@ -93,7 +93,7 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 	@test -f $(BIN)/ruff && echo "✓ ruff: $$($(BIN)/ruff --version)" || echo "✗ ruff not found (run: make install-dev)"
 	@test -f $(BIN)/mypy && echo "✓ mypy: $$($(BIN)/mypy --version)" || echo "✗ mypy not found (run: make install-dev)"
 	@test -f $(BIN)/pylint && echo "✓ pylint: $$($(BIN)/pylint --version | head -1)" || echo "✗ pylint not found (run: make install-dev)"
-	@command -v npx >/dev/null 2>&1 && echo "✓ basedpyright: $$(npx basedpyright --version 2>/dev/null | head -1)" || echo "✗ basedpyright not found (requires Node.js + npx)"
+	@test -x node_modules/.bin/basedpyright && echo "✓ basedpyright: $$(./node_modules/.bin/basedpyright --version | head -1)" || echo "✗ basedpyright not found (run: npm install)"
 	@test -f $(BIN)/pydocstyle && echo "✓ pydocstyle: $$($(BIN)/pydocstyle --version)" || echo "✗ pydocstyle not found (run: make install-dev)"
 	@test -f $(BIN)/pytest && echo "✓ pytest: $$($(BIN)/pytest --version)" || echo "✗ pytest not found (run: make install-dev)"
 
@@ -168,8 +168,8 @@ typecheck: ## Run mypy type checking
 	$(BIN)/mypy src/wikimind
 
 .PHONY: pyright
-pyright: ## Run basedpyright type checking (requires Node.js)
-	@npx basedpyright src/wikimind
+pyright: ## Run basedpyright type checking (requires `npm install` at repo root)
+	@./node_modules/.bin/basedpyright src/wikimind
 
 .PHONY: pylint
 pylint: ## Run pylint static analysis (fails under 9.0/10)
@@ -198,7 +198,7 @@ doc-coverage: ## Measure docstring coverage (fails if below fail-under threshold
 security: bandit vulture ## Run security and dead-code checks
 
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run all checks (lint + format + mypy + pyright + docstyle + coverage + desktop + extension)
+verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
 
 .PHONY: coverage-check
 coverage-check: ## Run non-E2E tests with coverage (policy is configured in pyproject.toml)
