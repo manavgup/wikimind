@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from wikimind.api.deps import ANONYMOUS_USER_ID, get_current_user_id
+from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.services.user import UserService, get_user_service
@@ -131,11 +131,9 @@ async def logout() -> JSONResponse:
 @router.delete("/account")
 async def delete_account(
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(require_user_id),
     service: UserService = Depends(get_user_service),
 ) -> dict:
     """Delete the current user's account and all owned data."""
-    if user_id == ANONYMOUS_USER_ID:
-        raise HTTPException(status_code=400, detail="Cannot delete the anonymous account")
     await service.delete_account(session, user_id)
     return {"deleted": user_id}

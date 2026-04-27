@@ -10,11 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, get_ws_user_id
 from wikimind.api.routes import ws as ws_mod
+from wikimind.config import get_settings
+from wikimind.models import User
 from wikimind.services.user import UserService
 
 _service = UserService()
-from wikimind.config import get_settings
-from wikimind.models import User
 
 # ---------------------------------------------------------------------------
 # JWT creation / decoding

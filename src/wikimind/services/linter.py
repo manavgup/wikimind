@@ -203,6 +203,8 @@ class LinterService:
         Raises:
             HTTPException: 404 if finding not found.
         """
+        _ = user_id  # TODO(#344): add finding ownership check
+
         now = utcnow_naive()
 
         finding: ContradictionFinding | OrphanFinding | StructuralFinding | None
