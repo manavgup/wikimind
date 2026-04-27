@@ -60,17 +60,26 @@ async def detect_orphans(
         log.info("Orphan detection disabled (enable_orphan_detection=False)")
         return []
 
-    sql = (
-        "SELECT a.id, a.title FROM article a "
-        "LEFT JOIN backlink bl_in ON bl_in.target_article_id = a.id "
-        "LEFT JOIN backlink bl_out ON bl_out.source_article_id = a.id "
-        "WHERE bl_in.target_article_id IS NULL "
-        "AND bl_out.source_article_id IS NULL"
-    )
+    sql = "SELECT a.id, a.title FROM article a "
     params: dict[str, str] = {}
     if user_id is not None:
-        sql += " AND a.user_id = :uid"
+        sql += (
+            "LEFT JOIN backlink bl_in ON bl_in.target_article_id = a.id"
+            " AND bl_in.user_id = :uid "
+            "LEFT JOIN backlink bl_out ON bl_out.source_article_id = a.id"
+            " AND bl_out.user_id = :uid "
+            "WHERE bl_in.target_article_id IS NULL "
+            "AND bl_out.source_article_id IS NULL "
+            "AND a.user_id = :uid"
+        )
         params["uid"] = user_id
+    else:
+        sql += (
+            "LEFT JOIN backlink bl_in ON bl_in.target_article_id = a.id "
+            "LEFT JOIN backlink bl_out ON bl_out.source_article_id = a.id "
+            "WHERE bl_in.target_article_id IS NULL "
+            "AND bl_out.source_article_id IS NULL"
+        )
 
     result = await session.execute(text(sql), params)
     rows = result.fetchall()
