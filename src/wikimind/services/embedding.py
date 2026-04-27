@@ -248,9 +248,10 @@ class EmbeddingService:
             return []
 
         query_embedding = self._encode([query])
+        n_results = limit if user_id else min(limit, self._collection.count())
         query_kwargs: dict[str, Any] = {
             "query_embeddings": query_embedding,
-            "n_results": min(limit, self._collection.count()),
+            "n_results": n_results,
             "include": ["documents", "metadatas", "distances"],
         }
         if user_id:

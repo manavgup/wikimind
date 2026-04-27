@@ -199,15 +199,25 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
     return current_ids != previous_ids
 
 
-async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
+async def maybe_trigger_concept_pages(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> list[str]:
     """Generate concept pages for concepts with enough source articles.
 
     Skips concepts whose source set has not changed since the last
     compilation, avoiding unnecessary LLM calls (issue #162).
+
+    Args:
+        session: Async database session.
+        user_id: Optional user ID for data isolation.
     """
     settings = get_settings()
     min_sources = settings.taxonomy.concept_page_min_sources
-    result = await session.execute(select(Concept).where(Concept.article_count >= min_sources))
+    stmt = select(Concept).where(Concept.article_count >= min_sources)
+    if user_id:
+        stmt = stmt.where(Concept.user_id == user_id)
+    result = await session.execute(stmt)
     eligible = list(result.scalars().all())
     if not eligible:
         return []
