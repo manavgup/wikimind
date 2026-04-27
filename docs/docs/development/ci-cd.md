@@ -21,6 +21,9 @@ The following checks must pass before merging:
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
+| Dependency review | GitHub Action | Blocks vulnerable dependency changes in Python and frontend lockfiles |
+| Bandit | `make bandit` | Python security scan for `src/wikimind` |
+| CodeQL | GitHub Action | Repository code scanning for Python and TypeScript/JavaScript |
 
 ### Mock Provider for CI
 
@@ -78,6 +81,8 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 
 The project uses:
 
-- **bandit** for Python security scanning (`make bandit`)
+- **Dependency Review** on pull requests that change Python dependency files or frontend `package.json` / `package-lock.json` files
+- **bandit** for Python security scanning (`make bandit`) and SARIF upload in CI
+- **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds
