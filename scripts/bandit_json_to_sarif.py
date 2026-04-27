@@ -50,6 +50,7 @@ def _result(issue: dict) -> dict:
 
 
 def main() -> int:
+    """Convert one Bandit JSON report into a SARIF file."""
     if len(sys.argv) != 3:
         print("usage: bandit_json_to_sarif.py <input.json> <output.sarif>", file=sys.stderr)
         return 2
