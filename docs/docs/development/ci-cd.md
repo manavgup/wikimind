@@ -6,6 +6,9 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 The CI pipeline runs on every pull request and push to `main`.
 
+`Full Verify` is the required merge gate. It runs `make verify` in CI so the authoritative verification sequence stays in the `Makefile` instead of being duplicated in workflow YAML.
+It also installs the repo-root Node tooling manifest so `basedpyright` is pinned in-version-controlled metadata instead of being fetched ad hoc via `npx`.
+
 ### Quality Gates
 
 The following checks must pass before merging:
@@ -18,9 +21,16 @@ The following checks must pass before merging:
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
 | Tests | `make coverage-check` | pytest with 80% coverage threshold |
-| Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
+| Extension | `make extension-verify` | Browser extension typecheck + build |
+| Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
+
+### Required vs supplemental workflows
+
+- Required: `Full Verify` runs `make verify` and therefore covers `make lint`, `make format-check`, `make typecheck`, `make pyright`, `make docstyle`, `make coverage-check`, `make desktop-verify`, and `make extension-verify`.
+- Supplemental: `Lint & Static Analysis`, `Tests & Coverage`, `Pre-commit Checks`, and the docs/smoke/e2e workflows still provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
+- Intentional scope difference: `make verify` does not include `make frontend-verify` or `make check-docs`, so those remain separate CI checks rather than being folded into the required gate.
 
 ### Mock Provider for CI
 
