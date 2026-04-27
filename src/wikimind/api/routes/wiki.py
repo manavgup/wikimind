@@ -197,7 +197,7 @@ async def resolve_contradiction(
     target_id: str,
     body: ResolveContradictionRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add backlink ownership check
 ):
     """Resolve a contradiction between two articles."""
     valid = {r.value for r in ContradictionResolution}

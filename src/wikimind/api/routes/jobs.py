@@ -35,7 +35,7 @@ async def get_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
+    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add job ownership check
 ):
     """Get job by ID."""
     return await service.get_job(job_id, session)

@@ -380,6 +380,9 @@ async def delete_account(
             delete(ContradictionFinding).where(ContradictionFinding.article_a_id.in_(article_ids))  # type: ignore[attr-defined]
         )
         await session.execute(
+            delete(ContradictionFinding).where(ContradictionFinding.article_b_id.in_(article_ids))  # type: ignore[attr-defined]
+        )
+        await session.execute(
             delete(OrphanFinding).where(OrphanFinding.article_id.in_(article_ids))  # type: ignore[attr-defined]
         )
         await session.execute(
