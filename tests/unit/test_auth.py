@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, get_ws_user_id
 from wikimind.api.routes import ws as ws_mod
-from wikimind.api.routes.auth import _create_jwt, _upsert_user
+from wikimind.services.user import UserService
+
+_service = UserService()
 from wikimind.config import get_settings
 from wikimind.models import User
 
@@ -33,7 +35,7 @@ def test_create_jwt_contains_expected_claims():
         auth_provider_id="g-123",
     )
 
-    token = _create_jwt(user, settings)
+    token = _service.create_jwt(user, settings)
     payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
 
     assert payload["sub"] == "user-1"
@@ -56,7 +58,7 @@ def test_create_jwt_expiry():
         auth_provider_id="gh-456",
     )
 
-    token = _create_jwt(user, settings)
+    token = _service.create_jwt(user, settings)
     payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
 
     now = datetime.now(UTC)
@@ -267,7 +269,7 @@ async def test_upsert_user_creates_new_user(db_session: AsyncSession):
         "name": "New User",
         "picture": "https://example.com/pic.jpg",
     }
-    user = await _upsert_user(db_session, "google", user_info)
+    user = await _service.upsert_oauth_user(db_session, "google", user_info)
     assert user.email == "new@example.com"
     assert user.auth_provider == "google"
     assert user.auth_provider_id == "google-id-1"
@@ -282,11 +284,11 @@ async def test_upsert_user_updates_existing_user(db_session: AsyncSession):
         "name": "Old Name",
         "picture": None,
     }
-    user1 = await _upsert_user(db_session, "google", user_info)
+    user1 = await _service.upsert_oauth_user(db_session, "google", user_info)
 
     user_info["name"] = "New Name"
     user_info["picture"] = "https://example.com/new.jpg"
-    user2 = await _upsert_user(db_session, "google", user_info)
+    user2 = await _service.upsert_oauth_user(db_session, "google", user_info)
 
     assert user1.id == user2.id
     assert user2.name == "New Name"

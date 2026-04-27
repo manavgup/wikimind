@@ -1,15 +1,20 @@
-"""User lifecycle management — provisioning and account deletion.
+"""User lifecycle management — OAuth upsert, JWT provisioning, account deletion.
 
-Handles auto-provisioning users from JWT claims and cascade-deleting
-all user-owned data when an account is removed.
+Centralizes all user-related business logic: OAuth provider user upsert,
+JWT-based auto-provisioning, JWT creation, and cascade account deletion.
+Route handlers in ``api/routes/auth.py`` are thin delegates.
 """
 
 import functools
+from datetime import UTC, datetime, timedelta
 
+import httpx
+import jwt as pyjwt
 from fastapi import HTTPException
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.config import Settings
 from wikimind.models import (
     Article,
     ArticleConcept,
@@ -33,7 +38,167 @@ from wikimind.models import (
 
 
 class UserService:
-    """Manage user provisioning and account lifecycle."""
+    """Manage user provisioning, OAuth flows, and account lifecycle."""
+
+    # ------------------------------------------------------------------
+    # OAuth token exchange
+    # ------------------------------------------------------------------
+
+    async def exchange_google_token(self, code: str, settings: Settings, redirect_uri: str) -> dict:
+        """Exchange a Google authorization code for an access token."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": settings.auth.google_client_id,
+                    "client_secret": settings.auth.google_client_secret,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    async def exchange_github_token(self, code: str, settings: Settings) -> dict:
+        """Exchange a GitHub authorization code for an access token."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://github.com/login/oauth/access_token",
+                json={
+                    "client_id": settings.auth.github_client_id,
+                    "client_secret": settings.auth.github_client_secret,
+                    "code": code,
+                },
+                headers={"Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    # ------------------------------------------------------------------
+    # OAuth user info
+    # ------------------------------------------------------------------
+
+    async def fetch_google_userinfo(self, access_token: str) -> dict:
+        """Fetch the authenticated user's profile from Google."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    async def fetch_github_userinfo(self, access_token: str) -> dict:
+        """Fetch the authenticated user's profile from GitHub.
+
+        GitHub's ``/user`` endpoint may not include a public email, so we
+        also hit ``/user/emails`` and pick the primary verified address.
+        """
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+        async with httpx.AsyncClient() as client:
+            user_resp = await client.get("https://api.github.com/user", headers=headers)
+            user_resp.raise_for_status()
+            user_data = user_resp.json()
+
+            if not user_data.get("email"):
+                email_resp = await client.get("https://api.github.com/user/emails", headers=headers)
+                email_resp.raise_for_status()
+                emails = email_resp.json()
+                primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
+                if primary:
+                    user_data["email"] = primary["email"]
+
+            return user_data
+
+    # ------------------------------------------------------------------
+    # User upsert + JWT creation
+    # ------------------------------------------------------------------
+
+    async def upsert_oauth_user(self, session: AsyncSession, provider: str, user_info: dict) -> User:
+        """Find or create a user from OAuth provider info.
+
+        Looks up by ``(auth_provider, auth_provider_id)`` first, then falls
+        back to email. This handles the case where a user logs in with
+        Google first and GitHub second using the same email — they get the
+        same User record.
+
+        Args:
+            session: Async database session.
+            provider: OAuth provider name (``"google"`` or ``"github"``).
+            user_info: User profile dict from the provider API.
+
+        Returns:
+            The existing or newly created User record.
+        """
+        if provider == "google":
+            provider_id = str(user_info["id"])
+            email = user_info["email"]
+            name = user_info.get("name")
+            avatar_url = user_info.get("picture")
+        else:
+            provider_id = str(user_info["id"])
+            email = user_info["email"]
+            name = user_info.get("name") or user_info.get("login")
+            avatar_url = user_info.get("avatar_url")
+
+        result = await session.execute(
+            select(User).where(User.auth_provider == provider, User.auth_provider_id == provider_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user and email:
+            result = await session.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+
+        if user:
+            user.name = name
+            user.avatar_url = avatar_url
+            user.updated_at = datetime.now(UTC).replace(tzinfo=None)
+            session.add(user)
+        else:
+            user = User(
+                email=email,
+                name=name,
+                avatar_url=avatar_url,
+                auth_provider=provider,
+                auth_provider_id=provider_id,
+            )
+            session.add(user)
+
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+    def create_jwt(self, user: User, settings: Settings) -> str:
+        """Create a signed JWT for the given user.
+
+        Args:
+            user: The authenticated User record.
+            settings: Application settings (for JWT secret, algorithm, expiry).
+
+        Returns:
+            Encoded JWT string.
+        """
+        now = datetime.now(UTC)
+        payload = {
+            "sub": user.id,
+            "email": user.email,
+            "exp": now + timedelta(minutes=settings.auth.jwt_expiry_minutes),
+            "iat": now,
+        }
+        return pyjwt.encode(
+            payload,
+            settings.auth.jwt_secret_key,
+            algorithm=settings.auth.jwt_algorithm,
+        )
+
+    # ------------------------------------------------------------------
+    # JWT-based auto-provisioning
+    # ------------------------------------------------------------------
 
     async def get_or_create(
         self,
@@ -69,6 +234,10 @@ class UserService:
         await session.commit()
         await session.refresh(user)
         return user
+
+    # ------------------------------------------------------------------
+    # Account deletion
+    # ------------------------------------------------------------------
 
     async def delete_account(self, session: AsyncSession, user_id: str) -> None:
         """Cascade-delete all data owned by a user, then remove the user row.
