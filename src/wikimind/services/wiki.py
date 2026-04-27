@@ -469,7 +469,11 @@ class WikiService:
             embedding_service = get_embedding_service()
             if embedding_service is not None:
                 try:
-                    semantic_results = embedding_service.search(q, limit=limit)
+                    semantic_results = embedding_service.search(
+                        q,
+                        limit=limit,
+                        user_id=user_id,
+                    )
                     merged = _merge_hybrid_scores(keyword_scores_map, semantic_results)
                 except (RuntimeError, ValueError, OSError):
                     log.warning("Semantic search failed, falling back to keyword-only")
@@ -626,7 +630,11 @@ class WikiService:
             user_id=user_id,
         )
 
-    async def get_health(self, session: AsyncSession) -> dict:
+    async def get_health(
+        self,
+        session: AsyncSession,
+        user_id: str | None = None,
+    ) -> dict:
         """Return the latest wiki health report from the linter.
 
         If no linter run has been performed yet, returns a stub report
@@ -634,17 +642,24 @@ class WikiService:
 
         Args:
             session: Async database session.
+            user_id: Optional user ID for path scoping.
 
         Returns:
             Health report dict.
         """
         settings = get_settings()
-        health_path = Path(settings.data_dir) / "wiki" / "_meta" / "health.json"
+        health_dir = Path(settings.data_dir) / "wiki"
+        if user_id:
+            health_dir = health_dir / user_id
+        health_path = health_dir / "_meta" / "health.json"
 
         if health_path.exists():
             return json.loads(health_path.read_text())
 
-        articles_result = await session.execute(select(Article))
+        article_stmt = select(Article)
+        if user_id:
+            article_stmt = article_stmt.where(Article.user_id == user_id)
+        articles_result = await session.execute(article_stmt)
         articles = articles_result.scalars().all()
 
         return {

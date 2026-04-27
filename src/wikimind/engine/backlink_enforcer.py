@@ -76,6 +76,7 @@ async def ensure_bidirectional(backlink: Backlink, session: AsyncSession) -> boo
             target_article_id=backlink.source_article_id,
             relation_type=backlink.relation_type,
             context=backlink.context,
+            user_id=backlink.user_id,
         )
     )
     await session.flush()

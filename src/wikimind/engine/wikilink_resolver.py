@@ -55,6 +55,7 @@ async def resolve_backlink_candidates(
     session: AsyncSession,
     exclude_article_id: str | None = None,
     relation_types: dict[str, str] | None = None,
+    user_id: str | None = None,
 ) -> tuple[list[ResolvedBacklink], list[str]]:
     """Resolve wikilink candidates against the Article table.
 
@@ -70,6 +71,8 @@ async def resolve_backlink_candidates(
         relation_types: Optional mapping of candidate text (lowered) to
             relation type string. When provided, resolved backlinks
             carry the relation type through. Defaults to references.
+        user_id: When provided, only articles belonging to this user are
+            considered for resolution. Prevents cross-user link leakage.
 
     Returns:
         A tuple ``(resolved, unresolved)``. Resolved contains one
@@ -85,10 +88,12 @@ async def resolve_backlink_candidates(
     if not cleaned:
         return [], []
 
-    # Load every Article once. For a single-user personal wiki this is
-    # fine — we expect O(hundreds) of articles at most. If this ever
-    # becomes a bottleneck, narrow the SELECT to (id, title, created_at).
-    result = await session.execute(select(Article).order_by(Article.created_at))  # type: ignore[arg-type]
+    # Load articles for resolution. When user_id is provided, only that
+    # user's articles are considered — prevents cross-user link leakage.
+    stmt = select(Article).order_by(Article.created_at)  # type: ignore[arg-type]
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
     all_articles: list[Article] = list(result.scalars().all())
     if exclude_article_id is not None:
         all_articles = [a for a in all_articles if a.id != exclude_article_id]

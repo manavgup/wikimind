@@ -293,8 +293,8 @@ class ConceptCompiler:
         for sid in source_ids:
             session.add(ArticleSource(article_id=article.id, source_id=sid))
         await session.commit()
-        await self._create_synthesizes_links(article.id, source_ids, session)
-        await self._create_related_to_links(article, compilation.related_concepts, session)
+        await self._create_synthesizes_links(article.id, source_ids, session, user_id=article.user_id)
+        await self._create_related_to_links(article, compilation.related_concepts, session, user_id=article.user_id)
         return article
 
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
@@ -372,7 +372,11 @@ provider: {self._last_provider_used or "unknown"}
         return relative_path
 
     async def _create_synthesizes_links(
-        self, concept_article_id: str, source_article_ids: list[str], session: AsyncSession
+        self,
+        concept_article_id: str,
+        source_article_ids: list[str],
+        session: AsyncSession,
+        user_id: str | None = None,
     ) -> None:
         for source_id in source_article_ids:
             # Guard against duplicate Backlinks (issue #152).
@@ -389,6 +393,7 @@ provider: {self._last_provider_used or "unknown"}
                 target_article_id=source_id,
                 relation_type=RelationType.SYNTHESIZES,
                 context="Concept page synthesizes from source article",
+                user_id=user_id,
             )
             session.add(bl)
             try:
@@ -397,7 +402,11 @@ provider: {self._last_provider_used or "unknown"}
                 await session.rollback()
 
     async def _create_related_to_links(
-        self, concept_article: Article, related_concepts: list[str], session: AsyncSession
+        self,
+        concept_article: Article,
+        related_concepts: list[str],
+        session: AsyncSession,
+        user_id: str | None = None,
     ) -> None:
         if not related_concepts:
             return
@@ -427,6 +436,7 @@ provider: {self._last_provider_used or "unknown"}
                     target_article_id=tgt_id,
                     relation_type=RelationType.RELATED_TO,
                     context=f"Related: {concept_article.title} <-> {target.title}",
+                    user_id=user_id,
                 )
                 session.add(bl)
                 try:

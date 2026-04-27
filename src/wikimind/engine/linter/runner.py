@@ -45,12 +45,24 @@ def _structural_content_hash(article_id: str, violation_type: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def run_enforcer_checks(session: AsyncSession, report: LintReport) -> list[StructuralFinding]:
+async def run_enforcer_checks(
+    session: AsyncSession,
+    report: LintReport,
+    user_id: str | None = None,
+) -> list[StructuralFinding]:
     """Run the backlink enforcer on all articles and return StructuralFinding rows.
 
     Phase 3 of the lint pipeline — runs after contradictions and orphans.
+
+    Args:
+        session: Async database session.
+        report: The parent LintReport.
+        user_id: Optional user ID to scope the check to a single user's articles.
     """
-    result = await session.execute(select(Article))
+    stmt = select(Article)
+    if user_id is not None:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
     articles = list(result.scalars().all())
 
     findings: list[StructuralFinding] = []
@@ -70,6 +82,7 @@ async def run_enforcer_checks(session: AsyncSession, report: LintReport) -> list
                 violation_type=violation.violation_type,
                 auto_repaired=violation.auto_repaired,
                 detail=violation.detail,
+                user_id=user_id,
             )
             findings.append(finding)
 
@@ -108,6 +121,22 @@ async def _apply_dismiss_suppression(
             finding.dismissed_at = now
 
 
+async def _check_in_progress(
+    session: AsyncSession,
+    user_id: str | None,
+) -> LintReport | None:
+    """Return an existing in-progress report for this user, if any.
+
+    When user_id is None (system/admin call), ANY in-progress report
+    blocks — this is intentional to prevent concurrent global runs.
+    """
+    stmt = select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS)
+    if user_id is not None:
+        stmt = stmt.where(LintReport.user_id == user_id)
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+
 async def run_lint(
     session: AsyncSession,
     job_id: str | None = None,
@@ -126,9 +155,7 @@ async def run_lint(
     settings = get_settings()
     router = get_llm_router()
 
-    # Guard against concurrent runs
-    existing = await session.execute(select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS))
-    in_progress = existing.scalars().first()
+    in_progress = await _check_in_progress(session, user_id)
     if in_progress:
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
@@ -152,13 +179,24 @@ async def run_lint(
 
     try:
         # Phase 1: Contradictions
-        contradictions = await detect_contradictions(session, router, settings, report)
+        contradictions = await detect_contradictions(
+            session,
+            router,
+            settings,
+            report,
+            user_id=user_id,
+        )
 
         # Phase 2: Orphans
-        orphans = await detect_orphans(session, settings, report.id)
+        orphans = await detect_orphans(
+            session,
+            settings,
+            report.id,
+            user_id=user_id,
+        )
 
         # Phase 3: Structural integrity (backlink enforcer)
-        structurals = await run_enforcer_checks(session, report)
+        structurals = await run_enforcer_checks(session, report, user_id=user_id)
 
         # Apply dismiss suppression
         await _apply_dismiss_suppression(session, contradictions, orphans, structurals)

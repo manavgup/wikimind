@@ -111,6 +111,19 @@ async def lifespan(_app: FastAPI):
     settings = get_settings()
     settings.ensure_dirs()
 
+    # Verify write permissions to data directories (fail fast before DB init)
+    if settings.storage_backend == "local":
+        for subdir in ("wiki", "raw"):
+            test_dir = Path(settings.data_dir) / subdir
+            test_dir.mkdir(parents=True, exist_ok=True)
+            test_file = test_dir / ".write-test"
+            try:
+                test_file.write_text("ok")
+                test_file.unlink()
+            except PermissionError:
+                log.critical("No write permission", path=str(test_dir))
+                raise SystemExit(1) from None
+
     log.info("WikiMind gateway starting", port=settings.gateway_port)
     await init_db()
     await _apply_db_preferences()

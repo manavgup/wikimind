@@ -66,6 +66,7 @@ def _parse_concept_ids(raw: str | None) -> list[str]:
 async def upsert_concepts(
     concept_names: list[str],
     session: AsyncSession,
+    user_id: str | None = None,
 ) -> list[Concept]:
     """Create or retrieve Concept rows for the given names.
 
@@ -76,6 +77,7 @@ async def upsert_concepts(
     Args:
         concept_names: Raw concept names from the compiler.
         session: Async database session.
+        user_id: Optional user ID for data isolation.
 
     Returns:
         List of Concept rows (one per unique normalized name).
@@ -89,7 +91,10 @@ async def upsert_concepts(
         if not normalized:
             continue
 
-        result = await session.execute(select(Concept).where(Concept.name == normalized))
+        stmt = select(Concept).where(Concept.name == normalized)
+        if user_id:
+            stmt = stmt.where(Concept.user_id == user_id)
+        result = await session.execute(stmt)
         existing = result.scalar_one_or_none()
 
         if existing is not None:
@@ -102,6 +107,7 @@ async def upsert_concepts(
             concept = Concept(
                 name=normalized,
                 description=raw_name,
+                user_id=user_id,
             )
             session.add(concept)
             await session.flush()
@@ -111,7 +117,10 @@ async def upsert_concepts(
     return concepts
 
 
-async def update_article_counts(session: AsyncSession) -> None:
+async def update_article_counts(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> None:
     """Recalculate ``Concept.article_count`` from the ArticleConcept join table.
 
     Queries the join table for article counts per concept name, normalizes
@@ -120,22 +129,29 @@ async def update_article_counts(session: AsyncSession) -> None:
 
     Args:
         session: Async database session.
+        user_id: Optional user ID for data isolation.
     """
     # Count references per normalized concept name from join table — only
     # source articles count toward the threshold for concept page generation (#155).
     counts: dict[str, int] = {}
-    ac_result = await session.execute(
+    ac_stmt = (
         select(ArticleConcept)
         .join(Article, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(Article.page_type == PageType.SOURCE)
     )
+    if user_id:
+        ac_stmt = ac_stmt.where(Article.user_id == user_id)
+    ac_result = await session.execute(ac_stmt)
     for ac in ac_result.scalars().all():
         normalized = slugify(ac.concept_name)
         if normalized:
             counts[normalized] = counts.get(normalized, 0) + 1
 
-    # Apply counts to all concepts
-    concepts_result = await session.execute(select(Concept))
+    # Apply counts to all concepts (scoped by user_id)
+    concept_stmt = select(Concept)
+    if user_id:
+        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
+    concepts_result = await session.execute(concept_stmt)
     for concept in concepts_result.scalars().all():
         concept.article_count = counts.get(concept.name, 0)
         session.add(concept)
@@ -183,15 +199,25 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
     return current_ids != previous_ids
 
 
-async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
+async def maybe_trigger_concept_pages(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> list[str]:
     """Generate concept pages for concepts with enough source articles.
 
     Skips concepts whose source set has not changed since the last
     compilation, avoiding unnecessary LLM calls (issue #162).
+
+    Args:
+        session: Async database session.
+        user_id: Optional user ID for data isolation.
     """
     settings = get_settings()
     min_sources = settings.taxonomy.concept_page_min_sources
-    result = await session.execute(select(Concept).where(Concept.article_count >= min_sources))
+    stmt = select(Concept).where(Concept.article_count >= min_sources)
+    if user_id:
+        stmt = stmt.where(Concept.user_id == user_id)
+    result = await session.execute(stmt)
     eligible = list(result.scalars().all())
     if not eligible:
         return []
@@ -215,11 +241,15 @@ async def maybe_trigger_concept_pages(session: AsyncSession) -> list[str]:
     return compiled
 
 
-async def maybe_trigger_taxonomy_rebuild(session: AsyncSession) -> bool:
+async def maybe_trigger_taxonomy_rebuild(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> bool:
     """Trigger a taxonomy rebuild if unparented concepts exceed the threshold.
 
     Args:
         session: Async database session.
+        user_id: Optional user ID for data isolation.
 
     Returns:
         True if a rebuild was triggered, False otherwise.
@@ -227,18 +257,24 @@ async def maybe_trigger_taxonomy_rebuild(session: AsyncSession) -> bool:
     settings = get_settings()
     threshold = settings.taxonomy.rebuild_threshold
 
-    result = await session.execute(
-        select(Concept).where(Concept.parent_id.is_(None))  # type: ignore[union-attr]
+    stmt = select(Concept).where(
+        Concept.parent_id.is_(None)  # type: ignore[union-attr]
     )
+    if user_id:
+        stmt = stmt.where(Concept.user_id == user_id)
+    result = await session.execute(stmt)
     unparented = list(result.scalars().all())
 
     if len(unparented) >= threshold:
-        await rebuild_taxonomy(session)
+        await rebuild_taxonomy(session, user_id=user_id)
         return True
     return False
 
 
-async def rebuild_taxonomy(session: AsyncSession) -> None:
+async def rebuild_taxonomy(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> None:
     """Use LLM to infer concept hierarchy and rewrite all parent_ids.
 
     Fetches all concepts, asks the LLM to organize them, validates
@@ -246,11 +282,15 @@ async def rebuild_taxonomy(session: AsyncSession) -> None:
 
     Args:
         session: Async database session.
+        user_id: Optional user ID for data isolation.
     """
     settings = get_settings()
     max_depth = settings.taxonomy.max_hierarchy_depth
 
-    result = await session.execute(select(Concept))
+    concept_stmt = select(Concept)
+    if user_id:
+        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
+    result = await session.execute(concept_stmt)
     all_concepts = list(result.scalars().all())
 
     if not all_concepts:

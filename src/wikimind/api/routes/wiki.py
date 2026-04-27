@@ -125,10 +125,10 @@ async def get_concepts(
 @router.post("/concepts/rebuild", response_model=RebuildConceptsResponse)
 async def rebuild_concepts(
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
+    user_id: str = Depends(get_current_user_id),
 ):
     """Trigger LLM-powered taxonomy hierarchy rebuild."""
-    await rebuild_taxonomy(session)
+    await rebuild_taxonomy(session, user_id=user_id)
     return RebuildConceptsResponse(status="ok")
 
 

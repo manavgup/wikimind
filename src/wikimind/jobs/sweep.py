@@ -74,7 +74,12 @@ async def _sweep_single_article(
     # Deduplicate while preserving order
     unique_candidates = list(dict.fromkeys(matches))
 
-    resolved, _unresolved = await resolve_backlink_candidates(unique_candidates, session, exclude_article_id=article.id)
+    resolved, _unresolved = await resolve_backlink_candidates(
+        unique_candidates,
+        session,
+        exclude_article_id=article.id,
+        user_id=article.user_id,
+    )
 
     if not resolved:
         return False
@@ -114,6 +119,7 @@ async def _sweep_single_article(
                 source_article_id=article.id,
                 target_article_id=rb.target_id,
                 context=rb.candidate_text,
+                user_id=article.user_id,
             )
             session.add(bl)
 

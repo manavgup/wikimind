@@ -134,6 +134,7 @@ class IngestService:
                 "ingest",
                 source.title or "untitled",
                 extra={"source_type": source.source_type, "source_url": source.source_url},
+                user_id=source.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="ingest", source_id=source.id)

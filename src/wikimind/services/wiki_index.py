@@ -172,7 +172,10 @@ def _build_index_lines(
     return lines
 
 
-async def regenerate_index_md(session: AsyncSession) -> str:
+async def regenerate_index_md(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> str:
     """Regenerate the wiki/index.md content catalog from the database.
 
     Reads all Articles + their concepts, groups by concept, writes a
@@ -182,16 +185,22 @@ async def regenerate_index_md(session: AsyncSession) -> str:
 
     Args:
         session: Async database session.
+        user_id: Optional user ID for data isolation.
 
     Returns:
         The wiki-relative path string of the written file.
     """
     settings = get_settings()
     wiki_dir = Path(settings.data_dir) / "wiki"
+    if user_id:
+        wiki_dir = wiki_dir / user_id
     wiki_dir.mkdir(parents=True, exist_ok=True)
     index_path = wiki_dir / "index.md"
 
-    articles_result = await session.execute(select(Article))
+    article_stmt = select(Article)
+    if user_id:
+        article_stmt = article_stmt.where(Article.user_id == user_id)
+    articles_result = await session.execute(article_stmt)
     articles: list[Article] = list(articles_result.scalars().all())
 
     concept_articles, uncategorized = await _group_articles_by_concept(articles, session)
@@ -202,7 +211,35 @@ async def regenerate_index_md(session: AsyncSession) -> str:
     return "index.md"
 
 
-async def generate_meta_health_page(session: AsyncSession) -> str:
+async def _fetch_health_data(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> tuple[list[Article], list[Backlink]]:
+    """Fetch articles and backlinks for the health page, scoped by user_id."""
+    article_stmt = select(Article)
+    if user_id:
+        article_stmt = article_stmt.where(Article.user_id == user_id)
+    articles_result = await session.execute(article_stmt)
+    articles: list[Article] = list(articles_result.scalars().all())
+
+    # Filter backlinks to only those between this user's articles
+    article_ids = {a.id for a in articles}
+    backlink_stmt = select(Backlink)
+    if user_id:
+        backlink_stmt = backlink_stmt.where(
+            Backlink.source_article_id.in_(article_ids),  # type: ignore[attr-defined]
+            Backlink.target_article_id.in_(article_ids),  # type: ignore[attr-defined]
+        )
+    backlinks_result = await session.execute(backlink_stmt)
+    backlinks: list[Backlink] = list(backlinks_result.scalars().all())
+
+    return articles, backlinks
+
+
+async def generate_meta_health_page(
+    session: AsyncSession,
+    user_id: str | None = None,
+) -> str:
     """Generate a meta page with wiki health statistics.
 
     Creates ``wiki/meta/wiki-health.md`` with deterministic summary
@@ -211,24 +248,24 @@ async def generate_meta_health_page(session: AsyncSession) -> str:
 
     Args:
         session: Async database session.
+        user_id: Optional user ID for data isolation.
 
     Returns:
         The wiki-relative path string of the written meta page file.
     """
     settings = get_settings()
-    meta_dir = Path(settings.data_dir) / "wiki" / "meta"
+    meta_dir = Path(settings.data_dir) / "wiki"
+    if user_id:
+        meta_dir = meta_dir / user_id
+    meta_dir = meta_dir / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
     health_path = meta_dir / "wiki-health.md"
 
-    articles_result = await session.execute(select(Article))
-    articles: list[Article] = list(articles_result.scalars().all())
+    articles, backlinks = await _fetch_health_data(session, user_id=user_id)
 
     type_counts: Counter[str] = Counter()
     for article in articles:
         type_counts[article.page_type] += 1
-
-    backlinks_result = await session.execute(select(Backlink))
-    backlinks: list[Backlink] = list(backlinks_result.scalars().all())
 
     relation_counts: Counter[str] = Counter()
     for bl in backlinks:

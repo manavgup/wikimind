@@ -439,15 +439,29 @@ class TestContainerBasics:
             assert resp.status_code == 200
 
     def test_non_root_user(self, container_url: str):
-        """The container should run as non-root (wikimind user)."""
+        """The application process should run as non-root (wikimind user).
+
+        The container starts as root (for volume chown), then drops to
+        wikimind via gosu. PID 1 should be the gunicorn master running
+        as the wikimind user. We check /proc/1/status which is always
+        available on Linux — no dependency on ps or pgrep.
+        """
         result = subprocess.run(
-            ["docker", "exec", CONTAINER_NAME, "whoami"],
+            [
+                "docker",
+                "exec",
+                CONTAINER_NAME,
+                "sh",
+                "-c",
+                "awk '/^Uid:/{print $2}' /proc/1/status",
+            ],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0:
-            assert result.stdout.strip() == "wikimind"
+            uid = result.stdout.strip()
+            assert uid != "0", "PID 1 is running as root (UID 0), expected wikimind"
 
     def test_data_dir_writable(self, container_url: str):
         """The data directory should be writable by the container user."""
