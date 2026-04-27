@@ -6,6 +6,11 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 The CI pipeline runs on every pull request and push to `main`.
 
+In addition to the broad lint, unit, and e2e workflows, CI now has two focused backend regression lanes:
+
+- `auth-and-multiuser` runs the auth, endpoint dependency, and ownership/isolation regression subset via `make test-auth-multiuser`
+- `postgres-integration` provisions PostgreSQL and runs the dedicated Postgres regression suite via `make test-postgres-integration`
+
 ### Quality Gates
 
 The following checks must pass before merging:
@@ -18,6 +23,8 @@ The following checks must pass before merging:
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
 | Tests | `make coverage-check` | pytest with 80% coverage threshold |
+| Auth & multi-user | `make test-auth-multiuser` | Focused auth, dependency wiring, and user-isolation regressions |
+| Postgres integration | `make test-postgres-integration` | PostgreSQL-backed integration regression suite |
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |

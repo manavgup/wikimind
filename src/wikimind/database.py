@@ -580,10 +580,16 @@ async def _backfill_concepts_from_articles(engine) -> None:
                 concept_id = str(uuid.uuid4())
                 await conn.execute(
                     sa_text(
-                        "INSERT INTO concept (id, name, description, article_count, created_at) "
-                        "VALUES (:id, :name, :desc, 0, :created_at)"
+                        "INSERT INTO concept (id, name, description, article_count, created_at, concept_kind) "
+                        "VALUES (:id, :name, :desc, 0, :created_at, :concept_kind)"
                     ),
-                    {"id": concept_id, "name": normalized, "desc": raw_name, "created_at": utcnow_naive().isoformat()},
+                    {
+                        "id": concept_id,
+                        "name": normalized,
+                        "desc": raw_name,
+                        "created_at": utcnow_naive(),
+                        "concept_kind": "topic",
+                    },
                 )
 
         # Recalculate article counts

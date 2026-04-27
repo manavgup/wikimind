@@ -108,6 +108,15 @@ serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842
 
 DEV_PG_URL := postgresql+asyncpg://wikimind:wikimind@localhost:5433/wikimind
+AUTH_MULTIUSER_TESTS := \
+	tests/unit/test_auth.py \
+	tests/unit/test_endpoint_user_id.py \
+	tests/unit/test_linter_user_scoping.py \
+	tests/unit/test_wikilink_user_scoping.py \
+	tests/unit/test_user_scoping.py \
+	tests/unit/test_query_service.py \
+	tests/unit/test_services.py
+POSTGRES_INTEGRATION_TESTS := tests/integration/test_postgres_integration.py
 
 .PHONY: pg-up
 pg-up: ## Start local Postgres (docker-compose.dev.yml, port 5433)
@@ -323,6 +332,18 @@ test-unit: ## Run unit tests only
 .PHONY: test-integration
 test-integration: ## Run integration tests only
 	$(BIN)/pytest tests/integration -v
+
+.PHONY: test-auth-multiuser
+test-auth-multiuser: ## Run focused auth and multi-user regression tests
+	WIKIMIND_LLM__MOCK__ENABLED=$${WIKIMIND_LLM__MOCK__ENABLED:-true} \
+	WIKIMIND_LLM__DEFAULT_PROVIDER=$${WIKIMIND_LLM__DEFAULT_PROVIDER:-mock} \
+	$(BIN)/pytest $(AUTH_MULTIUSER_TESTS) -q
+
+.PHONY: test-postgres-integration
+test-postgres-integration: ## Run PostgreSQL-backed integration regression tests
+	WIKIMIND_DATABASE_URL=$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)} \
+	WIKIMIND_TEST_POSTGRES_URL=$${WIKIMIND_TEST_POSTGRES_URL:-$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)}} \
+	$(BIN)/pytest $(POSTGRES_INTEGRATION_TESTS) -m postgres -v
 
 .PHONY: coverage
 coverage: ## Run tests with coverage report and HTML output
