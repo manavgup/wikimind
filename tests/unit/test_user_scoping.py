@@ -34,6 +34,7 @@ from wikimind.services.wiki_index import (
     generate_meta_health_page,
     regenerate_index_md,
 )
+from wikimind.storage import resolve_wiki_path
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -322,10 +323,12 @@ class TestFileBackSelectionPathScoping:
         )
         article_info = result["article"]
 
-        # Verify the article's file was written under wiki/alice/qa-answers/
+        # Verify the article stores a relative path and resolves under wiki/alice/
         art_result = await db_session.execute(select(Article).where(Article.id == article_info["id"]))
         article = art_result.scalar_one()
-        assert "alice" in article.file_path or "/alice/" in article.file_path
+        assert article.file_path.startswith("qa-answers/")
+        resolved = resolve_wiki_path(article.file_path, user_id="alice")
+        assert "/alice/" in str(resolved)
 
 
 # ---------------------------------------------------------------------------
