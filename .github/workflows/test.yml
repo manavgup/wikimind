@@ -4,8 +4,9 @@
 # ===============================================================
 #
 #   - runs the backend test suite on the pinned CI Python version
-#   - measures branch + line coverage via `pyproject.toml` (fails < 80%)
+#   - measures branch + line coverage (fails < 80%)
 #   - uploads the HTML coverage report as a build artifact
+#   - uploads coverage to Codecov on pushes and PRs so patch coverage is reported
 #   - executes on every push / PR to `main` when backend test inputs change
 # ---------------------------------------------------------------
 
@@ -18,8 +19,9 @@ on:
       - "src/**"
       - "tests/**"
       - "pyproject.toml"
-      - "Makefile"
       - "uv.lock"
+      - "Makefile"
+      - "codecov.yml"
       - ".github/workflows/test.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
@@ -28,8 +30,9 @@ on:
       - "src/**"
       - "tests/**"
       - "pyproject.toml"
-      - "Makefile"
       - "uv.lock"
+      - "Makefile"
+      - "codecov.yml"
       - ".github/workflows/test.yml"
 
 concurrency:
@@ -38,6 +41,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   test:
@@ -86,17 +90,10 @@ jobs:
         run: uv sync --frozen --extra dev
 
       # -----------------------------------------------------------
-      # 3️⃣  Run the tests with coverage
+      # 3️⃣  Run the tests with coverage (fail under 80%)
       # -----------------------------------------------------------
       - name: 🧪  Run pytest
-        run: |
-          uv run pytest \
-            -m "not e2e" \
-            --cov=wikimind \
-            --cov-report=term-missing \
-            --cov-report=html:htmlcov \
-            --cov-report=xml:coverage.xml \
-            -v
+        run: make coverage-ci
 
       # -----------------------------------------------------------
       # 4️⃣  Upload coverage artifacts (HTML report)
@@ -111,13 +108,14 @@ jobs:
           if-no-files-found: ignore
 
       # -----------------------------------------------------------
-      # 5️⃣  Upload coverage to Codecov (main branch only)
+      # 5️⃣  Upload coverage to Codecov (push + PR for project/patch status)
       # -----------------------------------------------------------
       - name: 📈  Codecov upload
-        if: matrix.python == '3.12' && github.event_name == 'push'
-        uses: codecov/codecov-action@v4
+        if: matrix.python == '3.12'
+        uses: codecov/codecov-action@v5
         with:
-          file: coverage.xml
+          files: coverage.xml
+          flags: backend
+          name: backend-py312
           fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true

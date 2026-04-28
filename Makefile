@@ -200,9 +200,25 @@ security: bandit vulture ## Run security and dead-code checks
 .PHONY: verify
 verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
 
+.PHONY: coverage-ci
+coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outputs
+	$(BIN)/pytest \
+		-m "not e2e and not postgres" \
+		--cov=wikimind \
+		--cov-branch \
+		--cov-report=term-missing \
+		--cov-report=html:htmlcov \
+		--cov-report=xml:coverage.xml \
+		--cov-fail-under=80 \
+		-v
+
 .PHONY: coverage-check
 coverage-check: ## Run non-E2E tests with coverage (policy is configured in pyproject.toml)
 	$(BIN)/pytest -m "not e2e" --cov=wikimind --cov-report=term-missing --cov-report=html
+
+.PHONY: security-check
+security-check: ## Run the scheduled CI security scan set
+	$(BIN)/bandit -r src/wikimind -c pyproject.toml
 
 .PHONY: frontend-install
 frontend-install: ## Install frontend dependencies
@@ -323,6 +339,10 @@ test-unit: ## Run unit tests only
 .PHONY: test-integration
 test-integration: ## Run integration tests only
 	$(BIN)/pytest tests/integration -v
+
+.PHONY: test-postgres-ci
+test-postgres-ci: ## Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL)
+	$(BIN)/pytest tests/integration/test_postgres_integration.py -m postgres -v
 
 .PHONY: coverage
 coverage: ## Run tests with coverage report and HTML output

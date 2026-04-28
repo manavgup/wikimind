@@ -1,0 +1,293 @@
+name: Nightly full-stack
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  backend-coverage:
+    name: backend tests + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: 🧪  Run backend coverage suite
+        run: make coverage-ci
+
+      - name: 📤  Upload HTML coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-coverage-report
+          path: htmlcov/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: 📈  Codecov upload
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: backend
+          name: nightly-backend-py312
+          fail_ci_if_error: false
+          use_oidc: true
+
+  postgres-integration:
+    name: Postgres integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wikimind_test
+          POSTGRES_USER: wikimind
+          POSTGRES_PASSWORD: wikimind # pragma: allowlist secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wikimind -d wikimind_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_TEST_POSTGRES_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_test # pragma: allowlist secret
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: 🧪  Run Postgres integration tests
+        run: make test-postgres-ci
+
+  e2e:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_LLM__MOCK__ENABLED: "true"
+      WIKIMIND_LLM__DEFAULT_PROVIDER: "mock"
+      WIKIMIND_DATA_DIR: "/tmp/wikimind-e2e"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install Python dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: ⚙️  Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: 📦  Install frontend dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: 🎭  Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: 🚀  Start backend
+        run: |
+          uv run python -m uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 &
+          echo "Waiting for backend to become ready..."
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:7842/docs > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "❌ Backend failed to start within 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: 🌱  Seed wiki with fixture article
+        run: |
+          curl -sf -X POST http://127.0.0.1:7842/ingest/text \
+            -H "Content-Type: application/json" \
+            -d '{"content":"WikiMind is a personal LLM-powered knowledge OS that ingests sources, compiles them into wiki articles, and answers questions against the wiki. It closes the Karpathy loop by filing conversations back into the wiki as new articles.","title":"WikiMind Overview","auto_compile":true}'
+          echo ""
+          echo "Waiting for in-process compile to complete..."
+          for i in {1..30}; do
+            count=$(curl -sf http://127.0.0.1:7842/wiki/articles | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+            if [ "$count" -gt 0 ]; then
+              echo "Wiki seeded with ${count} article(s) after ${i}s"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ No article appeared in the wiki within 30s of ingest"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: 🎯  Run Playwright e2e
+        working-directory: apps/web
+        env:
+          CI: "true"
+        run: npm run e2e
+
+      - name: 📤  Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: 📤  Upload Playwright test-results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-playwright-test-results
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  smoke:
+    name: Docker smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install test dependencies
+        run: uv sync --frozen --extra test
+
+      - name: 🔧  Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🧪  Run Docker smoke tests
+        run: |
+          uv run pytest tests/smoke/ \
+            -m e2e \
+            -v \
+            --timeout=600 \
+            -x
+
+      - name: 📤  Capture container logs on failure
+        if: failure()
+        run: |
+          docker logs wikimind-smoke-test 2>&1 || echo "No container logs available"
+          docker logs wikimind-smoke-test-auth 2>&1 || echo "No auth container logs available"
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 🐍  Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 📦  Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 📦  Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: 🔒  Run Bandit
+        run: make security-check
