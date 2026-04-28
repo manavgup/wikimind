@@ -459,6 +459,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 output_tokens=resp.output_tokens,
                 cost_usd=resp.cost_usd,
                 latency_ms=resp.latency_ms,
+                user_id=user_id,
             )
             session.add(cost_entry)
             await session.commit()

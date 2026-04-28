@@ -22,6 +22,7 @@ from wikimind.models import (
     TurnSelection,
 )
 from wikimind.services.query import QueryService, _build_citations, _sanitize_filename
+from wikimind.storage import resolve_wiki_path
 
 
 async def _seed(db_session, tmp_path: Path) -> tuple[Query, Article, Source]:
@@ -422,7 +423,8 @@ class TestFileBackSelection:
         # Verify the article was created on disk
         article = await db_session.get(Article, article_data["id"])
         assert article is not None
-        content = Path(article.file_path).read_text(encoding="utf-8")
+        resolved = resolve_wiki_path(article.file_path)
+        content = resolved.read_text(encoding="utf-8")
         assert "## Q1: Q1 from thread 1" in content
         assert "## Q2: Q3 from thread 1" in content
         # Q2 from thread 1 (turn_index=1) should NOT be present
@@ -446,7 +448,8 @@ class TestFileBackSelection:
         assert article_data["title"] == "Merged Research"
 
         article = await db_session.get(Article, article_data["id"])
-        content = Path(article.file_path).read_text(encoding="utf-8")
+        resolved = resolve_wiki_path(article.file_path)
+        content = resolved.read_text(encoding="utf-8")
         assert "# Merged Research" in content
         assert "## Q1: Q1 from thread 1" in content
         assert "## Q2: Q1 from thread 2" in content
@@ -528,7 +531,8 @@ class TestFileBackSelection:
 
         assert result["article"]["title"] == "My Custom Title"
         article = await db_session.get(Article, result["article"]["id"])
-        content = Path(article.file_path).read_text(encoding="utf-8")
+        resolved = resolve_wiki_path(article.file_path)
+        content = resolved.read_text(encoding="utf-8")
         assert "# My Custom Title" in content
 
 
