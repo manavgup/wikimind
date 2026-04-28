@@ -253,10 +253,11 @@ markers = [
 # ---------- Coverage ----------
 [tool.coverage.run]
 source = ["wikimind"]
+branch = true
 omit = ["*/tests/*", "*/conftest.py"]
 
 [tool.coverage.report]
-fail_under = 40
+fail_under = 80
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

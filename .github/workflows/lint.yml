@@ -4,6 +4,7 @@
 #
 #   - runs ruff (linter + formatter check) and mypy in parallel
 #   - ruff catches import ordering, style violations, bugbear
+#   - ruff scope matches `make lint` / `make format-check` (`src/` + `tests/`)
 #   - mypy enforces strict type checking with pydantic plugin
 #   - fast — should complete in under 2 minutes
 # ---------------------------------------------------------------
@@ -15,16 +16,20 @@ on:
     branches: ["main"]
     paths:
       - "src/**"
+      - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "Makefile"
       - ".github/workflows/lint.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: ["main"]
     paths:
       - "src/**"
+      - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "Makefile"
       - ".github/workflows/lint.yml"
 
 concurrency:
@@ -67,10 +72,10 @@ jobs:
         run: uv sync --frozen --extra lint
 
       - name: 🔍  Ruff lint
-        run: uv run ruff check src/
+        run: uv run ruff check src/ tests/
 
       - name: 🎨  Ruff format check
-        run: uv run ruff format --check src/
+        run: uv run ruff format --check src/ tests/
 
   # -----------------------------------------------------------
   # Job 2 — Mypy: strict type checking

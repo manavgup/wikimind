@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fix volume ownership — Fly.io volumes may retain root ownership across deploys
+# Fix volume ownership — Fly.io volumes may retain root ownership across deploys.
+# Fast-path: skip chown -R if the data dir is already owned by wikimind (UID 1000).
 if [ "$(id -u)" = "0" ]; then
-    chown -R wikimind:wikimind "${WIKIMIND_DATA_DIR:-/home/wikimind/.wikimind}"
+    _data_dir="${WIKIMIND_DATA_DIR:-/home/wikimind/.wikimind}"
+    if [ "$(stat -c '%u' "$_data_dir" 2>/dev/null)" != "1000" ]; then
+        chown -R wikimind:wikimind "$_data_dir"
+    fi
     exec gosu wikimind "$0" "$@"
 fi
 

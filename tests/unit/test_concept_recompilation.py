@@ -293,4 +293,4 @@ class TestReplaceArticleTriggersConceptPages:
             await compiler._replace_article_in_place(existing, result, source, db_session)
 
         # The key assertion: maybe_trigger_concept_pages was called.
-        mock_trigger.assert_called_once_with(mock_concept_session)
+        mock_trigger.assert_called_once_with(mock_concept_session, user_id=source.user_id)

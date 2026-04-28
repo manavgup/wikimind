@@ -1,12 +1,13 @@
+#
 # ===============================================================
 # 🧪  PyTest & Coverage — Quality Gate
 # ===============================================================
 #
-#   - runs the backend test suite on Python 3.12
+#   - runs the backend test suite on the pinned CI Python version
 #   - measures branch + line coverage (fails < 80%)
 #   - uploads the HTML coverage report as a build artifact
 #   - uploads coverage to Codecov on pushes and PRs so patch coverage is reported
-#   - executes on every push / PR to *main*
+#   - executes on every push / PR to `main` when backend test inputs change
 # ---------------------------------------------------------------
 
 name: Tests & Coverage

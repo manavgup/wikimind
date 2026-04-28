@@ -125,7 +125,11 @@ async def _check_in_progress(
     session: AsyncSession,
     user_id: str | None,
 ) -> LintReport | None:
-    """Return an existing in-progress report for this user, if any."""
+    """Return an existing in-progress report for this user, if any.
+
+    When user_id is None (system/admin call), ANY in-progress report
+    blocks — this is intentional to prevent concurrent global runs.
+    """
     stmt = select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS)
     if user_id is not None:
         stmt = stmt.where(LintReport.user_id == user_id)

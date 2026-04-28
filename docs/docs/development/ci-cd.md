@@ -4,7 +4,10 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 ## CI Pipeline
 
-The primary CI pipeline runs on every pull request and push to `main`.
+WikiMind splits CI across multiple GitHub Actions workflows. For test policy, the relevant workflow is `test.yml`, which runs on pushes to `main` and pull requests targeting `main` when backend test inputs change.
+
+`Full Verify` is the required merge gate. It runs `make verify` in CI so the authoritative verification sequence stays in the `Makefile` instead of being duplicated in workflow YAML.
+It also installs the repo-root Node tooling manifest so `basedpyright` is pinned in-version-controlled metadata instead of being fetched ad hoc via `npx`.
 
 ### Quality Gates
 
@@ -20,7 +23,17 @@ The following checks must pass before merging:
 | Tests | `make coverage-ci` | backend pytest suite with HTML + XML coverage artifacts and an 80% repo floor in CI |
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
+| Extension | `make extension-verify` | Browser extension typecheck + build |
 | Doc sync | `make check-docs` | Verify generated docs are in sync |
+| Dependency review | GitHub Action | Blocks vulnerable dependency changes in Python and frontend lockfiles |
+| Bandit | `make bandit` | Python security scan for `src/wikimind` |
+| CodeQL | GitHub Action | Repository code scanning for Python and TypeScript/JavaScript |
+
+### Required vs supplemental workflows
+
+- Required: `Full Verify` runs `make verify` and therefore covers `make lint`, `make format-check`, `make typecheck`, `make pyright`, `make docstyle`, `make coverage-check`, `make desktop-verify`, and `make extension-verify`.
+- Supplemental: `Lint & Static Analysis`, `Tests & Coverage`, `Pre-commit Checks`, and the docs/smoke/e2e workflows still provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
+- Intentional scope difference: `make verify` does not include `make frontend-verify` or `make check-docs`, so those remain separate CI checks rather than being folded into the required gate.
 
 ### Mock Provider for CI
 
@@ -49,9 +62,9 @@ This workflow is intentionally broader than PR CI because its job is drift detec
 
 ## Coverage Gates
 
-WikiMind now uses two separate coverage guardrails:
+WikiMind uses two separate coverage guardrails:
 
-- Total backend coverage: the GitHub Actions backend test job still enforces a repository-wide floor via `make coverage-ci`.
+- Total backend coverage: the GitHub Actions backend test job enforces a repository-wide floor via `make coverage-ci`.
 - Changed-code coverage: Codecov receives the same `coverage.xml` upload on both pushes and pull requests, and `codecov.yml` defines a `codecov/patch` status for PRs.
 
 Current Codecov policy:
@@ -106,7 +119,9 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 
 The project uses:
 
-- **bandit** for Python security scanning (`make bandit`)
+- **Dependency Review** on pull requests that change Python dependency files or frontend `package.json` / `package-lock.json` files
+- **bandit** for Python security scanning (`make bandit`) with JSON-to-SARIF conversion, code scanning upload in CI, and merge blocking only for medium-or-higher severity findings
+- **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan
 - a nightly Bandit run in `.github/workflows/nightly.yml`
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds
