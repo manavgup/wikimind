@@ -295,7 +295,7 @@ class LLMRouter:
         except Exception:
             log.debug("Failed to set budget flag in Redis", flag=flag_name)
 
-    async def _check_budget(self, user_id: str | None = None) -> None:
+    async def _check_budget(self, user_id: str) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
         current_month = utcnow_naive()
         month_key = (current_month.year, current_month.month)
@@ -353,7 +353,7 @@ class LLMRouter:
         model: str,
         task_type: TaskType,
         response: CompletionResponse,
-        user_id: str | None = None,
+        user_id: str,
     ) -> None:
         """Write a CostLog entry in an independent session."""
         cost_entry = CostLog(
@@ -412,9 +412,6 @@ class LLMRouter:
                 instance = await self._get_provider_instance(provider, api_key_override=user_key)
                 response = await instance.complete(request, model)
 
-                # Log cost in independent session
-                await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
-
                 log.info(
                     "LLM call complete",
                     provider=provider,
@@ -422,13 +419,19 @@ class LLMRouter:
                     latency_ms=response.latency_ms,
                 )
 
-                def _log_budget_error(t: asyncio.Task) -> None:
-                    if not t.cancelled():
-                        exc = t.exception()
-                        if exc:
-                            log.warning("budget check failed", error=str(exc))
+                # Cost logging and budget checks require user_id (#381)
+                if user_id:
+                    await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
 
-                task = asyncio.create_task(self._check_budget(user_id=user_id))
+                    def _log_budget_error(t: asyncio.Task) -> None:
+                        if not t.cancelled():
+                            exc = t.exception()
+                            if exc:
+                                log.warning("budget check failed", error=str(exc))
+
+                    task = asyncio.create_task(self._check_budget(user_id=user_id))
+                else:
+                    log.warning("LLM call without user_id — cost not logged")
                 task.add_done_callback(_log_budget_error)
                 return response
 
@@ -505,15 +508,17 @@ class LLMRouter:
                     temperature=temperature,
                 )
 
-                # Log cost in independent session
-                await self._log_cost(provider, model, task_type, response, user_id=user_id)
-
                 log.info(
                     "LLM multimodal call complete",
                     provider=provider,
                     cost_usd=response.cost_usd,
                     latency_ms=response.latency_ms,
                 )
+
+                if user_id:
+                    await self._log_cost(provider, model, task_type, response, user_id=user_id)
+                else:
+                    log.warning("LLM multimodal call without user_id — cost not logged")
                 return response
 
             except Exception as e:  # TODO: narrow once provider error hierarchy is unified
