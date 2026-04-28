@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 from functools import lru_cache
 from pathlib import Path
 
@@ -349,6 +350,34 @@ class Settings(BaseSettings):
         )
 
 
+def _ensure_jwt_secret(settings: Settings) -> None:
+    """Auto-generate a stable JWT secret when auth is disabled (single-user mode).
+
+    When ``auth.enabled`` is False and no ``jwt_secret_key`` is configured,
+    BYOK key encryption would fail because there's no secret to derive the
+    Fernet key from.  This helper loads a persisted secret from the data
+    directory (``{data_dir}/.jwt_secret``), or generates and saves one if
+    it doesn't exist.  The secret survives server restarts so encrypted
+    BYOK keys remain readable.
+    """
+    if settings.auth.enabled or settings.auth.jwt_secret_key:
+        return
+
+    secret_path = Path(settings.data_dir) / ".jwt_secret"
+    if secret_path.exists():
+        stored = secret_path.read_text().strip()
+        if stored:
+            settings.auth.jwt_secret_key = stored
+            log.info("loaded auto-generated JWT secret", path=str(secret_path))
+            return
+
+    generated = secrets.token_hex(32)
+    secret_path.parent.mkdir(parents=True, exist_ok=True)
+    secret_path.write_text(generated)
+    settings.auth.jwt_secret_key = generated
+    log.info("generated JWT secret for single-user BYOK", path=str(secret_path))
+
+
 def _reconcile_providers(settings: Settings) -> None:
     """Auto-enable providers with keys; warn about enabled ones without."""
     for name, (_field, raw_env) in _PROVIDER_KEY_FIELDS.items():
@@ -366,6 +395,7 @@ def get_settings() -> Settings:
     """Load and return application settings (cached singleton)."""
     settings = Settings()
     settings.ensure_dirs()
+    _ensure_jwt_secret(settings)
     _reconcile_providers(settings)
     return settings
 

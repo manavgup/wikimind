@@ -3,7 +3,7 @@
 import keyring
 import pytest
 
-from wikimind.config import Settings, _reconcile_providers, get_settings
+from wikimind.config import Settings, _ensure_jwt_secret, _reconcile_providers, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -231,3 +231,53 @@ class TestDatabaseUrlRewrite:
     def test_sqlite_default_when_no_env(self):
         s = Settings()
         assert "sqlite+aiosqlite" in s.database_url
+
+
+class TestEnsureJwtSecret:
+    """Auto-generate JWT secret for BYOK when auth is disabled (issue #383)."""
+
+    def test_generates_secret_when_auth_disabled_and_no_key(self, tmp_path):
+        """When auth.enabled=False and jwt_secret_key is empty, a secret is generated."""
+        s = Settings(data_dir=str(tmp_path))
+        s.auth.enabled = False
+        s.auth.jwt_secret_key = ""
+        _ensure_jwt_secret(s)
+        assert s.auth.jwt_secret_key != ""
+        assert len(s.auth.jwt_secret_key) == 64  # token_hex(32) → 64 hex chars
+
+    def test_persists_secret_to_file(self, tmp_path):
+        """The generated secret is saved to {data_dir}/.jwt_secret."""
+        s = Settings(data_dir=str(tmp_path))
+        s.auth.enabled = False
+        s.auth.jwt_secret_key = ""
+        _ensure_jwt_secret(s)
+        secret_file = tmp_path / ".jwt_secret"
+        assert secret_file.exists()
+        assert secret_file.read_text() == s.auth.jwt_secret_key
+
+    def test_loads_existing_secret(self, tmp_path):
+        """If .jwt_secret already exists, the stored value is reused."""
+        secret_file = tmp_path / ".jwt_secret"
+        secret_file.write_text("my-persisted-secret-value")
+        s = Settings(data_dir=str(tmp_path))
+        s.auth.enabled = False
+        s.auth.jwt_secret_key = ""
+        _ensure_jwt_secret(s)
+        assert s.auth.jwt_secret_key == "my-persisted-secret-value"
+
+    def test_skips_when_auth_enabled(self, tmp_path):
+        """No auto-generation when auth is explicitly enabled."""
+        s = Settings(data_dir=str(tmp_path))
+        s.auth.enabled = True
+        s.auth.jwt_secret_key = ""
+        _ensure_jwt_secret(s)
+        assert s.auth.jwt_secret_key == ""
+
+    def test_skips_when_key_already_set(self, tmp_path):
+        """No auto-generation when jwt_secret_key is already configured."""
+        s = Settings(data_dir=str(tmp_path))
+        s.auth.enabled = False
+        s.auth.jwt_secret_key = "explicit-secret"
+        _ensure_jwt_secret(s)
+        assert s.auth.jwt_secret_key == "explicit-secret"
+        assert not (tmp_path / ".jwt_secret").exists()

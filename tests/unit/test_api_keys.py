@@ -226,8 +226,10 @@ class TestAPIRoutes:
         )
         assert resp.status_code == 400
 
-    async def test_set_key_without_jwt_secret(self, client: AsyncClient, monkeypatch):
-        """PUT returns 500 with descriptive error when JWT_SECRET_KEY is missing."""
+    async def test_set_key_works_without_explicit_jwt_secret(
+        self, client: AsyncClient, monkeypatch
+    ):
+        """PUT succeeds when JWT_SECRET_KEY is not set — auto-generated in single-user mode."""
         monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
         get_settings.cache_clear()
         try:
@@ -235,8 +237,8 @@ class TestAPIRoutes:
                 "/api/settings/api-keys/openai",
                 json={"api_key": "sk-test-key-1234"},  # pragma: allowlist secret
             )
-            assert resp.status_code == 500
-            assert "JWT_SECRET_KEY" in resp.json()["detail"]
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "ok"
         finally:
             get_settings.cache_clear()
 
