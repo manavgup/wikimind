@@ -627,7 +627,7 @@ class QueryService:
         article = Article(
             slug=slug,
             title=effective_title,
-            file_path=str(file_path),
+            file_path=f"qa-answers/{slug}.md",
             summary=(selected_turns[0].query.answer[:200] if selected_turns else None),
             confidence=None,
             page_type=PageType.ANSWER,
