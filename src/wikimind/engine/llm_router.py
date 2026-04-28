@@ -295,7 +295,7 @@ class LLMRouter:
         except Exception:
             log.debug("Failed to set budget flag in Redis", flag=flag_name)
 
-    async def _check_budget(self) -> None:
+    async def _check_budget(self, user_id: str | None = None) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
         current_month = utcnow_naive()
         month_key = (current_month.year, current_month.month)
@@ -318,9 +318,11 @@ class LLMRouter:
         else:
             start_of_month = current_month.replace(day=1, hour=0, minute=0, second=0)
             async with get_session_factory()() as session:
-                result = await session.execute(
-                    select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
+                stmt = select(func.sum(CostLog.cost_usd)).where(
+                    CostLog.created_at >= start_of_month,
+                    CostLog.user_id == user_id,
                 )
+                result = await session.execute(stmt)
                 spend = result.scalar() or 0.0
             self._cached_spend = spend
             self._cache_expires_at = now + self.settings.llm.budget_check_cache_seconds
@@ -351,6 +353,7 @@ class LLMRouter:
         model: str,
         task_type: TaskType,
         response: CompletionResponse,
+        user_id: str | None = None,
     ) -> None:
         """Write a CostLog entry in an independent session."""
         cost_entry = CostLog(
@@ -361,6 +364,7 @@ class LLMRouter:
             output_tokens=response.output_tokens,
             cost_usd=response.cost_usd,
             latency_ms=response.latency_ms,
+            user_id=user_id,
         )
         try:
             async with get_session_factory()() as cost_session:
@@ -409,7 +413,7 @@ class LLMRouter:
                 response = await instance.complete(request, model)
 
                 # Log cost in independent session
-                await self._log_cost(provider, model, request.task_type, response)
+                await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
 
                 log.info(
                     "LLM call complete",
@@ -424,7 +428,7 @@ class LLMRouter:
                         if exc:
                             log.warning("budget check failed", error=str(exc))
 
-                task = asyncio.create_task(self._check_budget())
+                task = asyncio.create_task(self._check_budget(user_id=user_id))
                 task.add_done_callback(_log_budget_error)
                 return response
 
@@ -502,7 +506,7 @@ class LLMRouter:
                 )
 
                 # Log cost in independent session
-                await self._log_cost(provider, model, task_type, response)
+                await self._log_cost(provider, model, task_type, response, user_id=user_id)
 
                 log.info(
                     "LLM multimodal call complete",
