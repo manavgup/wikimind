@@ -56,6 +56,8 @@ async def get_ws_user_id(websocket: WebSocket) -> str:
             token,
             settings.auth.jwt_secret_key,
             algorithms=[settings.auth.jwt_algorithm],
+            # Accept both session tokens (no aud) and API tokens (aud=wikimind-api).
+            options={"verify_aud": False},
         )
         return payload.get("sub") or ANONYMOUS_USER_ID
     except jwt.InvalidTokenError:

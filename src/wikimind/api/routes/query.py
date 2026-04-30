@@ -63,9 +63,9 @@ async def ask_stream(
             except asyncio.CancelledError:
                 log.info("SSE client disconnected, aborting stream")
                 await session.rollback()
-            except Exception as e:  # Intentional broad catch — SSE must send error event, not crash
-                log.error("SSE stream error", error=str(e))
-                error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
+            except Exception:  # Intentional broad catch — SSE must send error event, not crash
+                log.exception("SSE stream error")
+                error_payload = json.dumps({"code": "stream_failed", "message": "Internal server error"})
                 yield f"event: error\ndata: {error_payload}\n\n"
                 await session.rollback()
 

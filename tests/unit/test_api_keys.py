@@ -236,7 +236,7 @@ class TestAPIRoutes:
         assert resp.status_code == 400
 
     async def test_set_key_without_jwt_secret(self, client: AsyncClient, monkeypatch):
-        """PUT returns 500 with descriptive error when JWT_SECRET_KEY is missing."""
+        """PUT returns 500 with generic error when JWT_SECRET_KEY is missing."""
         monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
         get_settings.cache_clear()
         try:
@@ -245,7 +245,9 @@ class TestAPIRoutes:
                 json={"api_key": "sk-test-key-1234"},  # pragma: allowlist secret
             )
             assert resp.status_code == 500
-            assert "JWT_SECRET_KEY" in resp.json()["detail"]
+            assert resp.json()["detail"] == "Failed to store API key"
+            # Internal details (e.g. JWT_SECRET_KEY) must NOT leak to client
+            assert "JWT_SECRET_KEY" not in resp.json()["detail"]
         finally:
             get_settings.cache_clear()
 

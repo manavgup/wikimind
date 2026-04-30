@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import func, select
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from wikimind.config import Settings
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -495,10 +498,11 @@ async def test_llm_connection(
             latency_ms=response.latency_ms,
         )
     except Exception as e:  # TODO: narrow once provider error hierarchy is unified
+        log.warning("LLM connection test failed", provider=provider, error=str(e))
         return LLMTestResponse(
             provider=provider,
             status="error",
-            error=str(e),
+            error="Provider connection failed",
         )
     finally:
         router_instance.settings.llm.fallback_enabled = original_fallback

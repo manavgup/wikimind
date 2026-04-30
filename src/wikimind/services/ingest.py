@@ -58,7 +58,8 @@ class IngestService:
         try:
             source, doc = await self._adapter.ingest_url(url, session, user_id=user_id)
         except (httpx.HTTPError, ValueError, OSError) as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            log.warning("URL ingestion failed", url=url, error=str(e))
+            raise HTTPException(status_code=400, detail="Failed to ingest URL") from e
 
         self._log_ingest(source)
 
