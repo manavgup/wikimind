@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import TEST_USER_ID
 from wikimind.jobs import background as bg_mod
 from wikimind.jobs import worker as worker_mod
 from wikimind.jobs.background import BackgroundCompiler, get_background_compiler
@@ -15,7 +16,7 @@ async def test_background_compiler_dev_mode_compile() -> None:
     bc = BackgroundCompiler()
     bc._redis_url = None
     with patch.object(bg_mod, "compile_source", AsyncMock()):
-        job_id = await bc.schedule_compile("src-1", user_id="test-user")
+        job_id = await bc.schedule_compile("src-1", user_id=TEST_USER_ID)
     assert job_id
 
 
@@ -23,7 +24,7 @@ async def test_background_compiler_dev_mode_lint() -> None:
     bc = BackgroundCompiler()
     bc._redis_url = None
     with patch.object(bg_mod, "lint_wiki", AsyncMock()):
-        job_id = await bc.schedule_lint(user_id="test-user")
+        job_id = await bc.schedule_lint(user_id=TEST_USER_ID)
     assert job_id
 
 
@@ -34,7 +35,7 @@ async def test_background_compiler_prod_mode_compile() -> None:
     fake_pool.enqueue_job = AsyncMock()
     fake_pool.close = AsyncMock()
     with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
-        await bc.schedule_compile("src-1", user_id="test-user")
+        await bc.schedule_compile("src-1", user_id=TEST_USER_ID)
     fake_pool.enqueue_job.assert_awaited()
     fake_pool.close.assert_awaited()
 
@@ -46,18 +47,18 @@ async def test_background_compiler_prod_mode_lint() -> None:
     fake_pool.enqueue_job = AsyncMock()
     fake_pool.close = AsyncMock()
     with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
-        await bc.schedule_lint(user_id="test-user")
+        await bc.schedule_lint(user_id=TEST_USER_ID)
     fake_pool.enqueue_job.assert_awaited()
 
 
 async def test_run_compile_in_process_logs_exception() -> None:
     with patch.object(bg_mod, "compile_source", AsyncMock(side_effect=RuntimeError("x"))):
-        await BackgroundCompiler._run_compile_in_process("src-1", user_id="test-user")
+        await BackgroundCompiler._run_compile_in_process("src-1", user_id=TEST_USER_ID)
 
 
 async def test_run_lint_in_process_logs_exception() -> None:
     with patch.object(bg_mod, "lint_wiki", AsyncMock(side_effect=RuntimeError("x"))):
-        await BackgroundCompiler._run_lint_in_process(user_id="test-user")
+        await BackgroundCompiler._run_lint_in_process(user_id=TEST_USER_ID)
 
 
 def test_background_compiler_singleton() -> None:
@@ -104,12 +105,12 @@ def _patch_session_factory(session):
 
 async def test_compile_source_no_source(db_session) -> None:
     with _patch_session_factory(db_session):
-        await compile_source({}, "missing")
+        await compile_source({}, "missing", user_id=TEST_USER_ID)
 
 
 async def test_compile_source_no_file_path(db_session, tmp_path) -> None:
     src = Source(
-        source_type=SourceType.TEXT, title="t", file_path=None, status=IngestStatus.PROCESSING, user_id="test-user"
+        source_type=SourceType.TEXT, title="t", file_path=None, status=IngestStatus.PROCESSING, user_id=TEST_USER_ID
     )
     db_session.add(src)
     await db_session.commit()
@@ -118,7 +119,7 @@ async def test_compile_source_no_file_path(db_session, tmp_path) -> None:
         patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
     await db_session.refresh(src)
     assert src.status == IngestStatus.FAILED
 
@@ -126,7 +127,13 @@ async def test_compile_source_no_file_path(db_session, tmp_path) -> None:
 async def test_compile_source_success(db_session, tmp_path) -> None:
     text_file = tmp_path / "src.txt"
     text_file.write_text("hello world", encoding="utf-8")
-    src = Source(source_type=SourceType.TEXT, title="t", file_path=str(text_file), status=IngestStatus.PROCESSING)
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="t",
+        file_path=str(text_file),
+        status=IngestStatus.PROCESSING,
+        user_id=TEST_USER_ID,
+    )
     db_session.add(src)
     await db_session.commit()
 
@@ -141,13 +148,19 @@ async def test_compile_source_success(db_session, tmp_path) -> None:
         patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
 
 
 async def test_compile_source_compiler_returns_none(db_session, tmp_path) -> None:
     text_file = tmp_path / "src.txt"
     text_file.write_text("hello", encoding="utf-8")
-    src = Source(source_type=SourceType.TEXT, title="t", file_path=str(text_file), status=IngestStatus.PROCESSING)
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="t",
+        file_path=str(text_file),
+        status=IngestStatus.PROCESSING,
+        user_id=TEST_USER_ID,
+    )
     db_session.add(src)
     await db_session.commit()
 
@@ -160,7 +173,7 @@ async def test_compile_source_compiler_returns_none(db_session, tmp_path) -> Non
         patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
     await db_session.refresh(src)
     assert src.status == IngestStatus.FAILED
 
@@ -175,7 +188,7 @@ async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> 
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="previous error",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(src)
     await db_session.commit()
@@ -192,7 +205,7 @@ async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> 
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
         patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
 
     await db_session.refresh(src)
     # After successful compilation the source stays in a non-failed state;
@@ -210,7 +223,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="old boom",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(src)
     await db_session.commit()
@@ -236,7 +249,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
         patch.object(worker_mod, "emit_compilation_complete", AsyncMock()),
         patch.object(worker_mod, "sweep_wikilinks", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
 
     assert captured_status == [IngestStatus.PROCESSING]
     assert captured_error == [None]
@@ -252,7 +265,7 @@ async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_pa
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="old error",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(src)
     await db_session.commit()
@@ -266,7 +279,7 @@ async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_pa
         patch.object(worker_mod, "emit_source_progress", AsyncMock()),
         patch.object(worker_mod, "emit_compilation_failed", AsyncMock()),
     ):
-        await compile_source({}, src.id)
+        await compile_source({}, src.id, user_id=TEST_USER_ID)
 
     await db_session.refresh(src)
     assert src.status == IngestStatus.FAILED
@@ -275,7 +288,7 @@ async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_pa
 
 async def test_lint_wiki_no_articles(db_session) -> None:
     with _patch_session_factory(db_session):
-        await lint_wiki({})
+        await lint_wiki({}, user_id=TEST_USER_ID)
 
 
 async def test_lint_wiki_with_articles(db_session, tmp_path) -> None:
@@ -289,7 +302,7 @@ async def test_lint_wiki_with_articles(db_session, tmp_path) -> None:
         _patch_session_factory(db_session),
         patch("wikimind.jobs.worker.run_lint", AsyncMock(return_value=fake_report)),
     ):
-        await lint_wiki({})
+        await lint_wiki({}, user_id=TEST_USER_ID)
 
 
 async def test_lint_wiki_failure(db_session, tmp_path) -> None:
@@ -298,4 +311,4 @@ async def test_lint_wiki_failure(db_session, tmp_path) -> None:
         _patch_session_factory(db_session),
         patch("wikimind.jobs.worker.run_lint", AsyncMock(side_effect=RuntimeError("boom"))),
     ):
-        await lint_wiki({})
+        await lint_wiki({}, user_id=TEST_USER_ID)

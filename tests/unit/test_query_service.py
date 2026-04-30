@@ -9,6 +9,7 @@ import pytest
 from fastapi import HTTPException
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.models import (
     Article,
@@ -34,7 +35,7 @@ async def _seed(db_session, tmp_path: Path) -> tuple[Query, Article, Source]:
         source_type=SourceType.PDF,
         title="20260312_MikeO_AILabsGeneralTalk",
         source_url=None,
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(source)
     await db_session.flush()
@@ -45,7 +46,7 @@ async def _seed(db_session, tmp_path: Path) -> tuple[Query, Article, Source]:
         file_path=str(file_path),
         summary="A summary",
         source_ids=json.dumps([source.id]),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(article)
     await db_session.flush()
@@ -56,7 +57,7 @@ async def _seed(db_session, tmp_path: Path) -> tuple[Query, Article, Source]:
         confidence="high",
         source_article_ids=json.dumps([article.title]),
         related_article_ids=json.dumps([]),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(query)
     await db_session.commit()
@@ -70,7 +71,7 @@ class TestQueryCitations:
     async def test_build_citations_resolves_full_chain(self, db_session, tmp_path):
         query, article, source = await _seed(db_session, tmp_path)
 
-        citations = await _build_citations(query, db_session, user_id="test-user")
+        citations = await _build_citations(query, db_session, user_id=TEST_USER_ID)
 
         assert len(citations) == 1
         citation = citations[0]
@@ -89,12 +90,12 @@ class TestQueryCitations:
             confidence="low",
             source_article_ids=json.dumps(["No Such Article"]),
             related_article_ids=json.dumps([]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(query)
         await db_session.commit()
 
-        citations = await _build_citations(query, db_session, user_id="test-user")
+        citations = await _build_citations(query, db_session, user_id=TEST_USER_ID)
         assert citations == []
 
     async def test_build_citations_handles_empty_source_ids(self, db_session, tmp_path):
@@ -106,7 +107,7 @@ class TestQueryCitations:
             title="Empty Sources Article",
             file_path=str(file_path),
             source_ids=None,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.flush()
@@ -117,12 +118,12 @@ class TestQueryCitations:
             confidence="medium",
             source_article_ids=json.dumps([article.title]),
             related_article_ids=json.dumps([]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(query)
         await db_session.commit()
 
-        citations = await _build_citations(query, db_session, user_id="test-user")
+        citations = await _build_citations(query, db_session, user_id=TEST_USER_ID)
         assert len(citations) == 1
         assert citations[0].article.title == article.title
         assert citations[0].sources == []
@@ -135,7 +136,7 @@ async def _seed_conversation(db_session) -> tuple[Conversation, list[Query]]:
         title="Export Test Conversation",
         created_at=datetime(2026, 4, 8, 12, 0, 0),
         updated_at=datetime(2026, 4, 8, 12, 5, 0),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(conv)
     await db_session.flush()
@@ -150,7 +151,7 @@ async def _seed_conversation(db_session) -> tuple[Conversation, list[Query]]:
         conversation_id="conv-export-1",
         turn_index=0,
         created_at=datetime(2026, 4, 8, 12, 0, 0),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     q2 = Query(
         id="q-export-2",
@@ -162,7 +163,7 @@ async def _seed_conversation(db_session) -> tuple[Conversation, list[Query]]:
         conversation_id="conv-export-1",
         turn_index=1,
         created_at=datetime(2026, 4, 8, 12, 1, 0),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add_all([q1, q2])
     await db_session.commit()
@@ -176,7 +177,7 @@ class TestExportConversation:
         await _seed_conversation(db_session)
         service = QueryService()
 
-        response = await service.export_conversation("conv-export-1", db_session, user_id="test-user")
+        response = await service.export_conversation("conv-export-1", db_session, user_id=TEST_USER_ID)
 
         assert response.media_type == "text/markdown"
         body = response.body.decode()
@@ -189,7 +190,7 @@ class TestExportConversation:
         await _seed_conversation(db_session)
         service = QueryService()
 
-        response = await service.export_conversation("conv-export-1", db_session, user_id="test-user")
+        response = await service.export_conversation("conv-export-1", db_session, user_id=TEST_USER_ID)
 
         assert "content-disposition" in response.headers
         assert "attachment" in response.headers["content-disposition"]
@@ -205,7 +206,7 @@ class TestExportConversation:
         conv_before_filed = conv.filed_article_id
         q_before_filed = [q.filed_back for q in queries]
 
-        await service.export_conversation("conv-export-1", db_session, user_id="test-user")
+        await service.export_conversation("conv-export-1", db_session, user_id=TEST_USER_ID)
 
         # Refresh from DB to check no writes happened
         await db_session.refresh(conv)
@@ -221,7 +222,7 @@ class TestExportConversation:
         service = QueryService()
 
         with pytest.raises(HTTPException) as exc_info:
-            await service.export_conversation("nonexistent-id", db_session, user_id="test-user")
+            await service.export_conversation("nonexistent-id", db_session, user_id=TEST_USER_ID)
 
         assert exc_info.value.status_code == 404
 
@@ -230,7 +231,7 @@ class TestExportConversation:
         conv, queries = await _seed_conversation(db_session)
         service = QueryService()
 
-        response = await service.export_conversation("conv-export-1", db_session, user_id="test-user")
+        response = await service.export_conversation("conv-export-1", db_session, user_id=TEST_USER_ID)
         exported = response.body.decode()
 
         expected = serialize_conversation_to_markdown(conv, queries)
@@ -268,12 +269,12 @@ class TestSanitizeFilename:
 @pytest.mark.asyncio
 class TestAskStream:
     async def test_ask_stream_emits_chunk_and_done_events(self, db_session):
-        """ask_stream(user_id="test-user") converts agent's str/tuple yields into SSE events."""
+        """ask_stream(user_id=TEST_USER_ID) converts agent's str/tuple yields into SSE events."""
         # Seed a conversation + query so _build_citations has something to work with
         conv = Conversation(
             id="conv-stream-1",
             title="stream test",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(conv)
         q = Query(
@@ -285,7 +286,7 @@ class TestAskStream:
             related_article_ids=json.dumps([]),
             conversation_id="conv-stream-1",
             turn_index=0,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(q)
         await db_session.commit()
@@ -302,7 +303,7 @@ class TestAskStream:
         with patch.object(service._qa_agent, "answer_stream", side_effect=_fake_stream):
             events = [
                 event
-                async for event in service.ask_stream(QueryRequest(question="test"), db_session, user_id="test-user")
+                async for event in service.ask_stream(QueryRequest(question="test"), db_session, user_id=TEST_USER_ID)
             ]
 
         # Should have 2 chunk events + 1 done event
@@ -321,7 +322,7 @@ class TestAskStream:
         assert "conversation" in done_data
 
     async def test_ask_stream_emits_error_on_failure(self, db_session):
-        """ask_stream(user_id="test-user") emits an error event when the agent raises."""
+        """ask_stream(user_id=TEST_USER_ID) emits an error event when the agent raises."""
         service = QueryService()
 
         async def _failing_stream(request, session, user_id=None):
@@ -331,7 +332,7 @@ class TestAskStream:
         with patch.object(service._qa_agent, "answer_stream", side_effect=_failing_stream):
             events = [
                 event
-                async for event in service.ask_stream(QueryRequest(question="fail"), db_session, user_id="test-user")
+                async for event in service.ask_stream(QueryRequest(question="fail"), db_session, user_id=TEST_USER_ID)
             ]
 
         error_events = [e for e in events if e.startswith("event: error\n")]
@@ -352,14 +353,14 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
         title="First Thread",
         created_at=datetime(2026, 4, 8, 12, 0, 0),
         updated_at=datetime(2026, 4, 8, 12, 5, 0),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     conv2 = Conversation(
         id="conv-sel-2",
         title="Second Thread",
         created_at=datetime(2026, 4, 9, 10, 0, 0),
         updated_at=datetime(2026, 4, 9, 10, 5, 0),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add_all([conv1, conv2])
     await db_session.flush()
@@ -374,7 +375,7 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
             related_article_ids=json.dumps([]),
             conversation_id="conv-sel-1",
             turn_index=0,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         ),
         Query(
             id="q-sel-1-1",
@@ -385,7 +386,7 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
             related_article_ids=json.dumps([]),
             conversation_id="conv-sel-1",
             turn_index=1,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         ),
         Query(
             id="q-sel-1-2",
@@ -396,7 +397,7 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
             related_article_ids=json.dumps([]),
             conversation_id="conv-sel-1",
             turn_index=2,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         ),
         Query(
             id="q-sel-2-0",
@@ -407,7 +408,7 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
             related_article_ids=json.dumps([]),
             conversation_id="conv-sel-2",
             turn_index=0,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         ),
         Query(
             id="q-sel-2-1",
@@ -418,7 +419,7 @@ async def _seed_two_conversations(db_session) -> tuple[Conversation, Conversatio
             related_article_ids=json.dumps([]),
             conversation_id="conv-sel-2",
             turn_index=1,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         ),
     ]
     db_session.add_all(queries)
@@ -438,7 +439,7 @@ class TestFileBackSelection:
                 TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 2]),
             ],
         )
-        result = await service.file_back_selection(request, db_session, user_id="test-user")
+        result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
         assert "article" in result
         article_data = result["article"]
@@ -447,7 +448,7 @@ class TestFileBackSelection:
         # Verify the article was created on disk
         article = await db_session.get(Article, article_data["id"])
         assert article is not None
-        resolved = resolve_wiki_path(article.file_path, user_id="test-user")
+        resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
         assert "## Q1: Q1 from thread 1" in content
         assert "## Q2: Q3 from thread 1" in content
@@ -466,13 +467,13 @@ class TestFileBackSelection:
             ],
             title="Merged Research",
         )
-        result = await service.file_back_selection(request, db_session, user_id="test-user")
+        result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
         article_data = result["article"]
         assert article_data["title"] == "Merged Research"
 
         article = await db_session.get(Article, article_data["id"])
-        resolved = resolve_wiki_path(article.file_path, user_id="test-user")
+        resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
         assert "# Merged Research" in content
         assert "## Q1: Q1 from thread 1" in content
@@ -489,7 +490,7 @@ class TestFileBackSelection:
                 TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 1]),
             ],
         )
-        result = await service.file_back_selection(request, db_session, user_id="test-user")
+        result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         article_id = result["article"]["id"]
 
         # Refresh the selected queries
@@ -513,7 +514,7 @@ class TestFileBackSelection:
             ],
         )
         with pytest.raises(HTTPException) as exc_info:
-            await service.file_back_selection(request, db_session, user_id="test-user")
+            await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 404
 
     async def test_400_for_empty_selections(self, db_session):
@@ -522,7 +523,7 @@ class TestFileBackSelection:
 
         request = FileBackSelectionRequest(selections=[])
         with pytest.raises(HTTPException) as exc_info:
-            await service.file_back_selection(request, db_session, user_id="test-user")
+            await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 400
 
     async def test_400_for_missing_turn_indices(self, db_session):
@@ -536,7 +537,7 @@ class TestFileBackSelection:
             ],
         )
         with pytest.raises(HTTPException) as exc_info:
-            await service.file_back_selection(request, db_session, user_id="test-user")
+            await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 400
         assert "99" in str(exc_info.value.detail)
 
@@ -551,11 +552,11 @@ class TestFileBackSelection:
             ],
             title="My Custom Title",
         )
-        result = await service.file_back_selection(request, db_session, user_id="test-user")
+        result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
         assert result["article"]["title"] == "My Custom Title"
         article = await db_session.get(Article, result["article"]["id"])
-        resolved = resolve_wiki_path(article.file_path, user_id="test-user")
+        resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
         assert "# My Custom Title" in content
 
@@ -709,7 +710,7 @@ class TestBuildCitationsOwnership:
             confidence="high",
             source_article_ids=json.dumps(["Owned Article Title"]),
             related_article_ids=json.dumps([]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(query)
         await db_session.commit()
@@ -745,7 +746,7 @@ class TestBuildCitationsOwnership:
             confidence="high",
             source_article_ids=json.dumps(["Any Article"]),
             related_article_ids=json.dumps([]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(query)
         await db_session.commit()

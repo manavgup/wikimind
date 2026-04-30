@@ -262,7 +262,7 @@ class ExportService:
         body_html = _markdown_to_html(markdown_content)
         return _PDF_HTML_TEMPLATE.format(title=_escape_html(title), body=body_html)
 
-    async def export_linkedin(self, title: str, markdown_content: str, user_id: str = "anonymous") -> str:
+    async def export_linkedin(self, title: str, markdown_content: str, user_id: str) -> str:
         """Rewrite article content as a LinkedIn post via LLM.
 
         Args:
@@ -289,7 +289,7 @@ class ExportService:
         response = await self._llm.complete(request, user_id=user_id)
         return response.content.strip()
 
-    async def export_slides(self, title: str, markdown_content: str, user_id: str = "anonymous") -> str:
+    async def export_slides(self, title: str, markdown_content: str, user_id: str) -> str:
         """Generate Marp-compatible slide deck from article content via LLM.
 
         Args:

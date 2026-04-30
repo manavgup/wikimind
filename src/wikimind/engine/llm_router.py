@@ -192,8 +192,6 @@ class LLMRouter:
 
     async def _resolve_user_key(self, provider: Provider, user_id: str) -> str | None:
         """Look up a user's BYOK key for the given provider, if any."""
-        if user_id == "anonymous":
-            return None
         if provider in (Provider.OLLAMA, Provider.MOCK):
             return None
         try:
@@ -247,7 +245,7 @@ class LLMRouter:
         except Exception:
             log.debug("Failed to set budget flag in Redis", flag=flag_name)
 
-    async def _check_budget(self, *, user_id: str) -> None:
+    async def _check_budget(self, user_id: str) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
         current_month = utcnow_naive()
         month_key = (current_month.year, current_month.month)
@@ -305,7 +303,6 @@ class LLMRouter:
         model: str,
         task_type: TaskType,
         response: CompletionResponse,
-        *,
         user_id: str,
     ) -> None:
         """Write a CostLog entry in an independent session."""
@@ -329,7 +326,6 @@ class LLMRouter:
     async def complete(
         self,
         request: CompletionRequest,
-        *,
         user_id: str,
     ) -> CompletionResponse:
         """Execute LLM completion with provider selection and fallback.
@@ -339,12 +335,11 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
-        # When a real user is present, also consider BYOK-capable providers
-        # that aren't config-enabled — the user may have stored a key.
-        if user_id != "anonymous":
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        # Also consider BYOK-capable providers that aren't config-enabled
+        # — the user may have stored a key.
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:
@@ -398,12 +393,11 @@ class LLMRouter:
         self,
         system: str,
         content_parts: list[dict[str, Any]],
+        user_id: str,
         task_type: TaskType = TaskType.INGEST,
         max_tokens: int = 4096,
         temperature: float = 0.3,
         preferred_provider: Provider | None = None,
-        *,
-        user_id: str,
     ) -> CompletionResponse:
         """Execute a multimodal LLM completion with images and text.
 
@@ -428,10 +422,9 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(preferred_provider)
 
-        if user_id != "anonymous":
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:
@@ -480,7 +473,6 @@ class LLMRouter:
     async def stream_complete(
         self,
         request: CompletionRequest,
-        *,
         user_id: str,
     ) -> StreamSession:
         """Create a streaming LLM completion with provider fallback.
@@ -501,10 +493,9 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
-        if user_id != "anonymous":
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:

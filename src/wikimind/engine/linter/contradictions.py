@@ -66,9 +66,8 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
 def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        content = resolve_wiki_path(article.file_path, user_id=article.user_id or "anonymous").read_text(
-            encoding="utf-8"
-        )
+        wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)  # type: ignore[arg-type]  # #393
+        content = wiki_path.read_text(encoding="utf-8")
     except (OSError, FileNotFoundError):
         return []
 
@@ -108,15 +107,14 @@ async def _get_articles_for_concept(
     Args:
         session: Async database session.
         concept_name: The concept name to look up.
-        user_id: Optional user ID to scope results to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
     """
     stmt = (
         select(Article)
         .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(ArticleConcept.concept_name == concept_name)
+        .where(Article.user_id == user_id)
     )
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -355,15 +353,14 @@ async def _collect_work(
     Args:
         session: Async database session.
         cfg: Linter configuration.
-        user_id: Optional user ID to scope queries to a single user's data.
+        user_id: User ID for data isolation — scopes to this user's data.
     """
     concept_stmt = (
         select(Concept)
+        .where(Concept.user_id == user_id)
         .order_by(Concept.article_count.desc())  # type: ignore[attr-defined]
         .limit(cfg.max_concepts_per_run)
     )
-    if user_id is not None:
-        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
     concept_result = await session.execute(concept_stmt)
     concepts = list(concept_result.scalars().all())
 
@@ -373,11 +370,10 @@ async def _collect_work(
         log.info("No concepts found, falling back to top-N article comparison")
         article_stmt = (
             select(Article)
+            .where(Article.user_id == user_id)
             .order_by(Article.updated_at.desc())  # type: ignore[attr-defined]
             .limit(cfg.max_contradiction_pairs_per_concept * 2)
         )
-        if user_id is not None:
-            article_stmt = article_stmt.where(Article.user_id == user_id)
         article_result = await session.execute(article_stmt)
         articles = list(article_result.scalars().all())
         pairs = list(itertools.combinations(articles, 2))
@@ -525,7 +521,7 @@ async def detect_contradictions(
         router: LLM router for making completion requests.
         settings: Application settings with linter config.
         report: The parent LintReport to attach findings to.
-        user_id: Optional user ID to scope queries to a single user's data.
+        user_id: User ID for data isolation — scopes to this user's data.
     """
     cfg = settings.linter
     findings: list[ContradictionFinding] = []

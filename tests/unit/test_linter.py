@@ -30,6 +30,7 @@ from wikimind.services.linter import LinterService
 
 if TYPE_CHECKING:
     from pathlib import Path
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +48,7 @@ def _make_article(
 ) -> Article:
     """Create an Article with a real .md file containing claims."""
     # Write into the wiki directory so resolve_wiki_path can find it.
-    wiki_dir = tmp_path / "wikimind" / "wiki" / "test-user"
+    wiki_dir = tmp_path / "wikimind" / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     file_path = wiki_dir / f"{slug}.md"
     body_lines = [f"# {title}", ""]
@@ -65,7 +66,7 @@ def _make_article(
         title=title,
         file_path=f"{slug}.md",
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
 
 
@@ -77,7 +78,7 @@ def _make_article(
 @pytest.mark.asyncio
 async def test_detect_contradictions_single_concept(db_session, _isolated_data_dir, tmp_path) -> None:
     """Two articles with contradictory claims produce a ContradictionFinding."""
-    concept = Concept(id="c1", name="testing", article_count=2, user_id="test-user")
+    concept = Concept(id="c1", name="testing", article_count=2, user_id=TEST_USER_ID)
     db_session.add(concept)
 
     art_a = _make_article(
@@ -124,7 +125,7 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
     report = LintReport(id="r1")
     db_session.add(report)
     await db_session.flush()
-    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id="test-user")
+    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
 
     assert len(findings) == 1
     assert findings[0].description == "Sky color contradiction"
@@ -138,7 +139,7 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
 @pytest.mark.asyncio
 async def test_detect_contradictions_no_contradictions(db_session, _isolated_data_dir, tmp_path) -> None:
     """Two articles with no contradictions produce zero findings."""
-    concept = Concept(id="c1", name="testing", article_count=2, user_id="test-user")
+    concept = Concept(id="c1", name="testing", article_count=2, user_id=TEST_USER_ID)
     db_session.add(concept)
 
     art_a = _make_article(
@@ -172,7 +173,7 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
     report = LintReport(id="r1")
     db_session.add(report)
     await db_session.flush()
-    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id="test-user")
+    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
 
     assert len(findings) == 0
 
@@ -180,7 +181,7 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
 @pytest.mark.asyncio
 async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_data_dir, tmp_path) -> None:
     """Pair cap limits the number of LLM calls."""
-    concept = Concept(id="c1", name="testing", article_count=5, user_id="test-user")
+    concept = Concept(id="c1", name="testing", article_count=5, user_id=TEST_USER_ID)
     db_session.add(concept)
 
     for i in range(5):
@@ -211,7 +212,7 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
     report = LintReport(id="r1")
     db_session.add(report)
     await db_session.flush()
-    await detect_contradictions(db_session, mock_router, settings, report, user_id="test-user")
+    await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
 
     # 5 articles = 10 pairs, capped at 2
     assert mock_router.complete.call_count <= 2
@@ -220,7 +221,7 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
 @pytest.mark.asyncio
 async def test_detect_contradictions_batch_single_dict_response(db_session, _isolated_data_dir, tmp_path) -> None:
     """Batch parser handles an LLM response that is a bare dict with pair_index."""
-    concept = Concept(id="c1", name="testing", article_count=3, user_id="test-user")
+    concept = Concept(id="c1", name="testing", article_count=3, user_id=TEST_USER_ID)
     db_session.add(concept)
 
     # 3 articles → 3 pairs → triggers batch mode (len > 1)
@@ -248,7 +249,7 @@ async def test_detect_contradictions_batch_single_dict_response(db_session, _iso
     report = LintReport(id="r1")
     db_session.add(report)
     await db_session.flush()
-    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id="test-user")
+    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
 
     # No contradictions returned, but the important thing is no ValueError raised
     assert isinstance(findings, list)
@@ -265,7 +266,7 @@ async def test_detect_orphans_returns_empty_when_disabled(db_session, _isolated_
     settings = get_settings()
     settings.linter.enable_orphan_detection = False
 
-    findings = await detect_orphans(db_session, settings, report_id="r1", user_id="test-user")
+    findings = await detect_orphans(db_session, settings, report_id="r1", user_id=TEST_USER_ID)
 
     assert len(findings) == 0
 
@@ -284,7 +285,7 @@ async def test_detect_orphans_finds_unlinked_article(db_session, _isolated_data_
         source_article_id="linked",
         target_article_id="linked",
         context="self-link",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(backlink)
     await db_session.commit()
@@ -292,7 +293,7 @@ async def test_detect_orphans_finds_unlinked_article(db_session, _isolated_data_
     settings = get_settings()
     settings.linter.enable_orphan_detection = True
 
-    findings = await detect_orphans(db_session, settings, report_id="r1", user_id="test-user")
+    findings = await detect_orphans(db_session, settings, report_id="r1", user_id=TEST_USER_ID)
 
     assert len(findings) == 1
     assert findings[0].article_id == "orphan"
@@ -307,7 +308,7 @@ async def test_detect_orphans_finds_unlinked_article(db_session, _isolated_data_
 @pytest.mark.asyncio
 async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated_data_dir, tmp_path) -> None:
     """Full lint run creates a report with correct finding counts."""
-    concept = Concept(id="c1", name="testing", article_count=2, user_id="test-user")
+    concept = Concept(id="c1", name="testing", article_count=2, user_id=TEST_USER_ID)
     db_session.add(concept)
 
     art_a = _make_article(
@@ -359,7 +360,7 @@ async def test_run_lint_creates_report_with_correct_counts(db_session, _isolated
             new_callable=AsyncMock,
         ),
     ):
-        report = await run_lint(db_session, user_id="test-user")
+        report = await run_lint(db_session, user_id=TEST_USER_ID)
 
     assert report.status == LintReportStatus.COMPLETE
     assert report.contradictions_count == 1
@@ -386,7 +387,7 @@ async def test_run_lint_sets_status_failed_on_exception(db_session, _isolated_da
             new_callable=AsyncMock,
         ),
     ):
-        report = await run_lint(db_session, user_id="test-user")
+        report = await run_lint(db_session, user_id=TEST_USER_ID)
 
     assert report.status == LintReportStatus.FAILED
     assert "LLM exploded" in (report.error_message or "")
@@ -430,7 +431,7 @@ async def test_dismiss_finding_persists_and_suppresses_on_next_run(db_session, _
 
     # Dismiss the finding
     svc = LinterService()
-    result = await svc.dismiss_finding(db_session, LintFindingKind.CONTRADICTION, "f1", user_id="test-user")
+    result = await svc.dismiss_finding(db_session, LintFindingKind.CONTRADICTION, "f1", user_id=TEST_USER_ID)
 
     assert result.dismissed is True
 
@@ -448,14 +449,14 @@ async def test_dismiss_finding_persists_and_suppresses_on_next_run(db_session, _
 @pytest.mark.asyncio
 async def test_linter_service_list_reports(db_session, _isolated_data_dir) -> None:
     """list_reports returns reports ordered by generated_at DESC."""
-    r1 = LintReport(id="r1", status=LintReportStatus.COMPLETE, article_count=5, user_id="test-user")
-    r2 = LintReport(id="r2", status=LintReportStatus.COMPLETE, article_count=10, user_id="test-user")
+    r1 = LintReport(id="r1", status=LintReportStatus.COMPLETE, article_count=5, user_id=TEST_USER_ID)
+    r2 = LintReport(id="r2", status=LintReportStatus.COMPLETE, article_count=10, user_id=TEST_USER_ID)
     db_session.add(r1)
     db_session.add(r2)
     await db_session.commit()
 
     svc = LinterService()
-    reports = await svc.list_reports(db_session, limit=10, user_id="test-user")
+    reports = await svc.list_reports(db_session, limit=10, user_id=TEST_USER_ID)
 
     assert len(reports) == 2
 
@@ -465,14 +466,14 @@ async def test_linter_service_get_latest_returns_404_when_empty(db_session, _iso
     """get_latest raises 404 when no reports exist."""
     svc = LinterService()
     with pytest.raises(HTTPException) as exc_info:
-        await svc.get_latest(db_session, user_id="test-user")
+        await svc.get_latest(db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_linter_service_get_report_filters_dismissed(db_session, _isolated_data_dir, tmp_path) -> None:
     """get_report with include_dismissed=False filters out dismissed findings."""
-    report = LintReport(id="r1", status=LintReportStatus.COMPLETE, article_count=2, user_id="test-user")
+    report = LintReport(id="r1", status=LintReportStatus.COMPLETE, article_count=2, user_id=TEST_USER_ID)
     db_session.add(report)
 
     art_a = _make_article(tmp_path, article_id="a1", slug="art-a", title="Art A")
@@ -512,12 +513,12 @@ async def test_linter_service_get_report_filters_dismissed(db_session, _isolated
     svc = LinterService()
 
     # Default: exclude dismissed
-    detail = await svc.get_report(db_session, "r1", user_id="test-user")
+    detail = await svc.get_report(db_session, "r1", user_id=TEST_USER_ID)
     assert len(detail.contradictions) == 1
     assert detail.contradictions[0].id == "f1"
 
     # Include dismissed
-    detail_all = await svc.get_report(db_session, "r1", include_dismissed=True, user_id="test-user")
+    detail_all = await svc.get_report(db_session, "r1", include_dismissed=True, user_id=TEST_USER_ID)
     assert len(detail_all.contradictions) == 2
 
 

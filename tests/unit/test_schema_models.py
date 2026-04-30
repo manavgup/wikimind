@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
 from wikimind.engine.concept_kind_registry import (
     PROMPT_TEMPLATES,
     RegistryTemplateMismatchError,
@@ -96,21 +97,21 @@ class TestConceptKindDef:
 class TestArticlePageType:
     def test_default_page_type(self):
         assert (
-            Article(slug="test", title="Test", file_path="/tmp/test.md", user_id="test-user").page_type
+            Article(slug="test", title="Test", file_path="/tmp/test.md", user_id=TEST_USER_ID).page_type
             == PageType.SOURCE
         )
 
     def test_explicit_page_type(self):
         assert (
             Article(
-                slug="cp", title="LR", file_path="/tmp/lr.md", page_type=PageType.CONCEPT, user_id="test-user"
+                slug="cp", title="LR", file_path="/tmp/lr.md", page_type=PageType.CONCEPT, user_id=TEST_USER_ID
             ).page_type
             == PageType.CONCEPT
         )
 
     async def test_persist_page_type(self, db_session: AsyncSession):
         article = Article(
-            slug="answer-page", title="Filed", file_path="/tmp/a.md", page_type=PageType.ANSWER, user_id="test-user"
+            slug="answer-page", title="Filed", file_path="/tmp/a.md", page_type=PageType.ANSWER, user_id=TEST_USER_ID
         )
         db_session.add(article)
         await db_session.commit()
@@ -121,7 +122,7 @@ class TestArticlePageType:
 class TestBacklinkRelationType:
     def test_default_relation_type(self):
         assert (
-            Backlink(source_article_id="a", target_article_id="b", user_id="test-user").relation_type
+            Backlink(source_article_id="a", target_article_id="b", user_id=TEST_USER_ID).relation_type
             == RelationType.REFERENCES
         )
 
@@ -131,13 +132,13 @@ class TestBacklinkRelationType:
                 source_article_id="a",
                 target_article_id="b",
                 relation_type=RelationType.CONTRADICTS,
-                user_id="test-user",
+                user_id=TEST_USER_ID,
             ).relation_type
             == RelationType.CONTRADICTS
         )
 
     def test_resolution_fields_default_none(self):
-        bl = Backlink(source_article_id="a", target_article_id="b", user_id="test-user")
+        bl = Backlink(source_article_id="a", target_article_id="b", user_id=TEST_USER_ID)
         assert (
             bl.resolution is None and bl.resolution_note is None and bl.resolved_at is None and bl.resolved_by is None
         )
@@ -152,14 +153,14 @@ class TestBacklinkRelationType:
             resolution_note="Newer data",
             resolved_at=now,
             resolved_by="admin@example.com",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         assert bl.resolution == "source_a_wins" and bl.resolved_at == now
 
     async def test_persist_typed_backlink(self, db_session: AsyncSession):
         a1, a2 = (
-            Article(slug="src-a", title="A", file_path="/tmp/a.md", user_id="test-user"),
-            Article(slug="src-b", title="B", file_path="/tmp/b.md", user_id="test-user"),
+            Article(slug="src-a", title="A", file_path="/tmp/a.md", user_id=TEST_USER_ID),
+            Article(slug="src-b", title="B", file_path="/tmp/b.md", user_id=TEST_USER_ID),
         )
         db_session.add_all([a1, a2])
         await db_session.flush()
@@ -168,7 +169,7 @@ class TestBacklinkRelationType:
             target_article_id=a2.id,
             relation_type=RelationType.EXTENDS,
             context="A extends B",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(bl)
         await db_session.commit()
@@ -180,13 +181,13 @@ class TestBacklinkRelationType:
 
 class TestConceptKind:
     def test_default_concept_kind(self):
-        assert Concept(name="test-concept", user_id="test-user").concept_kind == "topic"
+        assert Concept(name="test-concept", user_id=TEST_USER_ID).concept_kind == "topic"
 
     def test_explicit_concept_kind(self):
-        assert Concept(name="alan-turing", concept_kind="person", user_id="test-user").concept_kind == "person"
+        assert Concept(name="alan-turing", concept_kind="person", user_id=TEST_USER_ID).concept_kind == "person"
 
     async def test_persist_concept_kind(self, db_session: AsyncSession):
-        concept = Concept(name="openai", concept_kind="organization", user_id="test-user")
+        concept = Concept(name="openai", concept_kind="organization", user_id=TEST_USER_ID)
         db_session.add(concept)
         await db_session.commit()
         result = await db_session.execute(select(Concept).where(Concept.name == "openai"))

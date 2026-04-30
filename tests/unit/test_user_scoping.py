@@ -38,7 +38,7 @@ from wikimind.storage import resolve_wiki_path
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # Issue 3: Service-layer query scoping by user_id
@@ -192,10 +192,10 @@ class TestRegenerateIndexUserScoping:
 
     async def test_index_scoped_to_test_user(self, db_session: AsyncSession) -> None:
         """user_id='test-user' scopes index to wiki/test-user/."""
-        await regenerate_index_md(db_session, user_id="test-user")
+        await regenerate_index_md(db_session, user_id=TEST_USER_ID)
 
         settings = get_settings()
-        index_path = Path(settings.data_dir) / "wiki" / "test-user" / "index.md"
+        index_path = Path(settings.data_dir) / "wiki" / TEST_USER_ID / "index.md"
         assert index_path.exists()
 
 
@@ -260,9 +260,9 @@ class TestActivityLogPathScoping:
     def test_log_path_scoped_to_test_user(self, tmp_path: Path) -> None:
         with patch("wikimind.services.activity_log.get_settings") as mock_settings:
             mock_settings.return_value.data_dir = str(tmp_path)
-            append_log_entry("ingest", "Test Source", user_id="test-user")
+            append_log_entry("ingest", "Test Source", user_id=TEST_USER_ID)
 
-        log_path = tmp_path / "wiki" / "test-user" / "log.md"
+        log_path = tmp_path / "wiki" / TEST_USER_ID / "log.md"
         assert log_path.exists()
 
     def test_separate_logs_per_user(self, tmp_path: Path) -> None:
@@ -397,7 +397,7 @@ class TestEmbeddingServiceUserScoping:
             mock_collection.count.return_value = 0
             svc._collection = mock_collection
 
-            svc.embed_article("art-1", "Test", "Content here.", user_id="test-user")
+            svc.embed_article("art-1", "Test", "Content here.", user_id=TEST_USER_ID)
 
             call_args = mock_collection.add.call_args
             metadatas = call_args.kwargs.get(
@@ -474,7 +474,7 @@ class TestEmbeddingServiceUserScoping:
             svc._collection = mock_collection
             svc._min_score = 0.65
 
-            svc.search("query text", limit=5, user_id="test-user")
+            svc.search("query text", limit=5, user_id=TEST_USER_ID)
 
             call_kwargs = mock_collection.query.call_args.kwargs
             assert "where" not in call_kwargs

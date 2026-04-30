@@ -250,7 +250,7 @@ async def test_auth_me_returns_anonymous_when_auth_disabled(client, monkeypatch)
     response = await client.get("/auth/me")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == "anonymous"
+    assert data["id"] == ANONYMOUS_USER_ID
 
 
 async def test_auth_me_returns_401_when_auth_enabled_no_token(client, monkeypatch):

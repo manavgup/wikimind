@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
+from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.models import (
@@ -48,30 +49,30 @@ async def test_ingest_service_url_error(db_session) -> None:
     svc._adapter = MagicMock()
     svc._adapter.ingest_url = AsyncMock(side_effect=ValueError("bad"))
     with pytest.raises(HTTPException):
-        await svc.ingest_url("http://x", db_session, user_id="test-user")
+        await svc.ingest_url("http://x", db_session, user_id=TEST_USER_ID)
 
 
 async def test_ingest_service_url_success(db_session) -> None:
     svc = IngestService()
-    src = Source(source_type=SourceType.URL, source_url="http://x", id="src1", user_id="test-user")
+    src = Source(source_type=SourceType.URL, source_url="http://x", id="src1", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_url = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         gbc.return_value.schedule_compile = AsyncMock(return_value="job-1")
-        result = await svc.ingest_url("http://x", db_session, user_id="test-user")
+        result = await svc.ingest_url("http://x", db_session, user_id=TEST_USER_ID)
     assert result is src
 
 
 async def test_ingest_service_pdf_and_text(db_session) -> None:
     svc = IngestService()
-    src = Source(source_type=SourceType.PDF, id="s1", user_id="test-user")
+    src = Source(source_type=SourceType.PDF, id="s1", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_pdf = AsyncMock(return_value=(src, None))
     svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         gbc.return_value.schedule_compile = AsyncMock(return_value="j")
-        await svc.ingest_pdf(b"x", "f.pdf", db_session, user_id="test-user")
-        await svc.ingest_text("c", "t", db_session, user_id="test-user")
+        await svc.ingest_pdf(b"x", "f.pdf", db_session, user_id=TEST_USER_ID)
+        await svc.ingest_text("c", "t", db_session, user_id=TEST_USER_ID)
 
 
 # ----- IngestService: auto_compile=False short-circuits scheduling (issue #81) -----
@@ -80,13 +81,13 @@ async def test_ingest_service_pdf_and_text(db_session) -> None:
 async def test_ingest_service_url_auto_compile_false_skips_schedule(db_session) -> None:
     """auto_compile=False must NOT enqueue a compile job for URL ingest."""
     svc = IngestService()
-    src = Source(source_type=SourceType.URL, source_url="http://x", id="src-url", user_id="test-user")
+    src = Source(source_type=SourceType.URL, source_url="http://x", id="src-url", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_url = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-1")
         gbc.return_value.schedule_compile = schedule_compile
-        result = await svc.ingest_url("http://x", db_session, user_id="test-user", auto_compile=False)
+        result = await svc.ingest_url("http://x", db_session, user_id=TEST_USER_ID, auto_compile=False)
     assert result is src
     schedule_compile.assert_not_awaited()
 
@@ -94,13 +95,13 @@ async def test_ingest_service_url_auto_compile_false_skips_schedule(db_session) 
 async def test_ingest_service_pdf_auto_compile_false_skips_schedule(db_session) -> None:
     """auto_compile=False must NOT enqueue a compile job for PDF ingest."""
     svc = IngestService()
-    src = Source(source_type=SourceType.PDF, id="src-pdf", user_id="test-user")
+    src = Source(source_type=SourceType.PDF, id="src-pdf", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_pdf = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-2")
         gbc.return_value.schedule_compile = schedule_compile
-        result = await svc.ingest_pdf(b"x", "f.pdf", db_session, user_id="test-user", auto_compile=False)
+        result = await svc.ingest_pdf(b"x", "f.pdf", db_session, user_id=TEST_USER_ID, auto_compile=False)
     assert result is src
     schedule_compile.assert_not_awaited()
 
@@ -108,13 +109,13 @@ async def test_ingest_service_pdf_auto_compile_false_skips_schedule(db_session) 
 async def test_ingest_service_text_auto_compile_false_skips_schedule(db_session) -> None:
     """auto_compile=False must NOT enqueue a compile job for text ingest."""
     svc = IngestService()
-    src = Source(source_type=SourceType.TEXT, id="src-text", user_id="test-user")
+    src = Source(source_type=SourceType.TEXT, id="src-text", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-3")
         gbc.return_value.schedule_compile = schedule_compile
-        result = await svc.ingest_text("hello", "t", db_session, user_id="test-user", auto_compile=False)
+        result = await svc.ingest_text("hello", "t", db_session, user_id=TEST_USER_ID, auto_compile=False)
     assert result is src
     schedule_compile.assert_not_awaited()
 
@@ -122,19 +123,19 @@ async def test_ingest_service_text_auto_compile_false_skips_schedule(db_session)
 async def test_ingest_service_text_auto_compile_default_schedules(db_session) -> None:
     """Default behavior (auto_compile omitted) must still schedule a compile."""
     svc = IngestService()
-    src = Source(source_type=SourceType.TEXT, id="src-default", user_id="test-user")
+    src = Source(source_type=SourceType.TEXT, id="src-default", user_id=TEST_USER_ID)
     svc._adapter = MagicMock()
     svc._adapter.ingest_text = AsyncMock(return_value=(src, None))
     with patch("wikimind.services.ingest.get_background_compiler") as gbc:
         schedule_compile = AsyncMock(return_value="job-4")
         gbc.return_value.schedule_compile = schedule_compile
-        await svc.ingest_text("hello", "t", db_session, user_id="test-user")
-    schedule_compile.assert_awaited_once_with("src-default", user_id="test-user", doc=None)
+        await svc.ingest_text("hello", "t", db_session, user_id=TEST_USER_ID)
+    schedule_compile.assert_awaited_once_with("src-default", user_id=TEST_USER_ID, doc=None)
 
 
 async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> None:
     """End-to-end: POST /ingest/text with auto_compile=False must not schedule."""
-    fake_src = Source(source_type=SourceType.TEXT, id="route-text", title="x", user_id="test-user")
+    fake_src = Source(source_type=SourceType.TEXT, id="route-text", title="x", user_id=TEST_USER_ID)
     svc = get_ingest_service()
     with (
         patch.object(svc, "_adapter") as adapter,
@@ -153,7 +154,7 @@ async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> No
 
 async def test_ingest_route_url_auto_compile_false_skips_schedule(client) -> None:
     """End-to-end: POST /ingest/url with auto_compile=False must not schedule."""
-    fake_src = Source(source_type=SourceType.URL, id="route-url", source_url="http://x", user_id="test-user")
+    fake_src = Source(source_type=SourceType.URL, id="route-url", source_url="http://x", user_id=TEST_USER_ID)
     svc = get_ingest_service()
     with (
         patch.object(svc, "_adapter") as adapter,
@@ -172,7 +173,7 @@ async def test_ingest_route_url_auto_compile_false_skips_schedule(client) -> Non
 
 async def test_ingest_route_pdf_auto_compile_false_skips_schedule(client) -> None:
     """End-to-end: POST /ingest/pdf?auto_compile=false must not schedule."""
-    fake_src = Source(source_type=SourceType.PDF, id="route-pdf", title="f", user_id="test-user")
+    fake_src = Source(source_type=SourceType.PDF, id="route-pdf", title="f", user_id=TEST_USER_ID)
     svc = get_ingest_service()
     with (
         patch.object(svc, "_adapter") as adapter,
@@ -191,26 +192,26 @@ async def test_ingest_route_pdf_auto_compile_false_skips_schedule(client) -> Non
 
 async def test_ingest_service_list_sources(db_session) -> None:
     svc = IngestService()
-    db_session.add(Source(source_type=SourceType.TEXT, title="t", status=IngestStatus.PENDING, user_id="test-user"))
+    db_session.add(Source(source_type=SourceType.TEXT, title="t", status=IngestStatus.PENDING, user_id=TEST_USER_ID))
     await db_session.commit()
-    result = await svc.list_sources(db_session, user_id="test-user")
+    result = await svc.list_sources(db_session, user_id=TEST_USER_ID)
     assert len(result) == 1
-    result = await svc.list_sources(db_session, user_id="test-user", status="pending")
+    result = await svc.list_sources(db_session, user_id=TEST_USER_ID, status="pending")
     assert len(result) == 1
 
 
 async def test_ingest_service_get_source_missing(db_session) -> None:
     svc = IngestService()
     with pytest.raises(HTTPException):
-        await svc.get_source("nope", db_session, user_id="test-user")
+        await svc.get_source("nope", db_session, user_id=TEST_USER_ID)
 
 
 async def test_ingest_service_get_source_ok(db_session) -> None:
     svc = IngestService()
-    s = Source(source_type=SourceType.TEXT, title="t", user_id="test-user")
+    s = Source(source_type=SourceType.TEXT, title="t", user_id=TEST_USER_ID)
     db_session.add(s)
     await db_session.commit()
-    got = await svc.get_source(s.id, db_session, user_id="test-user")
+    got = await svc.get_source(s.id, db_session, user_id=TEST_USER_ID)
     assert got.id == s.id
 
 
@@ -219,20 +220,20 @@ async def test_ingest_service_delete_source(db_session, tmp_path, monkeypatch) -
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     raw = tmp_path / "raw"
     raw.mkdir()
-    s = Source(source_type=SourceType.PDF, title="t", file_path=str(raw / "x.txt"), user_id="test-user")
+    s = Source(source_type=SourceType.PDF, title="t", file_path=str(raw / "x.txt"), user_id=TEST_USER_ID)
     (raw / f"{s.id}.txt").write_text("content")
     (raw / f"{s.id}.pdf").write_bytes(b"x")
     s.file_path = str(raw / f"{s.id}.txt")
     db_session.add(s)
     await db_session.commit()
-    result = await svc.delete_source(s.id, db_session, user_id="test-user")
+    result = await svc.delete_source(s.id, db_session, user_id=TEST_USER_ID)
     assert result["deleted"] == s.id
 
 
 async def test_ingest_service_delete_missing(db_session) -> None:
     svc = IngestService()
     with pytest.raises(HTTPException):
-        await svc.delete_source("nope", db_session, user_id="test-user")
+        await svc.delete_source("nope", db_session, user_id=TEST_USER_ID)
 
 
 async def test_ingest_service_get_source_wrong_user(db_session) -> None:
@@ -278,18 +279,18 @@ def test_ingest_service_singleton() -> None:
 
 async def test_compiler_service_list_jobs(db_session) -> None:
     svc = CompilerService()
-    j = Job(job_type="compile_source", status="queued", user_id="test-user")
+    j = Job(job_type="compile_source", status="queued", user_id=TEST_USER_ID)
     db_session.add(j)
     await db_session.commit()
-    jobs = await svc.list_jobs(db_session, user_id="test-user")
+    jobs = await svc.list_jobs(db_session, user_id=TEST_USER_ID)
     assert len(jobs) == 1
-    jobs = await svc.list_jobs(db_session, user_id="test-user", status="queued")
+    jobs = await svc.list_jobs(db_session, user_id=TEST_USER_ID, status="queued")
     assert len(jobs) == 1
 
 
 async def test_compiler_service_get_job(db_session) -> None:
     svc = CompilerService()
-    j = Job(job_type="compile_source", status="queued", user_id="test-user")
+    j = Job(job_type="compile_source", status="queued", user_id=TEST_USER_ID)
     db_session.add(j)
     await db_session.commit()
     got = await svc.get_job(j.id, db_session)
@@ -301,8 +302,8 @@ async def test_compiler_service_triggers() -> None:
     with patch("wikimind.services.compiler.get_background_compiler") as gbc:
         gbc.return_value.schedule_compile = AsyncMock(return_value="j1")
         gbc.return_value.schedule_lint = AsyncMock(return_value="j2")
-        a = await svc.trigger_compile("src", user_id="test-user")
-        b = await svc.trigger_lint(user_id="test-user")
+        a = await svc.trigger_compile("src", user_id=TEST_USER_ID)
+        b = await svc.trigger_lint(user_id=TEST_USER_ID)
     assert a.status == "queued"
     assert b.status == "queued"
     r = await svc.trigger_reindex()
@@ -318,9 +319,9 @@ def test_compiler_service_singleton() -> None:
 
 
 async def test_query_service_ask_returns_ask_response_with_conversation(db_session) -> None:
-    """ask(user_id="test-user") now returns AskResponse with both query and conversation."""
+    """ask(user_id=TEST_USER_ID) now returns AskResponse with both query and conversation."""
     svc = QueryService()
-    fake_conv = Conversation(id="conv-loop", title="What is the loop?", user_id="test-user")
+    fake_conv = Conversation(id="conv-loop", title="What is the loop?", user_id=TEST_USER_ID)
     fake_query = Query(
         question="What is the loop?",
         answer="some answer",
@@ -338,7 +339,7 @@ async def test_query_service_ask_returns_ask_response_with_conversation(db_sessi
     svc._qa_agent.answer = AsyncMock(return_value=(fake_query, fake_conv))
 
     request = QueryRequest(question="What is the loop?")
-    response = await svc.ask(request, db_session, user_id="test-user")
+    response = await svc.ask(request, db_session, user_id=TEST_USER_ID)
 
     assert isinstance(response, AskResponse)
     assert response.query.question == "What is the loop?"
@@ -355,11 +356,11 @@ async def test_query_service_history(db_session) -> None:
             confidence="high",
             source_article_ids="[]",
             related_article_ids="[]",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
-    h = await svc.query_history(db_session, user_id="test-user")
+    h = await svc.query_history(db_session, user_id=TEST_USER_ID)
     assert len(h) == 1
 
 
@@ -373,7 +374,7 @@ async def test_query_service_list_conversations_orders_by_updated_at_desc(db_ses
             title="oldest",
             created_at=now - timedelta(hours=3),
             updated_at=now - timedelta(hours=3),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
     )
     db_session.add(
@@ -382,7 +383,7 @@ async def test_query_service_list_conversations_orders_by_updated_at_desc(db_ses
             title="newest",
             created_at=now - timedelta(hours=1),
             updated_at=now,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
     )
     db_session.add(
@@ -391,17 +392,17 @@ async def test_query_service_list_conversations_orders_by_updated_at_desc(db_ses
             title="middle",
             created_at=now - timedelta(hours=2),
             updated_at=now - timedelta(hours=1),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
     )
-    db_session.add(Query(id="q1", question="q", answer="a", conversation_id="c1", turn_index=0, user_id="test-user"))
-    db_session.add(Query(id="q2a", question="q", answer="a", conversation_id="c2", turn_index=0, user_id="test-user"))
-    db_session.add(Query(id="q2b", question="q", answer="a", conversation_id="c2", turn_index=1, user_id="test-user"))
-    db_session.add(Query(id="q3", question="q", answer="a", conversation_id="c3", turn_index=0, user_id="test-user"))
+    db_session.add(Query(id="q1", question="q", answer="a", conversation_id="c1", turn_index=0, user_id=TEST_USER_ID))
+    db_session.add(Query(id="q2a", question="q", answer="a", conversation_id="c2", turn_index=0, user_id=TEST_USER_ID))
+    db_session.add(Query(id="q2b", question="q", answer="a", conversation_id="c2", turn_index=1, user_id=TEST_USER_ID))
+    db_session.add(Query(id="q3", question="q", answer="a", conversation_id="c3", turn_index=0, user_id=TEST_USER_ID))
     await db_session.commit()
 
     service = QueryService()
-    summaries = await service.list_conversations(db_session, user_id="test-user", limit=10)
+    summaries = await service.list_conversations(db_session, user_id=TEST_USER_ID, limit=10)
 
     assert [s.id for s in summaries] == ["c2", "c3", "c1"]
     assert summaries[0].turn_count == 2
@@ -417,22 +418,22 @@ async def test_query_service_get_conversation_returns_ordered_turns(db_session) 
             title="t",
             created_at=utcnow_naive(),
             updated_at=utcnow_naive(),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
     )
     db_session.add(
-        Query(id="q-late", question="late", answer="a", conversation_id="c1", turn_index=2, user_id="test-user")
+        Query(id="q-late", question="late", answer="a", conversation_id="c1", turn_index=2, user_id=TEST_USER_ID)
     )
     db_session.add(
-        Query(id="q-early", question="early", answer="a", conversation_id="c1", turn_index=0, user_id="test-user")
+        Query(id="q-early", question="early", answer="a", conversation_id="c1", turn_index=0, user_id=TEST_USER_ID)
     )
     db_session.add(
-        Query(id="q-mid", question="mid", answer="a", conversation_id="c1", turn_index=1, user_id="test-user")
+        Query(id="q-mid", question="mid", answer="a", conversation_id="c1", turn_index=1, user_id=TEST_USER_ID)
     )
     await db_session.commit()
 
     service = QueryService()
-    detail = await service.get_conversation("c1", db_session, user_id="test-user")
+    detail = await service.get_conversation("c1", db_session, user_id=TEST_USER_ID)
 
     assert detail.conversation.id == "c1"
     assert [q.question for q in detail.queries] == ["early", "mid", "late"]
@@ -446,7 +447,7 @@ async def test_query_service_get_conversation_not_found(db_session) -> None:
     """get_conversation raises 404 for unknown conversation_id."""
     service = QueryService()
     with pytest.raises(HTTPException) as exc_info:
-        await service.get_conversation("no-such-id", db_session, user_id="test-user")
+        await service.get_conversation("no-such-id", db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
 
@@ -455,7 +456,7 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
 
-    conv = Conversation(id="conv-fb", title="File-back test", user_id="test-user")
+    conv = Conversation(id="conv-fb", title="File-back test", user_id=TEST_USER_ID)
     db_session.add(conv)
     await db_session.commit()
 
@@ -465,17 +466,17 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
         slug="conv-fb",
         title="File-back test",
         file_path=str(tmp_path / "x.md"),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     svc._qa_agent = MagicMock()
     svc._qa_agent._file_back_thread = AsyncMock(return_value=(fake_article, False))
 
-    result = await svc.file_back_conversation("conv-fb", db_session, user_id="test-user")
+    result = await svc.file_back_conversation("conv-fb", db_session, user_id=TEST_USER_ID)
 
     assert result["was_update"] is False
     assert result["article"]["id"] == "art-1"
     assert result["article"]["slug"] == "conv-fb"
-    svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session, user_id="test-user")
+    svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session, user_id=TEST_USER_ID)
 
 
 async def test_query_service_file_back_conversation_not_found(db_session) -> None:
@@ -486,7 +487,7 @@ async def test_query_service_file_back_conversation_not_found(db_session) -> Non
     """
     svc = QueryService()
     with pytest.raises(HTTPException) as exc_info:
-        await svc.file_back_conversation("does-not-exist", db_session, user_id="test-user")
+        await svc.file_back_conversation("does-not-exist", db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
 
@@ -502,31 +503,31 @@ async def test_wiki_list_articles(db_session, tmp_path) -> None:
     svc = WikiService()
     f = tmp_path / "a.md"
     f.write_text("body")
-    db_session.add(Article(slug="a", title="A", file_path=str(f), user_id="test-user"))
+    db_session.add(Article(slug="a", title="A", file_path=str(f), user_id=TEST_USER_ID))
     await db_session.commit()
-    arts = await svc.list_articles(db_session, user_id="test-user")
+    arts = await svc.list_articles(db_session, user_id=TEST_USER_ID)
     assert len(arts) == 1
-    arts = await svc.list_articles(db_session, user_id="test-user", confidence="sourced")
+    arts = await svc.list_articles(db_session, user_id=TEST_USER_ID, confidence="sourced")
     assert isinstance(arts, list)
 
 
 async def test_wiki_get_article_missing(db_session) -> None:
     svc = WikiService()
     with pytest.raises(HTTPException):
-        await svc.get_article("nope", db_session, user_id="test-user")
+        await svc.get_article("nope", db_session, user_id=TEST_USER_ID)
 
 
 async def test_wiki_get_article_ok(db_session, tmp_path) -> None:
     svc = WikiService()
     f = tmp_path / "a.md"
     f.write_text("hello body")
-    src = Source(source_type=SourceType.URL, title="src", user_id="test-user")
+    src = Source(source_type=SourceType.URL, title="src", user_id=TEST_USER_ID)
     db_session.add(src)
     await db_session.flush()
-    art = Article(slug="a", title="A", file_path=str(f), source_ids=json.dumps([src.id]), user_id="test-user")
+    art = Article(slug="a", title="A", file_path=str(f), source_ids=json.dumps([src.id]), user_id=TEST_USER_ID)
     db_session.add(art)
     await db_session.commit()
-    resp = await svc.get_article("a", db_session, user_id="test-user")
+    resp = await svc.get_article("a", db_session, user_id=TEST_USER_ID)
     assert resp.title == "A"
     assert len(resp.sources) == 1
 
@@ -535,13 +536,13 @@ async def test_wiki_get_graph(db_session, tmp_path) -> None:
     svc = WikiService()
     f = tmp_path / "a.md"
     f.write_text("body")
-    a1 = Article(slug="a", title="A", file_path=str(f), user_id="test-user")
-    a2 = Article(slug="b", title="B", file_path=str(f), user_id="test-user")
+    a1 = Article(slug="a", title="A", file_path=str(f), user_id=TEST_USER_ID)
+    a2 = Article(slug="b", title="B", file_path=str(f), user_id=TEST_USER_ID)
     db_session.add_all([a1, a2])
     await db_session.flush()
-    db_session.add(Backlink(source_article_id=a1.id, target_article_id=a2.id, context="x", user_id="test-user"))
+    db_session.add(Backlink(source_article_id=a1.id, target_article_id=a2.id, context="x", user_id=TEST_USER_ID))
     await db_session.commit()
-    g = await svc.get_graph(db_session, user_id="test-user")
+    g = await svc.get_graph(db_session, user_id=TEST_USER_ID)
     assert len(g.nodes) == 2
 
 
@@ -549,22 +550,22 @@ async def test_wiki_search(db_session, tmp_path) -> None:
     svc = WikiService()
     f = tmp_path / "a.md"
     f.write_text("python is fun python rocks")
-    db_session.add(Article(slug="a", title="Python", file_path=str(f), user_id="test-user"))
-    db_session.add(Article(slug="b", title="Other", file_path=str(f), user_id="test-user"))
+    db_session.add(Article(slug="a", title="Python", file_path=str(f), user_id=TEST_USER_ID))
+    db_session.add(Article(slug="b", title="Other", file_path=str(f), user_id=TEST_USER_ID))
     await db_session.commit()
-    results = await svc.search("python", db_session, user_id="test-user")
+    results = await svc.search("python", db_session, user_id=TEST_USER_ID)
     assert len(results) >= 1
 
 
 async def test_wiki_get_concepts(db_session) -> None:
     svc = WikiService()
-    c = await svc.get_concepts(db_session, user_id="test-user")
+    c = await svc.get_concepts(db_session, user_id=TEST_USER_ID)
     assert c == []
 
 
 async def test_wiki_get_health_default(db_session) -> None:
     svc = WikiService()
-    h = await svc.get_health(db_session, user_id="test-user")
+    h = await svc.get_health(db_session, user_id=TEST_USER_ID)
     assert "total_articles" in h
 
 
@@ -572,10 +573,10 @@ async def test_wiki_get_health_from_file(db_session, tmp_path, monkeypatch) -> N
     svc = WikiService()
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    meta = tmp_path / "wiki" / "test-user" / "_meta"
+    meta = tmp_path / "wiki" / TEST_USER_ID / "_meta"
     meta.mkdir(parents=True)
     (meta / "health.json").write_text(json.dumps({"foo": "bar"}))
-    h = await svc.get_health(db_session, user_id="test-user")
+    h = await svc.get_health(db_session, user_id=TEST_USER_ID)
     assert h["foo"] == "bar"
 
 

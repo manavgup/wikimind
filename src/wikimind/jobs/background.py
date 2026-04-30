@@ -51,7 +51,7 @@ class BackgroundCompiler:
 
         Args:
             source_id: The source UUID to compile.
-            user_id: Optional owner for user-scoped processing.
+            user_id: Owner — scopes to this user's data.
             doc: Pre-built NormalizedDocument from the ingest adapter. Passed
                 to the in-process worker to avoid re-reading and re-chunking
                 the source file. Ignored in the ARQ (Redis) path because
@@ -81,7 +81,7 @@ class BackgroundCompiler:
         """Schedule a wiki lint job.
 
         Args:
-            user_id: Optional owner for user-scoped linting.
+            user_id: Owner — scopes to this user's data.
 
         Returns:
             A placeholder job ID string.
@@ -113,7 +113,7 @@ class BackgroundCompiler:
             article_id: The article UUID to recompile.
             mode: "source" or "concept".
             job_id: Pre-created Job record ID.
-            user_id: Optional owner for user-scoped processing.
+            user_id: Owner — scopes to this user's data.
 
         Returns:
             The job ID string.
@@ -139,7 +139,7 @@ class BackgroundCompiler:
         """Schedule a wikilink resolution sweep job.
 
         Args:
-            user_id: Optional owner for user-scoped sweeping.
+            user_id: Owner — scopes to this user's data.
 
         Returns:
             A placeholder job ID string.

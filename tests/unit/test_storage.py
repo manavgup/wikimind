@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import TEST_USER_ID
 from wikimind.config import get_settings
 from wikimind.storage import (
     FileStorage,
@@ -110,12 +111,12 @@ async def test_local_storage_is_file_storage_protocol():
 
 
 def test_get_wiki_storage_returns_local(tmp_path, monkeypatch):
-    """get_wiki_storage(user_id="test-user") returns a LocalFileStorage rooted at wiki_dir."""
+    """get_wiki_storage(user_id=TEST_USER_ID) returns a LocalFileStorage rooted at wiki_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    storage = get_wiki_storage(user_id="test-user")
+    storage = get_wiki_storage(user_id=TEST_USER_ID)
     assert isinstance(storage, LocalFileStorage)
-    assert storage.root == tmp_path / "wiki" / "test-user"
+    assert storage.root == tmp_path / "wiki" / TEST_USER_ID
     get_settings.cache_clear()
 
 
@@ -130,12 +131,12 @@ def test_get_wiki_storage_with_user_id(tmp_path, monkeypatch):
 
 
 def test_get_raw_storage_returns_local(tmp_path, monkeypatch):
-    """get_raw_storage(user_id="test-user") returns a LocalFileStorage rooted at raw_dir."""
+    """get_raw_storage(user_id=TEST_USER_ID) returns a LocalFileStorage rooted at raw_dir."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    storage = get_raw_storage(user_id="test-user")
+    storage = get_raw_storage(user_id=TEST_USER_ID)
     assert isinstance(storage, LocalFileStorage)
-    assert storage.root == tmp_path / "raw" / "test-user"
+    assert storage.root == tmp_path / "raw" / TEST_USER_ID
     get_settings.cache_clear()
 
 
@@ -157,13 +158,13 @@ def test_get_raw_storage_with_user_id(tmp_path, monkeypatch):
 def test_resolve_wiki_path_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_wiki_path("concept/article.md", user_id="test-user")
-    assert result == tmp_path / "wiki" / "test-user" / "concept" / "article.md"
+    result = resolve_wiki_path("concept/article.md", user_id=TEST_USER_ID)
+    assert result == tmp_path / "wiki" / TEST_USER_ID / "concept" / "article.md"
     get_settings.cache_clear()
 
 
 def test_resolve_wiki_path_absolute():
-    result = resolve_wiki_path("/absolute/path/article.md", user_id="test-user")
+    result = resolve_wiki_path("/absolute/path/article.md", user_id=TEST_USER_ID)
     assert result == Path("/absolute/path/article.md")
 
 
@@ -178,8 +179,8 @@ def test_resolve_wiki_path_with_user_id(tmp_path, monkeypatch):
 def test_resolve_raw_path_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_raw_path("source-id.txt", user_id="test-user")
-    assert result == tmp_path / "raw" / "test-user" / "source-id.txt"
+    result = resolve_raw_path("source-id.txt", user_id=TEST_USER_ID)
+    assert result == tmp_path / "raw" / TEST_USER_ID / "source-id.txt"
     get_settings.cache_clear()
 
 

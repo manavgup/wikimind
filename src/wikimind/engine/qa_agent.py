@@ -207,7 +207,7 @@ class QAAgent:
         Args:
             request: The query request.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             A :class:`_PreparedContext` with all data needed for the LLM call.
@@ -325,7 +325,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             result: Parsed QA result from the LLM.
             ctx: Prepared context from ``_prepare_context()``.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             Tuple of (the new Query row, the parent Conversation).
@@ -389,7 +389,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             request: The QueryRequest with question and optional conversation_id.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             Tuple of (the new Query row, the parent Conversation).
@@ -431,7 +431,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             request: The query request.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Yields:
             ``str`` text chunks, then a final ``tuple[Query, Conversation]``.
@@ -592,7 +592,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         Args:
             conversation_id: The conversation to file back.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             Tuple of (article, was_update). was_update is True when an

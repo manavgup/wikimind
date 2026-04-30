@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import TEST_USER_ID
 from wikimind.engine import llm_router as llm_router_mod
 from wikimind.engine.llm_router import LLMRouter
 
@@ -55,7 +56,7 @@ async def test_budget_warning_fires_at_threshold() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_not_awaited()
@@ -72,7 +73,7 @@ async def test_budget_exceeded_fires_at_100pct() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_awaited_once()
@@ -89,10 +90,10 @@ async def test_warning_fires_only_once() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock),
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
         # invalidate cache so second call re-queries
         router._cache_expires_at = 0.0
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     assert mock_warn.await_count == 1
 
@@ -106,9 +107,9 @@ async def test_exceeded_fires_only_once() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock),
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
         router._cache_expires_at = 0.0
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     assert mock_exceeded.await_count == 1
 
@@ -124,12 +125,12 @@ async def test_cache_prevents_requery_within_ttl() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock),
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock),
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
         first_call_count = session.execute.await_count
         # Reset warning flag so second call doesn't short-circuit at the top,
         # but cache is still valid so no DB query should happen.
         router._budget_warning_sent = None
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     # session.execute should not have been called again
     assert session.execute.await_count == first_call_count
@@ -144,7 +145,7 @@ async def test_below_threshold_no_events() -> None:
         patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
     ):
-        await router._check_budget(user_id="test-user")
+        await router._check_budget(user_id=TEST_USER_ID)
 
     mock_warn.assert_not_awaited()
     mock_exceeded.assert_not_awaited()
@@ -158,7 +159,10 @@ async def test_both_flags_set_returns_early_without_query() -> None:
     router._budget_exceeded_sent = (2026, 4)
     factory = _mock_session_factory(spend=999.0)
 
-    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
-        await router._check_budget(user_id="test-user")
+    with (
+        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
+        patch.object(router, "_budget_flag_is_set", return_value=True),
+    ):
+        await router._check_budget(user_id=TEST_USER_ID)
 
     factory.assert_not_called()

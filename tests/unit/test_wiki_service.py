@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, ArticleConcept, ArticleSource, Backlink, BacklinkEntry, Concept, Source, SourceType
 from wikimind.services.wiki import WikiService
 
@@ -18,13 +19,13 @@ async def _seed_article_with_sources(db_session, tmp_path: Path) -> tuple[Articl
         source_type=SourceType.PDF,
         title="20260312_MikeO_AILabsGeneralTalk",
         source_url=None,
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     url_source = Source(
         source_type=SourceType.URL,
         title="IBM Agentic AI Labs",
         source_url="https://example.com/ibm",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(pdf_source)
     db_session.add(url_source)
@@ -36,13 +37,13 @@ async def _seed_article_with_sources(db_session, tmp_path: Path) -> tuple[Articl
         file_path=str(file_path),
         summary="Summary about IBM Agentic AI Labs.",
         source_ids=json.dumps([pdf_source.id, url_source.id]),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(article)
     await db_session.commit()
     await db_session.refresh(article)
-    db_session.add(ArticleSource(article_id=article.id, source_id=pdf_source.id, user_id="test-user"))
-    db_session.add(ArticleSource(article_id=article.id, source_id=url_source.id, user_id="test-user"))
+    db_session.add(ArticleSource(article_id=article.id, source_id=pdf_source.id, user_id=TEST_USER_ID))
+    db_session.add(ArticleSource(article_id=article.id, source_id=url_source.id, user_id=TEST_USER_ID))
     await db_session.commit()
     return article, [pdf_source, url_source]
 
@@ -53,7 +54,7 @@ class TestArticleProvenance:
         article, sources = await _seed_article_with_sources(db_session, tmp_path)
         service = WikiService()
 
-        response = await service.get_article(article.slug, db_session, user_id="test-user")
+        response = await service.get_article(article.slug, db_session, user_id=TEST_USER_ID)
 
         assert response.slug == article.slug
         assert len(response.sources) == 2
@@ -72,7 +73,7 @@ class TestArticleProvenance:
         article, _sources = await _seed_article_with_sources(db_session, tmp_path)
         service = WikiService()
 
-        results = await service.list_articles(db_session, user_id="test-user")
+        results = await service.list_articles(db_session, user_id=TEST_USER_ID)
 
         assert len(results) == 1
         summary = results[0]
@@ -87,7 +88,7 @@ class TestArticleProvenance:
         article, _ = await _seed_article_with_sources(db_session, tmp_path)
         service = WikiService()
 
-        results = await service.search("Langflow", db_session, user_id="test-user")
+        results = await service.search("Langflow", db_session, user_id=TEST_USER_ID)
 
         assert len(results) == 1
         match = results[0]
@@ -103,13 +104,13 @@ class TestArticleProvenance:
             title="Orphan Article",
             file_path=str(file_path),
             source_ids=json.dumps(["does-not-exist-uuid"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article("orphan-article", db_session, user_id="test-user")
+        response = await service.get_article("orphan-article", db_session, user_id=TEST_USER_ID)
 
         assert response.slug == "orphan-article"
         assert response.sources == []
@@ -123,13 +124,13 @@ class TestArticleProvenance:
             title="No Source Article",
             file_path=str(file_path),
             source_ids=None,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article("no-source-article", db_session, user_id="test-user")
+        response = await service.get_article("no-source-article", db_session, user_id=TEST_USER_ID)
 
         assert response.sources == []
 
@@ -141,14 +142,14 @@ class TestArticleProvenance:
             slug="my-article",
             title="My Article",
             file_path=str(file_path),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
         await db_session.refresh(article)
 
         service = WikiService()
-        result = await service.get_article(article.id, db_session, user_id="test-user")
+        result = await service.get_article(article.id, db_session, user_id=TEST_USER_ID)
 
         assert result.id == article.id
         assert result.slug == "my-article"
@@ -161,14 +162,14 @@ class TestArticleProvenance:
             slug="legacy-bookmark",
             title="Legacy Bookmark",
             file_path=str(file_path),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
         await db_session.refresh(article)
 
         service = WikiService()
-        result = await service.get_article("legacy-bookmark", db_session, user_id="test-user")
+        result = await service.get_article("legacy-bookmark", db_session, user_id=TEST_USER_ID)
 
         assert result.slug == "legacy-bookmark"
 
@@ -185,22 +186,22 @@ class TestBacklinkEntries:
         fp_c = tmp_path / "article-c.md"
         fp_c.write_text("# Article C", encoding="utf-8")
 
-        article_a = Article(slug="article-a", title="Article A", file_path=str(fp_a), user_id="test-user")
-        article_b = Article(slug="article-b", title="Article B", file_path=str(fp_b), user_id="test-user")
-        article_c = Article(slug="article-c", title="Article C", file_path=str(fp_c), user_id="test-user")
+        article_a = Article(slug="article-a", title="Article A", file_path=str(fp_a), user_id=TEST_USER_ID)
+        article_b = Article(slug="article-b", title="Article B", file_path=str(fp_b), user_id=TEST_USER_ID)
+        article_c = Article(slug="article-c", title="Article C", file_path=str(fp_c), user_id=TEST_USER_ID)
         db_session.add_all([article_a, article_b, article_c])
         await db_session.flush()
 
         # A -> B and C -> B
-        bl_ab = Backlink(source_article_id=article_a.id, target_article_id=article_b.id, user_id="test-user")
-        bl_cb = Backlink(source_article_id=article_c.id, target_article_id=article_b.id, user_id="test-user")
+        bl_ab = Backlink(source_article_id=article_a.id, target_article_id=article_b.id, user_id=TEST_USER_ID)
+        bl_cb = Backlink(source_article_id=article_c.id, target_article_id=article_b.id, user_id=TEST_USER_ID)
         # B -> A
-        bl_ba = Backlink(source_article_id=article_b.id, target_article_id=article_a.id, user_id="test-user")
+        bl_ba = Backlink(source_article_id=article_b.id, target_article_id=article_a.id, user_id=TEST_USER_ID)
         db_session.add_all([bl_ab, bl_cb, bl_ba])
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article(article_b.id, db_session, user_id="test-user")
+        response = await service.get_article(article_b.id, db_session, user_id=TEST_USER_ID)
 
         # backlinks_in: A and C link to B
         assert len(response.backlinks_in) == 2
@@ -222,19 +223,19 @@ class TestBacklinkEntries:
         fp = tmp_path / "survivor.md"
         fp.write_text("# Survivor", encoding="utf-8")
 
-        article = Article(slug="survivor", title="Survivor", file_path=str(fp), user_id="test-user")
+        article = Article(slug="survivor", title="Survivor", file_path=str(fp), user_id=TEST_USER_ID)
         db_session.add(article)
         await db_session.flush()
 
         # Insert a backlink whose source article does not exist.
         # The JOIN will naturally exclude it because there's no matching Article row.
         ghost_id = "00000000-0000-0000-0000-000000000000"
-        bl = Backlink(source_article_id=ghost_id, target_article_id=article.id, user_id="test-user")
+        bl = Backlink(source_article_id=ghost_id, target_article_id=article.id, user_id=TEST_USER_ID)
         db_session.add(bl)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article(article.id, db_session, user_id="test-user")
+        response = await service.get_article(article.id, db_session, user_id=TEST_USER_ID)
 
         # The ghost backlink is dropped because the JOIN excludes missing articles
         assert response.backlinks_in == []
@@ -244,12 +245,12 @@ class TestBacklinkEntries:
         fp = tmp_path / "lonely.md"
         fp.write_text("# Lonely", encoding="utf-8")
 
-        article = Article(slug="lonely", title="Lonely", file_path=str(fp), user_id="test-user")
+        article = Article(slug="lonely", title="Lonely", file_path=str(fp), user_id=TEST_USER_ID)
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article(article.id, db_session, user_id="test-user")
+        response = await service.get_article(article.id, db_session, user_id=TEST_USER_ID)
 
         assert response.backlinks_in == []
         assert response.backlinks_out == []
@@ -267,13 +268,13 @@ class TestConceptPopulation:
             title="ML Article",
             file_path=str(fp),
             concept_ids=json.dumps(["Machine Learning", "Deep Learning"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article(article.id, db_session, user_id="test-user")
+        response = await service.get_article(article.id, db_session, user_id=TEST_USER_ID)
 
         assert response.concepts == ["Machine Learning", "Deep Learning"]
 
@@ -287,13 +288,13 @@ class TestConceptPopulation:
             title="No Concepts",
             file_path=str(fp),
             concept_ids=None,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        response = await service.get_article(article.id, db_session, user_id="test-user")
+        response = await service.get_article(article.id, db_session, user_id=TEST_USER_ID)
 
         assert response.concepts == []
 
@@ -307,13 +308,13 @@ class TestConceptPopulation:
             title="Graph Article",
             file_path=str(fp),
             concept_ids=json.dumps(["AI", "Machine Learning"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        graph = await service.get_graph(db_session, user_id="test-user")
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID)
 
         assert len(graph.nodes) == 1
         assert graph.nodes[0].concept_cluster == "AI"
@@ -328,29 +329,29 @@ class TestConceptPopulation:
             title="Plain Article",
             file_path=str(fp),
             concept_ids=None,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
-        graph = await service.get_graph(db_session, user_id="test-user")
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID)
 
         assert len(graph.nodes) == 1
         assert graph.nodes[0].concept_cluster is None
 
     async def test_get_concepts_include_empty_false_filters(self, db_session):
         """get_concepts with include_empty=False excludes zero-count concepts."""
-        populated = Concept(name="populated", article_count=3, user_id="test-user")
-        empty = Concept(name="empty", article_count=0, user_id="test-user")
+        populated = Concept(name="populated", article_count=3, user_id=TEST_USER_ID)
+        empty = Concept(name="empty", article_count=0, user_id=TEST_USER_ID)
         db_session.add_all([populated, empty])
         await db_session.commit()
 
         service = WikiService()
-        all_concepts = await service.get_concepts(db_session, include_empty=True, user_id="test-user")
+        all_concepts = await service.get_concepts(db_session, include_empty=True, user_id=TEST_USER_ID)
         assert len(all_concepts) == 2
 
-        non_empty = await service.get_concepts(db_session, include_empty=False, user_id="test-user")
+        non_empty = await service.get_concepts(db_session, include_empty=False, user_id=TEST_USER_ID)
         assert len(non_empty) == 1
         assert non_empty[0].name == "populated"
 
@@ -371,14 +372,14 @@ class TestConceptFiltering:
             title="ML Article",
             file_path=str(fp_ml),
             concept_ids=json.dumps(["Machine Learning", "AI"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_article = Article(
             slug="db-article",
             title="DB Article",
             file_path=str(fp_db),
             concept_ids=json.dumps(["Databases"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add_all([ml_article, db_article])
         await db_session.commit()
@@ -390,7 +391,7 @@ class TestConceptFiltering:
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, concept="Machine Learning", user_id="test-user")
+        results = await service.list_articles(db_session, concept="Machine Learning", user_id=TEST_USER_ID)
 
         assert len(results) == 1
         assert results[0].slug == "ml-article"
@@ -409,21 +410,21 @@ class TestConceptFiltering:
                     title="A",
                     file_path=str(fp_a),
                     concept_ids=json.dumps(["AI"]),
-                    user_id="test-user",
+                    user_id=TEST_USER_ID,
                 ),
                 Article(
                     slug="b",
                     title="B",
                     file_path=str(fp_b),
                     concept_ids=json.dumps(["Databases"]),
-                    user_id="test-user",
+                    user_id=TEST_USER_ID,
                 ),
             ]
         )
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, user_id="test-user")
+        results = await service.list_articles(db_session, user_id=TEST_USER_ID)
 
         assert len(results) == 2
 
@@ -438,13 +439,13 @@ class TestConceptFiltering:
                 title="No Concepts",
                 file_path=str(fp),
                 concept_ids=None,
-                user_id="test-user",
+                user_id=TEST_USER_ID,
             )
         )
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, concept="AI", user_id="test-user")
+        results = await service.list_articles(db_session, concept="AI", user_id=TEST_USER_ID)
 
         assert len(results) == 0
 
@@ -461,7 +462,7 @@ class TestConceptFiltering:
             file_path=str(fp_a),
             concept_ids=json.dumps(["AI"]),
             confidence="sourced",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         inferred_art = Article(
             slug="inferred-ai",
@@ -469,7 +470,7 @@ class TestConceptFiltering:
             file_path=str(fp_b),
             concept_ids=json.dumps(["AI"]),
             confidence="inferred",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add_all([sourced_art, inferred_art])
         await db_session.commit()
@@ -484,7 +485,7 @@ class TestConceptFiltering:
             db_session,
             concept="AI",
             confidence="sourced",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
 
         assert len(results) == 1
@@ -500,7 +501,7 @@ class TestConceptFiltering:
             title="ML",
             file_path=str(fp),
             concept_ids=json.dumps(["Machine Learning"]),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(ml_art)
         await db_session.commit()
@@ -509,7 +510,7 @@ class TestConceptFiltering:
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, concept="Quantum Computing", user_id="test-user")
+        results = await service.list_articles(db_session, concept="Quantum Computing", user_id=TEST_USER_ID)
 
         assert len(results) == 0
 
@@ -523,7 +524,7 @@ class TestArticleSummaryCounts:
         _article, _sources = await _seed_article_with_sources(db_session, tmp_path)
         service = WikiService()
 
-        results = await service.list_articles(db_session, user_id="test-user")
+        results = await service.list_articles(db_session, user_id=TEST_USER_ID)
 
         assert len(results) == 1
         assert results[0].source_count == 2
@@ -535,17 +536,17 @@ class TestArticleSummaryCounts:
         fp_b = tmp_path / "b.md"
         fp_b.write_text("# B", encoding="utf-8")
 
-        article_a = Article(slug="a", title="A", file_path=str(fp_a), user_id="test-user")
-        article_b = Article(slug="b", title="B", file_path=str(fp_b), user_id="test-user")
+        article_a = Article(slug="a", title="A", file_path=str(fp_a), user_id=TEST_USER_ID)
+        article_b = Article(slug="b", title="B", file_path=str(fp_b), user_id=TEST_USER_ID)
         db_session.add_all([article_a, article_b])
         await db_session.flush()
 
-        bl = Backlink(source_article_id=article_a.id, target_article_id=article_b.id, user_id="test-user")
+        bl = Backlink(source_article_id=article_a.id, target_article_id=article_b.id, user_id=TEST_USER_ID)
         db_session.add(bl)
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, user_id="test-user")
+        results = await service.list_articles(db_session, user_id=TEST_USER_ID)
 
         by_slug = {r.slug: r for r in results}
         # article_a has 1 outgoing backlink
@@ -563,13 +564,13 @@ class TestArticleSummaryCounts:
                 slug="lonely",
                 title="Lonely",
                 file_path=str(fp),
-                user_id="test-user",
+                user_id=TEST_USER_ID,
             )
         )
         await db_session.commit()
 
         service = WikiService()
-        results = await service.list_articles(db_session, user_id="test-user")
+        results = await service.list_articles(db_session, user_id=TEST_USER_ID)
 
         assert len(results) == 1
         assert results[0].source_count == 0

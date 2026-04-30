@@ -15,6 +15,7 @@ from wikimind.services.linter import LinterService
 
 if TYPE_CHECKING:
     from pathlib import Path
+from tests.conftest import TEST_USER_ID
 
 
 def _make_article(
@@ -43,7 +44,7 @@ def _make_article(
         file_path=str(file_path),
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
         page_type=page_type,
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
 
 
@@ -67,7 +68,7 @@ async def test_lint_run_includes_structural_findings(db_session, _isolated_data_
         patch("wikimind.engine.linter.runner.get_llm_router", return_value=mock_router),
         patch("wikimind.engine.linter.runner.emit_linter_alert", new_callable=AsyncMock),
     ):
-        report = await run_lint(db_session, user_id="test-user")
+        report = await run_lint(db_session, user_id=TEST_USER_ID)
     assert report.status == LintReportStatus.COMPLETE
     assert report.structural_count >= 1
     assert report.checked_articles == 1
@@ -89,7 +90,7 @@ async def test_lint_run_auto_repairs_missing_inverse(db_session, _isolated_data_
         target_article_id="a2",
         relation_type=RelationType.CONTRADICTS,
         context="claim conflict",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     db_session.add(bl)
     await db_session.commit()
@@ -100,7 +101,7 @@ async def test_lint_run_auto_repairs_missing_inverse(db_session, _isolated_data_
         patch("wikimind.engine.linter.runner.get_llm_router", return_value=mock_router),
         patch("wikimind.engine.linter.runner.emit_linter_alert", new_callable=AsyncMock),
     ):
-        report = await run_lint(db_session, user_id="test-user")
+        report = await run_lint(db_session, user_id=TEST_USER_ID)
     assert report.status == LintReportStatus.COMPLETE
     result = await db_session.execute(
         select(StructuralFinding).where(
@@ -138,9 +139,9 @@ async def test_structural_findings_in_report_detail(db_session, _isolated_data_d
         patch("wikimind.engine.linter.runner.get_llm_router", return_value=mock_router),
         patch("wikimind.engine.linter.runner.emit_linter_alert", new_callable=AsyncMock),
     ):
-        report = await run_lint(db_session, user_id="test-user")
+        report = await run_lint(db_session, user_id=TEST_USER_ID)
     svc = LinterService()
-    detail = await svc.get_report(db_session, report.id, user_id="test-user")
+    detail = await svc.get_report(db_session, report.id, user_id=TEST_USER_ID)
     assert hasattr(detail, "structurals")
     assert len(detail.structurals) >= 1
     assert detail.structurals[0].violation_type == "source_no_concepts"

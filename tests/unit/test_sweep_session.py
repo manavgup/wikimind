@@ -24,6 +24,7 @@ from wikimind.models import Article, Backlink, ConfidenceLevel
 
 if TYPE_CHECKING:
     from pathlib import Path
+from tests.conftest import TEST_USER_ID
 
 
 async def _make_article(
@@ -40,7 +41,7 @@ async def _make_article(
         file_path=file_path,
         confidence=ConfidenceLevel.SOURCED,
         created_at=utcnow_naive(),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     session.add(article)
     await session.commit()
@@ -97,7 +98,7 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
             source_article_id=source.id,
             target_article_id=target.id,
             context="pre-existing",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         setup_session.add(existing_bl)
         await setup_session.commit()
@@ -158,7 +159,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
             file_path=str(tmp_path / "dl.md"),
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         md_path = tmp_path / "intro.md"
         md_path.write_text("Introduction to [[Deep Learning]] methods.\n")
@@ -169,7 +170,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
             file_path=str(md_path),
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         setup_session.add_all([target, source])
         await setup_session.commit()
@@ -179,7 +180,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     counting_factory = _CountingSessionFactory(factory)
 
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=counting_factory):
-        await sweep_wikilinks(None, user_id="test-user")
+        await sweep_wikilinks(None, user_id=TEST_USER_ID)
 
     # Should have at least 5 calls: 1 job session + 1 cleanup session
     # + 1 list session + 2 per-article sessions. The key assertion is > 1.

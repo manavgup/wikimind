@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from sqlmodel.ext.asyncio.session import AsyncSession
+from tests.conftest import TEST_USER_ID
 
 
 async def _make_article(
@@ -32,7 +33,7 @@ async def _make_article(
         file_path=file_path,
         confidence=ConfidenceLevel.SOURCED,
         created_at=utcnow_naive(),
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
     session.add(article)
     await session.commit()

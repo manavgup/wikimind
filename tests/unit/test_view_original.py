@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from tests.conftest import TEST_USER_ID
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.main import app
@@ -21,7 +22,7 @@ def source_with_pdf():
         source_type=SourceType.PDF,
         file_path="src-pdf.txt",
         title="Test PDF",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
 
 
@@ -32,7 +33,7 @@ def source_text_only():
         source_type=SourceType.TEXT,
         file_path="src-text.txt",
         title="Test Text",
-        user_id="test-user",
+        user_id=TEST_USER_ID,
     )
 
 

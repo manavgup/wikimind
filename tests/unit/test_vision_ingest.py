@@ -24,6 +24,7 @@ from wikimind.models import CompletionResponse, Provider
 
 if TYPE_CHECKING:
     from pathlib import Path
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -258,7 +259,7 @@ class TestDescribeImagesViaLLM:
         images = [b"fake-png-1", b"fake-png-2"]
         page_indices = [1, 3]
 
-        result = await PDFAdapter._describe_images_via_llm(images, page_indices, max_per_batch=20, user_id="test-user")
+        result = await PDFAdapter._describe_images_via_llm(images, page_indices, max_per_batch=20, user_id=TEST_USER_ID)
 
         assert 1 in result
         assert 3 in result
@@ -295,7 +296,7 @@ class TestDescribeImagesViaLLM:
         images = [b"img-1", b"img-2"]
         page_indices = [0, 2]
 
-        result = await PDFAdapter._describe_images_via_llm(images, page_indices, max_per_batch=1, user_id="test-user")
+        result = await PDFAdapter._describe_images_via_llm(images, page_indices, max_per_batch=1, user_id=TEST_USER_ID)
 
         assert mock_router.complete_multimodal.await_count == 2
         assert 0 in result
@@ -322,7 +323,7 @@ class TestEnhanceWithVision:
         adapter = PDFAdapter()
         pdf_bytes = _build_sparse_and_dense_pdf()
 
-        result = await adapter._enhance_with_vision(pdf_bytes, "original text", "src-1", user_id="test-user")
+        result = await adapter._enhance_with_vision(pdf_bytes, "original text", "src-1", user_id=TEST_USER_ID)
         assert result == "original text"
 
     async def test_no_sparse_pages_returns_original(
@@ -345,7 +346,7 @@ class TestEnhanceWithVision:
         dense_text = "x" * 400
         pdf_bytes = _build_pdf_bytes([dense_text])
 
-        result = await adapter._enhance_with_vision(pdf_bytes, dense_text, "src-2", user_id="test-user")
+        result = await adapter._enhance_with_vision(pdf_bytes, dense_text, "src-2", user_id=TEST_USER_ID)
         assert result == dense_text
 
     async def test_sparse_pages_get_descriptions(
@@ -383,7 +384,7 @@ class TestEnhanceWithVision:
         pdf_bytes = _build_sparse_and_dense_pdf()
 
         clean_text = "Original docling markdown with headings and structure."
-        result = await adapter._enhance_with_vision(pdf_bytes, clean_text, "src-3", user_id="test-user")
+        result = await adapter._enhance_with_vision(pdf_bytes, clean_text, "src-3", user_id=TEST_USER_ID)
 
         # The original clean_text is preserved (not rebuilt from fitz)
         assert "Original docling markdown" in result
@@ -426,7 +427,7 @@ class TestVisionIntegrationWithIngest:
         pdf_bytes = _build_pdf_bytes(["Some page content"])
         adapter = PDFAdapter()
 
-        _source, doc = await adapter.ingest(pdf_bytes, "vision-test.pdf", db_session, user_id="test-user")
+        _source, doc = await adapter.ingest(pdf_bytes, "vision-test.pdf", db_session, user_id=TEST_USER_ID)
 
         mock_enhance.assert_awaited_once()
         assert doc.clean_text == "enhanced text from vision"
@@ -457,7 +458,7 @@ class TestVisionIntegrationWithIngest:
         pdf_bytes = _build_pdf_bytes(["Original fitz extracted text"])
         adapter = PDFAdapter()
 
-        _source, doc = await adapter.ingest(pdf_bytes, "no-vision.pdf", db_session, user_id="test-user")
+        _source, doc = await adapter.ingest(pdf_bytes, "no-vision.pdf", db_session, user_id=TEST_USER_ID)
 
         assert "Original fitz extracted text" in doc.clean_text
         # No multimodal calls should have been made

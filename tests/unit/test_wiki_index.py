@@ -18,6 +18,7 @@ from wikimind.storage import resolve_wiki_path
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+from tests.conftest import TEST_USER_ID
 
 
 class TestFirstSentence:
@@ -50,8 +51,8 @@ class TestRegenerateIndexMd:
     @pytest.mark.anyio
     async def test_empty_database_produces_header_only(self, db_session: AsyncSession) -> None:
         """An empty DB should produce a file with frontmatter and the header."""
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "page_type: index" in content
@@ -61,8 +62,8 @@ class TestRegenerateIndexMd:
     async def test_articles_grouped_by_concept(self, db_session: AsyncSession) -> None:
         """Articles should appear under their concept headings."""
         # Create concepts
-        c1 = Concept(id="c1", name="Databases", user_id="test-user")
-        c2 = Concept(id="c2", name="Algorithms", user_id="test-user")
+        c1 = Concept(id="c1", name="Databases", user_id=TEST_USER_ID)
+        c2 = Concept(id="c2", name="Algorithms", user_id=TEST_USER_ID)
         db_session.add_all([c1, c2])
         await db_session.commit()
 
@@ -73,7 +74,7 @@ class TestRegenerateIndexMd:
             file_path="/wiki/postgres-internals.md",
             concept_ids=json.dumps(["c1"]),
             summary="How Postgres works internally. Deep dive into storage.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         a2 = Article(
             slug="sorting-algorithms",
@@ -81,13 +82,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/sorting-algorithms.md",
             concept_ids=json.dumps(["c2"]),
             summary="Overview of sorting algorithms. Comparison based approaches.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add_all([a1, a2])
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         # Both concept headings should appear
@@ -110,13 +111,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/random-note.md",
             concept_ids=None,
             summary="A note with no concept.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         assert "## Uncategorized" in content
@@ -131,13 +132,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/orphan.md",
             concept_ids=json.dumps(["Machine Learning"]),
             summary="This concept name is used directly.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         assert "## Machine Learning" in content
@@ -147,7 +148,7 @@ class TestRegenerateIndexMd:
     @pytest.mark.anyio
     async def test_entry_format(self, db_session: AsyncSession) -> None:
         """Each entry should be: - [[slug]] -- summary first sentence."""
-        c1 = Concept(id="c1", name="Testing", user_id="test-user")
+        c1 = Concept(id="c1", name="Testing", user_id=TEST_USER_ID)
         db_session.add(c1)
         await db_session.commit()
 
@@ -157,13 +158,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/unit-testing-guide.md",
             concept_ids=json.dumps(["c1"]),
             summary="How to write effective unit tests. Covers mocking and fixtures.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         expected = "- [[unit-testing-guide]] \u2014 How to write effective unit tests."
@@ -172,7 +173,7 @@ class TestRegenerateIndexMd:
     @pytest.mark.anyio
     async def test_summary_truncation(self, db_session: AsyncSession) -> None:
         """Summaries longer than 120 chars should be truncated with an ellipsis."""
-        c1 = Concept(id="c1", name="Long", user_id="test-user")
+        c1 = Concept(id="c1", name="Long", user_id=TEST_USER_ID)
         db_session.add(c1)
         await db_session.commit()
 
@@ -183,13 +184,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/long-summary.md",
             concept_ids=json.dumps(["c1"]),
             summary=long_sentence,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         # The entry line should contain a truncated summary
@@ -212,13 +213,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/first-article.md",
             concept_ids=None,
             summary="First.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         first_content = path.read_text(encoding="utf-8")
         assert "[[first-article]]" in first_content
 
@@ -229,13 +230,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/second-article.md",
             concept_ids=None,
             summary="Second.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a2)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         second_content = path.read_text(encoding="utf-8")
 
         # Both should be present
@@ -254,13 +255,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/no-summary.md",
             concept_ids=None,
             summary=None,
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         assert "- [[no-summary]]\n" in content
@@ -269,8 +270,8 @@ class TestRegenerateIndexMd:
     @pytest.mark.anyio
     async def test_article_in_multiple_concepts(self, db_session: AsyncSession) -> None:
         """An article with multiple concepts should appear under each."""
-        c1 = Concept(id="c1", name="Alpha", user_id="test-user")
-        c2 = Concept(id="c2", name="Beta", user_id="test-user")
+        c1 = Concept(id="c1", name="Alpha", user_id=TEST_USER_ID)
+        c2 = Concept(id="c2", name="Beta", user_id=TEST_USER_ID)
         db_session.add_all([c1, c2])
         await db_session.commit()
 
@@ -280,13 +281,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/multi-concept.md",
             concept_ids=json.dumps(["c1", "c2"]),
             summary="Belongs to two concepts.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         # Should appear under both headings
@@ -299,7 +300,7 @@ class TestRegenerateIndexMd:
     @pytest.mark.anyio
     async def test_articles_sorted_within_concept(self, db_session: AsyncSession) -> None:
         """Articles within a concept should be sorted alphabetically by slug."""
-        c1 = Concept(id="c1", name="Concept", user_id="test-user")
+        c1 = Concept(id="c1", name="Concept", user_id=TEST_USER_ID)
         db_session.add(c1)
         await db_session.commit()
 
@@ -309,7 +310,7 @@ class TestRegenerateIndexMd:
             file_path="/wiki/zebra.md",
             concept_ids=json.dumps(["c1"]),
             summary="Zebra summary.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         a_alpha = Article(
             slug="alpha",
@@ -317,13 +318,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/alpha.md",
             concept_ids=json.dumps(["c1"]),
             summary="Alpha summary.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add_all([a_zebra, a_alpha])
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         assert content.index("[[alpha]]") < content.index("[[zebra]]")
@@ -337,13 +338,13 @@ class TestRegenerateIndexMd:
             file_path="/wiki/bad-json.md",
             concept_ids="not-valid-json",
             summary="Malformed concept IDs.",
-            user_id="test-user",
+            user_id=TEST_USER_ID,
         )
         db_session.add(a1)
         await db_session.commit()
 
-        rel = await regenerate_index_md(db_session, user_id="test-user")
-        path = resolve_wiki_path(rel, user_id="test-user")
+        rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
+        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
         content = path.read_text(encoding="utf-8")
 
         assert "## Uncategorized" in content

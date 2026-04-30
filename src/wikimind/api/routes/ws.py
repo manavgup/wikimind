@@ -4,8 +4,7 @@ Clients subscribe once and receive job progress, compilation results,
 linter alerts, and sync status as they happen.
 
 Connections are tracked per ``user_id`` so broadcasts reach only the
-owning user. When ``user_id`` is ``None`` (single-user / legacy mode),
-broadcasts go to all connections.
+owning user.
 
 Multi-replica support
 ---------------------
@@ -122,7 +121,7 @@ async def _start_redis_subscriber() -> None:
                 try:
                     payload = json.loads(raw_message["data"])
                     event = payload["event"]
-                    uid = payload.get("user_id", "anonymous")
+                    uid = payload["user_id"]
                     await manager._local_broadcast(event, user_id=uid)
                 except (json.JSONDecodeError, KeyError, TypeError):
                     log.debug("Ignoring malformed Redis WS message")
@@ -193,9 +192,6 @@ class ConnectionManager:
         When Redis is available, the event is published to a Pub/Sub channel
         and the subscriber task on each replica delivers it locally. When
         Redis is unavailable, falls back to local-only delivery.
-
-        When *user_id* is ``None``, the event is sent to **all**
-        connections (backward-compatible single-user behaviour).
         """
         published = await _publish_to_redis(event, user_id)
         if not published:
@@ -209,7 +205,7 @@ class ConnectionManager:
         in multi-replica mode. Never call this from application code — use
         :meth:`broadcast` instead.
         """
-        targets = self.active if user_id is None else self._connections.get(user_id, set())
+        targets = self._connections.get(user_id, set())
 
         if not targets:
             return

@@ -57,11 +57,9 @@ async def run_enforcer_checks(
     Args:
         session: Async database session.
         report: The parent LintReport.
-        user_id: Optional user ID to scope the check to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
     """
-    stmt = select(Article)
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
+    stmt = select(Article).where(Article.user_id == user_id)
     result = await session.execute(stmt)
     articles = list(result.scalars().all())
 
@@ -142,7 +140,7 @@ async def run_lint(
     Args:
         session: Async database session.
         job_id: Optional Job ID to link the report to.
-        user_id: Optional user ID to scope the lint to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
 
     Returns:
         The completed LintReport.
@@ -155,10 +153,8 @@ async def run_lint(
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
 
-    # Snapshot article count (scoped to user when provided)
-    count_stmt = select(func.count()).select_from(Article)
-    if user_id is not None:
-        count_stmt = count_stmt.where(Article.user_id == user_id)
+    # Snapshot article count (scoped to user)
+    count_stmt = select(func.count()).select_from(Article).where(Article.user_id == user_id)
     count_result = await session.execute(count_stmt)
     article_count = count_result.scalar() or 0
 

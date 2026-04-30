@@ -176,7 +176,7 @@ class Source(SQLModel, table=True):
             return False
         from wikimind.storage import find_original_sibling, resolve_raw_path  # noqa: PLC0415
 
-        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id or "anonymous")
+        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id)  # type: ignore[arg-type]  # #393
         return find_original_sibling(txt_path) is not None
 
 
