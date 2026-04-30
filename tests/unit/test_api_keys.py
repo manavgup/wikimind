@@ -226,9 +226,7 @@ class TestAPIRoutes:
         )
         assert resp.status_code == 400
 
-    async def test_set_key_works_without_explicit_jwt_secret(
-        self, client: AsyncClient, monkeypatch
-    ):
+    async def test_set_key_works_without_explicit_jwt_secret(self, client: AsyncClient, monkeypatch):
         """PUT succeeds when JWT_SECRET_KEY is not set — auto-generated in single-user mode."""
         monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
         get_settings.cache_clear()
