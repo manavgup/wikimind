@@ -25,7 +25,7 @@ from wikimind.services.api_keys import (
 router = APIRouter()
 
 # Providers that accept user-supplied API keys (Ollama and Mock don't use keys)
-_BYOK_PROVIDERS = {Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE}
+_BYOK_PROVIDERS = {Provider.ANTHROPIC, Provider.OPENAI, Provider.OPENAI_COMPATIBLE, Provider.GOOGLE}
 
 
 # ---------------------------------------------------------------------------

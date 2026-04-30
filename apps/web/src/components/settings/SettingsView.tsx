@@ -150,6 +150,7 @@ export function SettingsView() {
       {apiKeyModalProvider !== null && (
         <ApiKeyModal
           provider={apiKeyModalProvider}
+          providerInfo={settings.llm.providers[apiKeyModalProvider]}
           onClose={() => setApiKeyModalProvider(null)}
         />
       )}

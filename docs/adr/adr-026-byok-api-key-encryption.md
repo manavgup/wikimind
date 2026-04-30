@@ -26,7 +26,8 @@ Requirements:
   the `cryptography` library)
 - **Key derivation**: PBKDF2-HMAC-SHA256 with 100,000 iterations (OWASP 2023
   minimum for SHA-256)
-- **Key material**: `JWT_SECRET_KEY` (already required for authentication) +
+- **Key material**: `JWT_SECRET_KEY` (required for authentication and BYOK
+  key storage) +
   a 16-byte random per-row salt
 - **Storage**: `UserApiKey` table with `encrypted_key` (Fernet ciphertext,
   base64) and `salt` (hex-encoded)

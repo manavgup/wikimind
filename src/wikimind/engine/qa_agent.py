@@ -399,7 +399,13 @@ conversation context contradicts the wiki, prefer the wiki."""
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
         else:
-            result = await self._query_llm(request.question, ctx.wiki_context, ctx.prior_turns, session)
+            result = await self._query_llm(
+                request.question,
+                ctx.wiki_context,
+                ctx.prior_turns,
+                session,
+                user_id=user_id,
+            )
 
         return await self._persist_query(request, result, ctx, session, user_id=user_id)
 
@@ -440,7 +446,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             return
 
         assert ctx.completion_request is not None
-        stream_session = await self.router.stream_complete(ctx.completion_request)
+        stream_session = await self.router.stream_complete(ctx.completion_request, user_id=user_id)
         full_text_parts: list[str] = []
         async for chunk_text in stream_session:
             full_text_parts.append(chunk_text)
@@ -544,11 +550,12 @@ conversation context contradicts the wiki, prefer the wiki."""
         context: list[dict],
         prior_turns: list[Query],
         session: AsyncSession,
+        user_id: str | None = None,
     ) -> QueryResult:
         """Build the LLM prompt (with optional conversation context) and call the router."""
         request_obj = self._build_completion_request(question, context, prior_turns)
 
-        response = await self.router.complete(request_obj, session=session)
+        response = await self.router.complete(request_obj, session=session, user_id=user_id)
 
         try:
             data = self.router.parse_json_response(response)

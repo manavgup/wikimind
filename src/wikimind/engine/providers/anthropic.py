@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import anthropic
 
 from wikimind.config import get_api_key
-from wikimind.engine.llm_router import StreamSession, _calc_cost
+from wikimind.engine.provider_base import StreamSession, _calc_cost
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
 
 if TYPE_CHECKING:

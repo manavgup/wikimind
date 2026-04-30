@@ -15,6 +15,7 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import keyring
 import keyring.errors
@@ -64,6 +65,21 @@ class OpenAIConfig(LLMProviderConfig):
     enabled: bool = False
 
 
+class OpenAICompatibleConfig(LLMProviderConfig):
+    """OpenAI Chat Completions-compatible endpoint defaults."""
+
+    model: str = "gpt-4o-mini"
+    enabled: bool = False
+    base_url: str = ""
+    supports_json_response_format: bool = True
+    supports_stream_usage: bool = True
+    supports_reasoning_effort: bool = True
+    max_tokens_field: str = "max_tokens"
+    reasoning_format: Literal["none", "openai", "openrouter"] = "openai"
+    site_url: str = ""
+    app_name: str = ""
+
+
 class GoogleConfig(LLMProviderConfig):
     """Google Gemini provider defaults."""
 
@@ -100,6 +116,7 @@ class LLMConfig(BaseModel):
     budget_check_cache_seconds: int = 60
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    openai_compatible: OpenAICompatibleConfig = Field(default_factory=OpenAICompatibleConfig)
     google: GoogleConfig = Field(default_factory=GoogleConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     ollama_base_url: str = "http://localhost:11434"
@@ -206,6 +223,7 @@ class AuthConfig(BaseModel):
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
     "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
     "openai": ("openai_api_key", "OPENAI_API_KEY"),
+    "openai_compatible": ("openai_compatible_api_key", "OPENAI_COMPATIBLE_API_KEY"),
     "google": ("google_api_key", "GOOGLE_API_KEY"),
 }
 
@@ -279,6 +297,7 @@ class Settings(BaseSettings):
     # API keys — SecretStr prevents accidental logging
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    openai_compatible_api_key: SecretStr | None = None
     google_api_key: SecretStr | None = None
     aws_access_key_id: SecretStr | None = None
     aws_secret_access_key: SecretStr | None = None
@@ -334,6 +353,7 @@ class Settings(BaseSettings):
         return {
             "anthropic_api_key": self._has_provider_key("anthropic"),
             "openai_api_key": self._has_provider_key("openai"),
+            "openai_compatible_api_key": self._has_provider_key("openai_compatible"),
             "google_api_key": self._has_provider_key("google"),
             "keyring_backend": type(keyring.get_keyring()).__name__,
         }
@@ -354,11 +374,24 @@ def _reconcile_providers(settings: Settings) -> None:
     for name, (_field, raw_env) in _PROVIDER_KEY_FIELDS.items():
         cfg = getattr(settings.llm, name)
         has_key = settings._has_provider_key(name)
-        if has_key and not cfg.enabled:
+        missing_runtime = name == "openai_compatible" and not cfg.base_url
+        if has_key and not cfg.enabled and not missing_runtime:
             cfg.enabled = True
             log.info("auto-enabled provider (key detected)", provider=name)
+        elif has_key and missing_runtime:
+            log.warning(
+                "provider key detected but required base URL is missing",
+                provider=name,
+                hint="set WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL",
+            )
         elif not has_key and cfg.enabled:
             log.warning("provider enabled but no API key", provider=name, hint=f"set {raw_env}")
+        elif name == "openai_compatible" and cfg.enabled and not cfg.base_url:
+            log.warning(
+                "provider enabled but required base URL is missing",
+                provider=name,
+                hint="set WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL",
+            )
 
 
 @lru_cache(maxsize=1)
@@ -377,6 +410,7 @@ def get_settings() -> Settings:
 _ENV_MAP: dict[str, str] = {
     "anthropic": "anthropic_api_key",
     "openai": "openai_api_key",
+    "openai_compatible": "openai_compatible_api_key",
     "google": "google_api_key",
     "aws_access_key": "aws_access_key_id",
     "aws_secret_key": "aws_secret_access_key",
@@ -401,6 +435,7 @@ def get_api_key(provider: str) -> str | None:
     raw_env_map: dict[str, str] = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
+        "openai_compatible": "OPENAI_COMPATIBLE_API_KEY",
         "google": "GOOGLE_API_KEY",
         "aws_access_key": "AWS_ACCESS_KEY_ID",
         "aws_secret_key": "AWS_SECRET_ACCESS_KEY",

@@ -38,6 +38,7 @@ class TestEnums:
     def test_provider_values(self):
         assert Provider.ANTHROPIC == "anthropic"
         assert Provider.OPENAI == "openai"
+        assert Provider.OPENAI_COMPATIBLE == "openai_compatible"
         assert Provider.OLLAMA == "ollama"
 
     def test_job_status_values(self):

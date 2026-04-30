@@ -86,7 +86,7 @@ async def export_article(
         return HTMLResponse(content=html, media_type="text/html")
 
     if format == ExportFormat.LINKEDIN:
-        text = await service.export_linkedin(article.title, content)
+        text = await service.export_linkedin(article.title, content, user_id=user_id)
         return ExportResponse(
             format=ExportFormat.LINKEDIN,
             content=text,
@@ -95,7 +95,7 @@ async def export_article(
         )
 
     # slides
-    text = await service.export_slides(article.title, content)
+    text = await service.export_slides(article.title, content, user_id=user_id)
     return ExportResponse(
         format=ExportFormat.SLIDES,
         content=text,

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import ollama
 
-from wikimind.engine.llm_router import StreamSession
+from wikimind.engine.provider_base import StreamSession
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
 
 if TYPE_CHECKING:

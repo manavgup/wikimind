@@ -21,6 +21,12 @@ type TestState =
 
 const NO_KEY_PROVIDERS = new Set(["ollama", "mock"]);
 
+function formatProviderName(name: string): string {
+  if (name === "openai_compatible") return "OpenAI-compatible";
+  if (name === "openai") return "OpenAI";
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 function HealthDot({ state }: { state: TestState; enabled: boolean }) {
   if (state.kind === "testing") {
     return (
@@ -87,7 +93,7 @@ export function ProviderCard({ name, info, isDefault, onSetKey }: ProviderCardPr
 
       <div className="mb-3 flex items-center gap-2.5">
         <HealthDot state={testState} enabled={info.enabled} />
-        <span className="text-base font-semibold text-slate-800 capitalize">{name}</span>
+        <span className="text-base font-semibold text-slate-800">{formatProviderName(name)}</span>
       </div>
 
       <div className="mb-3 flex items-center gap-2">

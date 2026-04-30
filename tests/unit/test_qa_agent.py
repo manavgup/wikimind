@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from wikimind._datetime import utcnow_naive
 from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
-from wikimind.engine.llm_router import StreamSession
+from wikimind.engine.provider_base import StreamSession
 from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,

@@ -6,7 +6,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
-from wikimind.engine.llm_router import StreamSession
+from wikimind.engine.provider_base import StreamSession
 from wikimind.models import CompletionRequest, CompletionResponse, Provider, TaskType
 
 if TYPE_CHECKING:

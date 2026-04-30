@@ -20,6 +20,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from wikimind.api.routes import admin, api_keys, auth, export, ingest, jobs, lint, query, wiki, ws
 from wikimind.api.routes import settings as settings_router
+from wikimind.api.routes.settings import apply_runtime_llm_preferences
 from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
@@ -30,7 +31,7 @@ from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
-from wikimind.models import Article, IngestStatus, Source, UserPreference
+from wikimind.models import Article, IngestStatus, Source
 
 log = structlog.get_logger()
 
@@ -89,20 +90,6 @@ class SPAFallbackMiddleware:
         await self._app(scope, receive, send)
 
 
-async def _apply_db_preferences() -> None:
-    """Apply persisted user preferences to the in-memory settings singleton."""
-    async with get_session_factory()() as session:
-        result = await session.execute(select(UserPreference))
-        for pref in result.scalars().all():
-            settings = get_settings()
-            if pref.key == "llm.default_provider":
-                settings.llm.default_provider = pref.value
-            elif pref.key == "llm.monthly_budget_usd":
-                settings.llm.monthly_budget_usd = float(pref.value)
-            elif pref.key == "llm.fallback_enabled":
-                settings.llm.fallback_enabled = pref.value.lower() == "true"
-
-
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Startup and shutdown lifecycle."""
@@ -126,7 +113,7 @@ async def lifespan(_app: FastAPI):
 
     log.info("WikiMind gateway starting", port=settings.gateway_port)
     await init_db()
-    await _apply_db_preferences()
+    await apply_runtime_llm_preferences()
     log.info("Database initialized")
 
     # Reset sources stuck in PROCESSING from a prior crash/restart.

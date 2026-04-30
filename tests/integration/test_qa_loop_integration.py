@@ -160,7 +160,7 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     # Capture every CompletionRequest passed to router.complete
     captured_requests: list = []
 
-    async def _fake_complete(request, session):
+    async def _fake_complete(request, session, **kwargs):
         captured_requests.append(request)
         return '{"answer": "fake answer", "confidence": "high", "sources": [], "related_articles": [], "follow_up_questions": []}'
 

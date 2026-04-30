@@ -4,7 +4,7 @@ import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
 import { ApiError } from "../../api/client";
-import { setApiKey, testProvider, setDefaultProvider, completeOnboarding } from "../../api/settings";
+import { setApiKey, testProvider, setDefaultProvider, completeOnboarding, updateSettings } from "../../api/settings";
 import { ingestUrl } from "../../api/sources";
 import { useWebSocketStore } from "../../store/websocket";
 import type { WSEvent } from "../../types/api";
@@ -163,6 +163,8 @@ function ConfigureLLMStep({
 }) {
   const [provider, setProvider] = useState("anthropic");
   const [apiKey, setApiKeyValue] = useState("");
+  const [openAIBaseUrl, setOpenAIBaseUrl] = useState("");
+  const [openAIModel, setOpenAIModel] = useState("openai/gpt-4o-mini");
   const [testState, setTestState] = useState<
     "idle" | "saving" | "testing" | "success" | "error"
   >("idle");
@@ -174,12 +176,20 @@ function ConfigureLLMStep({
     setTestState("saving");
     setErrorMsg("");
     try {
-      await setApiKey(provider, apiKey);
+      const customOpenAIEndpoint = provider === "openai" && openAIBaseUrl.trim() !== "";
+      const providerToConfigure = customOpenAIEndpoint ? "openai_compatible" : provider;
+      if (customOpenAIEndpoint) {
+        await updateSettings({
+          openai_compatible_base_url: openAIBaseUrl.trim(),
+          openai_compatible_model: openAIModel.trim() || "openai/gpt-4o-mini",
+        });
+      }
+      await setApiKey(providerToConfigure, apiKey);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       setTestState("testing");
-      const result = await testProvider(provider);
+      const result = await testProvider(providerToConfigure);
       if (result.status === "ok") {
-        await setDefaultProvider(provider);
+        await setDefaultProvider(providerToConfigure);
         queryClient.invalidateQueries({ queryKey: ["settings"] });
         setTestState("success");
       } else {
@@ -215,9 +225,44 @@ function ConfigureLLMStep({
         className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
       >
         <option value="anthropic">Anthropic</option>
-        <option value="openai">OpenAI</option>
+        <option value="openai">OpenAI / compatible</option>
         <option value="google">Google</option>
       </select>
+
+      {provider === "openai" && (
+        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Custom base URL
+          </label>
+          <input
+            type="url"
+            value={openAIBaseUrl}
+            onChange={(e) => {
+              setOpenAIBaseUrl(e.target.value);
+              if (testState !== "idle") setTestState("idle");
+            }}
+            placeholder="https://openrouter.ai/api/v1"
+            className="mb-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+          {openAIBaseUrl.trim() !== "" && (
+            <>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Model
+              </label>
+              <input
+                type="text"
+                value={openAIModel}
+                onChange={(e) => {
+                  setOpenAIModel(e.target.value);
+                  if (testState !== "idle") setTestState("idle");
+                }}
+                placeholder="openai/gpt-4o-mini"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </>
+          )}
+        </div>
+      )}
 
       <label className="mb-1 block text-sm font-medium text-slate-700">
         API Key

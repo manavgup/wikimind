@@ -8,8 +8,10 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt
 import pytest
 
 from wikimind.api.routes import settings as settings_mod
@@ -148,6 +150,94 @@ async def test_patch_fallback(client) -> None:
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+async def test_patch_openai_compatible_runtime_config(client) -> None:
+    """Patching OpenAI-compatible endpoint config updates runtime settings."""
+    session_factory, _ = _make_session_with_pref(None)
+    settings = settings_mod.get_settings()
+    original_base_url = settings.llm.openai_compatible.base_url
+    original_model = settings.llm.openai_compatible.model
+    original_supports_reasoning = settings.llm.openai_compatible.supports_reasoning_effort
+    original_reasoning_format = settings.llm.openai_compatible.reasoning_format
+    try:
+        with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
+            resp = await client.patch(
+                "/settings",
+                json={
+                    "openai_compatible_base_url": "https://openrouter.ai/api/v1/",
+                    "openai_compatible_model": "openai/gpt-4o-mini",
+                    "openai_compatible_supports_reasoning_effort": True,
+                    "openai_compatible_reasoning_format": "openrouter",
+                },
+            )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+        assert settings.llm.openai_compatible.base_url == "https://openrouter.ai/api/v1"
+        assert settings.llm.openai_compatible.model == "openai/gpt-4o-mini"
+        assert settings.llm.openai_compatible.supports_reasoning_effort is True
+        assert settings.llm.openai_compatible.reasoning_format == "openrouter"
+    finally:
+        settings.llm.openai_compatible.base_url = original_base_url
+        settings.llm.openai_compatible.model = original_model
+        settings.llm.openai_compatible.supports_reasoning_effort = original_supports_reasoning
+        settings.llm.openai_compatible.reasoning_format = original_reasoning_format
+
+
+async def test_patch_openai_compatible_rejects_invalid_base_url(client) -> None:
+    """OpenAI-compatible base URLs must be absolute HTTP(S) URLs."""
+    resp = await client.patch("/settings", json={"openai_compatible_base_url": "openrouter.ai/api/v1"})
+    assert resp.status_code == 400
+    assert "base URL" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"openai_compatible_base_url": "https://attacker.example/v1"},
+        {"openai_compatible_model": "attacker/model"},
+        {"openai_compatible_supports_json_response_format": False},
+        {"openai_compatible_supports_stream_usage": False},
+        {"openai_compatible_supports_reasoning_effort": True},
+        {"openai_compatible_max_tokens_field": "max_completion_tokens"},
+        {"openai_compatible_reasoning_format": "openrouter"},
+    ],
+)
+async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled(
+    client,
+    monkeypatch,
+    payload,
+) -> None:
+    """Authenticated users cannot change global OpenAI-compatible runtime config."""
+    settings = settings_mod.get_settings()
+    secret = "test-secret-key-32-bytes-minimum"
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
+    token = jwt.encode(
+        {
+            "sub": "user-1",
+            "email": "user@example.com",
+            "exp": datetime.now(UTC) + timedelta(minutes=5),
+        },
+        secret,
+        algorithm=settings.auth.jwt_algorithm,
+    )
+
+    resp = await client.patch(
+        "/settings",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 403
+    assert "runtime settings are global" in resp.json()["detail"]
+
+
+async def test_patch_openai_compatible_rejects_invalid_reasoning_format(client) -> None:
+    """OpenAI-compatible reasoning format must be one of the supported payload styles."""
+    resp = await client.patch("/settings", json={"openai_compatible_reasoning_format": "custom"})
+    assert resp.status_code == 400
+    assert "reasoning format" in resp.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

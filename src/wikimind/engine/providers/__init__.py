@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from wikimind.engine.llm_router import StreamSession
+    from wikimind.engine.provider_base import StreamSession
     from wikimind.models import CompletionRequest, CompletionResponse
 
 from wikimind.engine.providers.anthropic import AnthropicProvider
@@ -18,6 +18,10 @@ from wikimind.engine.providers.mock import (
 )
 from wikimind.engine.providers.ollama import OllamaProvider
 from wikimind.engine.providers.openai import OpenAIProvider
+from wikimind.engine.providers.openai_compatible import (
+    ConfiguredOpenAICompatibleProvider,
+    OpenAICompatibleProvider,
+)
 
 
 @runtime_checkable
@@ -55,9 +59,11 @@ __all__ = [
     "_MOCK_LINT_RESPONSE",
     "_MOCK_QA_RESPONSE",
     "AnthropicProvider",
+    "ConfiguredOpenAICompatibleProvider",
     "GoogleProvider",
     "MockProvider",
     "OllamaProvider",
+    "OpenAICompatibleProvider",
     "OpenAIProvider",
     "ProviderProtocol",
 ]

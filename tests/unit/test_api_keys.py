@@ -182,6 +182,15 @@ class TestAPIRoutes:
         assert "sk-a" in data["key_hint"]
         assert "cdef" in data["key_hint"]
 
+    async def test_set_openai_compatible_key(self, client: AsyncClient):
+        """PUT accepts the configurable OpenAI-compatible provider."""
+        resp = await client.put(
+            "/api/settings/api-keys/openai_compatible",
+            json={"api_key": "sk-or-test-1234567890abcdef"},  # pragma: allowlist secret
+        )
+        assert resp.status_code == 200
+        assert resp.json()["provider"] == "openai_compatible"
+
     async def test_list_keys_empty(self, client: AsyncClient):
         """GET /api/settings/api-keys returns empty list when none configured."""
         resp = await client.get("/api/settings/api-keys")

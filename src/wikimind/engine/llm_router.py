@@ -11,7 +11,6 @@ import functools
 import json
 import re
 import time
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -27,7 +26,7 @@ from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Prov
 from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from wikimind.engine.provider_base import StreamSession
 
 log = structlog.get_logger()
 
@@ -63,63 +62,12 @@ async def _get_budget_redis():
 
 
 # ---------------------------------------------------------------------------
-# Pricing (USD per 1M tokens) -- update as providers change pricing
-# ---------------------------------------------------------------------------
-
-PRICING = {
-    Provider.ANTHROPIC: {
-        "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
-        "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
-    },
-    Provider.OPENAI: {
-        "gpt-4o": {"input": 2.50, "output": 10.00},
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    },
-    Provider.GOOGLE: {
-        "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
-    },
-    Provider.OLLAMA: {
-        "*": {"input": 0.0, "output": 0.0},  # Free -- local
-    },
-    Provider.MOCK: {
-        "*": {"input": 0.0, "output": 0.0},  # Free -- deterministic
-    },
-}
-
-
-def _calc_cost(provider: Provider, model: str, input_tokens: int, output_tokens: int) -> float:
-    """Calculate the USD cost of an LLM call based on token counts."""
-    provider_pricing = PRICING.get(provider, {})
-    model_pricing = provider_pricing.get(model) or provider_pricing.get("*", {"input": 0, "output": 0})
-    return (input_tokens * model_pricing["input"] + output_tokens * model_pricing["output"]) / 1_000_000
-
-
-# ---------------------------------------------------------------------------
-# StreamSession -- wraps a streaming LLM response
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class StreamSession:
-    """Wraps a streaming LLM response. Async-iterate for text chunks.
-
-    After iteration completes, ``result`` is populated with token counts
-    and cost information from the provider.
-    """
-
-    _chunks: AsyncIterator[str]
-    result: CompletionResponse | None = field(default=None, init=True)
-
-    def __aiter__(self) -> AsyncIterator[str]:  # noqa: D105
-        return self._chunks
-
-
-# ---------------------------------------------------------------------------
 # Provider imports -- each provider lives in its own file under providers/
 # ---------------------------------------------------------------------------
 
 from wikimind.engine.providers import (  # noqa: E402
     AnthropicProvider,
+    ConfiguredOpenAICompatibleProvider,
     GoogleProvider,
     MockProvider,
     OllamaProvider,
@@ -201,6 +149,8 @@ class LLMRouter:
             return False
         if provider in (Provider.OLLAMA, Provider.MOCK):
             return True  # No API key needed
+        if provider == Provider.OPENAI_COMPATIBLE:
+            return bool(get_api_key(provider.value) and cfg.model and cfg.base_url)
         return bool(get_api_key(provider.value))
 
     async def _get_provider_instance(
@@ -223,6 +173,8 @@ class LLMRouter:
             instance = AnthropicProvider(api_key_override=api_key_override)
         elif provider == Provider.OPENAI:
             instance = OpenAIProvider(api_key_override=api_key_override)
+        elif provider == Provider.OPENAI_COMPATIBLE:
+            instance = ConfiguredOpenAICompatibleProvider(api_key_override=api_key_override)
         elif provider == Provider.GOOGLE:
             instance = GoogleProvider(api_key_override=api_key_override)
         elif provider == Provider.OLLAMA:
