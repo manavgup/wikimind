@@ -1152,3 +1152,36 @@ class ExportResponse(BaseModel):
     content: str
     article_id: str
     article_title: str
+
+
+# ---------------------------------------------------------------------------
+# Magic Link (passwordless email) request/response models
+# ---------------------------------------------------------------------------
+
+
+class MagicLinkRequest(BaseModel):
+    """Request to send a magic link login email."""
+
+    email: str
+
+
+class MagicLinkResponse(BaseModel):
+    """Response after requesting a magic link."""
+
+    status: str
+    message: str
+    dev_token: str | None = None
+
+
+class MagicLinkVerifyRequest(BaseModel):
+    """Request to verify a magic link token."""
+
+    token: str
+
+
+class MagicLinkVerifyResponse(BaseModel):
+    """Response after successfully verifying a magic link token."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
