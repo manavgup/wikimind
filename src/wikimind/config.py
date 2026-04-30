@@ -212,6 +212,7 @@ class AuthConfig(BaseModel):
     google_client_secret: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
+    oauth_state_ttl_seconds: int = 600
     # BFF cookie settings
     cookie_name: str = "wikimind_session"
     cookie_secure: bool = True  # False in dev (HTTP), True in prod (HTTPS)

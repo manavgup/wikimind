@@ -1,6 +1,10 @@
-"""Tests for OAuth2 authentication — JWT helpers, middleware, and /auth/me."""
+"""Tests for OAuth2 authentication — JWT helpers, middleware, /auth/me, and OAuth state."""
 
+import base64
+import hashlib
+import hmac
 import inspect
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -10,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, get_ws_user_id
 from wikimind.api.routes import ws as ws_mod
+from wikimind.api.routes.auth import (
+    _consume_oauth_state,
+    _generate_oauth_state,
+)
 from wikimind.config import get_settings
 from wikimind.models import User
 from wikimind.services.user import UserService
@@ -429,3 +437,109 @@ async def test_websocket_endpoint_ignores_user_id_query_param(monkeypatch):
     source = inspect.getsource(ws_mod.websocket_endpoint)
     assert "query_params" not in source, "websocket_endpoint should not read query_params directly"
     assert "get_ws_user_id" in source, "websocket_endpoint should delegate to get_ws_user_id"
+
+
+# ---------------------------------------------------------------------------
+# OAuth state token management (HMAC-signed stateless tokens)
+# ---------------------------------------------------------------------------
+
+
+def _build_state_token(provider: str, timestamp: int, secret: str) -> str:
+    """Helper: build an HMAC-signed state token for testing."""
+    payload = f"{provider}:{timestamp}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha384).hexdigest()
+    raw = f"{payload}:{sig}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def test_generate_oauth_state_returns_unique_tokens(monkeypatch):
+    """_generate_oauth_state should return distinct tokens for successive calls."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    token1 = _generate_oauth_state("google")
+    # Advance time by 1 second to guarantee a different timestamp
+    original_time = time.time
+    monkeypatch.setattr(time, "time", lambda: original_time() + 1)
+    token2 = _generate_oauth_state("google")
+    assert token1 != token2
+    assert len(token1) > 20
+
+
+def test_generate_oauth_state_encodes_provider(monkeypatch):
+    """The generated token should encode the provider name (verifiable via consume)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    token = _generate_oauth_state("github")
+    result = _consume_oauth_state(token)
+    assert result == "github"
+
+
+def test_consume_oauth_state_returns_provider(monkeypatch):
+    """_consume_oauth_state should return the provider for a valid token."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    token = _generate_oauth_state("google")
+    result = _consume_oauth_state(token)
+    assert result == "google"
+
+
+def test_consume_oauth_state_rejects_unknown_token(monkeypatch):
+    """An unknown/garbage state token should return None."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    result = _consume_oauth_state("bogus-token")
+    assert result is None
+
+
+def test_consume_oauth_state_rejects_tampered_token(monkeypatch):
+    """A token with a tampered payload should be rejected."""
+    settings = get_settings()
+    secret = "test-secret"  # pragma: allowlist secret
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
+
+    token = _generate_oauth_state("google")
+    # Decode, tamper with provider, re-encode (without re-signing)
+    raw = base64.urlsafe_b64decode(token.encode()).decode()
+    parts = raw.rsplit(":", 2)
+    tampered_raw = f"evil:{parts[1]}:{parts[2]}"
+    tampered = base64.urlsafe_b64encode(tampered_raw.encode()).decode()
+    assert _consume_oauth_state(tampered) is None
+
+
+def test_consume_oauth_state_rejects_expired_token(monkeypatch):
+    """A state token older than oauth_state_ttl_seconds should be rejected."""
+    settings = get_settings()
+    secret = "test-secret"  # pragma: allowlist secret
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
+    monkeypatch.setattr(settings.auth, "oauth_state_ttl_seconds", 600)
+
+    # Build a token with a timestamp 601 seconds in the past
+    old_ts = int(time.time()) - 601
+    token = _build_state_token("github", old_ts, secret)
+    result = _consume_oauth_state(token)
+    assert result is None
+
+
+def test_consume_oauth_state_rejects_wrong_signature(monkeypatch):
+    """A token signed with a different secret should be rejected."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "correct-secret")
+
+    # Build a token signed with a different secret
+    token = _build_state_token("google", int(time.time()), "wrong-secret")
+    result = _consume_oauth_state(token)
+    assert result is None
+
+
+def test_login_state_is_not_provider_name(monkeypatch):
+    """The state parameter in the authorize URL must not be the provider name."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    token = _generate_oauth_state("google")
+    assert token != "google"
+    assert token != "github"
