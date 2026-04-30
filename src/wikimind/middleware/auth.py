@@ -80,6 +80,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 token,
                 settings.auth.jwt_secret_key,
                 algorithms=[settings.auth.jwt_algorithm],
+                # Accept both session tokens (no aud) and API tokens (aud=wikimind-api).
+                options={"verify_aud": False},
             )
             request.state.user_id = payload["sub"]
             request.state.user_email = payload.get("email")

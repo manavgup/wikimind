@@ -309,9 +309,9 @@ class QueryService:
                         conversation=_to_conversation_response(conversation),
                     )
                     yield (f"event: done\ndata: {done_payload.model_dump_json()}\n\n")
-        except Exception as e:  # Intentional broad catch — SSE must send error event, not crash
-            log.error("Stream failed", error=str(e))
-            error_payload = json.dumps({"code": "stream_failed", "message": str(e)})
+        except Exception:  # Intentional broad catch — SSE must send error event, not crash
+            log.exception("SSE stream failed")
+            error_payload = json.dumps({"code": "stream_failed", "message": "Internal server error"})
             yield f"event: error\ndata: {error_payload}\n\n"
 
     async def query_history(self, session: AsyncSession, limit: int = 50, user_id: str | None = None) -> list[Query]:
