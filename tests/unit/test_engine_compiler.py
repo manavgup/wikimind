@@ -59,7 +59,7 @@ def _make_compiler() -> Compiler:
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir="/tmp/wm-test")),
     ):
-        return Compiler()
+        return Compiler(user_id="test-user")
 
 
 async def test_compile_success(db_session, tmp_path) -> None:
@@ -209,6 +209,7 @@ async def test_generate_unique_slug_avoids_collision(db_session) -> None:
         title="Hello World",
         file_path="general/hello-world.md",
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(existing)
     await db_session.commit()
@@ -227,6 +228,7 @@ async def test_generate_unique_slug_skips_multiple_collisions(db_session) -> Non
                 title="Hello World",
                 file_path=f"general/{s}.md",
                 confidence=ConfidenceLevel.SOURCED,
+                user_id="test-user",
             )
         )
     await db_session.commit()
@@ -240,11 +242,11 @@ async def test_write_article_file(tmp_path) -> None:
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        c = Compiler()
-    src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
+        c = Compiler(user_id="test-user")
+    src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id="test-user")
     rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
     assert isinstance(rel_path, str)
-    full_path = Path(tmp_path) / "wiki" / rel_path
+    full_path = Path(tmp_path) / "wiki" / "test-user" / rel_path
     assert full_path.exists()
     text = full_path.read_text()
     assert "Test Article" in text
@@ -256,7 +258,7 @@ async def test_write_article_file_no_concepts(tmp_path) -> None:
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        c = Compiler()
+        c = Compiler(user_id="test-user")
     r = CompilationResult(
         title="t",
         summary="s. s.",
@@ -266,10 +268,10 @@ async def test_write_article_file_no_concepts(tmp_path) -> None:
         open_questions=[],
         article_body="x",
     )
-    src = Source(source_type=SourceType.TEXT, title=None)
+    src = Source(source_type=SourceType.TEXT, title=None, user_id="test-user")
     rel_path = await c._write_article_file(r, src, "no-concept", [], [])
     assert isinstance(rel_path, str)
-    full_path = Path(tmp_path) / "wiki" / rel_path
+    full_path = Path(tmp_path) / "wiki" / "test-user" / rel_path
     assert full_path.exists()
     assert "general" in rel_path
 
@@ -279,15 +281,21 @@ async def test_save_article(db_session, tmp_path) -> None:
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        c = Compiler()
-    src = Source(source_type=SourceType.URL, source_url="http://x", title="X", status=IngestStatus.PROCESSING)
+        c = Compiler(user_id="test-user")
+    src = Source(
+        source_type=SourceType.URL,
+        source_url="http://x",
+        title="X",
+        status=IngestStatus.PROCESSING,
+        user_id="test-user",
+    )
     db_session.add(src)
     await db_session.commit()
     await db_session.refresh(src)
     article = await c.save_article(_result(), src, db_session)
     assert article.slug
     assert not Path(article.file_path).is_absolute()  # relative path
-    assert (Path(tmp_path) / "wiki" / article.file_path).exists()
+    assert (Path(tmp_path) / "wiki" / "test-user" / article.file_path).exists()
     assert src.status == IngestStatus.COMPILED
 
 
@@ -355,6 +363,7 @@ async def _make_source(session) -> Source:
         title="Test Source",
         status=IngestStatus.PROCESSING,
         ingested_at=utcnow_naive(),
+        user_id="test-user",
     )
     session.add(source)
     await session.commit()
@@ -367,7 +376,7 @@ def _compiler_for(tmp_path: Path) -> Compiler:
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        return Compiler()
+        return Compiler(user_id="test-user")
 
 
 async def test_save_creates_backlink_rows_for_resolved_candidates(db_session, tmp_path) -> None:
@@ -378,6 +387,7 @@ async def test_save_creates_backlink_rows_for_resolved_candidates(db_session, tm
         title="Existing Article",
         file_path=str(tmp_path / "existing.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(target)
     await db_session.commit()
@@ -404,6 +414,7 @@ async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session
         title="Existing Article",
         file_path=str(tmp_path / "existing.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(target)
     await db_session.commit()
@@ -416,7 +427,7 @@ async def test_save_markdown_has_resolved_link_and_unresolved_bracket(db_session
     )
     article = await compiler.save_article(result, source, db_session)
 
-    content = (Path(tmp_path) / "wiki" / article.file_path).read_text()
+    content = (Path(tmp_path) / "wiki" / "test-user" / article.file_path).read_text()
     assert f"[Existing Article](/wiki/{target.id})" in content
     assert "[[Nonexistent Topic]]" in content
     assert "- [[Existing Article]]" not in content
@@ -438,6 +449,7 @@ async def test_save_dedupes_candidates_resolving_to_same_target(db_session, tmp_
         title="React",
         file_path=str(tmp_path / "react.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(target)
     await db_session.commit()

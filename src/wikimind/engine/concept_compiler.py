@@ -113,7 +113,7 @@ async def _collect_source_articles(concept_name: str, session: AsyncSession) -> 
     return list(result.scalars().all())
 
 
-def _build_source_material(articles: list[Article], user_id: str | None = None) -> str:
+def _build_source_material(articles: list[Article], user_id: str) -> str:
     max_chars = get_settings().compiler.concept_source_max_chars
     parts: list[str] = []
     for i, article in enumerate(articles, 1):
@@ -162,7 +162,7 @@ async def _collect_contradictions(source_article_ids: list[str], session: AsyncS
 class ConceptCompiler:
     """Registry-driven compiler that synthesizes concept pages from source articles."""
 
-    def __init__(self, user_id: str | None = None) -> None:
+    def __init__(self, user_id: str) -> None:
         self.router = get_llm_router()
         self.settings = get_settings()
         self.user_id = user_id
@@ -182,7 +182,7 @@ class ConceptCompiler:
         min_sources = self.settings.taxonomy.concept_page_min_sources
         if len(source_articles) < min_sources:
             return None
-        source_material = _build_source_material(source_articles, user_id=concept.user_id)
+        source_material = _build_source_material(source_articles, user_id=self.user_id)
         source_ids = [a.id for a in source_articles]
         ct = await _collect_contradictions(source_ids, session)
         contradiction_section = ct or "No known contradictions."
@@ -202,7 +202,7 @@ class ConceptCompiler:
             task_type=TaskType.COMPILE,
         )
         try:
-            response = await self.router.complete(request, session=session, user_id=self.user_id)
+            response = await self.router.complete(request, user_id=self.user_id)
             self._last_provider_used = response.provider_used
         except (RuntimeError, ValueError):
             log.warning(
@@ -293,8 +293,8 @@ class ConceptCompiler:
         for sid in source_ids:
             session.add(ArticleSource(article_id=article.id, source_id=sid))
         await session.commit()
-        await self._create_synthesizes_links(article.id, source_ids, session, user_id=article.user_id)
-        await self._create_related_to_links(article, compilation.related_concepts, session, user_id=article.user_id)
+        await self._create_synthesizes_links(article.id, source_ids, session, user_id=self.user_id)
+        await self._create_related_to_links(article, compilation.related_concepts, session, user_id=self.user_id)
         return article
 
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
@@ -376,7 +376,7 @@ provider: {self._last_provider_used or "unknown"}
         concept_article_id: str,
         source_article_ids: list[str],
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> None:
         for source_id in source_article_ids:
             # Guard against duplicate Backlinks (issue #152).
@@ -406,7 +406,7 @@ provider: {self._last_provider_used or "unknown"}
         concept_article: Article,
         related_concepts: list[str],
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> None:
         if not related_concepts:
             return

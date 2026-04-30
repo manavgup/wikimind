@@ -81,20 +81,20 @@ async def test_resolver_other_user_article_is_unresolved(
 
 
 @pytest.mark.asyncio
-async def test_resolver_no_user_id_returns_all(db_session: AsyncSession) -> None:
-    """When user_id is None, all articles are considered (backward compat)."""
-    art_a = await _make_article(db_session, "React", user_id="user-a")
-    art_b = await _make_article(db_session, "Vue", user_id="user-b")
+async def test_resolver_same_user_resolves_own_articles(db_session: AsyncSession) -> None:
+    """When user_id is provided, only that user's articles are resolved."""
+    user = "user-a"
+    art_a = await _make_article(db_session, "React", user_id=user)
+    await _make_article(db_session, "Vue", user_id="user-b")
 
     resolved, unresolved = await resolve_backlink_candidates(
         ["React", "Vue"],
         db_session,
+        user_id=user,
     )
-    assert len(resolved) == 2
-    resolved_ids = {r.target_id for r in resolved}
-    assert art_a.id in resolved_ids
-    assert art_b.id in resolved_ids
-    assert unresolved == []
+    assert len(resolved) == 1
+    assert resolved[0].target_id == art_a.id
+    assert unresolved == ["Vue"]
 
 
 @pytest.mark.asyncio

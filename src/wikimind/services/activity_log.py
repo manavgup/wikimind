@@ -20,8 +20,8 @@ _LOG_HEADER = "# Activity Log\n\n"
 def append_log_entry(
     op: str,
     title: str,
+    user_id: str,
     extra: dict | None = None,
-    user_id: str | None = None,
 ) -> None:
     """Append an entry to wiki/log.md.
 

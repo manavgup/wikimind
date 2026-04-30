@@ -108,7 +108,7 @@ class TestPDFAdapterFitzFallback:
         pdf_bytes = _build_pdf_bytes(["Fallback page text"])
         adapter = PDFAdapter()
 
-        source, doc = await adapter.ingest(pdf_bytes, "fallback.pdf", db_session)
+        source, doc = await adapter.ingest(pdf_bytes, "fallback.pdf", db_session, user_id="test-user")
 
         assert isinstance(source, Source)
         assert isinstance(doc, NormalizedDocument)
@@ -139,10 +139,10 @@ class TestPDFAdapterFitzFallback:
         pdf_bytes = _build_pdf_bytes(["Lineage check page"])
         adapter = PDFAdapter()
 
-        source, _doc = await adapter.ingest(pdf_bytes, "lineage.pdf", db_session)
+        source, _doc = await adapter.ingest(pdf_bytes, "lineage.pdf", db_session, user_id="test-user")
 
-        raw_pdf = isolated_data_dir / "raw" / f"{source.id}.pdf"
-        raw_txt = isolated_data_dir / "raw" / f"{source.id}.txt"
+        raw_pdf = isolated_data_dir / "raw" / "test-user" / f"{source.id}.pdf"
+        raw_txt = isolated_data_dir / "raw" / "test-user" / f"{source.id}.txt"
 
         assert raw_pdf.exists(), "raw .pdf binary should be saved alongside .txt"
         assert raw_pdf.read_bytes() == pdf_bytes
@@ -182,7 +182,7 @@ class TestPDFAdapterDoclingServePath:
         raw_pdf.write_bytes(pdf_bytes)
 
         adapter = PDFAdapter()
-        clean_text, page_count = await adapter._extract_via_docling(raw_pdf, "src-123")
+        clean_text, page_count = await adapter._extract_via_docling(raw_pdf, "src-123", user_id="test-user")
 
         assert clean_text == markdown
         assert page_count == 3
@@ -210,12 +210,12 @@ class TestPDFAdapterDoclingServePath:
         pdf_bytes = _build_pdf_bytes(["ignored — docling-serve reads the file path"])
         adapter = PDFAdapter()
 
-        source, doc = await adapter.ingest(pdf_bytes, "deck.pdf", db_session)
+        source, doc = await adapter.ingest(pdf_bytes, "deck.pdf", db_session, user_id="test-user")
 
         assert doc.clean_text == markdown
         assert "# Slide deck" in doc.clean_text
         assert source.file_path == f"{source.id}.txt"
-        assert (isolated_data_dir / "raw" / f"{source.id}.txt").read_text(encoding="utf-8") == markdown
+        assert (isolated_data_dir / "raw" / "test-user" / f"{source.id}.txt").read_text(encoding="utf-8") == markdown
 
 
 # ---------------------------------------------------------------------------

@@ -42,7 +42,7 @@ class TestSessionLifecycle:
         gen = get_session()
         session = await gen.__anext__()
 
-        source = Source(source_type=SourceType.URL, source_url="https://example.com")
+        source = Source(source_type=SourceType.URL, source_url="https://example.com", user_id="test-user")
         session.add(source)
         source_id = source.id
 
@@ -62,7 +62,7 @@ class TestSessionLifecycle:
         gen = get_session()
         session = await gen.__anext__()
 
-        source = Source(source_type=SourceType.URL, source_url="https://rollback.example.com")
+        source = Source(source_type=SourceType.URL, source_url="https://rollback.example.com", user_id="test-user")
         session.add(source)
         source_id = source.id
 
@@ -121,6 +121,7 @@ class TestRepairMalformedJsonArraysMigration:
             confidence=ConfidenceLevel.SOURCED,
             concept_ids=malformed,
             source_ids='["src-1"]',
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -146,6 +147,7 @@ class TestRepairMalformedJsonArraysMigration:
             confidence=ConfidenceLevel.SOURCED,
             concept_ids=valid_concepts,
             source_ids=valid_sources,
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -170,6 +172,7 @@ class TestRepairMalformedJsonArraysMigration:
             confidence=ConfidenceLevel.SOURCED,
             concept_ids='["valid"]',
             source_ids=malformed_sources,
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -197,6 +200,7 @@ class TestCleanupOrphanConceptRows:
             title="Stale Topic",
             file_path=str(tmp_path / "concept-stale-topic" / "concept-stale-topic.md"),
             page_type=PageType.CONCEPT,
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -219,6 +223,7 @@ class TestCleanupOrphanConceptRows:
             title="Active Topic",
             file_path=str(md_file),
             page_type=PageType.CONCEPT,
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -236,6 +241,7 @@ class TestCleanupOrphanConceptRows:
             title="Some Source",
             file_path=str(tmp_path / "missing-source.md"),
             page_type=PageType.SOURCE,
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
@@ -253,6 +259,7 @@ class TestCleanupOrphanConceptRows:
             title="Orphan Concept",
             file_path=str(tmp_path / "concept-orphan" / "concept-orphan.md"),
             page_type=PageType.CONCEPT,
+            user_id="test-user",
         )
         # A surviving article that links to the orphan
         md_file = tmp_path / "surviving.md"
@@ -263,6 +270,7 @@ class TestCleanupOrphanConceptRows:
             title="Surviving Article",
             file_path=str(md_file),
             page_type=PageType.SOURCE,
+            user_id="test-user",
         )
         db_session.add_all([orphan, survivor])
         await db_session.flush()
@@ -271,6 +279,7 @@ class TestCleanupOrphanConceptRows:
             source_article_id=survivor.id,
             target_article_id=orphan.id,
             context="link to orphan",
+            user_id="test-user",
         )
         db_session.add(backlink)
         await db_session.commit()

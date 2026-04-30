@@ -21,6 +21,7 @@ def source_with_pdf():
         source_type=SourceType.PDF,
         file_path="src-pdf.txt",
         title="Test PDF",
+        user_id="test-user",
     )
 
 
@@ -31,6 +32,7 @@ def source_text_only():
         source_type=SourceType.TEXT,
         file_path="src-text.txt",
         title="Test Text",
+        user_id="test-user",
     )
 
 

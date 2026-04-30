@@ -20,7 +20,6 @@ import pytest
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
     Article,
@@ -54,7 +53,7 @@ async def test_wikilink_resolution_end_to_end(
         title="Existing Target",
         file_path=str(tmp_path / "existing-target.md"),
         confidence=ConfidenceLevel.SOURCED,
-        user_id=ANONYMOUS_USER_ID,
+        user_id="anonymous",
     )
     db_session.add(target)
 
@@ -65,13 +64,13 @@ async def test_wikilink_resolution_end_to_end(
         title="Test Source",
         status=IngestStatus.PROCESSING,
         ingested_at=utcnow_naive(),
-        user_id=ANONYMOUS_USER_ID,
+        user_id="anonymous",
     )
     db_session.add(source)
     await db_session.commit()
 
     # 2. Drive the save path
-    compiler = Compiler()
+    compiler = Compiler(user_id="anonymous")
     result = CompilationResult(
         title="New Compiled Article",
         summary="Two sentence summary. For integration test.",

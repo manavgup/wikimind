@@ -65,7 +65,7 @@ class TestConnectionManagerLocalBroadcast:
 
 
 class TestBroadcastWithRedis:
-    """Test that broadcast() publishes to Redis when available."""
+    """Test that broadcast(user_id="test-user") publishes to Redis when available."""
 
     async def test_broadcast_publishes_to_redis(self) -> None:
         mgr = ConnectionManager()
@@ -223,7 +223,7 @@ class TestBudgetFlagRedisDedup:
             patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
             patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
         ):
-            await router._check_budget()
+            await router._check_budget(user_id="test-user")
 
         # Warning should NOT fire — Redis says it was already sent
         mock_warn.assert_not_awaited()

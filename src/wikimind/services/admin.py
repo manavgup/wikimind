@@ -19,7 +19,7 @@ class AdminService:
     async def get_stats(
         self,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict:
         """Compute aggregate counts across all tables.
 
@@ -72,7 +72,7 @@ class AdminService:
     async def get_orphan_articles(
         self,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> list[dict]:
         """Find articles whose wiki file is missing from disk.
 
@@ -107,7 +107,7 @@ class AdminService:
     async def get_eligible_concepts(
         self,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> list[dict]:
         """Find concepts eligible for concept-page generation.
 
@@ -154,7 +154,7 @@ class AdminService:
 
     async def trigger_sweep(
         self,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict:
         """Trigger a wikilink sweep manually.
 
@@ -165,7 +165,7 @@ class AdminService:
             Dict with action result.
         """
         bg = get_background_compiler()
-        await bg.schedule_lint()
+        await bg.schedule_lint(user_id=user_id)
         return {"action": "sweep", "status": "scheduled"}
 
     async def trigger_reindex(self) -> dict:

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 class LinterService:
     """Coordinate lint report queries, finding dismissal, and run triggers."""
 
-    async def trigger_run(self, user_id: str | None = None) -> LintRunResponse:
+    async def trigger_run(self, user_id: str) -> LintRunResponse:
         """Schedule a lint run via the background job system.
 
         Returns:
@@ -46,9 +46,7 @@ class LinterService:
         await bg.schedule_lint(user_id=user_id)
         return LintRunResponse(status="in_progress")
 
-    async def list_reports(
-        self, session: AsyncSession, limit: int = 20, user_id: str | None = None
-    ) -> list[LintReport]:
+    async def list_reports(self, session: AsyncSession, user_id: str, limit: int = 20) -> list[LintReport]:
         """List lint reports ordered by generated_at DESC.
 
         Args:
@@ -75,7 +73,7 @@ class LinterService:
         report_id: str,
         *,
         include_dismissed: bool = False,
-        user_id: str | None = None,
+        user_id: str,
     ) -> LintReportDetail:
         """Get a single report with all its findings.
 
@@ -153,7 +151,7 @@ class LinterService:
                     break
         return resolutions
 
-    async def get_latest(self, session: AsyncSession, user_id: str | None = None) -> LintReportDetail:
+    async def get_latest(self, session: AsyncSession, user_id: str) -> LintReportDetail:
         """Get the most recent lint report with findings.
 
         Args:
@@ -186,7 +184,7 @@ class LinterService:
         kind: LintFindingKind,
         finding_id: str,
         *,
-        user_id: str | None = None,
+        user_id: str,
     ) -> DismissFindingResponse:
         """Dismiss a finding and record it for cross-run suppression.
 

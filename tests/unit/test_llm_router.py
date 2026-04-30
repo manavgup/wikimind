@@ -429,7 +429,7 @@ async def test_router_complete_success(db_session) -> None:
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=instance)),
     ):
-        resp = await router.complete(_req(), session=db_session)
+        resp = await router.complete(_req(), user_id="test-user")
     assert resp.content == "ok"
 
 
@@ -456,7 +456,7 @@ async def test_router_complete_falls_through_to_next_provider() -> None:
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", side_effect=get_instance),
     ):
-        resp = await router.complete(_req())
+        resp = await router.complete(_req(), user_id="test-user")
     assert resp.content == "ok"
 
 
@@ -469,13 +469,13 @@ async def test_router_complete_no_fallback_raises() -> None:
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
         pytest.raises(RuntimeError),
     ):
-        await router.complete(_req())
+        await router.complete(_req(), user_id="test-user")
 
 
 async def test_router_complete_skips_unavailable_providers() -> None:
     router = _router_with_settings()
     with patch.object(router, "_is_provider_available", return_value=False), pytest.raises(RuntimeError):
-        await router.complete(_req())
+        await router.complete(_req(), user_id="test-user")
 
 
 def test_parse_json_response_strips_fences() -> None:
@@ -779,7 +779,7 @@ async def test_router_stream_complete_success() -> None:
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=instance)),
     ):
-        result = await router.stream_complete(_req())
+        result = await router.stream_complete(_req(), user_id="test-user")
     assert result is fake_session
 
 
@@ -799,7 +799,7 @@ async def test_router_stream_complete_falls_through_on_error() -> None:
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", side_effect=get_instance),
     ):
-        result = await router.stream_complete(_req())
+        result = await router.stream_complete(_req(), user_id="test-user")
     assert result is good_session
 
 
@@ -810,7 +810,7 @@ async def test_router_stream_complete_no_available_providers() -> None:
         patch.object(router, "_is_provider_available", return_value=False),
         pytest.raises(RuntimeError),
     ):
-        await router.stream_complete(_req())
+        await router.stream_complete(_req(), user_id="test-user")
 
 
 async def test_router_stream_complete_no_fallback_raises() -> None:
@@ -823,7 +823,7 @@ async def test_router_stream_complete_no_fallback_raises() -> None:
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
         pytest.raises(RuntimeError),
     ):
-        await router.stream_complete(_req())
+        await router.stream_complete(_req(), user_id="test-user")
 
 
 async def _fake_aiter(items):

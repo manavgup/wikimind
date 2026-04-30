@@ -177,7 +177,7 @@ class EmbeddingService:
         article_id: str,
         title: str,
         content: str,
-        user_id: str | None = None,
+        user_id: str,
     ) -> int:
         """Chunk and embed an article's content into ChromaDB.
 
@@ -231,8 +231,8 @@ class EmbeddingService:
     def search(
         self,
         query: str,
+        user_id: str,
         limit: int = 20,
-        user_id: str | None = None,
     ) -> list[SemanticSearchResult]:
         """Query ChromaDB for semantically similar chunks.
 

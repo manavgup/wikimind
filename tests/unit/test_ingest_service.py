@@ -63,7 +63,7 @@ async def test_url_adapter_ingest(db_session, tmp_path) -> None:
         ),
     ):
         adapter = URLAdapter()
-        source, doc = await adapter.ingest("http://example.com", db_session)
+        source, doc = await adapter.ingest("http://example.com", db_session, user_id="test-user")
     assert source.source_type == SourceType.URL
     assert doc.title == "T"
     assert doc.estimated_tokens > 0
@@ -83,7 +83,7 @@ async def test_url_adapter_no_content_raises(db_session) -> None:
     ):
         adapter = URLAdapter()
         with pytest.raises(ValueError):
-            await adapter.ingest("http://example.com", db_session)
+            await adapter.ingest("http://example.com", db_session, user_id="test-user")
 
 
 async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
@@ -116,14 +116,14 @@ async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
-        source, doc = await adapter.ingest(b"%PDF-1.4...", "test.pdf", db_session)
+        source, doc = await adapter.ingest(b"%PDF-1.4...", "test.pdf", db_session, user_id="test-user")
     assert source.source_type == SourceType.PDF
     assert "page text" in doc.clean_text
 
 
 async def test_text_adapter(db_session) -> None:
     adapter = TextAdapter()
-    source, doc = await adapter.ingest("hello world", "My Note", db_session)
+    source, doc = await adapter.ingest("hello world", "My Note", db_session, user_id="test-user")
     assert source.source_type == SourceType.TEXT
     assert doc.title == "My Note"
 
@@ -138,7 +138,7 @@ def test_youtube_extract_video_id() -> None:
 async def test_youtube_adapter_invalid_url(db_session) -> None:
     a = YouTubeAdapter()
     with pytest.raises(ValueError):
-        await a.ingest("http://other.com/foo", db_session)
+        await a.ingest("http://other.com/foo", db_session, user_id="test-user")
 
 
 async def test_youtube_adapter_success(db_session) -> None:
@@ -149,7 +149,7 @@ async def test_youtube_adapter_success(db_session) -> None:
         return_value=[{"text": "hello"}, {"text": "world"}],
         create=True,
     ):
-        source, doc = await a.ingest("https://youtu.be/dQw4w9WgXcQ", db_session)
+        source, doc = await a.ingest("https://youtu.be/dQw4w9WgXcQ", db_session, user_id="test-user")
     assert "hello world" in doc.clean_text
     assert source.source_type == SourceType.YOUTUBE
 
@@ -157,7 +157,7 @@ async def test_youtube_adapter_success(db_session) -> None:
 async def test_ingest_service_routes_youtube(db_session) -> None:
     svc = IngestService()
     with patch.object(svc.youtube_adapter, "ingest", AsyncMock(return_value=(MagicMock(), MagicMock()))) as yt:
-        await svc.ingest_url("https://youtu.be/abc", db_session)
+        await svc.ingest_url("https://youtu.be/abc", db_session, user_id="test-user")
         yt.assert_awaited()
 
 
@@ -178,21 +178,21 @@ async def test_ingest_service_routes_url(db_session) -> None:
         patch.object(svc_mod.httpx, "AsyncClient", return_value=fake_client),
         patch.object(svc.url_adapter, "ingest", AsyncMock(return_value=(MagicMock(), MagicMock()))) as u,
     ):
-        await svc.ingest_url("https://example.com", db_session)
+        await svc.ingest_url("https://example.com", db_session, user_id="test-user")
         u.assert_awaited()
 
 
 async def test_ingest_service_pdf(db_session) -> None:
     svc = IngestService()
     with patch.object(svc.pdf_adapter, "ingest", AsyncMock(return_value=(MagicMock(), MagicMock()))) as p:
-        await svc.ingest_pdf(b"x", "f.pdf", db_session)
+        await svc.ingest_pdf(b"x", "f.pdf", db_session, user_id="test-user")
         p.assert_awaited()
 
 
 async def test_ingest_service_text(db_session) -> None:
     svc = IngestService()
     with patch.object(svc.text_adapter, "ingest", AsyncMock(return_value=(MagicMock(), MagicMock()))) as t:
-        await svc.ingest_text("c", "t", db_session)
+        await svc.ingest_text("c", "t", db_session, user_id="test-user")
         t.assert_awaited()
 
 
@@ -207,6 +207,7 @@ def _fake_pdf_source() -> Source:
         source_type=SourceType.PDF,
         title="fake",
         status=IngestStatus.PROCESSING,
+        user_id="test-user",
     )
 
 
@@ -233,6 +234,7 @@ async def test_ingest_service_routes_pdf_url(db_session) -> None:
         await svc.ingest_url(
             "https://example.com/papers/GTforSEBookPrefinalDownload.pdf",
             db_session,
+            user_id="test-user",
         )
         pdf_mock.assert_awaited_once()
         call_args = pdf_mock.call_args
@@ -260,7 +262,7 @@ async def test_ingest_service_routes_pdf_url_case_insensitive(db_session) -> Non
             AsyncMock(return_value=(_fake_pdf_source(), MagicMock())),
         ) as pdf_mock,
     ):
-        await svc.ingest_url("https://example.com/REPORT.PDF", db_session)
+        await svc.ingest_url("https://example.com/REPORT.PDF", db_session, user_id="test-user")
         pdf_mock.assert_awaited_once()
 
 
@@ -284,7 +286,7 @@ async def test_ingest_service_routes_pdf_url_with_query_params(db_session) -> No
             AsyncMock(return_value=(_fake_pdf_source(), MagicMock())),
         ) as pdf_mock,
     ):
-        await svc.ingest_url("https://example.com/file.pdf?token=abc&v=2", db_session)
+        await svc.ingest_url("https://example.com/file.pdf?token=abc&v=2", db_session, user_id="test-user")
         pdf_mock.assert_awaited_once()
         assert pdf_mock.call_args[0][1] == "file.pdf"
 
@@ -313,7 +315,7 @@ async def test_ingest_service_normal_url_still_uses_url_adapter(db_session) -> N
             AsyncMock(return_value=(MagicMock(), MagicMock())),
         ) as url_mock,
     ):
-        await svc.ingest_url("https://example.com/article", db_session)
+        await svc.ingest_url("https://example.com/article", db_session, user_id="test-user")
         url_mock.assert_awaited_once()
 
 
@@ -325,7 +327,7 @@ async def test_ingest_service_youtube_url_still_works(db_session) -> None:
         "ingest",
         AsyncMock(return_value=(MagicMock(), MagicMock())),
     ) as yt:
-        await svc.ingest_url("https://www.youtube.com/watch?v=abc", db_session)
+        await svc.ingest_url("https://www.youtube.com/watch?v=abc", db_session, user_id="test-user")
         yt.assert_awaited_once()
 
 
@@ -350,7 +352,7 @@ async def test_ingest_service_content_type_pdf_fallback(db_session) -> None:
             AsyncMock(return_value=(_fake_pdf_source(), MagicMock())),
         ) as pdf_mock,
     ):
-        await svc.ingest_url("https://example.com/download?id=12345", db_session)
+        await svc.ingest_url("https://example.com/download?id=12345", db_session, user_id="test-user")
         pdf_mock.assert_awaited_once()
 
 
@@ -487,7 +489,7 @@ async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
-        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session, user_id="test-user")
     assert source.title == "Attention Is All You Need"
     assert source.author == "Vaswani et al."
     assert source.published_date is not None
@@ -519,7 +521,7 @@ async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
-        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session)
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "2604.08016.pdf", db_session, user_id="test-user")
     assert source.title == "A Great Paper"
 
 
@@ -548,5 +550,5 @@ async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
         patch.object(pdf_mod.fitz, "open", side_effect=[fake_meta_doc, fake_text_doc]),
     ):
         adapter = PDFAdapter()
-        source, _ = await adapter.ingest(b"%PDF-1.4...", "report.pdf", db_session)
+        source, _ = await adapter.ingest(b"%PDF-1.4...", "report.pdf", db_session, user_id="test-user")
     assert source.title == "report"

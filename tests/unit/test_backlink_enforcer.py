@@ -54,6 +54,7 @@ def _make_article(
         file_path=str(file_path),
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
         page_type=page_type,
+        user_id="test-user",
     )
 
 
@@ -64,7 +65,11 @@ async def test_bidirectional_creates_inverse_for_contradicts(db_session, _isolat
     db_session.add(art_a)
     db_session.add(art_b)
     bl = Backlink(
-        source_article_id="a1", target_article_id="a2", relation_type=RelationType.CONTRADICTS, context="claim conflict"
+        source_article_id="a1",
+        target_article_id="a2",
+        relation_type=RelationType.CONTRADICTS,
+        context="claim conflict",
+        user_id="test-user",
     )
     db_session.add(bl)
     await db_session.commit()
@@ -86,7 +91,11 @@ async def test_bidirectional_skips_non_symmetric(db_session, _isolated_data_dir,
     db_session.add(art_a)
     db_session.add(art_b)
     bl = Backlink(
-        source_article_id="a1", target_article_id="a2", relation_type=RelationType.REFERENCES, context="normal link"
+        source_article_id="a1",
+        target_article_id="a2",
+        relation_type=RelationType.REFERENCES,
+        context="normal link",
+        user_id="test-user",
     )
     db_session.add(bl)
     await db_session.commit()
@@ -113,7 +122,9 @@ async def test_enforcer_concept_page_insufficient_synthesizes(db_session, _isola
     src = _make_article(tmp_path, article_id="s1", slug="source-1", title="Source 1")
     db_session.add(art)
     db_session.add(src)
-    bl = Backlink(source_article_id="c1", target_article_id="s1", relation_type=RelationType.SYNTHESIZES)
+    bl = Backlink(
+        source_article_id="c1", target_article_id="s1", relation_type=RelationType.SYNTHESIZES, user_id="test-user"
+    )
     db_session.add(bl)
     await db_session.commit()
     result = await enforce_backlinks("c1", db_session)
@@ -122,7 +133,7 @@ async def test_enforcer_concept_page_insufficient_synthesizes(db_session, _isola
 
 @pytest.mark.asyncio
 async def test_enforcer_no_orphan_check(db_session, _isolated_data_dir, tmp_path):
-    """Orphan detection is handled by detect_orphans(), not the enforcer."""
+    """Orphan detection is handled by detect_orphans(user_id="test-user"), not the enforcer."""
     art = _make_article(
         tmp_path, article_id="orphan1", slug="orphan", title="Orphan Article", concept_ids=["some-concept"]
     )
@@ -140,7 +151,11 @@ async def test_enforcer_auto_creates_inverse(db_session, _isolated_data_dir, tmp
     db_session.add(art_a)
     db_session.add(art_b)
     bl = Backlink(
-        source_article_id="a1", target_article_id="a2", relation_type=RelationType.CONTRADICTS, context="conflict"
+        source_article_id="a1",
+        target_article_id="a2",
+        relation_type=RelationType.CONTRADICTS,
+        context="conflict",
+        user_id="test-user",
     )
     db_session.add(bl)
     await db_session.commit()
@@ -156,7 +171,7 @@ async def test_enforcer_auto_creates_inverse(db_session, _isolated_data_dir, tmp
 
 @pytest.mark.asyncio
 async def test_contradiction_detection_creates_typed_backlink(db_session, _isolated_data_dir, tmp_path):
-    concept = Concept(id="c1", name="testing", article_count=2)
+    concept = Concept(id="c1", name="testing", article_count=2, user_id="test-user")
     db_session.add(concept)
     art_a = _make_article(
         tmp_path,
@@ -198,7 +213,7 @@ async def test_contradiction_detection_creates_typed_backlink(db_session, _isola
     report = LintReport(id="r1")
     db_session.add(report)
     await db_session.flush()
-    findings = await detect_contradictions(db_session, mock_router, settings, report)
+    findings = await detect_contradictions(db_session, mock_router, settings, report, user_id="test-user")
     assert len(findings) == 1
     assert findings[0].article_a_claim == "The sky is blue"
     result_ab = await db_session.execute(
@@ -217,14 +232,15 @@ async def test_contradiction_detection_creates_typed_backlink(db_session, _isola
 async def test_resolve_contradiction_endpoint(client, async_engine):
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     async with factory() as session:
-        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md"))
-        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md"))
+        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id="test-user"))
+        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id="test-user"))
         session.add(
             Backlink(
                 source_article_id="a1",
                 target_article_id="a2",
                 relation_type=RelationType.CONTRADICTS,
                 context="conflict",
+                user_id="test-user",
             )
         )
         session.add(
@@ -233,6 +249,7 @@ async def test_resolve_contradiction_endpoint(client, async_engine):
                 target_article_id="a1",
                 relation_type=RelationType.CONTRADICTS,
                 context="conflict",
+                user_id="test-user",
             )
         )
         await session.commit()
@@ -262,14 +279,15 @@ async def test_resolve_contradiction_404(client):
 async def test_resolve_contradiction_422_invalid(client, async_engine):
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     async with factory() as session:
-        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md"))
-        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md"))
+        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id="test-user"))
+        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id="test-user"))
         session.add(
             Backlink(
                 source_article_id="a1",
                 target_article_id="a2",
                 relation_type=RelationType.CONTRADICTS,
                 context="conflict",
+                user_id="test-user",
             )
         )
         await session.commit()
@@ -290,6 +308,7 @@ async def test_graph_api_includes_relation_type(client, async_engine):
                 relation_type=RelationType.CONTRADICTS,
                 context="contradiction",
                 resolution="source_a_wins",
+                user_id="test-user",
             )
         )
         await session.commit()

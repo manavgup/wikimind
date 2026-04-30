@@ -10,7 +10,7 @@ exercised the bug.
 
 This test wires the agent up against the real in-memory database, seeds an
 Article so retrieval has something to find, and runs the full
-``answer(file_back=True)`` path with only the LLM router mocked.
+``answer(file_back=True, user_id="anonymous")`` path with only the LLM router mocked.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     db_session: AsyncSession,
     tmp_path,
 ) -> None:
-    """``answer(file_back=True)`` must persist a Query and a filed Article.
+    """``answer(file_back=True, user_id="anonymous")`` must persist a Query and a filed Article.
 
     Exercises the real loop: retrieve context → query LLM (mocked at the
     router boundary) → persist Query row → file back as Article. Asserts
@@ -69,6 +69,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
         title="Knowledge",
         file_path=str(article_md),
         summary="seed article",
+        user_id="anonymous",
     )
     db_session.add(seed)
     await db_session.commit()
@@ -121,8 +122,8 @@ async def test_ask_with_file_back_creates_article_end_to_end(
 
     # Real call — must not raise. Pre-fix this raised ValueError because
     # ConfidenceLevel("high") is not a member of the enum.
-    # answer() now returns a tuple of (Query, Conversation).
-    query, _ = await agent.answer(request, db_session)
+    # answer(user_id="anonymous") now returns a tuple of (Query, Conversation).
+    query, _ = await agent.answer(request, db_session, user_id="anonymous")
 
     # Query row was persisted with the agent-confidence string preserved.
     assert query.id is not None
@@ -160,7 +161,7 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     # Capture every CompletionRequest passed to router.complete
     captured_requests: list = []
 
-    async def _fake_complete(request, session, **kwargs):
+    async def _fake_complete(request, **kwargs):
         captured_requests.append(request)
         return '{"answer": "fake answer", "confidence": "high", "sources": [], "related_articles": [], "follow_up_questions": []}'
 
@@ -180,6 +181,7 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
         title="Seed Article",
         file_path="/dev/null",
         summary="seed",
+        user_id="anonymous",
     )
     db_session.add(seed)
     await db_session.commit()
@@ -189,12 +191,13 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     agent._retrieve_context = AsyncMock(return_value=[{"title": "Seed Article", "content": "seed content", "score": 1}])
 
     # Q1 — starts a new conversation
-    _q1, conv = await agent.answer(QueryRequest(question="What is X?"), db_session)
+    _q1, conv = await agent.answer(QueryRequest(question="What is X?"), db_session, user_id="anonymous")
 
     # Q2 — continues the same conversation
     _q2, _ = await agent.answer(
         QueryRequest(question="How does it work?", conversation_id=conv.id),
         db_session,
+        user_id="anonymous",
     )
 
     # Both LLM calls must have been captured
@@ -219,7 +222,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     """The Karpathy loop closure test.
 
     1. Seed a fixture Article into the wiki so retrieval has something to find.
-    2. User A asks a question with file_back=True. The agent.answer() flow:
+    2. User A asks a question with file_back=True. The agent.answer(user_id="anonymous") flow:
        retrieves the fixture, generates an answer, and (because file_back=True
        and confidence is high) calls _file_back_thread to file the conversation
        back as a NEW wiki article.
@@ -229,7 +232,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
        about the same topic — this is the actual loop closure proof.
 
     If this test ever fails, the loop is broken — that is the entire
-    point of WikiMind. The test deliberately uses agent.answer(file_back=True)
+    point of WikiMind. The test deliberately uses agent.answer(file_back=True, user_id="anonymous")
     rather than calling _file_back_thread directly, so it exercises the
     production conditional that gates file-back on confidence.
     """
@@ -272,6 +275,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
             summary="A fixture article for the loop closure test.",
             created_at=utcnow_naive(),
             updated_at=utcnow_naive(),
+            user_id="anonymous",
         )
     )
     await db_session.commit()
@@ -295,10 +299,11 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
 
     # Phase 1: Conversation A asks with file_back=True, exercising the production
     # conditional: if request.file_back and result.confidence in ("high", "medium").
-    # answer() commits internally — no manual commit needed.
+    # answer(user_id="anonymous") commits internally — no manual commit needed.
     q_a, _conv_a = await agent.answer(
         QueryRequest(question="How does the Karpathy loop work?", file_back=True),
         db_session,
+        user_id="anonymous",
     )
 
     # The production conditional must have fired: filed_back and filed_article_id
@@ -309,12 +314,12 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     # The filed-back article must now be in the Article table and on disk.
     filed_article = await db_session.get(Article, q_a.filed_article_id)
     assert filed_article is not None
-    assert (data_dir / "wiki" / filed_article.file_path).exists()
+    assert (data_dir / "wiki" / "anonymous" / filed_article.file_path).exists()
 
     # Phase 3: Verify the filed-back article is retrievable by a future question.
     # Use the agent's own retrieval helper to confirm the filed-back article
     # would be found by a related future question.
-    retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session)
+    retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session, user_id="anonymous")
     retrieved_titles = {r["title"] for r in retrieved}
 
     assert "How does the Karpathy loop work?" in retrieved_titles, (

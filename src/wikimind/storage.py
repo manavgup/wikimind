@@ -116,7 +116,7 @@ class LocalFileStorage:
         return await asyncio.to_thread(_list)
 
 
-def get_wiki_storage(user_id: str | None = None) -> FileStorage:
+def get_wiki_storage(user_id: str) -> FileStorage:
     """Return wiki file storage, optionally scoped to a user."""
     settings = get_settings()
     root = Path(settings.data_dir) / "wiki"
@@ -125,7 +125,7 @@ def get_wiki_storage(user_id: str | None = None) -> FileStorage:
     return LocalFileStorage(root=root)
 
 
-def get_raw_storage(user_id: str | None = None) -> FileStorage:
+def get_raw_storage(user_id: str) -> FileStorage:
     """Return raw source file storage, optionally scoped to a user."""
     settings = get_settings()
     root = Path(settings.data_dir) / "raw"
@@ -134,7 +134,7 @@ def get_raw_storage(user_id: str | None = None) -> FileStorage:
     return LocalFileStorage(root=root)
 
 
-def resolve_wiki_path(relative_path: str, user_id: str | None = None) -> Path:
+def resolve_wiki_path(relative_path: str, user_id: str) -> Path:
     """Resolve a wiki-relative path to an absolute filesystem path.
 
     Handles backward compatibility: if the path is already absolute,
@@ -150,7 +150,7 @@ def resolve_wiki_path(relative_path: str, user_id: str | None = None) -> Path:
     return root / relative_path
 
 
-def resolve_raw_path(relative_path: str, user_id: str | None = None) -> Path:
+def resolve_raw_path(relative_path: str, user_id: str) -> Path:
     """Resolve a raw-relative path to an absolute filesystem path.
 
     Handles backward compatibility: if the path is already absolute,

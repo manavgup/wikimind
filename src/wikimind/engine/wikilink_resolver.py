@@ -53,9 +53,9 @@ class ResolvedBacklink:
 async def resolve_backlink_candidates(
     candidates: list[str],
     session: AsyncSession,
+    user_id: str,
     exclude_article_id: str | None = None,
     relation_types: dict[str, str] | None = None,
-    user_id: str | None = None,
 ) -> tuple[list[ResolvedBacklink], list[str]]:
     """Resolve wikilink candidates against the Article table.
 

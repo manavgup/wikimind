@@ -42,7 +42,7 @@ async def detect_orphans(
     session: AsyncSession,
     settings: Settings,
     report_id: str,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[OrphanFinding]:
     """Find articles with zero inbound AND zero outbound backlinks.
 

@@ -76,6 +76,7 @@ async def _mk_source_article(session, tmp_path: Path, slug: str, title: str, con
         summary="Sum.",
         concept_ids=json.dumps(concepts),
         page_type=PageType.SOURCE,
+        user_id="test-user",
     )
     session.add(a)
     await session.commit()
@@ -120,7 +121,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
         await _seed_kind(db_session)
         await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
-        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
+        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2, user_id="test-user")
         db_session.add(concept)
         await db_session.commit()
 
@@ -132,7 +133,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
         ):
-            first = await ConceptCompiler().compile_concept_page(concept, db_session)
+            first = await ConceptCompiler(user_id="test-user").compile_concept_page(concept, db_session)
             assert first is not None
             assert mr.complete.call_count == 1
 
@@ -144,7 +145,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
         await _seed_kind(db_session)
         await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
-        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
+        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2, user_id="test-user")
         db_session.add(concept)
         await db_session.commit()
 
@@ -156,7 +157,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
         ):
-            first = await ConceptCompiler().compile_concept_page(concept, db_session)
+            first = await ConceptCompiler(user_id="test-user").compile_concept_page(concept, db_session)
             assert first is not None
             assert mr.complete.call_count == 1
 
@@ -166,7 +167,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
         ):
-            compiled = await maybe_trigger_concept_pages(db_session)
+            compiled = await maybe_trigger_concept_pages(db_session, user_id="test-user")
             assert compiled == []
             # LLM was not called again.
             assert mr.complete.call_count == 1
@@ -175,7 +176,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
         """When no concept page exists yet, _concept_source_set_changed returns True."""
         await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
-        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
+        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2, user_id="test-user")
         db_session.add(concept)
         await db_session.commit()
 
@@ -190,7 +191,7 @@ class TestSourceSetChangedTriggersRecompilation:
         await _seed_kind(db_session)
         await _mk_source_article(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_source_article(db_session, tmp_path, "s2", "S2", ["ml"])
-        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2)
+        concept = Concept(name="ml", description="ML", concept_kind="topic", article_count=2, user_id="test-user")
         db_session.add(concept)
         await db_session.commit()
 
@@ -202,7 +203,7 @@ class TestSourceSetChangedTriggersRecompilation:
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
         ):
-            first = await ConceptCompiler().compile_concept_page(concept, db_session)
+            first = await ConceptCompiler(user_id="test-user").compile_concept_page(concept, db_session)
             assert first is not None
 
         # Source set is unchanged.
@@ -227,6 +228,7 @@ class TestReplaceArticleTriggersConceptPages:
             source_type="text",
             source_url="https://example.com",
             status=IngestStatus.PROCESSING,
+            user_id="test-user",
         )
         db_session.add(source)
         await db_session.commit()
@@ -246,6 +248,7 @@ class TestReplaceArticleTriggersConceptPages:
             concept_ids=json.dumps(["ml"]),
             provider=Provider.MOCK,
             page_type=PageType.SOURCE,
+            user_id="test-user",
         )
         db_session.add(existing)
         await db_session.commit()
@@ -274,6 +277,7 @@ class TestReplaceArticleTriggersConceptPages:
         compiler = Compiler.__new__(Compiler)
         compiler.router = MagicMock()
         compiler.settings = _settings(tmp_path)
+        compiler.user_id = "test-user"
         compiler._last_provider_used = Provider.MOCK
         compiler._last_typed_suggestions = {}
 

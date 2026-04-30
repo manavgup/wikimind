@@ -19,6 +19,7 @@ async def test_synthesizes_link_skips_existing(db_session: AsyncSession):
         title="Concept",
         file_path="/tmp/c.md",
         page_type=PageType.CONCEPT,
+        user_id="test-user",
     )
     a2 = Article(
         id=str(uuid.uuid4()),
@@ -26,6 +27,7 @@ async def test_synthesizes_link_skips_existing(db_session: AsyncSession):
         title="Source",
         file_path="/tmp/s.md",
         page_type=PageType.SOURCE,
+        user_id="test-user",
     )
     db_session.add_all([a1, a2])
 
@@ -35,13 +37,14 @@ async def test_synthesizes_link_skips_existing(db_session: AsyncSession):
         target_article_id=a2.id,
         relation_type=RelationType.SYNTHESIZES,
         context="existing",
+        user_id="test-user",
     )
     db_session.add(bl)
     await db_session.commit()
 
-    compiler = ConceptCompiler()
+    compiler = ConceptCompiler(user_id="test-user")
     # Should NOT raise IntegrityError or create a duplicate
-    await compiler._create_synthesizes_links(a1.id, [a2.id], db_session)
+    await compiler._create_synthesizes_links(a1.id, [a2.id], db_session, user_id="test-user")
 
     result = await db_session.execute(
         select(Backlink).where(
@@ -62,6 +65,7 @@ async def test_related_to_link_skips_existing(db_session: AsyncSession):
         title="Concept A",
         file_path="/tmp/a.md",
         page_type=PageType.CONCEPT,
+        user_id="test-user",
     )
     a2 = Article(
         id=str(uuid.uuid4()),
@@ -69,6 +73,7 @@ async def test_related_to_link_skips_existing(db_session: AsyncSession):
         title="Concept B",
         file_path="/tmp/b.md",
         page_type=PageType.CONCEPT,
+        user_id="test-user",
     )
     db_session.add_all([a1, a2])
 
@@ -78,12 +83,13 @@ async def test_related_to_link_skips_existing(db_session: AsyncSession):
         target_article_id=a2.id,
         relation_type=RelationType.RELATED_TO,
         context="existing",
+        user_id="test-user",
     )
     db_session.add(bl)
     await db_session.commit()
 
-    compiler = ConceptCompiler()
-    await compiler._create_related_to_links(a1, ["concept-b"], db_session)
+    compiler = ConceptCompiler(user_id="test-user")
+    await compiler._create_related_to_links(a1, ["concept-b"], db_session, user_id="test-user")
 
     result = await db_session.execute(
         select(Backlink).where(

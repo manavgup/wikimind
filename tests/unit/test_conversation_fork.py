@@ -31,6 +31,7 @@ async def _seed_conversation_with_turns(
         title="Parent conversation",
         created_at=datetime(2026, 4, 10, 10, 0, 0),
         updated_at=datetime(2026, 4, 10, 10, 5, 0),
+        user_id="test-user",
     )
     db_session.add(conv)
     await db_session.flush()
@@ -47,6 +48,7 @@ async def _seed_conversation_with_turns(
             conversation_id=conv_id,
             turn_index=i,
             created_at=datetime(2026, 4, 10, 10, i, 0),
+            user_id="test-user",
         )
         queries.append(q)
     db_session.add_all(queries)
@@ -88,6 +90,7 @@ class TestForkConversation:
                     related_article_ids=json.dumps(mock_result.related_articles),
                     conversation_id=fork_conv.id,
                     turn_index=0,
+                    user_id="test-user",
                 )
                 session.add(q)
                 await session.commit()
@@ -97,7 +100,7 @@ class TestForkConversation:
 
             mock_answer.side_effect = _fake_answer
 
-            result = await service.fork_conversation(parent.id, fork_request, db_session)
+            result = await service.fork_conversation(parent.id, fork_request, db_session, user_id="test-user")
 
         assert isinstance(result, AskResponse)
         assert result.conversation.parent_conversation_id == parent.id
@@ -110,7 +113,7 @@ class TestForkConversation:
         fork_request = ForkRequest(turn_index=0, new_question="Any question?")
 
         with pytest.raises(HTTPException) as exc_info:
-            await service.fork_conversation("nonexistent-id", fork_request, db_session)
+            await service.fork_conversation("nonexistent-id", fork_request, db_session, user_id="test-user")
 
         assert exc_info.value.status_code == 404
 
@@ -121,7 +124,7 @@ class TestForkConversation:
         fork_request = ForkRequest(turn_index=-1, new_question="Bad index?")
 
         with pytest.raises(HTTPException) as exc_info:
-            await service.fork_conversation(parent.id, fork_request, db_session)
+            await service.fork_conversation(parent.id, fork_request, db_session, user_id="test-user")
 
         assert exc_info.value.status_code == 400
 
@@ -144,12 +147,14 @@ class TestCountForks:
             title="Fork 1",
             parent_conversation_id=parent.id,
             forked_at_turn_index=1,
+            user_id="test-user",
         )
         fork2 = Conversation(
             id="fork-2",
             title="Fork 2",
             parent_conversation_id=parent.id,
             forked_at_turn_index=2,
+            user_id="test-user",
         )
         db_session.add_all([fork1, fork2])
         await db_session.commit()
@@ -179,6 +184,7 @@ class TestMaterializeThread:
             title="Forked conversation",
             parent_conversation_id="parent-conv",
             forked_at_turn_index=2,
+            user_id="test-user",
         )
         db_session.add(fork_conv)
         await db_session.flush()
@@ -193,6 +199,7 @@ class TestMaterializeThread:
             related_article_ids=json.dumps([]),
             conversation_id="fork-conv",
             turn_index=0,
+            user_id="test-user",
         )
         db_session.add(fork_query)
         await db_session.commit()
@@ -216,6 +223,7 @@ class TestMaterializeThread:
             title="Parent fork",
             parent_conversation_id="grandparent",
             forked_at_turn_index=2,
+            user_id="test-user",
         )
         db_session.add(parent_fork)
         await db_session.flush()
@@ -229,6 +237,7 @@ class TestMaterializeThread:
             related_article_ids=json.dumps([]),
             conversation_id="parent-fork",
             turn_index=0,
+            user_id="test-user",
         )
         parent_fork_query2 = Query(
             id="q-pf-1",
@@ -239,6 +248,7 @@ class TestMaterializeThread:
             related_article_ids=json.dumps([]),
             conversation_id="parent-fork",
             turn_index=1,
+            user_id="test-user",
         )
         db_session.add_all([parent_fork_query, parent_fork_query2])
         await db_session.flush()
@@ -249,6 +259,7 @@ class TestMaterializeThread:
             title="Child fork",
             parent_conversation_id="parent-fork",
             forked_at_turn_index=1,
+            user_id="test-user",
         )
         db_session.add(child_fork)
         await db_session.flush()
@@ -262,6 +273,7 @@ class TestMaterializeThread:
             related_article_ids=json.dumps([]),
             conversation_id="child-fork",
             turn_index=0,
+            user_id="test-user",
         )
         db_session.add(child_fork_query)
         await db_session.commit()
@@ -287,6 +299,7 @@ class TestGetConversationWithFork:
             title="Fork for get_conversation",
             parent_conversation_id="parent-gc",
             forked_at_turn_index=2,
+            user_id="test-user",
         )
         db_session.add(fork_conv)
         await db_session.flush()
@@ -300,12 +313,13 @@ class TestGetConversationWithFork:
             related_article_ids=json.dumps([]),
             conversation_id="fork-gc",
             turn_index=0,
+            user_id="test-user",
         )
         db_session.add(fork_query)
         await db_session.commit()
 
         service = QueryService()
-        detail = await service.get_conversation("fork-gc", db_session)
+        detail = await service.get_conversation("fork-gc", db_session, user_id="test-user")
 
         # Should have parent turns 0,1 + fork turn 0 = 3
         assert len(detail.queries) == 3
@@ -321,11 +335,12 @@ class TestGetConversationWithFork:
             title="Fork for count",
             parent_conversation_id="parent-fc",
             forked_at_turn_index=1,
+            user_id="test-user",
         )
         db_session.add(fork_conv)
         await db_session.commit()
 
         service = QueryService()
-        detail = await service.get_conversation("parent-fc", db_session)
+        detail = await service.get_conversation("parent-fc", db_session, user_id="test-user")
 
         assert detail.conversation.fork_count == 1

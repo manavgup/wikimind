@@ -101,7 +101,7 @@ def _parse_article_titles(raw: str | None) -> list[str]:
     return [str(item) for item in parsed if item]
 
 
-async def _build_citations(query: Query, session: AsyncSession, user_id: str | None = None) -> list[CitationResponse]:
+async def _build_citations(query: Query, session: AsyncSession, user_id: str) -> list[CitationResponse]:
     """Resolve a Q&A record into a full citation chain.
 
     Walks ``Query.source_article_ids`` (which the QA agent populates with
@@ -250,7 +250,7 @@ class QueryService:
     def __init__(self) -> None:
         self._qa_agent = QAAgent()
 
-    async def ask(self, request: QueryRequest, session: AsyncSession, user_id: str | None = None) -> AskResponse:
+    async def ask(self, request: QueryRequest, session: AsyncSession, user_id: str) -> AskResponse:
         """Ask a question against the wiki and persist the result.
 
         Conversation-aware: passes request.conversation_id to the agent.
@@ -276,7 +276,7 @@ class QueryService:
         self,
         request: QueryRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> AsyncIterator[str]:
         """Stream an answer token-by-token via SSE events.
 
@@ -314,7 +314,7 @@ class QueryService:
             error_payload = json.dumps({"code": "stream_failed", "message": "Internal server error"})
             yield f"event: error\ndata: {error_payload}\n\n"
 
-    async def query_history(self, session: AsyncSession, limit: int = 50, user_id: str | None = None) -> list[Query]:
+    async def query_history(self, session: AsyncSession, user_id: str, limit: int = 50) -> list[Query]:
         """List past queries ordered by most recent first.
 
         Args:
@@ -334,8 +334,8 @@ class QueryService:
     async def list_conversations(
         self,
         session: AsyncSession,
+        user_id: str,
         limit: int = 50,
-        user_id: str | None = None,
     ) -> list[ConversationSummary]:
         """List conversations ordered by most-recently-updated first.
 
@@ -400,7 +400,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> ConversationDetail:
         """Return a single conversation with all its queries ordered by turn_index.
 
@@ -450,7 +450,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, object]:
         """File a whole conversation back to the wiki.
 
@@ -485,7 +485,7 @@ class QueryService:
         conversation_id: str,
         fork_request: ForkRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> AskResponse:
         """Fork a conversation at a specific turn and ask a new question.
 
@@ -546,7 +546,7 @@ class QueryService:
         self,
         request: FileBackSelectionRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, object]:
         """File selected turns from one or more conversations back to the wiki.
 
@@ -654,7 +654,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Response:
         """Export conversation as markdown. Read-only, no DB writes.
 

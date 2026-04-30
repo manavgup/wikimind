@@ -48,7 +48,7 @@ async def pg_session(pg_engine) -> AsyncSession:
 class TestPostgresBasicOperations:
     async def test_create_and_read_source(self, pg_session):
         """Basic CRUD works on Postgres."""
-        source = Source(source_type=SourceType.URL, source_url="https://example.com")
+        source = Source(source_type=SourceType.URL, source_url="https://example.com", user_id="test-user")
         pg_session.add(source)
         await pg_session.commit()
 
@@ -66,6 +66,7 @@ class TestPostgresBasicOperations:
             concept_ids=concepts,
             source_ids=json.dumps(["src-1"]),
             confidence=ConfidenceLevel.SOURCED,
+            user_id="test-user",
         )
         pg_session.add(article)
         await pg_session.commit()
@@ -81,6 +82,7 @@ class TestPostgresBasicOperations:
             answer="Artificial Intelligence",
             source_article_ids=json.dumps(["art-1"]),
             related_article_ids=json.dumps(["art-2"]),
+            user_id="test-user",
         )
         pg_session.add(q)
         await pg_session.commit()
@@ -104,6 +106,7 @@ class TestPostgresMigrationHelpers:
             file_path="pg-backfill.md",
             concept_ids=json.dumps(["new-concept"]),
             confidence=ConfidenceLevel.SOURCED,
+            user_id="test-user",
         )
         pg_session.add(article)
         await pg_session.commit()

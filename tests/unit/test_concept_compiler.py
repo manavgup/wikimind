@@ -72,6 +72,7 @@ async def _mk_art(s, tp, slug, title, concepts, summary="Sum."):
         summary=summary,
         concept_ids=json.dumps(concepts),
         page_type=PageType.SOURCE,
+        user_id="test-user",
     )
     s.add(a)
     await s.commit()
@@ -111,7 +112,12 @@ class TestCollectSourceArticles:
         fp = d / "c.md"
         fp.write_text("# C", encoding="utf-8")
         ca = Article(
-            slug="concept-ml", title="ML", file_path=str(fp), concept_ids=json.dumps(["ml"]), page_type=PageType.CONCEPT
+            slug="concept-ml",
+            title="ML",
+            file_path=str(fp),
+            concept_ids=json.dumps(["ml"]),
+            page_type=PageType.CONCEPT,
+            user_id="test-user",
         )
         db_session.add(ca)
         await db_session.commit()
@@ -129,7 +135,7 @@ class TestSynthesizesLinks:
         await _seed_kind(db_session)
         a1 = await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         a2 = await _mk_art(db_session, tmp_path, "s2", "S2", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -157,7 +163,7 @@ class TestSynthesizesLinks:
                 ),
             ),
         ):
-            art = await ConceptCompiler().compile_concept_page(c, db_session)
+            art = await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session)
         assert art is not None and art.page_type == PageType.CONCEPT
         res = await db_session.execute(
             select(Backlink).where(
@@ -175,7 +181,7 @@ class TestConceptPageOutput:
         await _seed_kind(db_session)
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -203,9 +209,9 @@ class TestConceptPageOutput:
                 ),
             ),
         ):
-            art = await ConceptCompiler().compile_concept_page(c, db_session)
+            art = await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session)
         assert art is not None
-        content = (Path(tmp_path) / "wiki" / art.file_path).read_text(encoding="utf-8")
+        content = (Path(tmp_path) / "wiki" / "test-user" / art.file_path).read_text(encoding="utf-8")
         assert "page_type: concept" in content
         for s in [
             "## Overview",
@@ -223,7 +229,7 @@ class TestTriggerThreshold:
     async def test_below_min(self, db_session, tmp_path):
         await _seed_kind(db_session)
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         mr = AsyncMock()
@@ -240,14 +246,14 @@ class TestTriggerThreshold:
                 ),
             ),
         ):
-            assert await ConceptCompiler().compile_concept_page(c, db_session) is None
+            assert await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session) is None
         mr.complete.assert_not_called()
 
     async def test_at_min(self, db_session, tmp_path):
         await _seed_kind(db_session)
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -275,14 +281,14 @@ class TestTriggerThreshold:
                 ),
             ),
         ):
-            assert await ConceptCompiler().compile_concept_page(c, db_session) is not None
+            assert await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session) is not None
         mr.complete.assert_called_once()
 
     async def test_high_threshold(self, db_session, tmp_path):
         await _seed_kind(db_session)
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         mr = AsyncMock()
@@ -299,7 +305,7 @@ class TestTriggerThreshold:
                 ),
             ),
         ):
-            assert await ConceptCompiler().compile_concept_page(c, db_session) is None
+            assert await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session) is None
 
 
 @pytest.mark.asyncio
@@ -308,7 +314,7 @@ class TestWithMockedLLM:
         await _seed_kind(db_session, name="person")
         await _mk_art(db_session, tmp_path, "s1", "S1", ["k"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["k"])
-        c = Concept(name="k", description="K", concept_kind="person")
+        c = Concept(name="k", description="K", concept_kind="person", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -336,7 +342,7 @@ class TestWithMockedLLM:
                 ),
             ),
         ):
-            art = await ConceptCompiler().compile_concept_page(c, db_session)
+            art = await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session)
         assert art is not None
         assert "person" in mr.complete.call_args[0][0].system.lower()
 
@@ -344,7 +350,7 @@ class TestWithMockedLLM:
         await _seed_kind(db_session, name="topic")
         await _mk_art(db_session, tmp_path, "s1", "S1", ["x"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["x"])
-        c = Concept(name="x", description="X", concept_kind="custom")
+        c = Concept(name="x", description="X", concept_kind="custom", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -372,13 +378,13 @@ class TestWithMockedLLM:
                 ),
             ),
         ):
-            assert await ConceptCompiler().compile_concept_page(c, db_session) is not None
+            assert await ConceptCompiler(user_id="test-user").compile_concept_page(c, db_session) is not None
 
     async def test_replaces_existing(self, db_session, tmp_path):
         await _seed_kind(db_session)
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
         await _mk_art(db_session, tmp_path, "s2", "S2", ["ml"])
-        c = Concept(name="ml", description="ML", concept_kind="topic")
+        c = Concept(name="ml", description="ML", concept_kind="topic", user_id="test-user")
         db_session.add(c)
         await db_session.commit()
         fr = CompletionResponse(
@@ -402,7 +408,7 @@ class TestWithMockedLLM:
             patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
             patch("wikimind.engine.concept_compiler.get_settings", return_value=s),
         ):
-            cc = ConceptCompiler()
+            cc = ConceptCompiler(user_id="test-user")
             first = await cc.compile_concept_page(c, db_session)
             second = await cc.compile_concept_page(c, db_session)
         assert second.id == first.id
@@ -422,6 +428,7 @@ class TestContradictionSurfacing:
                 target_article_id=a2.id,
                 relation_type=RelationType.CONTRADICTS,
                 context="A vs B",
+                user_id="test-user",
             )
         )
         await db_session.commit()
@@ -438,6 +445,7 @@ class TestContradictionSurfacing:
                 context="A vs B",
                 resolution="source_a_wins",
                 resolution_note="Stronger",
+                user_id="test-user",
             )
         )
         await db_session.commit()

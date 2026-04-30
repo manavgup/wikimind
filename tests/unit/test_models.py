@@ -48,14 +48,14 @@ class TestEnums:
 
 class TestSourceModel:
     def test_create_source(self):
-        source = Source(source_type=SourceType.URL, source_url="https://example.com")
+        source = Source(source_type=SourceType.URL, source_url="https://example.com", user_id="test-user")
         assert source.source_type == SourceType.URL
         assert source.source_url == "https://example.com"
         assert source.status == IngestStatus.PENDING
         assert source.id is not None
 
     def test_source_defaults(self):
-        source = Source(source_type=SourceType.TEXT)
+        source = Source(source_type=SourceType.TEXT, user_id="test-user")
         assert source.title is None
         assert source.author is None
         assert source.token_count is None
@@ -64,7 +64,7 @@ class TestSourceModel:
 
 class TestArticleModel:
     def test_create_article(self):
-        article = Article(slug="test-article", title="Test Article", file_path="/wiki/test.md")
+        article = Article(slug="test-article", title="Test Article", file_path="/wiki/test.md", user_id="test-user")
         assert article.slug == "test-article"
         assert article.title == "Test Article"
         assert article.id is not None
@@ -72,7 +72,7 @@ class TestArticleModel:
 
 class TestJobModel:
     def test_create_job(self):
-        job = Job(job_type=JobType.COMPILE_SOURCE)
+        job = Job(job_type=JobType.COMPILE_SOURCE, user_id="test-user")
         assert job.job_type == JobType.COMPILE_SOURCE
         assert job.status == JobStatus.QUEUED
         assert job.priority == 5
@@ -83,7 +83,7 @@ def test_source_has_original_true_when_pdf_sibling_exists(tmp_path: Path, monkey
     monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
     (tmp_path / "src-1.txt").write_text("text")
     (tmp_path / "src-1.pdf").write_bytes(b"%PDF")
-    source = Source(id="src-1", source_type=SourceType.PDF, file_path="src-1.txt")
+    source = Source(id="src-1", source_type=SourceType.PDF, file_path="src-1.txt", user_id="test-user")
     assert source.has_original is True
 
 
@@ -91,13 +91,13 @@ def test_source_has_original_false_for_text_only(tmp_path: Path, monkeypatch: py
     """has_original is False when only the .txt exists."""
     monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
     (tmp_path / "src-2.txt").write_text("text")
-    source = Source(id="src-2", source_type=SourceType.TEXT, file_path="src-2.txt")
+    source = Source(id="src-2", source_type=SourceType.TEXT, file_path="src-2.txt", user_id="test-user")
     assert source.has_original is False
 
 
 def test_source_has_original_false_when_no_file_path() -> None:
     """has_original is False when file_path is None."""
-    source = Source(id="src-3", source_type=SourceType.TEXT)
+    source = Source(id="src-3", source_type=SourceType.TEXT, user_id="test-user")
     assert source.has_original is False
 
 

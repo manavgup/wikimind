@@ -32,6 +32,7 @@ async def _make_article(
         file_path=file_path,
         confidence=ConfidenceLevel.SOURCED,
         created_at=utcnow_naive(),
+        user_id="test-user",
     )
     session.add(article)
     await session.commit()

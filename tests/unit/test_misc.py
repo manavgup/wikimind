@@ -41,9 +41,9 @@ async def test_connection_manager_connect_and_disconnect() -> None:
     ws = MagicMock()
     ws.accept = AsyncMock()
     ws.send_text = AsyncMock()
-    await cm.connect(ws)
+    await cm.connect(ws, user_id="test-user")
     assert ws in cm.active
-    await cm.broadcast({"event": "x"})
+    await cm.broadcast({"event": "x"}, user_id="test-user")
     ws.send_text.assert_awaited()
     cm.disconnect(ws)
     assert ws not in cm.active
@@ -55,16 +55,16 @@ async def test_connection_manager_broadcast_drops_dead() -> None:
     good.send_text = AsyncMock()
     bad = MagicMock()
     bad.send_text = AsyncMock(side_effect=RuntimeError("dead"))
-    # Register connections under the no-user key via internal dict
-    cm._connections.setdefault(_NO_USER, set()).update({good, bad})
-    await cm.broadcast({"event": "x"})
+    # Register connections under the test-user key via internal dict
+    cm._connections.setdefault("test-user", set()).update({good, bad})
+    await cm.broadcast({"event": "x"}, user_id="test-user")
     assert bad not in cm.active
     assert good in cm.active
 
 
 async def test_connection_manager_broadcast_empty() -> None:
     cm = ConnectionManager()
-    await cm.broadcast({"event": "x"})  # no-op
+    await cm.broadcast({"event": "x"}, user_id="test-user")  # no-op
 
 
 async def test_connection_manager_send_to_dead_disconnects() -> None:
@@ -82,11 +82,11 @@ def test_get_connection_manager() -> None:
 
 async def test_emit_helpers() -> None:
     with patch.object(ws_mod.manager, "broadcast", AsyncMock()) as b:
-        await emit_job_progress("j", 50)
-        await emit_compilation_complete("s", "t")
-        await emit_compilation_failed("s", "e")
-        await emit_sync_complete(1, 2)
-        await emit_linter_alert("contradiction", ["a"])
+        await emit_job_progress("j", 50, user_id="test-user")
+        await emit_compilation_complete("s", "t", user_id="test-user")
+        await emit_compilation_failed("s", "e", user_id="test-user")
+        await emit_sync_complete(1, 2, user_id="test-user")
+        await emit_linter_alert("contradiction", ["a"], user_id="test-user")
     assert b.await_count == 5
 
 
@@ -306,6 +306,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
             answer="Legacy answer.",
             confidence="high",
             created_at=utcnow_naive(),
+            user_id="test-user",
         )
         session.add(legacy)
         await session.commit()

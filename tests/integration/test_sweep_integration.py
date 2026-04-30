@@ -39,6 +39,7 @@ async def _make_article(
         file_path=file_path,
         confidence=ConfidenceLevel.SOURCED,
         created_at=utcnow_naive(),
+        user_id="test-user",
     )
     session.add(article)
     await session.commit()
@@ -66,7 +67,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
 
     # --- Phase 1: run sweep --- only Machine Learning should resolve ---
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=factory):
-        await sweep_wikilinks({})
+        await sweep_wikilinks({}, user_id="test-user")
 
     # Assert: Machine Learning bracket resolved
     content_after_phase1 = a_md.read_text()
@@ -101,13 +102,14 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
             file_path=str(tmp_path / "dl.md"),
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
+            user_id="test-user",
         )
         seed_session.add(article_c)
         await seed_session.commit()
         await seed_session.refresh(article_c)
 
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=factory):
-        await sweep_wikilinks({})
+        await sweep_wikilinks({}, user_id="test-user")
 
     # Assert: Deep Learning bracket now resolved
     content_after_phase2 = a_md.read_text()
@@ -129,7 +131,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
 
     # --- Phase 3: re-run again --- should be a complete no-op ---
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=factory):
-        await sweep_wikilinks({})
+        await sweep_wikilinks({}, user_id="test-user")
 
     # Content unchanged
     assert a_md.read_text() == content_after_phase2

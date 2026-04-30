@@ -29,6 +29,7 @@ async def _make_article(
         file_path=f"/tmp/{slug or title}.md",
         confidence=ConfidenceLevel.SOURCED,
         created_at=created_at or utcnow_naive(),
+        user_id="test-user",
     )
     session.add(article)
     await session.commit()
@@ -39,7 +40,7 @@ async def _make_article(
 @pytest.mark.asyncio
 async def test_exact_match_resolves(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert resolved[0].candidate_text == "Machine Learning"
@@ -50,7 +51,7 @@ async def test_exact_match_resolves(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_case_insensitive_exact_match_resolves(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(["machine learning"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["machine learning"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert unresolved == []
@@ -60,7 +61,9 @@ async def test_case_insensitive_exact_match_resolves(db_session: AsyncSession) -
 async def test_normalized_match_resolves(db_session: AsyncSession) -> None:
     """Stage 2: candidate differs from title by punctuation only."""
     existing = await _make_article(db_session, "Karpathy's Wiki Pattern")
-    resolved, unresolved = await resolve_backlink_candidates(["Karpathys Wiki Pattern"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(
+        ["Karpathys Wiki Pattern"], db_session, user_id="test-user"
+    )
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
     assert unresolved == []
@@ -69,7 +72,7 @@ async def test_normalized_match_resolves(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_underscore_to_space_resolves_via_normalizer(db_session: AsyncSession) -> None:
     existing = await _make_article(db_session, "Machine Learning Ops")
-    resolved, _unresolved = await resolve_backlink_candidates(["machine_learning_ops"], db_session)
+    resolved, _unresolved = await resolve_backlink_candidates(["machine_learning_ops"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert resolved[0].target_id == existing.id
 
@@ -77,7 +80,7 @@ async def test_underscore_to_space_resolves_via_normalizer(db_session: AsyncSess
 @pytest.mark.asyncio
 async def test_no_match_stays_unresolved(db_session: AsyncSession) -> None:
     await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(["Quantum Computing"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["Quantum Computing"], db_session, user_id="test-user")
     assert resolved == []
     assert unresolved == ["Quantum Computing"]
 
@@ -86,7 +89,7 @@ async def test_no_match_stays_unresolved(db_session: AsyncSession) -> None:
 async def test_similar_but_distinct_does_not_match(db_session: AsyncSession) -> None:
     """Reject 'Machine Learning Ops' as a match for 'Machine Learning' — no fuzzy."""
     await _make_article(db_session, "Machine Learning")
-    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning Ops"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["Machine Learning Ops"], db_session, user_id="test-user")
     assert resolved == []
     assert unresolved == ["Machine Learning Ops"]
 
@@ -95,7 +98,9 @@ async def test_similar_but_distinct_does_not_match(db_session: AsyncSession) -> 
 async def test_mixed_resolved_and_unresolved(db_session: AsyncSession) -> None:
     await _make_article(db_session, "React")
     await _make_article(db_session, "TypeScript")
-    resolved, unresolved = await resolve_backlink_candidates(["React", "Redux", "TypeScript", "Zustand"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(
+        ["React", "Redux", "TypeScript", "Zustand"], db_session, user_id="test-user"
+    )
     assert len(resolved) == 2
     assert sorted(unresolved) == ["Redux", "Zustand"]
     resolved_titles = sorted(r.target_title for r in resolved)
@@ -106,7 +111,7 @@ async def test_mixed_resolved_and_unresolved(db_session: AsyncSession) -> None:
 async def test_duplicate_candidates_deduped_in_resolved(db_session: AsyncSession) -> None:
     """Two candidates resolving to the same target produce ONE ResolvedBacklink."""
     await _make_article(db_session, "React")
-    resolved, unresolved = await resolve_backlink_candidates(["React", "react"], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["React", "react"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert unresolved == []
 
@@ -126,7 +131,7 @@ async def test_ambiguous_normalized_match_picks_earliest(db_session: AsyncSessio
         slug="machine-learning-newer",
         created_at=datetime(2026, 2, 1),
     )
-    resolved, _ = await resolve_backlink_candidates(["Machine Learning"], db_session)
+    resolved, _ = await resolve_backlink_candidates(["Machine Learning"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert resolved[0].target_id == older.id
 
@@ -139,6 +144,7 @@ async def test_exclude_self_reference(db_session: AsyncSession) -> None:
     resolved, unresolved = await resolve_backlink_candidates(
         ["Self Article", "Other Article"],
         db_session,
+        user_id="test-user",
         exclude_article_id=self_article.id,
     )
     assert len(resolved) == 1
@@ -148,14 +154,14 @@ async def test_exclude_self_reference(db_session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_empty_candidate_list(db_session: AsyncSession) -> None:
-    resolved, unresolved = await resolve_backlink_candidates([], db_session)
+    resolved, unresolved = await resolve_backlink_candidates([], db_session, user_id="test-user")
     assert resolved == []
     assert unresolved == []
 
 
 @pytest.mark.asyncio
 async def test_empty_string_candidate_is_unresolved(db_session: AsyncSession) -> None:
-    resolved, unresolved = await resolve_backlink_candidates(["", "   "], db_session)
+    resolved, unresolved = await resolve_backlink_candidates(["", "   "], db_session, user_id="test-user")
     assert resolved == []
     # Empty strings are dropped, not passed through as unresolved
     assert unresolved == []

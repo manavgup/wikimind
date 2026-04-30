@@ -66,7 +66,9 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
 def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(encoding="utf-8")
+        content = resolve_wiki_path(article.file_path, user_id=article.user_id or "anonymous").read_text(
+            encoding="utf-8"
+        )
     except (OSError, FileNotFoundError):
         return []
 
@@ -99,7 +101,7 @@ def _extract_claims(article: Article) -> list[str]:
 async def _get_articles_for_concept(
     session: AsyncSession,
     concept_name: str,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[Article]:
     """Load articles tagged with the given concept via the ArticleConcept join table.
 
@@ -171,7 +173,7 @@ async def _create_contradiction_backlink(
     article_a_id: str,
     article_b_id: str,
     context: str,
-    user_id: str | None = None,
+    user_id: str,
 ) -> None:
     """Create a ``contradicts`` typed Backlink for an article pair (bidirectional)."""
     for src, tgt in [(article_a_id, article_b_id), (article_b_id, article_a_id)]:
@@ -248,7 +250,7 @@ async def _run_batch(
     settings: Settings,
     report_id: str,
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[ContradictionFinding]:
     """Run a batched LLM call for multiple pairs.
 
@@ -269,7 +271,7 @@ async def _run_batch(
 
     for attempt in range(2):
         try:
-            response = await router.complete(request, session=None)
+            response = await router.complete(request, user_id=user_id)
             data = router.parse_json_response(response)
             # The response may be a list directly or wrapped in a key
             if isinstance(data, list):
@@ -331,8 +333,8 @@ async def _run_batch(
             router,
             settings,
             report_id,
-            session,
             user_id=user_id,
+            session=session,
         )
         fallback_findings.extend(pair_findings)
     return fallback_findings
@@ -346,7 +348,7 @@ async def _run_batch(
 async def _collect_work(
     session: AsyncSession,
     cfg: LinterConfig,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[tuple[str | None, str, list[tuple[Article, Article]]]]:
     """Build the list of (concept_id, concept_name, pairs) work items.
 
@@ -402,7 +404,7 @@ def _findings_from_cached(
     article_a: Article,
     article_b: Article,
     concept_id: str | None,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[ContradictionFinding]:
     """Convert cached pair data into ContradictionFinding objects."""
     results: list[ContradictionFinding] = []
@@ -448,7 +450,7 @@ async def _process_uncached_pairs(
     report: LintReport,
     session: AsyncSession,
     checked: int,
-    user_id: str | None = None,
+    user_id: str,
 ) -> tuple[list[ContradictionFinding], int]:
     """Process uncached pairs via batch or per-pair LLM calls.
 
@@ -490,8 +492,8 @@ async def _process_uncached_pairs(
                 router,
                 settings,
                 report.id,
-                session,
                 user_id=user_id,
+                session=session,
             )
             findings.extend(new_findings)
             if cfg.enable_pair_cache:
@@ -514,7 +516,7 @@ async def detect_contradictions(
     router: LLMRouter,
     settings: Settings,
     report: LintReport,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[ContradictionFinding]:
     """For each concept, LLM-compare article pairs within that concept bucket.
 
@@ -618,8 +620,8 @@ async def _compare_article_pair(
     router: LLMRouter,
     settings: Settings,
     report_id: str,
+    user_id: str,
     session: AsyncSession | None = None,
-    user_id: str | None = None,
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
@@ -649,7 +651,7 @@ async def _compare_article_pair(
     )
 
     try:
-        response = await router.complete(request, session=None)
+        response = await router.complete(request, user_id=user_id)
         data = router.parse_json_response(response)
     except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
         log.warning(

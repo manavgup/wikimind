@@ -81,7 +81,7 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         msg = "No cleaned text file path for source"
         raise ValueError(msg)
 
-    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+    text_path = resolve_raw_path(source.file_path, user_id=source.user_id or "anonymous")
     content = text_path.read_text(encoding="utf-8")
 
     return NormalizedDocument(
@@ -109,12 +109,13 @@ def _try_embed_article(article: Article) -> None:
     try:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
-            content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(encoding="utf-8")
+            uid = article.user_id or "anonymous"
+            content = resolve_wiki_path(article.file_path, user_id=uid).read_text(encoding="utf-8")
             embedding_service.embed_article(
                 article.id,
                 article.title,
                 content,
-                user_id=article.user_id,
+                user_id=uid,
             )
             log.info("Article embedded", article_id=article.id)
     except (RuntimeError, ValueError, OSError) as embed_err:
@@ -151,8 +152,10 @@ async def compile_source(
             return
 
         # Inherit user_id from the source record when not explicitly passed.
+        # Apply "anonymous" fallback at the DB boundary — old rows may have
+        # NULL user_id, but every downstream function requires ``str``.
         if user_id is None:
-            user_id = source.user_id
+            user_id = source.user_id or "anonymous"
 
         # Reset source status so the frontend shows a spinner instead of
         # the stale error from a previous failed attempt (issue #111).
@@ -237,20 +240,23 @@ async def lint_wiki(_ctx, user_id: str | None = None):
         ctx: ARQ context (unused in dev mode).
         user_id: Optional owner — scopes the lint to this user's articles.
     """
-    log.info("lint_wiki started", user_id=user_id)
+    # Apply "anonymous" fallback at the DB boundary — callers like
+    # ``lint_all_users`` may pass None for legacy unowned data.
+    resolved_uid = user_id or "anonymous"
+    log.info("lint_wiki started", user_id=resolved_uid)
 
     async with get_session_factory()() as session:
         job = Job(
             job_type=JobType.LINT_WIKI,
             status=JobStatus.RUNNING,
-            user_id=user_id,
+            user_id=resolved_uid,
             started_at=utcnow_naive(),
         )
         session.add(job)
         await session.commit()
 
         try:
-            report = await run_lint(session, job_id=job.id, user_id=user_id)
+            report = await run_lint(session, job_id=job.id, user_id=resolved_uid)
 
             job.status = JobStatus.COMPLETE
             job.completed_at = utcnow_naive()
@@ -287,13 +293,13 @@ async def _get_article_concept_names(article: Article, session) -> list[str]:
     return names
 
 
-async def _recompile_from_source(article: Article, session, user_id: str | None = None) -> None:
+async def _recompile_from_source(article: Article, session, user_id: str) -> None:
     """Recompile an article by re-reading and re-compiling its primary source.
 
     Args:
         article: The article to recompile.
         session: Async database session.
-        user_id: Optional owner — used to resolve BYOK API keys.
+        user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked sources or the source file
@@ -320,13 +326,13 @@ async def _recompile_from_source(article: Article, session, user_id: str | None 
     await compiler.save_article(result, source, session)
 
 
-async def _recompile_from_concept(article: Article, session, user_id: str | None = None) -> None:
+async def _recompile_from_concept(article: Article, session, user_id: str) -> None:
     """Recompile an article by regenerating its concept page.
 
     Args:
         article: The article to recompile.
         session: Async database session.
-        user_id: Optional owner — used to resolve BYOK API keys.
+        user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked concepts or the concept
@@ -388,12 +394,14 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
             job.error = "Article not found"
             session.add(job)
             await session.commit()
-            await emit_article_recompiled(article_id, "unknown", "failed", user_id=user_id)
+            await emit_article_recompiled(article_id, "unknown", "failed", user_id=user_id or "anonymous")
             return
 
         # Inherit user_id from the article record when not explicitly passed.
+        # Apply "anonymous" fallback at the DB boundary — old rows may have
+        # NULL user_id, but every downstream function requires ``str``.
         if user_id is None:
-            user_id = article.user_id
+            user_id = article.user_id or "anonymous"
 
         try:
             if mode == "source":
@@ -454,7 +462,7 @@ async def sweep_all_users(ctx) -> None:
     for uid in user_ids:
         await sweep_wikilinks(ctx, user_id=uid)
     # Also sweep data with no user_id (legacy single-user)
-    await sweep_wikilinks(ctx, user_id=None)
+    await sweep_wikilinks(ctx, user_id="anonymous")
 
 
 # ---------------------------------------------------------------------------

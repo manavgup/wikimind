@@ -58,7 +58,7 @@ def _compiler_for(tmp_path):
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        return Compiler()
+        return Compiler(user_id="test-user")
 
 
 async def _make_source(session):
@@ -68,6 +68,7 @@ async def _make_source(session):
         title="Test Source",
         status=IngestStatus.PROCESSING,
         ingested_at=utcnow_naive(),
+        user_id="test-user",
     )
     session.add(source)
     await session.commit()
@@ -111,8 +112,8 @@ def test_extract_typed_invalid_relation_defaults():
 
 
 async def test_concept_id_injection(db_session):
-    c1 = Concept(name="machine-learning")
-    c2 = Concept(name="deep-learning")
+    c1 = Concept(name="machine-learning", user_id="test-user")
+    c2 = Concept(name="deep-learning", user_id="test-user")
     db_session.add(c1)
     db_session.add(c2)
     await db_session.commit()
@@ -214,6 +215,7 @@ async def test_relation_type_persisted(db_session, tmp_path):
         title="Existing Article",
         file_path=str(tmp_path / "existing.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(target)
     await db_session.commit()
@@ -234,6 +236,7 @@ async def test_default_relation_type_references(db_session, tmp_path):
         title="Target Article",
         file_path=str(tmp_path / "target.md"),
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(target)
     await db_session.commit()
@@ -282,10 +285,10 @@ async def test_write_article_file_includes_page_type(tmp_path):
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
     ):
-        c = Compiler()
-    src = Source(source_type=SourceType.URL, source_url="http://x", title="X")
+        c = Compiler(user_id="test-user")
+    src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id="test-user")
     rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
-    full_path = Path(tmp_path) / "wiki" / rel_path
+    full_path = Path(tmp_path) / "wiki" / "test-user" / rel_path
     assert full_path.exists()
     text = full_path.read_text()
     assert "page_type: source" in text
@@ -299,11 +302,15 @@ async def test_resolver_passes_relation_types(db_session):
         title="Machine Learning",
         file_path="/tmp/ml.md",
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()
     resolved, _ = await resolve_backlink_candidates(
-        ["Machine Learning"], db_session, relation_types={"machine learning": "extends"}
+        ["Machine Learning"],
+        db_session,
+        relation_types={"machine learning": "extends"},
+        user_id="test-user",
     )
     assert len(resolved) == 1
     assert resolved[0].relation_type == "extends"
@@ -316,9 +323,10 @@ async def test_resolver_defaults_to_references(db_session):
         title="Deep Learning",
         file_path="/tmp/dl.md",
         confidence=ConfidenceLevel.SOURCED,
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()
-    resolved, _ = await resolve_backlink_candidates(["Deep Learning"], db_session)
+    resolved, _ = await resolve_backlink_candidates(["Deep Learning"], db_session, user_id="test-user")
     assert len(resolved) == 1
     assert resolved[0].relation_type == "references"

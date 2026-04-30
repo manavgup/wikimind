@@ -15,7 +15,7 @@ async def test_background_compiler_dev_mode_compile() -> None:
     bc = BackgroundCompiler()
     bc._redis_url = None
     with patch.object(bg_mod, "compile_source", AsyncMock()):
-        job_id = await bc.schedule_compile("src-1")
+        job_id = await bc.schedule_compile("src-1", user_id="test-user")
     assert job_id
 
 
@@ -23,7 +23,7 @@ async def test_background_compiler_dev_mode_lint() -> None:
     bc = BackgroundCompiler()
     bc._redis_url = None
     with patch.object(bg_mod, "lint_wiki", AsyncMock()):
-        job_id = await bc.schedule_lint()
+        job_id = await bc.schedule_lint(user_id="test-user")
     assert job_id
 
 
@@ -34,7 +34,7 @@ async def test_background_compiler_prod_mode_compile() -> None:
     fake_pool.enqueue_job = AsyncMock()
     fake_pool.close = AsyncMock()
     with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
-        await bc.schedule_compile("src-1")
+        await bc.schedule_compile("src-1", user_id="test-user")
     fake_pool.enqueue_job.assert_awaited()
     fake_pool.close.assert_awaited()
 
@@ -46,18 +46,18 @@ async def test_background_compiler_prod_mode_lint() -> None:
     fake_pool.enqueue_job = AsyncMock()
     fake_pool.close = AsyncMock()
     with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
-        await bc.schedule_lint()
+        await bc.schedule_lint(user_id="test-user")
     fake_pool.enqueue_job.assert_awaited()
 
 
 async def test_run_compile_in_process_logs_exception() -> None:
     with patch.object(bg_mod, "compile_source", AsyncMock(side_effect=RuntimeError("x"))):
-        await BackgroundCompiler._run_compile_in_process("src-1")
+        await BackgroundCompiler._run_compile_in_process("src-1", user_id="test-user")
 
 
 async def test_run_lint_in_process_logs_exception() -> None:
     with patch.object(bg_mod, "lint_wiki", AsyncMock(side_effect=RuntimeError("x"))):
-        await BackgroundCompiler._run_lint_in_process()
+        await BackgroundCompiler._run_lint_in_process(user_id="test-user")
 
 
 def test_background_compiler_singleton() -> None:
@@ -108,7 +108,9 @@ async def test_compile_source_no_source(db_session) -> None:
 
 
 async def test_compile_source_no_file_path(db_session, tmp_path) -> None:
-    src = Source(source_type=SourceType.TEXT, title="t", file_path=None, status=IngestStatus.PROCESSING)
+    src = Source(
+        source_type=SourceType.TEXT, title="t", file_path=None, status=IngestStatus.PROCESSING, user_id="test-user"
+    )
     db_session.add(src)
     await db_session.commit()
     with (
@@ -173,6 +175,7 @@ async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> 
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="previous error",
+        user_id="test-user",
     )
     db_session.add(src)
     await db_session.commit()
@@ -207,6 +210,7 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="old boom",
+        user_id="test-user",
     )
     db_session.add(src)
     await db_session.commit()
@@ -248,6 +252,7 @@ async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_pa
         file_path=str(text_file),
         status=IngestStatus.FAILED,
         error_message="old error",
+        user_id="test-user",
     )
     db_session.add(src)
     await db_session.commit()

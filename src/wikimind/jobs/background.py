@@ -44,7 +44,7 @@ class BackgroundCompiler:
     async def schedule_compile(
         self,
         source_id: str,
-        user_id: str | None = None,
+        user_id: str,
         doc: NormalizedDocument | None = None,
     ) -> str:
         """Schedule a compilation job for the given source.
@@ -77,7 +77,7 @@ class BackgroundCompiler:
         )
         return job_id
 
-    async def schedule_lint(self, user_id: str | None = None) -> str:
+    async def schedule_lint(self, user_id: str) -> str:
         """Schedule a wiki lint job.
 
         Args:
@@ -105,7 +105,7 @@ class BackgroundCompiler:
         article_id: str,
         mode: str,
         job_id: str,
-        user_id: str | None = None,
+        user_id: str,
     ) -> str:
         """Schedule a recompile job for an article.
 
@@ -135,7 +135,7 @@ class BackgroundCompiler:
         )
         return job_id
 
-    async def schedule_sweep(self, user_id: str | None = None) -> str:
+    async def schedule_sweep(self, user_id: str) -> str:
         """Schedule a wikilink resolution sweep job.
 
         Args:
@@ -170,7 +170,7 @@ class BackgroundCompiler:
     @staticmethod
     async def _run_compile_in_process(
         source_id: str,
-        user_id: str | None = None,
+        user_id: str,
         doc: NormalizedDocument | None = None,
     ) -> None:
         """Run compile_source directly in the current event loop."""
@@ -180,7 +180,7 @@ class BackgroundCompiler:
             log.exception("in-process compilation failed", source_id=source_id)
 
     @staticmethod
-    async def _run_lint_in_process(user_id: str | None = None) -> None:
+    async def _run_lint_in_process(user_id: str) -> None:
         """Run lint_wiki directly in the current event loop."""
         try:
             await lint_wiki({}, user_id=user_id)
@@ -188,7 +188,7 @@ class BackgroundCompiler:
             log.exception("in-process lint failed")
 
     @staticmethod
-    async def _run_recompile_in_process(article_id: str, mode: str, job_id: str, user_id: str | None = None) -> None:
+    async def _run_recompile_in_process(article_id: str, mode: str, job_id: str, user_id: str) -> None:
         """Run recompile_article directly in the current event loop."""
         try:
             await recompile_article({}, article_id, mode, job_id, user_id=user_id)
@@ -196,7 +196,7 @@ class BackgroundCompiler:
             log.exception("in-process recompile failed", article_id=article_id)
 
     @staticmethod
-    async def _run_sweep_in_process(user_id: str | None = None) -> None:
+    async def _run_sweep_in_process(user_id: str) -> None:
         """Run sweep_wikilinks directly in the current event loop."""
         try:
             await sweep_wikilinks({}, user_id=user_id)

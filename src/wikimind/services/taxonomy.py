@@ -66,7 +66,7 @@ def _parse_concept_ids(raw: str | None) -> list[str]:
 async def upsert_concepts(
     concept_names: list[str],
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[Concept]:
     """Create or retrieve Concept rows for the given names.
 
@@ -119,7 +119,7 @@ async def upsert_concepts(
 
 async def update_article_counts(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> None:
     """Recalculate ``Concept.article_count`` from the ArticleConcept join table.
 
@@ -201,7 +201,7 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
 
 async def maybe_trigger_concept_pages(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[str]:
     """Generate concept pages for concepts with enough source articles.
 
@@ -223,7 +223,7 @@ async def maybe_trigger_concept_pages(
         return []
     from wikimind.engine.concept_compiler import ConceptCompiler  # noqa: PLC0415
 
-    compiler = ConceptCompiler()
+    compiler = ConceptCompiler(user_id=user_id)
     compiled: list[str] = []
     for concept in eligible:
         try:
@@ -243,7 +243,7 @@ async def maybe_trigger_concept_pages(
 
 async def maybe_trigger_taxonomy_rebuild(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> bool:
     """Trigger a taxonomy rebuild if unparented concepts exceed the threshold.
 
@@ -273,7 +273,7 @@ async def maybe_trigger_taxonomy_rebuild(
 
 async def rebuild_taxonomy(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> None:
     """Use LLM to infer concept hierarchy and rewrite all parent_ids.
 
@@ -314,7 +314,7 @@ async def rebuild_taxonomy(
         task_type=TaskType.INDEX,
     )
 
-    response = await router.complete(request, session=session)
+    response = await router.complete(request, user_id=user_id)
     hierarchy = router.parse_json_response(response)
 
     if not isinstance(hierarchy, list):

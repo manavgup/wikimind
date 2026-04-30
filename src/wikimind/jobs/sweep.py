@@ -59,7 +59,8 @@ async def _sweep_single_article(
         log.warning("sweep: article not found, skipping", article_id=article_id)
         return False
 
-    file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
+    uid = article.user_id or "anonymous"
+    file_path = resolve_wiki_path(article.file_path, user_id=uid)
     if not file_path.exists():
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
         return False
@@ -77,8 +78,8 @@ async def _sweep_single_article(
     resolved, _unresolved = await resolve_backlink_candidates(
         unique_candidates,
         session,
+        user_id=uid,
         exclude_article_id=article.id,
-        user_id=article.user_id,
     )
 
     if not resolved:
@@ -119,7 +120,7 @@ async def _sweep_single_article(
                 source_article_id=article.id,
                 target_article_id=rb.target_id,
                 context=rb.candidate_text,
-                user_id=article.user_id,
+                user_id=uid,
             )
             session.add(bl)
 
@@ -136,7 +137,7 @@ async def _sweep_single_article(
 
 async def _cleanup_orphaned_concept_pages(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> int:
     """Delete concept-page Article rows whose markdown files are missing on disk.
 
@@ -148,14 +149,13 @@ async def _cleanup_orphaned_concept_pages(
     Returns the number of orphaned rows cleaned up.
     """
     stmt = select(Article).where(Article.page_type == PageType.CONCEPT)
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
+    stmt = stmt.where(Article.user_id == user_id)
     result = await session.execute(stmt)
     concept_articles = list(result.scalars().all())
 
     cleaned = 0
     for article in concept_articles:
-        file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
+        file_path = resolve_wiki_path(article.file_path, user_id=user_id)
         if file_path.exists():
             continue
 
@@ -186,7 +186,7 @@ async def _cleanup_orphaned_concept_pages(
     return cleaned
 
 
-async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
+async def sweep_wikilinks(_ctx, user_id: str) -> None:
     """Walk articles' .md files, promote unresolved [[brackets]] to real links.
 
     For each article:
@@ -240,8 +240,7 @@ async def sweep_wikilinks(_ctx, user_id: str | None = None) -> None:
             # rows that would conflict with job_session's identity map (#168).
             async with session_factory() as list_session:
                 stmt = select(Article.id)
-                if user_id is not None:
-                    stmt = stmt.where(Article.user_id == user_id)
+                stmt = stmt.where(Article.user_id == user_id)
                 result = await list_session.execute(stmt)
                 article_ids: list[str] = list(result.scalars().all())
 

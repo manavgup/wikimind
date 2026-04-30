@@ -127,13 +127,14 @@ class TestGracefulDegradation:
             title="Deep Learning",
             file_path=str(fp),
             summary="About deep learning.",
+            user_id="test-user",
         )
         db_session.add(article)
         await db_session.commit()
 
         service = WikiService()
         with patch("wikimind.services.wiki._SEARCH_AVAILABLE", False):
-            results = await service.search("Deep", db_session)
+            results = await service.search("Deep", db_session, user_id="test-user")
 
         assert len(results) == 1
         assert results[0].slug == "deep-learning"
@@ -160,7 +161,7 @@ class TestEmbeddingServiceMocked:
             mock_collection.count.return_value = 0
             svc._collection = mock_collection
 
-            count = svc.embed_article("art-1", "Test Article", "Para one.\n\nPara two.")
+            count = svc.embed_article("art-1", "Test Article", "Para one.\n\nPara two.", user_id="test-user")
 
             assert count == 1  # Both paras fit in one chunk
             mock_collection.add.assert_called_once()
@@ -185,7 +186,7 @@ class TestEmbeddingServiceMocked:
             svc._collection = mock_collection
             svc._min_score = 0.65
 
-            results = svc.search("query text", limit=5)
+            results = svc.search("query text", limit=5, user_id="test-user")
 
             assert len(results) == 1
             assert results[0].article_id == "art-1"
@@ -225,7 +226,7 @@ class TestEmbeddingFailureResilience:
             try:
                 svc = get_embedding_service()
                 if svc is not None:
-                    svc.embed_article("id", "title", "content")
+                    svc.embed_article("id", "title", "content", user_id="test-user")
             except Exception:
                 pass  # Worker catches this -- compilation must not fail
             # If we get here without an unhandled exception, the test passes

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSession) -> None:
     """POST recompile for a source-type article returns 200 + scheduled."""
-    src = Source(source_type=SourceType.TEXT, title="src")
+    src = Source(source_type=SourceType.TEXT, title="src", user_id="test-user")
     db_session.add(src)
     await db_session.commit()
 
@@ -26,6 +26,7 @@ async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSe
         file_path="/tmp/test.md",
         page_type=PageType.SOURCE,
         source_ids=json.dumps([src.id]),
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()
@@ -57,6 +58,7 @@ async def test_recompile_concept_article(client: AsyncClient, db_session: AsyncS
         file_path="/tmp/concept.md",
         page_type=PageType.CONCEPT,
         concept_ids=json.dumps(["concept-1"]),
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()
@@ -81,6 +83,7 @@ async def test_recompile_explicit_mode(client: AsyncClient, db_session: AsyncSes
         file_path="/tmp/explicit.md",
         page_type=PageType.CONCEPT,
         source_ids=json.dumps(["src-1"]),
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()
@@ -105,6 +108,7 @@ async def test_recompile_invalid_mode(client: AsyncClient, db_session: AsyncSess
         title="Test Invalid Mode",
         file_path="/tmp/invalid.md",
         page_type=PageType.SOURCE,
+        user_id="test-user",
     )
     db_session.add(article)
     await db_session.commit()

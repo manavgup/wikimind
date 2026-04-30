@@ -4,7 +4,7 @@ Verifies that:
 1. Sweep creates backlinks for articles with unresolved wikilinks.
 2. Sweep handles pre-existing (duplicate) backlinks without identity-map
    conflicts or IntegrityError.
-3. sweep_wikilinks() uses isolated per-article sessions via
+3. sweep_wikilinks(user_id="test-user") uses isolated per-article sessions via
    get_session_factory().
 """
 
@@ -40,6 +40,7 @@ async def _make_article(
         file_path=file_path,
         confidence=ConfidenceLevel.SOURCED,
         created_at=utcnow_naive(),
+        user_id="test-user",
     )
     session.add(article)
     await session.commit()
@@ -96,6 +97,7 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
             source_article_id=source.id,
             target_article_id=target.id,
             context="pre-existing",
+            user_id="test-user",
         )
         setup_session.add(existing_bl)
         await setup_session.commit()
@@ -140,7 +142,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     async_engine: AsyncEngine,
     tmp_path: Path,
 ) -> None:
-    """sweep_wikilinks() creates a separate session per article via get_session_factory().
+    """sweep_wikilinks(user_id="test-user") creates a separate session per article via get_session_factory().
 
     We mock get_session_factory to return a counting wrapper, then verify
     multiple sessions are created (one for the job + one per article).
@@ -156,6 +158,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
             file_path=str(tmp_path / "dl.md"),
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
+            user_id="test-user",
         )
         md_path = tmp_path / "intro.md"
         md_path.write_text("Introduction to [[Deep Learning]] methods.\n")
@@ -166,6 +169,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
             file_path=str(md_path),
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
+            user_id="test-user",
         )
         setup_session.add_all([target, source])
         await setup_session.commit()
@@ -175,7 +179,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     counting_factory = _CountingSessionFactory(factory)
 
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=counting_factory):
-        await sweep_wikilinks(None)
+        await sweep_wikilinks(None, user_id="test-user")
 
     # Should have at least 5 calls: 1 job session + 1 cleanup session
     # + 1 list session + 2 per-article sessions. The key assertion is > 1.
