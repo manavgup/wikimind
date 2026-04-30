@@ -4,7 +4,18 @@ Thin route handlers that delegate to :class:`UserService` for all
 business logic (token exchange, user upsert, JWT creation, magic link
 token creation/verification, account deletion). The JWT is stored in
 an HttpOnly cookie.
+
+OAuth state tokens are HMAC-signed stateless values encoding
+``provider:timestamp``, signed with the JWT secret key. On callback
+the signature is verified and the timestamp checked against the
+configured TTL. No shared server-side state is needed, so
+multi-worker deployments work without coordination.
 """
+
+import base64
+import hashlib
+import hmac
+import time
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -27,6 +38,56 @@ log = structlog.get_logger()
 router = APIRouter()
 
 
+def _generate_oauth_state(provider: str) -> str:
+    """Create an HMAC-signed stateless state token.
+
+    The token encodes ``provider:timestamp`` and is signed with the JWT
+    secret key. The result is base64url-encoded so it is URL-safe.
+    """
+    settings = get_settings()
+    payload = f"{provider}:{int(time.time())}"
+    sig = hmac.new(settings.auth.jwt_secret_key.encode(), payload.encode(), hashlib.sha384).hexdigest()
+    raw = f"{payload}:{sig}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+
+def _consume_oauth_state(state: str) -> str | None:
+    """Verify an HMAC-signed state token and return the provider.
+
+    Returns the provider name if the signature is valid and the
+    timestamp is within the configured TTL, or ``None`` otherwise.
+    """
+    settings = get_settings()
+    try:
+        raw = base64.urlsafe_b64decode(state.encode()).decode()
+    except Exception:
+        return None
+
+    parts = raw.rsplit(":", 2)
+    if len(parts) != 3:
+        return None
+
+    provider, ts_str, sig = parts
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return None
+
+    expected_payload = f"{provider}:{ts_str}"
+    expected_sig = hmac.new(
+        settings.auth.jwt_secret_key.encode(), expected_payload.encode(), hashlib.sha384
+    ).hexdigest()
+
+    if not hmac.compare_digest(sig, expected_sig):
+        return None
+
+    ttl = settings.auth.oauth_state_ttl_seconds
+    if time.time() - ts > ttl:
+        return None
+
+    return provider
+
+
 def _callback_url(request: Request) -> str:
     """Build the OAuth callback URL from the request's Host header."""
     host = request.headers.get("host", request.url.netloc)
@@ -39,6 +100,8 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     settings = get_settings()
     callback_url = _callback_url(request)
 
+    state = _generate_oauth_state(provider)
+
     if provider == "google":
         authorize_url = (
             "https://accounts.google.com/o/oauth2/v2/auth"
@@ -46,7 +109,7 @@ async def login(provider: str, request: Request) -> RedirectResponse:
             f"&redirect_uri={callback_url}"
             "&response_type=code"
             "&scope=openid email profile"
-            f"&state={provider}"
+            f"&state={state}"
         )
     elif provider == "github":
         authorize_url = (
@@ -54,7 +117,7 @@ async def login(provider: str, request: Request) -> RedirectResponse:
             f"?client_id={settings.auth.github_client_id}"
             f"&redirect_uri={callback_url}"
             "&scope=user:email"
-            f"&state={provider}"
+            f"&state={state}"
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
@@ -72,7 +135,9 @@ async def callback(
 ) -> RedirectResponse:
     """Handle OAuth2 callback — exchange code for token, upsert user, set cookie."""
     settings = get_settings()
-    provider = state
+    provider = _consume_oauth_state(state)
+    if provider is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
     callback_url = _callback_url(request)
 
     if provider == "google":
