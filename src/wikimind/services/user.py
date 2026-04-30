@@ -1,11 +1,16 @@
 """User lifecycle management — OAuth upsert, JWT provisioning, account deletion.
 
 Centralizes all user-related business logic: OAuth provider user upsert,
-JWT-based auto-provisioning, JWT creation, and cascade account deletion.
+JWT-based auto-provisioning, JWT creation, magic link token generation/
+verification, and cascade account deletion.
 Route handlers in ``api/routes/auth.py`` are thin delegates.
 """
 
+import base64
 import functools
+import hashlib
+import hmac
+import time
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -229,6 +234,120 @@ class UserService:
             name=user_id,
             auth_provider="jwt",
             auth_provider_id=user_id,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+    # ------------------------------------------------------------------
+    # Magic link (passwordless email) login
+    # ------------------------------------------------------------------
+
+    def create_magic_link_token(self, email: str, settings: Settings) -> str:
+        """Create an HMAC-signed stateless magic link token.
+
+        The token encodes ``email:timestamp`` and is signed with the JWT
+        secret. No server-side state is needed.
+
+        Args:
+            email: The email address to encode in the token.
+            settings: Application settings (for JWT secret and TTL).
+
+        Returns:
+            A URL-safe base64-encoded token string.
+        """
+        timestamp = str(int(time.time()))
+        payload = f"{email}:{timestamp}"
+        signature = hmac.new(
+            settings.auth.jwt_secret_key.encode(),
+            payload.encode(),
+            hashlib.sha256,
+        ).digest()
+        token_bytes = f"{payload}:{base64.urlsafe_b64encode(signature).decode()}".encode()
+        return base64.urlsafe_b64encode(token_bytes).decode()
+
+    def verify_magic_link_token(self, token: str, settings: Settings) -> str:
+        """Verify an HMAC-signed magic link token and return the email.
+
+        Args:
+            token: The base64-encoded magic link token.
+            settings: Application settings (for JWT secret and TTL).
+
+        Returns:
+            The email address encoded in the token.
+
+        Raises:
+            ValueError: If the token is invalid, tampered, or expired.
+        """
+        try:
+            decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        except Exception as exc:
+            msg = "Invalid token encoding"
+            raise ValueError(msg) from exc
+
+        parts = decoded.rsplit(":", 2)
+        if len(parts) != 3:
+            msg = "Malformed token"
+            raise ValueError(msg)
+
+        email, timestamp_str, encoded_sig = parts
+
+        # Verify HMAC signature
+        payload = f"{email}:{timestamp_str}"
+        expected_sig = hmac.new(
+            settings.auth.jwt_secret_key.encode(),
+            payload.encode(),
+            hashlib.sha256,
+        ).digest()
+        try:
+            actual_sig = base64.urlsafe_b64decode(encoded_sig.encode())
+        except Exception as exc:
+            msg = "Invalid signature encoding"
+            raise ValueError(msg) from exc
+
+        if not hmac.compare_digest(expected_sig, actual_sig):
+            msg = "Invalid token signature"
+            raise ValueError(msg)
+
+        # Check TTL
+        try:
+            created_at = int(timestamp_str)
+        except ValueError as exc:
+            msg = "Invalid timestamp"
+            raise ValueError(msg) from exc
+
+        elapsed = int(time.time()) - created_at
+        if elapsed > settings.auth.magic_link_ttl_seconds:
+            msg = "Token has expired"
+            raise ValueError(msg)
+
+        return email
+
+    async def get_or_create_by_email(
+        self,
+        session: AsyncSession,
+        email: str,
+    ) -> User:
+        """Look up a user by email or create a new one for magic link login.
+
+        Args:
+            session: Async database session.
+            email: The user's email address.
+
+        Returns:
+            The existing or newly created User record.
+        """
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+
+        user = User(
+            email=email,
+            name=email.split("@", maxsplit=1)[0],
+            auth_provider="magic_link",
+            auth_provider_id=email,
         )
         session.add(user)
         await session.commit()

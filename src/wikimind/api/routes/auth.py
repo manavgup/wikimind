@@ -1,10 +1,12 @@
-"""OAuth2 authentication routes — Google and GitHub login flows.
+"""OAuth2 authentication routes — Google/GitHub login and magic link (passwordless email).
 
 Thin route handlers that delegate to :class:`UserService` for all
-business logic (token exchange, user upsert, JWT creation, account
-deletion). The JWT is stored in an HttpOnly cookie.
+business logic (token exchange, user upsert, JWT creation, magic link
+token creation/verification, account deletion). The JWT is stored in
+an HttpOnly cookie.
 """
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,7 +14,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
+from wikimind.models import (
+    MagicLinkRequest,
+    MagicLinkResponse,
+    MagicLinkVerifyRequest,
+    MagicLinkVerifyResponse,
+)
 from wikimind.services.user import UserService, get_user_service
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -113,6 +123,67 @@ async def me(
         "name": user.name,
         "avatar_url": user.avatar_url,
     }
+
+
+@router.post("/magic-link")
+async def request_magic_link(
+    body: MagicLinkRequest,
+    service: UserService = Depends(get_user_service),
+) -> MagicLinkResponse:
+    """Request a magic link for passwordless email login.
+
+    Generates an HMAC-signed token encoding the email and timestamp.
+    In non-production mode, the token is returned in the response for
+    CLI/testing use. In production, an email would be sent (not yet
+    implemented).
+    """
+    settings = get_settings()
+    if not settings.auth.magic_link_enabled:
+        raise HTTPException(status_code=400, detail="Magic link login is disabled")
+
+    token = service.create_magic_link_token(body.email, settings)
+    log.info("magic_link_requested", email=body.email)
+
+    # Always return the same message to avoid leaking whether the email exists.
+    # Include the dev_token for non-production use (CLI, testing).
+    return MagicLinkResponse(
+        status="ok",
+        message="If that email is registered, a login link has been sent",
+        dev_token=token,
+    )
+
+
+@router.post("/magic-link/verify")
+async def verify_magic_link(
+    body: MagicLinkVerifyRequest,
+    session: AsyncSession = Depends(get_session),
+    service: UserService = Depends(get_user_service),
+) -> MagicLinkVerifyResponse:
+    """Verify a magic link token and create a session JWT.
+
+    Decodes and verifies the HMAC-signed token, looks up or creates
+    the user, and returns a JWT access token.
+    """
+    settings = get_settings()
+    if not settings.auth.magic_link_enabled:
+        raise HTTPException(status_code=400, detail="Magic link login is disabled")
+
+    try:
+        email = service.verify_magic_link_token(body.token, settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    user = await service.get_or_create_by_email(session, email)
+    jwt_token = service.create_jwt(user, settings)
+
+    return MagicLinkVerifyResponse(
+        access_token=jwt_token,
+        user={
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+        },
+    )
 
 
 @router.post("/logout")

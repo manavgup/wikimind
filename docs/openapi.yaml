@@ -1416,6 +1416,72 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Me Auth Me Get
+  /auth/magic-link:
+    post:
+      tags:
+      - Auth
+      summary: Request Magic Link
+      description: 'Request a magic link for passwordless email login.
+
+
+        Generates an HMAC-signed token encoding the email and timestamp.
+
+        In non-production mode, the token is returned in the response for
+
+        CLI/testing use. In production, an email would be sent (not yet
+
+        implemented).'
+      operationId: request_magic_link_auth_magic_link_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MagicLinkResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/magic-link/verify:
+    post:
+      tags:
+      - Auth
+      summary: Verify Magic Link
+      description: 'Verify a magic link token and create a session JWT.
+
+
+        Decodes and verifies the HMAC-signed token, looks up or creates
+
+        the user, and returns a JWT access token.'
+      operationId: verify_magic_link_auth_magic_link_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MagicLinkVerifyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/logout:
     post:
       tags:
@@ -2753,6 +2819,64 @@ components:
       - error
       title: LintSeverity
       description: Severity level for a lint finding.
+    MagicLinkRequest:
+      properties:
+        email:
+          type: string
+          title: Email
+      type: object
+      required:
+      - email
+      title: MagicLinkRequest
+      description: Request to send a magic link login email.
+    MagicLinkResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        message:
+          type: string
+          title: Message
+        dev_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dev Token
+      type: object
+      required:
+      - status
+      - message
+      title: MagicLinkResponse
+      description: Response after requesting a magic link.
+    MagicLinkVerifyRequest:
+      properties:
+        token:
+          type: string
+          title: Token
+      type: object
+      required:
+      - token
+      title: MagicLinkVerifyRequest
+      description: Request to verify a magic link token.
+    MagicLinkVerifyResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        user:
+          additionalProperties: true
+          type: object
+          title: User
+      type: object
+      required:
+      - access_token
+      - user
+      title: MagicLinkVerifyResponse
+      description: Response after successfully verifying a magic link token.
     OnboardingStatusResponse:
       properties:
         completed:

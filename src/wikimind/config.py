@@ -216,6 +216,10 @@ class AuthConfig(BaseModel):
     cookie_name: str = "wikimind_session"
     cookie_secure: bool = True  # False in dev (HTTP), True in prod (HTTPS)
     cookie_domain: str | None = None  # None = current host; set for subdomains
+    # Magic link (passwordless email) login
+    magic_link_enabled: bool = True
+    magic_link_ttl_seconds: int = 600  # 10 minutes
+    magic_link_token_length: int = 32  # bytes for secrets.token_urlsafe
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
