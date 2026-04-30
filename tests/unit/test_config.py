@@ -263,7 +263,7 @@ class TestEnsureJwtSecret:
         s.auth.enabled = False
         s.auth.jwt_secret_key = ""
         _ensure_jwt_secret(s)
-        assert s.auth.jwt_secret_key == "my-persisted-secret-value"
+        assert s.auth.jwt_secret_key == "my-persisted-secret-value"  # pragma: allowlist secret
 
     def test_skips_when_auth_enabled(self, tmp_path):
         """No auto-generation when auth is explicitly enabled."""
@@ -277,7 +277,7 @@ class TestEnsureJwtSecret:
         """No auto-generation when jwt_secret_key is already configured."""
         s = Settings(data_dir=str(tmp_path))
         s.auth.enabled = False
-        s.auth.jwt_secret_key = "explicit-secret"
+        s.auth.jwt_secret_key = "explicit-secret"  # pragma: allowlist secret
         _ensure_jwt_secret(s)
-        assert s.auth.jwt_secret_key == "explicit-secret"
+        assert s.auth.jwt_secret_key == "explicit-secret"  # pragma: allowlist secret
         assert not (tmp_path / ".jwt_secret").exists()
