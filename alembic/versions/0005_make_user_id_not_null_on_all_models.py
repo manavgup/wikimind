@@ -44,7 +44,7 @@ def upgrade() -> None:
 
     # Backfill legacy NULL rows
     for table in _TABLES:
-        op.execute(sa.text(f"UPDATE {table} SET user_id = 'anonymous' WHERE user_id IS NULL"))
+        op.execute(sa.text(f"UPDATE {table} SET user_id = 'anonymous' WHERE user_id IS NULL"))  # noqa: S608 — table names from hardcoded list, not user input
 
     # Make columns NOT NULL
     if conn.dialect.name == "sqlite":

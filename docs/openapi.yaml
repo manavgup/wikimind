@@ -2032,9 +2032,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         report_id:
           type: string
@@ -2087,6 +2085,7 @@ components:
           title: Shared Concept Id
       type: object
       required:
+      - user_id
       - report_id
       - description
       - content_hash
@@ -2557,9 +2556,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         job_type:
           $ref: '#/components/schemas/JobType'
@@ -2608,6 +2605,7 @@ components:
           title: Result Summary
       type: object
       required:
+      - user_id
       - job_type
       title: Job
       description: Async job record.
@@ -2721,9 +2719,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         generated_at:
           type: string
@@ -2790,6 +2786,8 @@ components:
           - type: 'null'
           title: Job Id
       type: object
+      required:
+      - user_id
       title: LintReport
       description: One run of the linter. All findings from a run FK back to this
         row via report_id.
@@ -2930,9 +2928,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         report_id:
           type: string
@@ -2971,6 +2967,7 @@ components:
           title: Article Title
       type: object
       required:
+      - user_id
       - report_id
       - description
       - content_hash
@@ -3258,9 +3255,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         source_type:
           $ref: '#/components/schemas/SourceType'
@@ -3326,6 +3321,7 @@ components:
           readOnly: true
       type: object
       required:
+      - user_id
       - source_type
       - has_original
       title: Source
@@ -3386,9 +3382,7 @@ components:
           type: string
           title: Id
         user_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: User Id
         report_id:
           type: string
@@ -3435,6 +3429,7 @@ components:
           default: ''
       type: object
       required:
+      - user_id
       - report_id
       - description
       - content_hash
