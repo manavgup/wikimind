@@ -7,11 +7,11 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.errors import IngestError, NotFoundError
 from wikimind.models import (
     Article,
     AskResponse,
@@ -48,7 +48,7 @@ async def test_ingest_service_url_error(db_session) -> None:
     svc = IngestService()
     svc._adapter = MagicMock()
     svc._adapter.ingest_url = AsyncMock(side_effect=ValueError("bad"))
-    with pytest.raises(HTTPException):
+    with pytest.raises(IngestError):
         await svc.ingest_url("http://x", db_session, user_id=TEST_USER_ID)
 
 
@@ -202,7 +202,7 @@ async def test_ingest_service_list_sources(db_session) -> None:
 
 async def test_ingest_service_get_source_missing(db_session) -> None:
     svc = IngestService()
-    with pytest.raises(HTTPException):
+    with pytest.raises(NotFoundError):
         await svc.get_source("nope", db_session, user_id=TEST_USER_ID)
 
 
@@ -232,7 +232,7 @@ async def test_ingest_service_delete_source(db_session, tmp_path, monkeypatch) -
 
 async def test_ingest_service_delete_missing(db_session) -> None:
     svc = IngestService()
-    with pytest.raises(HTTPException):
+    with pytest.raises(NotFoundError):
         await svc.delete_source("nope", db_session, user_id=TEST_USER_ID)
 
 
@@ -242,7 +242,7 @@ async def test_ingest_service_get_source_wrong_user(db_session) -> None:
     s = Source(source_type=SourceType.TEXT, title="t", user_id="user-a")
     db_session.add(s)
     await db_session.commit()
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await svc.get_source(s.id, db_session, user_id="user-b")
     assert exc_info.value.status_code == 404
 
@@ -263,7 +263,7 @@ async def test_ingest_service_delete_source_wrong_user(db_session) -> None:
     s = Source(source_type=SourceType.TEXT, title="t", user_id="user-a")
     db_session.add(s)
     await db_session.commit()
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await svc.delete_source(s.id, db_session, user_id="user-b")
     assert exc_info.value.status_code == 404
 
@@ -445,9 +445,9 @@ async def test_query_service_get_conversation_returns_ordered_turns(db_session) 
 
 
 async def test_query_service_get_conversation_not_found(db_session) -> None:
-    """get_conversation raises 404 for unknown conversation_id."""
+    """get_conversation raises NotFoundError for unknown conversation_id."""
     service = QueryService()
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await service.get_conversation("no-such-id", db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
@@ -481,13 +481,13 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
 
 
 async def test_query_service_file_back_conversation_not_found(db_session) -> None:
-    """file_back_conversation propagates HTTPException 404 when the conversation id is unknown.
+    """file_back_conversation propagates NotFoundError when the conversation id is unknown.
 
     Uses the real (un-mocked) agent so the 404 path in _file_back_thread fires
     naturally and we verify the service layer propagates it correctly.
     """
     svc = QueryService()
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await svc.file_back_conversation("does-not-exist", db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
@@ -514,7 +514,7 @@ async def test_wiki_list_articles(db_session, tmp_path) -> None:
 
 async def test_wiki_get_article_missing(db_session) -> None:
     svc = WikiService()
-    with pytest.raises(HTTPException):
+    with pytest.raises(NotFoundError):
         await svc.get_article("nope", db_session, user_id=TEST_USER_ID)
 
 

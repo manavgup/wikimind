@@ -6,11 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
+from wikimind.errors import NotFoundError, QueryError
 from wikimind.models import (
     Article,
     Conversation,
@@ -218,10 +218,10 @@ class TestExportConversation:
         assert [q.filed_back for q in queries] == q_before_filed
 
     async def test_export_404_for_nonexistent_conversation(self, db_session):
-        """Export raises 404 for a conversation that doesn't exist."""
+        """Export raises NotFoundError for a conversation that doesn't exist."""
         service = QueryService()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.export_conversation("nonexistent-id", db_session, user_id=TEST_USER_ID)
 
         assert exc_info.value.status_code == 404
@@ -505,7 +505,7 @@ class TestFileBackSelection:
         assert queries[2].filed_back is False
 
     async def test_404_for_nonexistent_conversation(self, db_session):
-        """Raises 404 when a selection references a nonexistent conversation."""
+        """Raises NotFoundError when a selection references a nonexistent conversation."""
         service = QueryService()
 
         request = FileBackSelectionRequest(
@@ -513,21 +513,21 @@ class TestFileBackSelection:
                 TurnSelection(conversation_id="nonexistent", turn_indices=[0]),
             ],
         )
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 404
 
     async def test_400_for_empty_selections(self, db_session):
-        """Raises 400 when the selections list is empty."""
+        """Raises QueryError when the selections list is empty."""
         service = QueryService()
 
         request = FileBackSelectionRequest(selections=[])
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(QueryError) as exc_info:
             await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 400
 
     async def test_400_for_missing_turn_indices(self, db_session):
-        """Raises 400 when requested turn indices don't exist."""
+        """Raises QueryError when requested turn indices don't exist."""
         await _seed_two_conversations(db_session)
         service = QueryService()
 
@@ -536,10 +536,10 @@ class TestFileBackSelection:
                 TurnSelection(conversation_id="conv-sel-1", turn_indices=[0, 99]),
             ],
         )
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(QueryError) as exc_info:
             await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 400
-        assert "99" in str(exc_info.value.detail)
+        assert "99" in str(exc_info.value.message)
 
     async def test_custom_title_overrides_default(self, db_session):
         """Custom title appears in the article and file content."""
@@ -619,11 +619,11 @@ class TestGetConversationOwnership:
         assert len(detail.queries) == 2
 
     async def test_get_conversation_404_for_wrong_user(self, db_session):
-        """get_conversation raises 404 when user_id doesn't match the owner."""
+        """get_conversation raises NotFoundError when user_id doesn't match the owner."""
         await _seed_owned_conversation(db_session)
         service = QueryService()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.get_conversation("conv-owned-1", db_session, user_id="user-b")
         assert exc_info.value.status_code == 404
 
@@ -639,12 +639,12 @@ class TestGetConversationOwnership:
 @pytest.mark.asyncio
 class TestForkConversationOwnership:
     async def test_fork_404_for_wrong_user(self, db_session):
-        """fork_conversation raises 404 when parent isn't owned by user."""
+        """fork_conversation raises NotFoundError when parent isn't owned by user."""
         await _seed_owned_conversation(db_session)
         service = QueryService()
         fork_request = ForkRequest(turn_index=1, new_question="Different Q?")
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.fork_conversation("conv-owned-1", fork_request, db_session, user_id="user-b")
         assert exc_info.value.status_code == 404
 
@@ -660,11 +660,11 @@ class TestExportConversationOwnership:
         assert response.media_type == "text/markdown"
 
     async def test_export_404_for_wrong_user(self, db_session):
-        """export_conversation raises 404 when user_id doesn't match."""
+        """export_conversation raises NotFoundError when user_id doesn't match."""
         await _seed_owned_conversation(db_session)
         service = QueryService()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.export_conversation("conv-owned-1", db_session, user_id="user-b")
         assert exc_info.value.status_code == 404
 
@@ -672,7 +672,7 @@ class TestExportConversationOwnership:
 @pytest.mark.asyncio
 class TestFileBackSelectionOwnership:
     async def test_file_back_selection_404_for_wrong_user(self, db_session):
-        """file_back_selection raises 404 when conversation isn't owned by user."""
+        """file_back_selection raises NotFoundError when conversation isn't owned by user."""
         await _seed_owned_conversation(db_session)
         service = QueryService()
 
@@ -681,7 +681,7 @@ class TestFileBackSelectionOwnership:
                 TurnSelection(conversation_id="conv-owned-1", turn_indices=[0]),
             ],
         )
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.file_back_selection(request, db_session, user_id="user-b")
         assert exc_info.value.status_code == 404
 

@@ -12,10 +12,10 @@ from contextlib import suppress
 
 import httpx
 import structlog
-from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.errors import IngestError, NotFoundError
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import NormalizedDocument, Source
@@ -53,13 +53,14 @@ class IngestService:
             The persisted Source record.
 
         Raises:
-            HTTPException: If ingestion fails due to invalid input or network error.
+            IngestError: If ingestion fails due to invalid input or network error.
         """
         try:
             source, doc = await self._adapter.ingest_url(url, session, user_id=user_id)
         except (httpx.HTTPError, ValueError, OSError) as e:
             log.warning("URL ingestion failed", url=url, error=str(e))
-            raise HTTPException(status_code=400, detail="Failed to ingest URL") from e
+            msg = "Failed to ingest URL"
+            raise IngestError(msg) from e
 
         self._log_ingest(source)
 
@@ -217,13 +218,14 @@ class IngestService:
             The Source record.
 
         Raises:
-            HTTPException: If the source is not found or doesn't belong to the user.
+            NotFoundError: If the source is not found or doesn't belong to the user.
         """
         source = await session.get(Source, source_id)
+        msg = "Source not found"
         if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+            raise NotFoundError(msg)
         if user_id and source.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Source not found")
+            raise NotFoundError(msg)
         return source
 
     async def delete_source(
@@ -249,13 +251,14 @@ class IngestService:
             Confirmation dict with the deleted ID.
 
         Raises:
-            HTTPException: If the source is not found or doesn't belong to the user.
+            NotFoundError: If the source is not found or doesn't belong to the user.
         """
         source = await session.get(Source, source_id)
+        msg = "Source not found"
         if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
+            raise NotFoundError(msg)
         if user_id and source.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Source not found")
+            raise NotFoundError(msg)
 
         self._remove_source_files(source)
 

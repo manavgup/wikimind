@@ -1,6 +1,15 @@
 """Tests for custom exception hierarchy."""
 
-from wikimind.errors import CompilationError, ConfigError, IngestError, QueryError, WikiMindError
+from wikimind.errors import (
+    CompilationError,
+    ConfigError,
+    IngestError,
+    NotFoundError,
+    PermissionDeniedError,
+    QueryError,
+    UpstreamError,
+    WikiMindError,
+)
 
 
 class TestWikiMindError:
@@ -72,3 +81,57 @@ class TestConfigError:
 
     def test_is_wikimind_error(self):
         assert issubclass(ConfigError, WikiMindError)
+
+
+class TestNotFoundError:
+    """Tests for NotFoundError."""
+
+    def test_code(self):
+        assert NotFoundError.code == "not_found"
+
+    def test_status_code(self):
+        assert NotFoundError.status_code == 404
+
+    def test_is_wikimind_error(self):
+        assert issubclass(NotFoundError, WikiMindError)
+
+    def test_custom_message(self):
+        exc = NotFoundError("Article not found")
+        assert exc.message == "Article not found"
+        assert str(exc) == "Article not found"
+
+
+class TestPermissionDeniedError:
+    """Tests for PermissionDeniedError."""
+
+    def test_code(self):
+        assert PermissionDeniedError.code == "permission_denied"
+
+    def test_status_code(self):
+        assert PermissionDeniedError.status_code == 403
+
+    def test_is_wikimind_error(self):
+        assert issubclass(PermissionDeniedError, WikiMindError)
+
+    def test_custom_message(self):
+        exc = PermissionDeniedError("Access denied")
+        assert exc.message == "Access denied"
+        assert str(exc) == "Access denied"
+
+
+class TestUpstreamError:
+    """Tests for UpstreamError."""
+
+    def test_code(self):
+        assert UpstreamError.code == "upstream_error"
+
+    def test_status_code(self):
+        assert UpstreamError.status_code == 502
+
+    def test_is_wikimind_error(self):
+        assert issubclass(UpstreamError, WikiMindError)
+
+    def test_custom_message(self):
+        exc = UpstreamError("LLM provider unavailable")
+        assert exc.message == "LLM provider unavailable"
+        assert str(exc) == "LLM provider unavailable"

@@ -16,11 +16,11 @@ import json
 from pathlib import Path
 
 import structlog
-from fastapi import HTTPException
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
+from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     ArticleConcept,
@@ -323,7 +323,7 @@ class WikiService:
             :class:`ArticleResponse` with content, backlink, and source data.
 
         Raises:
-            HTTPException: If no article matches either lookup.
+            NotFoundError: If no article matches either lookup.
         """
         # Try ID first
         id_stmt = select(Article).where(Article.id == id_or_slug)
@@ -339,7 +339,8 @@ class WikiService:
             result = await session.execute(slug_stmt)
             article = result.scalar_one_or_none()
         if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
+            msg = "Article not found"
+            raise NotFoundError(msg)
 
         # Resolve incoming backlinks (articles that link TO this one)
         bl_in_result = await session.execute(
@@ -580,7 +581,7 @@ class WikiService:
             Dict with concept fields and linked articles list.
 
         Raises:
-            HTTPException: 404 if concept not found.
+            NotFoundError: If concept not found.
         """
         query = select(Concept).where(Concept.name == name)
         if user_id:
@@ -588,7 +589,8 @@ class WikiService:
         result = await session.execute(query)
         concept = result.scalar_one_or_none()
         if not concept:
-            raise HTTPException(status_code=404, detail=f"Concept not found: {name}")
+            msg = f"Concept not found: {name}"
+            raise NotFoundError(msg)
 
         articles = await self.list_articles(session=session, concept=name, user_id=user_id)
         return {

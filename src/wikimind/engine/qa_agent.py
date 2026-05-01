@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
-from fastapi import HTTPException
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.engine.llm_router import _sanitize_json_control_chars, get_llm_router
+from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     CompletionRequest,
@@ -169,7 +169,8 @@ class QAAgent:
         if request.conversation_id is not None:
             existing = await session.get(Conversation, request.conversation_id)
             if existing is None:
-                raise HTTPException(status_code=404, detail="Conversation not found")
+                msg = "Conversation not found"
+                raise NotFoundError(msg)
             return existing
 
         title_max = self.settings.qa.conversation_title_max_chars
@@ -600,7 +601,8 @@ conversation context contradicts the wiki, prefer the wiki."""
         """
         conversation = await session.get(Conversation, conversation_id)
         if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            msg = "Conversation not found"
+            raise NotFoundError(msg)
 
         # Load all turns ordered by turn_index
         result = await session.execute(

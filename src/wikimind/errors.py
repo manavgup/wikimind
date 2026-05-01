@@ -43,3 +43,24 @@ class ConfigError(WikiMindError):
 
     code: str = "config_error"
     status_code: int = 500
+
+
+class NotFoundError(WikiMindError):
+    """Raised when a requested resource does not exist."""
+
+    code: str = "not_found"
+    status_code: int = 404
+
+
+class PermissionDeniedError(WikiMindError):
+    """Raised when the caller lacks permission to access a resource."""
+
+    code: str = "permission_denied"
+    status_code: int = 403
+
+
+class UpstreamError(WikiMindError):
+    """Raised when an external upstream service fails."""
+
+    code: str = "upstream_error"
+    status_code: int = 502
