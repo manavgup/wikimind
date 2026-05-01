@@ -53,9 +53,9 @@ class ResolvedBacklink:
 async def resolve_backlink_candidates(
     candidates: list[str],
     session: AsyncSession,
+    user_id: str,
     exclude_article_id: str | None = None,
     relation_types: dict[str, str] | None = None,
-    user_id: str | None = None,
 ) -> tuple[list[ResolvedBacklink], list[str]]:
     """Resolve wikilink candidates against the Article table.
 
@@ -90,9 +90,7 @@ async def resolve_backlink_candidates(
 
     # Load articles for resolution. When user_id is provided, only that
     # user's articles are considered — prevents cross-user link leakage.
-    stmt = select(Article).order_by(Article.created_at)  # type: ignore[arg-type]
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
+    stmt = select(Article).where(Article.user_id == user_id).order_by(Article.created_at)  # type: ignore[arg-type]
     result = await session.execute(stmt)
     all_articles: list[Article] = list(result.scalars().all())
     if exclude_article_id is not None:

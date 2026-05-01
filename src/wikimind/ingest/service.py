@@ -48,7 +48,7 @@ class IngestService:
         self,
         url: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a URL, routing to the appropriate adapter.
 
@@ -83,7 +83,7 @@ class IngestService:
         self,
         url: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Download a PDF from *url* and delegate to :class:`PDFAdapter`."""
         timeout = get_settings().ingest.http_timeout_seconds
@@ -105,7 +105,7 @@ class IngestService:
         self,
         url: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Fetch a URL; if the response is a PDF, fall back to the PDF adapter.
 
@@ -144,7 +144,7 @@ class IngestService:
         file_bytes: bytes,
         filename: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a PDF file."""
         return await self.pdf_adapter.ingest(file_bytes, filename, session, user_id=user_id)
@@ -154,7 +154,7 @@ class IngestService:
         content: str,
         title: str | None,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest raw text content."""
         return await self.text_adapter.ingest(content, title, session, user_id=user_id)

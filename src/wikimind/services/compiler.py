@@ -19,9 +19,9 @@ class CompilerService:
     async def list_jobs(
         self,
         session: AsyncSession,
+        user_id: str,
         status: str | None = None,
         limit: int = 20,
-        user_id: str | None = None,
     ) -> list[Job]:
         """List jobs with optional status filtering.
 
@@ -54,7 +54,7 @@ class CompilerService:
         """
         return await session.get(Job, job_id)
 
-    async def trigger_compile(self, source_id: str, user_id: str | None = None) -> JobTriggerResponse:
+    async def trigger_compile(self, source_id: str, user_id: str) -> JobTriggerResponse:
         """Schedule a compilation job for a source.
 
         Args:
@@ -68,14 +68,17 @@ class CompilerService:
         job_id = await bg.schedule_compile(source_id, user_id=user_id)
         return JobTriggerResponse(job_id=job_id, status="queued")
 
-    async def trigger_lint(self) -> JobTriggerResponse:
+    async def trigger_lint(self, user_id: str) -> JobTriggerResponse:
         """Schedule a wiki linting job.
+
+        Args:
+            user_id: Owner for scoping the lint run.
 
         Returns:
             JobTriggerResponse with job_id and status.
         """
         bg = get_background_compiler()
-        job_id = await bg.schedule_lint()
+        job_id = await bg.schedule_lint(user_id=user_id)
         return JobTriggerResponse(job_id=job_id, status="queued")
 
     async def trigger_reindex(self) -> JobTriggerResponse:

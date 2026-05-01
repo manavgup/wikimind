@@ -146,7 +146,7 @@ Rules:
 class Compiler:
     """Compile normalized documents into wiki articles."""
 
-    def __init__(self, user_id: str | None = None):
+    def __init__(self, user_id: str):
         self.router = get_llm_router()
         self.settings = get_settings()
         self.user_id = user_id
@@ -188,7 +188,7 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
-        response = await self.router.complete(request, session=session, user_id=self.user_id)
+        response = await self.router.complete(request, user_id=self.user_id)
         self._last_provider_used = response.provider_used
 
         try:
@@ -337,7 +337,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             result.backlink_suggestions,
             session,
             relation_types=self._last_typed_suggestions,
-            user_id=source.user_id,
+            user_id=self.user_id,
         )
 
         relative_path = await self._write_article_file(result, source, slug, resolved, unresolved)
@@ -352,7 +352,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             concept_ids=json.dumps(result.concepts),
             provider=provider,
             page_type=PageType.SOURCE,
-            user_id=source.user_id,
+            user_id=self.user_id,
         )
         session.add(article)
 
@@ -373,19 +373,19 @@ Compile this into a wiki article following the JSON schema exactly."""
             article.id,
             resolved,
             session,
-            user_id=source.user_id,
+            user_id=self.user_id,
         )
 
         try:
-            await upsert_concepts(result.concepts, session, user_id=source.user_id)
-            await update_article_counts(session, user_id=source.user_id)
-            await maybe_trigger_taxonomy_rebuild(session, user_id=source.user_id)
+            await upsert_concepts(result.concepts, session, user_id=self.user_id)
+            await update_article_counts(session, user_id=self.user_id)
+            await maybe_trigger_taxonomy_rebuild(session, user_id=self.user_id)
             # Concept page generation must use its own session to avoid
             # identity-map conflicts when both the source compiler and
             # concept compiler create Backlinks for overlapping article
             # pairs (issue #152 — greenlet_spawn error).
             async with get_session_factory()() as concept_session:
-                await maybe_trigger_concept_pages(concept_session, user_id=source.user_id)
+                await maybe_trigger_concept_pages(concept_session, user_id=self.user_id)
         except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning("taxonomy upsert failed", article_id=article.id)
 
@@ -394,13 +394,13 @@ Compile this into a wiki article following the JSON schema exactly."""
                 "compile",
                 article.title,
                 extra={"source_id": source.id, "article_slug": article.slug},
-                user_id=source.user_id,
+                user_id=self.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="compile", article_id=article.id)
 
         try:
-            await regenerate_index_md(session, user_id=source.user_id)
+            await regenerate_index_md(session, user_id=self.user_id)
         except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=article.id)
 
@@ -424,21 +424,21 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Replace an existing same-source same-provider article in place."""
         old_concept_ids = existing.concept_ids
 
-        old_path = resolve_wiki_path(existing.file_path, user_id=source.user_id)
+        old_path = resolve_wiki_path(existing.file_path, user_id=self.user_id)
 
         resolved, unresolved = await resolve_backlink_candidates(
             result.backlink_suggestions,
             session,
             exclude_article_id=existing.id,
             relation_types=self._last_typed_suggestions,
-            user_id=source.user_id,
+            user_id=self.user_id,
         )
 
         relative_path = await self._write_article_file(result, source, existing.slug, resolved, unresolved)
 
         # Delete old file only after new file is written successfully to
         # avoid data loss if the write fails (issue #183).
-        if old_path != resolve_wiki_path(relative_path, user_id=source.user_id):
+        if old_path != resolve_wiki_path(relative_path, user_id=self.user_id):
             old_path.unlink(missing_ok=True)
 
         existing.title = result.title
@@ -480,26 +480,26 @@ Compile this into a wiki article following the JSON schema exactly."""
             existing.id,
             resolved,
             session,
-            user_id=source.user_id,
+            user_id=self.user_id,
         )
 
         try:
             await upsert_concepts(
                 result.concepts,
                 session,
-                user_id=source.user_id,
+                user_id=self.user_id,
             )
-            await update_article_counts(session, user_id=source.user_id)
+            await update_article_counts(session, user_id=self.user_id)
             await maybe_trigger_taxonomy_rebuild(
                 session,
-                user_id=source.user_id,
+                user_id=self.user_id,
             )
             # Concept page generation must use its own session to avoid
             # identity-map conflicts (same pattern as _create_article,
             # issue #152).  Added here so recompiling an existing source
             # also updates concept pages (issue #162).
             async with get_session_factory()() as concept_session:
-                await maybe_trigger_concept_pages(concept_session, user_id=source.user_id)
+                await maybe_trigger_concept_pages(concept_session, user_id=self.user_id)
         except (SQLAlchemyError, RuntimeError, ValueError):
             log.warning(
                 "taxonomy upsert failed",
@@ -512,13 +512,13 @@ Compile this into a wiki article following the JSON schema exactly."""
                 "compile",
                 existing.title,
                 extra={"source_id": source.id, "article_slug": existing.slug},
-                user_id=source.user_id,
+                user_id=self.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="compile", article_id=existing.id)
 
         try:
-            await regenerate_index_md(session, user_id=source.user_id)
+            await regenerate_index_md(session, user_id=self.user_id)
         except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=existing.id)
 
@@ -537,7 +537,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         source_article_id: str,
         resolved: list[ResolvedBacklink],
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> None:
         """Insert one Backlink row per resolved candidate with relation_type."""
         for rb in resolved:

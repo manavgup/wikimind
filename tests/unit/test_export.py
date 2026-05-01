@@ -16,7 +16,8 @@ from wikimind.services.export import ExportService, _inline_format, _markdown_to
 
 if TYPE_CHECKING:
     from pathlib import Path
-
+from tests.conftest import TEST_USER_ID
+from wikimind.api.deps import ANONYMOUS_USER_ID
 
 # ---------------------------------------------------------------------------
 # Unit tests — ExportService (no DB, no LLM)
@@ -131,7 +132,7 @@ class TestExportServiceLinkedin:
         mock_router.complete = AsyncMock(return_value=mock_response)
 
         service = ExportService(llm_router=mock_router)
-        result = await service.export_linkedin("Test Article", "# Content\n\nBody text.")
+        result = await service.export_linkedin("Test Article", "# Content\n\nBody text.", user_id=TEST_USER_ID)
 
         assert result == "Hook line!\n\nInsight here.\n\nWhat do you think?"
         mock_router.complete.assert_called_once()
@@ -157,7 +158,7 @@ class TestExportServiceSlides:
         mock_router.complete = AsyncMock(return_value=mock_response)
 
         service = ExportService(llm_router=mock_router)
-        result = await service.export_slides("Test Article", "# Content\n\nBody text.")
+        result = await service.export_slides("Test Article", "# Content\n\nBody text.", user_id=TEST_USER_ID)
 
         assert "marp: true" in result
         mock_router.complete.assert_called_once()
@@ -189,7 +190,7 @@ async def _seed_article(db_session, tmp_path: Path) -> Article:
         title="Test Export Article",
         file_path=str(md_path),
         summary="An article about AI agents.",
-        user_id="anonymous",
+        user_id=ANONYMOUS_USER_ID,
     )
     db_session.add(article)
     await db_session.commit()

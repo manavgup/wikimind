@@ -81,7 +81,7 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         msg = "No cleaned text file path for source"
         raise ValueError(msg)
 
-    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)  # type: ignore[arg-type]  # #393
     content = text_path.read_text(encoding="utf-8")
 
     return NormalizedDocument(
@@ -109,12 +109,14 @@ def _try_embed_article(article: Article) -> None:
     try:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
-            content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text(encoding="utf-8")
+            uid = article.user_id
+            wiki_path = resolve_wiki_path(article.file_path, user_id=uid)  # type: ignore[arg-type]  # #393
+            content = wiki_path.read_text(encoding="utf-8")
             embedding_service.embed_article(
                 article.id,
                 article.title,
                 content,
-                user_id=article.user_id,
+                user_id=uid,  # type: ignore[arg-type]  # #393
             )
             log.info("Article embedded", article_id=article.id)
     except (RuntimeError, ValueError, OSError) as embed_err:
@@ -128,7 +130,7 @@ def _try_embed_article(article: Article) -> None:
 async def compile_source(
     ctx,
     source_id: str,
-    user_id: str | None = None,
+    user_id: str,
     doc: NormalizedDocument | None = None,
 ):
     """Compile a raw source into a wiki article.
@@ -136,8 +138,8 @@ async def compile_source(
     Args:
         ctx: ARQ context (unused in dev mode).
         source_id: The source UUID to compile.
-        user_id: Optional owner — used to scope WebSocket broadcasts and
-            verify source ownership.
+        user_id: User ID for data isolation — scopes WebSocket broadcasts
+            and verifies source ownership.
         doc: Pre-built NormalizedDocument from the ingest adapter. When
             provided, the worker skips re-reading and re-chunking the source
             file. ``None`` in the ARQ (Redis) path or for recompilation.
@@ -149,10 +151,6 @@ async def compile_source(
         if not source:
             log.error("Source not found", source_id=source_id)
             return
-
-        # Inherit user_id from the source record when not explicitly passed.
-        if user_id is None:
-            user_id = source.user_id
 
         # Reset source status so the frontend shows a spinner instead of
         # the stale error from a previous failed attempt (issue #111).
@@ -227,7 +225,7 @@ async def compile_source(
             await emit_compilation_failed(source_id, str(e), user_id=user_id)
 
 
-async def lint_wiki(_ctx, user_id: str | None = None):
+async def lint_wiki(_ctx, user_id: str):
     """Run the wiki linter to find contradictions, orphans, and gaps.
 
     Delegates to the structured ``run_lint`` pipeline. The existing
@@ -235,7 +233,7 @@ async def lint_wiki(_ctx, user_id: str | None = None):
 
     Args:
         ctx: ARQ context (unused in dev mode).
-        user_id: Optional owner — scopes the lint to this user's articles.
+        user_id: User ID for data isolation.
     """
     log.info("lint_wiki started", user_id=user_id)
 
@@ -287,13 +285,13 @@ async def _get_article_concept_names(article: Article, session) -> list[str]:
     return names
 
 
-async def _recompile_from_source(article: Article, session, user_id: str | None = None) -> None:
+async def _recompile_from_source(article: Article, session, user_id: str) -> None:
     """Recompile an article by re-reading and re-compiling its primary source.
 
     Args:
         article: The article to recompile.
         session: Async database session.
-        user_id: Optional owner — used to resolve BYOK API keys.
+        user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked sources or the source file
@@ -320,13 +318,13 @@ async def _recompile_from_source(article: Article, session, user_id: str | None 
     await compiler.save_article(result, source, session)
 
 
-async def _recompile_from_concept(article: Article, session, user_id: str | None = None) -> None:
+async def _recompile_from_concept(article: Article, session, user_id: str) -> None:
     """Recompile an article by regenerating its concept page.
 
     Args:
         article: The article to recompile.
         session: Async database session.
-        user_id: Optional owner — used to resolve BYOK API keys.
+        user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked concepts or the concept
@@ -351,7 +349,7 @@ async def _recompile_from_concept(article: Article, session, user_id: str | None
         raise ValueError(msg)
 
 
-async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str | None = None):
+async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user_id: str):
     """Recompile an existing article from its source or concept.
 
     Args:
@@ -359,7 +357,7 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
         article_id: The article UUID to recompile.
         mode: "source" or "concept".
         _job_id: Pre-created Job record ID to update.
-        user_id: Optional owner — scopes WebSocket broadcasts.
+        user_id: User ID for data isolation.
     """
     log.info(
         "recompile_article started",
@@ -390,10 +388,6 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
             await session.commit()
             await emit_article_recompiled(article_id, "unknown", "failed", user_id=user_id)
             return
-
-        # Inherit user_id from the article record when not explicitly passed.
-        if user_id is None:
-            user_id = article.user_id
 
         try:
             if mode == "source":
@@ -438,8 +432,9 @@ async def lint_all_users(ctx) -> None:
         user_ids = [row[0] for row in result]
     for uid in user_ids:
         await lint_wiki(ctx, user_id=uid)
-    # Also lint data with no user_id (legacy single-user)
-    await lint_wiki(ctx, user_id=None)
+    # Also lint data with no user_id (legacy single-user).
+    # Remove once #393 makes user_id NOT NULL on all models.
+    await lint_wiki(ctx, user_id="anonymous")
 
 
 async def sweep_all_users(ctx) -> None:
@@ -453,8 +448,9 @@ async def sweep_all_users(ctx) -> None:
         user_ids = [row[0] for row in result]
     for uid in user_ids:
         await sweep_wikilinks(ctx, user_id=uid)
-    # Also sweep data with no user_id (legacy single-user)
-    await sweep_wikilinks(ctx, user_id=None)
+    # Also sweep data with no user_id (legacy single-user).
+    # Remove once #393 makes user_id NOT NULL on all models.
+    await sweep_wikilinks(ctx, user_id="anonymous")
 
 
 # ---------------------------------------------------------------------------

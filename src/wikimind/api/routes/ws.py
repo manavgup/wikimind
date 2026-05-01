@@ -4,8 +4,7 @@ Clients subscribe once and receive job progress, compilation results,
 linter alerts, and sync status as they happen.
 
 Connections are tracked per ``user_id`` so broadcasts reach only the
-owning user. When ``user_id`` is ``None`` (single-user / legacy mode),
-broadcasts go to all connections.
+owning user.
 
 Multi-replica support
 ---------------------
@@ -68,7 +67,7 @@ async def _get_redis():
         return None
 
 
-async def _publish_to_redis(event: dict, user_id: str | None) -> bool:
+async def _publish_to_redis(event: dict, user_id: str) -> bool:
     """Publish a broadcast payload to the Redis Pub/Sub channel.
 
     Returns ``True`` if the message was published, ``False`` otherwise
@@ -122,8 +121,8 @@ async def _start_redis_subscriber() -> None:
                 try:
                     payload = json.loads(raw_message["data"])
                     event = payload["event"]
-                    user_id = payload.get("user_id")
-                    await manager._local_broadcast(event, user_id=user_id)
+                    uid = payload["user_id"]
+                    await manager._local_broadcast(event, user_id=uid)
                 except (json.JSONDecodeError, KeyError, TypeError):
                     log.debug("Ignoring malformed Redis WS message")
         except asyncio.CancelledError:
@@ -172,7 +171,7 @@ class ConnectionManager:
             result.update(conns)
         return result
 
-    async def connect(self, ws: WebSocket, user_id: str | None = None) -> None:
+    async def connect(self, ws: WebSocket, user_id: str) -> None:
         """Accept and register a WebSocket connection under *user_id*."""
         await ws.accept()
         key = user_id or _NO_USER
@@ -187,29 +186,26 @@ class ConnectionManager:
                 del self._connections[key]
         log.info("WebSocket disconnected", total=len(self.active))
 
-    async def broadcast(self, event: dict, user_id: str | None = None) -> None:
+    async def broadcast(self, event: dict, user_id: str) -> None:
         """Broadcast *event* to a specific user's connections across all replicas.
 
         When Redis is available, the event is published to a Pub/Sub channel
         and the subscriber task on each replica delivers it locally. When
         Redis is unavailable, falls back to local-only delivery.
-
-        When *user_id* is ``None``, the event is sent to **all**
-        connections (backward-compatible single-user behaviour).
         """
         published = await _publish_to_redis(event, user_id)
         if not published:
             # No Redis — deliver locally (single-replica mode).
             await self._local_broadcast(event, user_id=user_id)
 
-    async def _local_broadcast(self, event: dict, user_id: str | None = None) -> None:
+    async def _local_broadcast(self, event: dict, user_id: str) -> None:
         """Deliver *event* to this replica's local WebSocket connections only.
 
         Called directly in single-replica mode, or by the Redis subscriber
         in multi-replica mode. Never call this from application code — use
         :meth:`broadcast` instead.
         """
-        targets = self.active if user_id is None else self._connections.get(user_id, set())
+        targets = self._connections.get(user_id, set())
 
         if not targets:
             return
@@ -281,7 +277,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def emit_job_progress(job_id: str, pct: int, message: str = "", *, user_id: str | None = None) -> None:
+async def emit_job_progress(job_id: str, pct: int, message: str = "", *, user_id: str) -> None:
     """Emit job progress event to the owning user's clients."""
     await manager.broadcast(
         {
@@ -294,7 +290,7 @@ async def emit_job_progress(job_id: str, pct: int, message: str = "", *, user_id
     )
 
 
-async def emit_source_progress(source_id: str, message: str, *, user_id: str | None = None) -> None:
+async def emit_source_progress(source_id: str, message: str, *, user_id: str) -> None:
     """Broadcast a human-readable status message for a source.
 
     The message is the progress — e.g. ``"Compiling chunk 3/10..."``.
@@ -315,7 +311,7 @@ async def emit_source_progress(source_id: str, message: str, *, user_id: str | N
     )
 
 
-async def emit_compilation_complete(article_slug: str, article_title: str, *, user_id: str | None = None) -> None:
+async def emit_compilation_complete(article_slug: str, article_title: str, *, user_id: str) -> None:
     """Emit compilation complete event."""
     await manager.broadcast(
         {
@@ -327,7 +323,7 @@ async def emit_compilation_complete(article_slug: str, article_title: str, *, us
     )
 
 
-async def emit_compilation_failed(source_id: str, error: str, *, user_id: str | None = None) -> None:
+async def emit_compilation_failed(source_id: str, error: str, *, user_id: str) -> None:
     """Emit compilation failed event."""
     await manager.broadcast(
         {
@@ -339,7 +335,7 @@ async def emit_compilation_failed(source_id: str, error: str, *, user_id: str | 
     )
 
 
-async def emit_sync_complete(pushed: int, pulled: int, *, user_id: str | None = None) -> None:
+async def emit_sync_complete(pushed: int, pulled: int, *, user_id: str) -> None:
     """Emit sync complete event."""
     await manager.broadcast(
         {
@@ -351,7 +347,7 @@ async def emit_sync_complete(pushed: int, pulled: int, *, user_id: str | None = 
     )
 
 
-async def emit_linter_alert(alert_type: str, articles: list, *, user_id: str | None = None) -> None:
+async def emit_linter_alert(alert_type: str, articles: list, *, user_id: str) -> None:
     """Emit linter alert event."""
     await manager.broadcast(
         {
@@ -368,7 +364,7 @@ async def emit_article_recompiled(
     page_type: str,
     status: str = "complete",
     *,
-    user_id: str | None = None,
+    user_id: str,
 ) -> None:
     """Emit article recompiled event."""
     await manager.broadcast(
@@ -382,7 +378,7 @@ async def emit_article_recompiled(
     )
 
 
-async def emit_budget_warning(spend_usd: float, budget_usd: float, pct: float, *, user_id: str | None = None) -> None:
+async def emit_budget_warning(spend_usd: float, budget_usd: float, pct: float, *, user_id: str) -> None:
     """Emitted once when monthly spend crosses the warning threshold."""
     await manager.broadcast(
         {
@@ -395,7 +391,7 @@ async def emit_budget_warning(spend_usd: float, budget_usd: float, pct: float, *
     )
 
 
-async def emit_budget_exceeded(spend_usd: float, budget_usd: float, *, user_id: str | None = None) -> None:
+async def emit_budget_exceeded(spend_usd: float, budget_usd: float, *, user_id: str) -> None:
     """Emitted once when monthly spend crosses 100% of budget."""
     await manager.broadcast(
         {

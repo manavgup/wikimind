@@ -43,6 +43,7 @@ from wikimind.storage import resolve_raw_path
 
 if TYPE_CHECKING:
     from pathlib import Path
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -121,6 +122,7 @@ class TestFindSourceByHash:
             title="seed",
             content_hash=digest,
             status=IngestStatus.PROCESSING,
+            user_id=TEST_USER_ID,
         )
         db_session.add(source)
         await db_session.commit()
@@ -146,8 +148,8 @@ class TestTextAdapterDedup:
         adapter = TextAdapter()
         body = "The mitochondrion is the powerhouse of the cell."
 
-        first, _ = await adapter.ingest(body, "Bio note", db_session)
-        second, _ = await adapter.ingest(body, "Bio note again", db_session)
+        first, _ = await adapter.ingest(body, "Bio note", db_session, user_id=TEST_USER_ID)
+        second, _ = await adapter.ingest(body, "Bio note again", db_session, user_id=TEST_USER_ID)
 
         assert first.id == second.id
         assert first.content_hash == compute_hash(body.encode("utf-8"))
@@ -159,8 +161,8 @@ class TestTextAdapterDedup:
     ) -> None:
         adapter = TextAdapter()
 
-        first, _ = await adapter.ingest("Content one", "A", db_session)
-        second, _ = await adapter.ingest("Content two", "A", db_session)
+        first, _ = await adapter.ingest("Content one", "A", db_session, user_id=TEST_USER_ID)
+        second, _ = await adapter.ingest("Content two", "A", db_session, user_id=TEST_USER_ID)
 
         assert first.id != second.id
         assert first.content_hash != second.content_hash
@@ -174,11 +176,11 @@ class TestTextAdapterDedup:
         adapter = TextAdapter()
         body = "Stable text content."
 
-        first, _ = await adapter.ingest(body, "first", db_session)
-        text_path = resolve_raw_path(first.file_path)
+        first, _ = await adapter.ingest(body, "first", db_session, user_id=TEST_USER_ID)
+        text_path = resolve_raw_path(first.file_path, user_id=TEST_USER_ID)
         first_mtime = text_path.stat().st_mtime_ns
 
-        second, _ = await adapter.ingest(body, "second", db_session)
+        second, _ = await adapter.ingest(body, "second", db_session, user_id=TEST_USER_ID)
 
         assert second.id == first.id
         assert text_path.stat().st_mtime_ns == first_mtime
@@ -210,8 +212,8 @@ class TestPDFAdapterDedup:
         adapter = PDFAdapter()
         pdf_bytes = _build_pdf_bytes(["Identical PDF content"])
 
-        first, _ = await adapter.ingest(pdf_bytes, "doc.pdf", db_session)
-        second, _ = await adapter.ingest(pdf_bytes, "doc-renamed.pdf", db_session)
+        first, _ = await adapter.ingest(pdf_bytes, "doc.pdf", db_session, user_id=TEST_USER_ID)
+        second, _ = await adapter.ingest(pdf_bytes, "doc-renamed.pdf", db_session, user_id=TEST_USER_ID)
 
         assert first.id == second.id
         assert first.content_hash == compute_hash(pdf_bytes)
@@ -235,8 +237,8 @@ class TestPDFAdapterDedup:
         first_pdf = _build_pdf_bytes(["Page A"])
         second_pdf = _build_pdf_bytes(["Page B"])
 
-        first, _ = await adapter.ingest(first_pdf, "a.pdf", db_session)
-        second, _ = await adapter.ingest(second_pdf, "b.pdf", db_session)
+        first, _ = await adapter.ingest(first_pdf, "a.pdf", db_session, user_id=TEST_USER_ID)
+        second, _ = await adapter.ingest(second_pdf, "b.pdf", db_session, user_id=TEST_USER_ID)
 
         assert first.id != second.id
         assert first.content_hash != second.content_hash
@@ -257,7 +259,7 @@ class TestReconstructNormalizedDoc:
     ) -> None:
         adapter = TextAdapter()
         body = "Cached body content."
-        source, _ = await adapter.ingest(body, "title", db_session)
+        source, _ = await adapter.ingest(body, "title", db_session, user_id=TEST_USER_ID)
 
         doc = reconstruct_normalized_doc(source)
 
@@ -267,7 +269,7 @@ class TestReconstructNormalizedDoc:
         assert doc.chunks  # at least one chunk
 
     def test_raises_when_file_path_missing(self) -> None:
-        source = Source(source_type=SourceType.TEXT, title="x", file_path=None)
+        source = Source(source_type=SourceType.TEXT, title="x", file_path=None, user_id=TEST_USER_ID)
         with pytest.raises(ValueError, match="no file_path"):
             reconstruct_normalized_doc(source)
 
@@ -286,6 +288,7 @@ class TestCompilerSaveArticle:
             title="Seed",
             status=IngestStatus.PROCESSING,
             content_hash="seedhash",
+            user_id=TEST_USER_ID,
         )
         session.add(source)
         await session.commit()
@@ -298,7 +301,7 @@ class TestCompilerSaveArticle:
         isolated_data_dir: Path,
     ) -> None:
         source = await self._seed_source(db_session)
-        compiler = Compiler()
+        compiler = Compiler(user_id=TEST_USER_ID)
         compiler._last_provider_used = Provider.ANTHROPIC
 
         article = await compiler.save_article(_sample_compilation_result(), source, db_session)
@@ -313,7 +316,7 @@ class TestCompilerSaveArticle:
         isolated_data_dir: Path,
     ) -> None:
         source = await self._seed_source(db_session)
-        compiler = Compiler()
+        compiler = Compiler(user_id=TEST_USER_ID)
         compiler._last_provider_used = Provider.ANTHROPIC
 
         first = await compiler.save_article(
@@ -346,7 +349,7 @@ class TestCompilerSaveArticle:
         isolated_data_dir: Path,
     ) -> None:
         source = await self._seed_source(db_session)
-        compiler = Compiler()
+        compiler = Compiler(user_id=TEST_USER_ID)
 
         compiler._last_provider_used = Provider.ANTHROPIC
         anthropic_article = await compiler.save_article(
@@ -377,7 +380,7 @@ class TestCompilerSaveArticle:
     ) -> None:
         """When `_last_provider_used` is None we always create."""
         source = await self._seed_source(db_session)
-        compiler = Compiler()
+        compiler = Compiler(user_id=TEST_USER_ID)
         compiler._last_provider_used = None
 
         first = await compiler.save_article(_sample_compilation_result(), source, db_session)
@@ -428,6 +431,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
             status=IngestStatus.COMPILED,
             compiled_at=utcnow_naive(),
             file_path=str(text_path),
+            user_id=TEST_USER_ID,
         )
         db_session.add(existing)
         await db_session.commit()
@@ -445,7 +449,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
         monkeypatch.setattr(svc_ingest, "get_background_compiler", lambda: fake_compiler)
 
         service = IngestService()
-        result = await service.ingest_text(body, title="dup", session=db_session)
+        result = await service.ingest_text(body, title="dup", session=db_session, user_id=TEST_USER_ID)
 
         # Dedup hit returned the existing already-compiled source unchanged.
         assert result.id == existing.id
@@ -471,7 +475,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
         monkeypatch.setattr(svc_ingest, "get_background_compiler", lambda: fake_compiler)
 
         service = IngestService()
-        result = await service.ingest_text("brand new content", title="x", session=db_session)
+        result = await service.ingest_text("brand new content", title="x", session=db_session, user_id=TEST_USER_ID)
 
         assert calls == [result.id]
 
@@ -485,7 +489,7 @@ class TestCompilerProviderTracking:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        compiler = Compiler()
+        compiler = Compiler(user_id=TEST_USER_ID)
 
         fake_response = MagicMock()
         fake_response.provider_used = Provider.OPENAI

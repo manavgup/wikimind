@@ -10,6 +10,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import TEST_USER_ID
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.ws import ConnectionManager, _publish_to_redis
 from wikimind.engine import llm_router as llm_router_mod
@@ -47,7 +48,7 @@ class TestConnectionManagerLocalBroadcast:
 
         ws.send_text.assert_not_awaited()
 
-    async def test_local_broadcast_none_user_reaches_all(self) -> None:
+    async def test_local_broadcast_unknown_user_reaches_none(self) -> None:
         mgr = ConnectionManager()
         ws1 = MagicMock()
         ws1.accept = AsyncMock()
@@ -58,14 +59,14 @@ class TestConnectionManagerLocalBroadcast:
         await mgr.connect(ws1, user_id="user-1")
         await mgr.connect(ws2, user_id="user-2")
 
-        await mgr._local_broadcast({"event": "all"}, user_id=None)
+        await mgr._local_broadcast({"event": "all"}, user_id="unknown-user")
 
-        ws1.send_text.assert_awaited_once()
-        ws2.send_text.assert_awaited_once()
+        ws1.send_text.assert_not_awaited()
+        ws2.send_text.assert_not_awaited()
 
 
 class TestBroadcastWithRedis:
-    """Test that broadcast() publishes to Redis when available."""
+    """Test that broadcast(user_id=TEST_USER_ID) publishes to Redis when available."""
 
     async def test_broadcast_publishes_to_redis(self) -> None:
         mgr = ConnectionManager()
@@ -223,7 +224,7 @@ class TestBudgetFlagRedisDedup:
             patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
             patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
         ):
-            await router._check_budget()
+            await router._check_budget(user_id=TEST_USER_ID)
 
         # Warning should NOT fire — Redis says it was already sent
         mock_warn.assert_not_awaited()

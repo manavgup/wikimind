@@ -25,6 +25,8 @@ from contextlib import closing
 import httpx
 import pytest
 
+from wikimind.api.deps import ANONYMOUS_USER_ID
+
 # ---------------------------------------------------------------------------
 # Markers — all tests in this module require Docker and are slow
 # ---------------------------------------------------------------------------
@@ -315,7 +317,7 @@ class TestAuthFlow:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["id"] == "anonymous"
+        assert data["id"] == ANONYMOUS_USER_ID
 
 
 class TestAuthEnabled:

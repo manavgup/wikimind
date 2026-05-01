@@ -17,7 +17,7 @@ log = structlog.get_logger()
 router = APIRouter()
 
 
-def _read_article_content(file_path: str, user_id: str | None = None) -> str:
+def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk."""
     try:
         return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
@@ -28,7 +28,7 @@ def _read_article_content(file_path: str, user_id: str | None = None) -> str:
 async def _resolve_article(
     id_or_slug: str,
     session: AsyncSession,
-    user_id: str | None,
+    user_id: str,
 ) -> Article:
     """Look up an article by ID or slug, raising 404 if not found."""
     id_stmt = select(Article).where(Article.id == id_or_slug)
@@ -76,7 +76,7 @@ async def export_article(
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
     article = await _resolve_article(id_or_slug, session, user_id)
-    content = _read_article_content(article.file_path, user_id=article.user_id)
+    content = _read_article_content(article.file_path, user_id=user_id)
 
     if not content:
         raise HTTPException(status_code=404, detail="Article content not found on disk")

@@ -64,7 +64,7 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
     return items[0] if items else None
 
 
-def _read_article_content(file_path: str, user_id: str | None = None) -> str:
+def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk.
 
     Args:
@@ -256,12 +256,12 @@ class WikiService:
     async def list_articles(
         self,
         session: AsyncSession,
+        user_id: str,
         concept: str | None = None,
         confidence: str | None = None,
         page_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
-        user_id: str | None = None,
     ) -> list[ArticleSummaryResponse]:
         """List wiki articles with optional filtering by concept, confidence, or page_type.
 
@@ -301,7 +301,7 @@ class WikiService:
         articles = list(result.scalars().all())
         return [await _build_article_summary(a, session) for a in articles]
 
-    async def get_article(self, id_or_slug: str, session: AsyncSession, user_id: str | None = None) -> ArticleResponse:
+    async def get_article(self, id_or_slug: str, session: AsyncSession, user_id: str) -> ArticleResponse:
         """Retrieve a full article by ID or slug.
 
         Tries the article's UUID first (resolved wikilinks travel by ID
@@ -385,7 +385,7 @@ class WikiService:
             updated_at=article.updated_at,
         )
 
-    async def get_graph(self, session: AsyncSession, user_id: str | None = None) -> GraphResponse:
+    async def get_graph(self, session: AsyncSession, user_id: str) -> GraphResponse:
         """Build the full knowledge graph from articles and backlinks.
 
         Args:
@@ -439,8 +439,8 @@ class WikiService:
         self,
         q: str,
         session: AsyncSession,
+        user_id: str,
         limit: int = 20,
-        user_id: str | None = None,
     ) -> list[ArticleSummaryResponse]:
         """Hybrid search across wiki article titles and content.
 
@@ -500,7 +500,7 @@ class WikiService:
         self,
         q: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, float]:
         """Run keyword substring matching and return normalised scores by article id.
 
@@ -542,8 +542,8 @@ class WikiService:
     async def get_concepts(
         self,
         session: AsyncSession,
+        user_id: str,
         include_empty: bool = True,
-        user_id: str | None = None,
     ) -> list[Concept]:
         """Retrieve the concept taxonomy tree.
 
@@ -567,7 +567,7 @@ class WikiService:
         self,
         name: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict:
         """Retrieve a concept by name with its linked articles.
 
@@ -606,9 +606,9 @@ class WikiService:
         self,
         name: str,
         session: AsyncSession,
+        user_id: str,
         limit: int = 50,
         offset: int = 0,
-        user_id: str | None = None,
     ) -> list[ArticleSummaryResponse]:
         """List articles tagged with a specific concept.
 
@@ -633,7 +633,7 @@ class WikiService:
     async def get_health(
         self,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict:
         """Return the latest wiki health report from the linter.
 

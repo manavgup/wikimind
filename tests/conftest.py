@@ -23,6 +23,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 # ---------------------------------------------------------------------------
+# Canonical test-user constant & fixture
+# ---------------------------------------------------------------------------
+
+TEST_USER_ID = "test-user"
+
+
+# ---------------------------------------------------------------------------
 # Hermetic environment — runs once per session, applied before any test
 # constructs Settings or touches keyring.
 # ---------------------------------------------------------------------------

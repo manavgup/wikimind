@@ -190,10 +190,8 @@ class LLMRouter:
             self._provider_cache[provider] = instance
         return instance
 
-    async def _resolve_user_key(self, provider: Provider, user_id: str | None) -> str | None:
+    async def _resolve_user_key(self, provider: Provider, user_id: str) -> str | None:
         """Look up a user's BYOK key for the given provider, if any."""
-        if not user_id:
-            return None
         if provider in (Provider.OLLAMA, Provider.MOCK):
             return None
         try:
@@ -247,7 +245,7 @@ class LLMRouter:
         except Exception:
             log.debug("Failed to set budget flag in Redis", flag=flag_name)
 
-    async def _check_budget(self, user_id: str | None = None) -> None:
+    async def _check_budget(self, user_id: str) -> None:
         """Check monthly budget and emit warnings if thresholds are exceeded."""
         current_month = utcnow_naive()
         month_key = (current_month.year, current_month.month)
@@ -291,12 +289,12 @@ class LLMRouter:
                 budget_usd=budget,
                 pct=round(pct, 1),
             )
-            await emit_budget_warning(spend, budget, pct)
+            await emit_budget_warning(spend, budget, pct, user_id=user_id)
             await self._set_budget_flag("_budget_warning_sent", month_key)
 
         if pct >= 100.0 and not exceeded_sent:
             log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
-            await emit_budget_exceeded(spend, budget)
+            await emit_budget_exceeded(spend, budget, user_id=user_id)
             await self._set_budget_flag("_budget_exceeded_sent", month_key)
 
     async def _log_cost(
@@ -305,7 +303,7 @@ class LLMRouter:
         model: str,
         task_type: TaskType,
         response: CompletionResponse,
-        user_id: str | None = None,
+        user_id: str,
     ) -> None:
         """Write a CostLog entry in an independent session."""
         cost_entry = CostLog(
@@ -328,22 +326,20 @@ class LLMRouter:
     async def complete(
         self,
         request: CompletionRequest,
-        session=None,  # kept for backward compat
-        user_id: str | None = None,
+        user_id: str,
     ) -> CompletionResponse:
         """Execute LLM completion with provider selection and fallback.
 
-        When *user_id* is provided, the router checks for a BYOK key
-        for each candidate provider and uses it instead of the system key.
+        The router checks for a BYOK key for each candidate provider
+        and uses it instead of the system key.
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
-        # When a user_id is present, also consider BYOK-capable providers
-        # that aren't config-enabled — the user may have stored a key.
-        if user_id:
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        # Also consider BYOK-capable providers that aren't config-enabled
+        # — the user may have stored a key.
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:
@@ -397,12 +393,11 @@ class LLMRouter:
         self,
         system: str,
         content_parts: list[dict[str, Any]],
+        user_id: str,
         task_type: TaskType = TaskType.INGEST,
         max_tokens: int = 4096,
         temperature: float = 0.3,
         preferred_provider: Provider | None = None,
-        session=None,  # kept for backward compat
-        user_id: str | None = None,
     ) -> CompletionResponse:
         """Execute a multimodal LLM completion with images and text.
 
@@ -417,8 +412,7 @@ class LLMRouter:
             max_tokens: Maximum output tokens.
             temperature: Sampling temperature.
             preferred_provider: Optional provider preference.
-            session: Deprecated -- cost logging now uses an independent session.
-            user_id: Optional user ID for BYOK key lookup.
+            user_id: User ID for BYOK key lookup.
 
         Returns:
             CompletionResponse with the LLM's text output.
@@ -428,10 +422,9 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(preferred_provider)
 
-        if user_id:
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:
@@ -480,7 +473,7 @@ class LLMRouter:
     async def stream_complete(
         self,
         request: CompletionRequest,
-        user_id: str | None = None,
+        user_id: str,
     ) -> StreamSession:
         """Create a streaming LLM completion with provider fallback.
 
@@ -490,7 +483,7 @@ class LLMRouter:
 
         Args:
             request: The completion request.
-            user_id: Optional user ID for BYOK key lookup.
+            user_id: User ID for BYOK key lookup.
 
         Returns:
             A :class:`StreamSession` that yields text chunks.
@@ -500,10 +493,9 @@ class LLMRouter:
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
-        if user_id:
-            for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-                if p not in provider_order:
-                    provider_order.append(p)
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
 
         last_error = None
         for provider in provider_order:

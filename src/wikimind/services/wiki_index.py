@@ -174,7 +174,7 @@ def _build_index_lines(
 
 async def regenerate_index_md(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> str:
     """Regenerate the wiki/index.md content catalog from the database.
 
@@ -213,7 +213,7 @@ async def regenerate_index_md(
 
 async def _fetch_health_data(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> tuple[list[Article], list[Backlink]]:
     """Fetch articles and backlinks for the health page, scoped by user_id."""
     article_stmt = select(Article)
@@ -238,7 +238,7 @@ async def _fetch_health_data(
 
 async def generate_meta_health_page(
     session: AsyncSession,
-    user_id: str | None = None,
+    user_id: str,
 ) -> str:
     """Generate a meta page with wiki health statistics.
 

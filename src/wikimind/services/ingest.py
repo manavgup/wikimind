@@ -37,7 +37,7 @@ class IngestService:
         session: AsyncSession,
         *,
         auto_compile: bool = True,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Source:
         """Ingest a URL (web page or YouTube) and optionally schedule compilation.
 
@@ -74,7 +74,7 @@ class IngestService:
         session: AsyncSession,
         *,
         auto_compile: bool = True,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Source:
         """Ingest a PDF file and optionally schedule compilation.
 
@@ -104,7 +104,7 @@ class IngestService:
         session: AsyncSession,
         *,
         auto_compile: bool = True,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Source:
         """Ingest raw text content and optionally schedule compilation.
 
@@ -134,8 +134,8 @@ class IngestService:
             append_log_entry(
                 "ingest",
                 source.title or "untitled",
+                user_id=source.user_id,  # type: ignore[arg-type]  # #393
                 extra={"source_type": source.source_type, "source_url": source.source_url},
-                user_id=source.user_id,
             )
         except OSError:
             log.warning("activity log write failed", op="ingest", source_id=source.id)
@@ -169,16 +169,16 @@ class IngestService:
             )
             return
         compiler = get_background_compiler()
-        await compiler.schedule_compile(source.id, user_id=source.user_id, doc=doc)
+        await compiler.schedule_compile(source.id, user_id=source.user_id, doc=doc)  # type: ignore[arg-type]  # #393
         log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(
         self,
         session: AsyncSession,
+        user_id: str,
         status: str | None = None,
         limit: int = 50,
         offset: int = 0,
-        user_id: str | None = None,
     ) -> list[Source]:
         """List ingested sources with optional status filtering.
 
@@ -204,7 +204,7 @@ class IngestService:
         self,
         source_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Source:
         """Retrieve a single source by ID.
 
@@ -230,7 +230,7 @@ class IngestService:
         self,
         source_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, str]:
         """Delete a source by ID and remove its raw and cleaned files from disk.
 
@@ -274,12 +274,12 @@ class IngestService:
         files are silently ignored — this method is best-effort cleanup.
         """
         if source.file_path:
-            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)
+            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)  # type: ignore[arg-type]  # #393
             with suppress(OSError):
                 resolved.unlink(missing_ok=True)
 
         # Resolve the user-scoped raw directory to find sibling files
-        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id).parent
+        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)  # type: ignore[arg-type]  # #393.parent
         if not raw_dir.is_dir():
             return
         for sibling in raw_dir.glob(f"{source.id}.*"):

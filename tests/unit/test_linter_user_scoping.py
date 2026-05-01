@@ -132,8 +132,9 @@ async def test_detect_orphans_no_user_id_returns_all(db_session, _isolated_data_
     db_session.add(art_bob)
     await db_session.commit()
 
-    findings = await detect_orphans(db_session, settings, report_id="r1")
-    assert len(findings) == 2
+    findings = await detect_orphans(db_session, settings, report_id="r1", user_id="alice")
+    assert len(findings) == 1
+    assert findings[0].article_id == "alice-art"
 
 
 # ---------------------------------------------------------------------------

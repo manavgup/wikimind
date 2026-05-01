@@ -35,7 +35,7 @@ class YouTubeAdapter:
         self,
         url: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a YouTube video transcript."""
         log.info("Ingesting YouTube", url=url)
@@ -78,7 +78,7 @@ class YouTubeAdapter:
 
         # YouTube transcripts are already plain text, so the raw and cleaned
         # files are the same .txt. There is no separate raw video payload.
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
         text_path.parent.mkdir(parents=True, exist_ok=True)
         text_path.write_text(transcript_text, encoding="utf-8")
         source.file_path = f"{source.id}.txt"

@@ -143,7 +143,7 @@ class PDFAdapter:
         file_bytes: bytes,
         filename: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest a PDF file and return source and normalized document.
 
@@ -190,7 +190,7 @@ class PDFAdapter:
         # worker only ever reads the .txt file (see issue #59), so file_path
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
-        raw_pdf_path = resolve_raw_path(f"{source.id}.pdf", user_id=source.user_id)
+        raw_pdf_path = resolve_raw_path(f"{source.id}.pdf", user_id=user_id)
         raw_pdf_path.parent.mkdir(parents=True, exist_ok=True)
         raw_pdf_path.write_bytes(file_bytes)
 
@@ -198,7 +198,7 @@ class PDFAdapter:
         # with heading hierarchy, table-aware), fall back to fitz plain text
         # when docling-serve is unavailable.
         try:
-            clean_text, page_count = await self._extract_via_docling(raw_pdf_path, source.id)
+            clean_text, page_count = await self._extract_via_docling(raw_pdf_path, source.id, user_id)
         except (httpx.HTTPError, httpx.ConnectError) as exc:
             log.warning("docling-serve unavailable, falling back to fitz", error=str(exc))
             clean_text, page_count = self._extract_via_fitz(file_bytes)
@@ -215,11 +215,11 @@ class PDFAdapter:
         # step that merges LLM descriptions for diagrams/charts/covers
         # back into the extracted text.
         try:
-            clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id, user_id=source.user_id)
+            clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id, user_id=user_id)
         except Exception:  # TODO: narrow once provider error hierarchy is unified
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
         text_path.write_text(clean_text, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
 
@@ -263,7 +263,7 @@ class PDFAdapter:
         doc.close()
         return "\n\n".join(pages_text), len(pages_text)
 
-    async def _extract_via_docling(self, raw_pdf_path: Path, source_id: str) -> tuple[str, int]:
+    async def _extract_via_docling(self, raw_pdf_path: Path, source_id: str, user_id: str) -> tuple[str, int]:
         """Extract PDF text via docling-serve HTTP API.
 
         Sends the PDF to the docling-serve sidecar for structured markdown
@@ -273,17 +273,18 @@ class PDFAdapter:
         Args:
             raw_pdf_path: Path to the saved raw PDF on disk.
             source_id: Source ID used as the key for progress events.
+            user_id: Owner for WebSocket broadcast scoping.
 
         Returns:
             A tuple of ``(markdown_text, page_count)``.
         """
-        await emit_source_progress(source_id, "Sending to docling-serve...")
+        await emit_source_progress(source_id, "Sending to docling-serve...", user_id=user_id)
         md_content = await _convert_via_docling_serve(raw_pdf_path)
         # Count pages via fitz (fast, no ML)
         doc = fitz.open(str(raw_pdf_path))
         page_count = len(doc)
         doc.close()
-        await emit_source_progress(source_id, "Extraction complete")
+        await emit_source_progress(source_id, "Extraction complete", user_id=user_id)
         return md_content, page_count
 
     # -----------------------------------------------------------------------
@@ -359,7 +360,7 @@ class PDFAdapter:
         images: list[bytes],
         page_indices: list[int],
         max_per_batch: int,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[int, str]:
         """Send rendered page images to the multimodal LLM for description.
 
@@ -490,7 +491,7 @@ class PDFAdapter:
         file_bytes: bytes,
         clean_text: str,
         source_id: str,
-        user_id: str | None = None,
+        user_id: str,
     ) -> str:
         """Apply vision enhancement to PDF text extraction.
 
@@ -529,6 +530,7 @@ class PDFAdapter:
         await emit_source_progress(
             source_id,
             f"Describing {len(sparse)} visual page(s) via LLM...",
+            user_id=user_id,
         )
 
         images = self._render_pages_as_images(file_bytes, sparse, settings.vision_dpi)

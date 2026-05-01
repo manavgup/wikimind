@@ -42,7 +42,7 @@ async def detect_orphans(
     session: AsyncSession,
     settings: Settings,
     report_id: str,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[OrphanFinding]:
     """Find articles with zero inbound AND zero outbound backlinks.
 
@@ -53,7 +53,7 @@ async def detect_orphans(
         session: Async database session.
         settings: Application settings with linter config.
         report_id: The parent LintReport ID.
-        user_id: Optional user ID to scope the check to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
 
     Returns:
         List of OrphanFinding instances ready for persistence.
@@ -64,11 +64,8 @@ async def detect_orphans(
 
     # Build LEFT JOINs for inbound/outbound backlinks, scoped by user_id
     # when provided so another user's backlinks don't mask orphans.
-    inbound_join = Backlink.target_article_id == Article.id
-    outbound_join = Backlink.source_article_id == Article.id
-    if user_id is not None:
-        inbound_join = inbound_join & (Backlink.user_id == user_id)
-        outbound_join = outbound_join & (Backlink.user_id == user_id)
+    inbound_join = (Backlink.target_article_id == Article.id) & (Backlink.user_id == user_id)
+    outbound_join = (Backlink.source_article_id == Article.id) & (Backlink.user_id == user_id)
 
     bl_in = select(Backlink.target_article_id).where(inbound_join).correlate(Article)
     bl_out = select(Backlink.source_article_id).where(outbound_join).correlate(Article)
@@ -76,9 +73,8 @@ async def detect_orphans(
     stmt = select(Article.id, Article.title).where(
         ~bl_in.exists(),
         ~bl_out.exists(),
+        Article.user_id == user_id,
     )
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
 
     result = await session.execute(stmt)
     rows = result.all()

@@ -48,7 +48,7 @@ def _structural_content_hash(article_id: str, violation_type: str) -> str:
 async def run_enforcer_checks(
     session: AsyncSession,
     report: LintReport,
-    user_id: str | None = None,
+    user_id: str,
 ) -> list[StructuralFinding]:
     """Run the backlink enforcer on all articles and return StructuralFinding rows.
 
@@ -57,11 +57,9 @@ async def run_enforcer_checks(
     Args:
         session: Async database session.
         report: The parent LintReport.
-        user_id: Optional user ID to scope the check to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
     """
-    stmt = select(Article)
-    if user_id is not None:
-        stmt = stmt.where(Article.user_id == user_id)
+    stmt = select(Article).where(Article.user_id == user_id)
     result = await session.execute(stmt)
     articles = list(result.scalars().all())
 
@@ -123,31 +121,26 @@ async def _apply_dismiss_suppression(
 
 async def _check_in_progress(
     session: AsyncSession,
-    user_id: str | None,
+    user_id: str,
 ) -> LintReport | None:
-    """Return an existing in-progress report for this user, if any.
-
-    When user_id is None (system/admin call), ANY in-progress report
-    blocks — this is intentional to prevent concurrent global runs.
-    """
+    """Return an existing in-progress report for this user, if any."""
     stmt = select(LintReport).where(LintReport.status == LintReportStatus.IN_PROGRESS)
-    if user_id is not None:
-        stmt = stmt.where(LintReport.user_id == user_id)
+    stmt = stmt.where(LintReport.user_id == user_id)
     result = await session.execute(stmt)
     return result.scalars().first()
 
 
 async def run_lint(
     session: AsyncSession,
+    user_id: str,
     job_id: str | None = None,
-    user_id: str | None = None,
 ) -> LintReport:
     """Run the full lint pipeline: create report, run checks, persist, emit events.
 
     Args:
         session: Async database session.
         job_id: Optional Job ID to link the report to.
-        user_id: Optional user ID to scope the lint to a single user's articles.
+        user_id: User ID for data isolation — scopes to this user's articles.
 
     Returns:
         The completed LintReport.
@@ -160,10 +153,8 @@ async def run_lint(
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
 
-    # Snapshot article count (scoped to user when provided)
-    count_stmt = select(func.count()).select_from(Article)
-    if user_id is not None:
-        count_stmt = count_stmt.where(Article.user_id == user_id)
+    # Snapshot article count (scoped to user)
+    count_stmt = select(func.count()).select_from(Article).where(Article.user_id == user_id)
     count_result = await session.execute(count_stmt)
     article_count = count_result.scalar() or 0
 

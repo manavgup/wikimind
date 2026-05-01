@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from tests.conftest import TEST_USER_ID
 from wikimind.engine.conversation_serializer import (
     SelectedTurn,
     serialize_conversation_to_markdown,
@@ -16,6 +17,7 @@ def _conv(title: str = "What is X?") -> Conversation:
         title=title,
         created_at=datetime(2026, 4, 8, 12, 0, 0),
         updated_at=datetime(2026, 4, 8, 12, 5, 0),
+        user_id=TEST_USER_ID,
     )
 
 
@@ -29,6 +31,7 @@ def _q(question: str, answer: str, turn_index: int = 0, sources: str = "[]") -> 
         conversation_id="conv-1",
         turn_index=turn_index,
         created_at=datetime(2026, 4, 8, 12, 0, turn_index),
+        user_id=TEST_USER_ID,
     )
 
 
@@ -214,6 +217,7 @@ def _conv2(conv_id: str = "conv-2", title: str = "Second thread") -> Conversatio
         title=title,
         created_at=datetime(2026, 4, 9, 10, 0, 0),
         updated_at=datetime(2026, 4, 9, 10, 5, 0),
+        user_id=TEST_USER_ID,
     )
 
 
@@ -227,6 +231,7 @@ def _selected(conv: Conversation, question: str, answer: str, turn_index: int) -
         conversation_id=conv.id,
         turn_index=turn_index,
         created_at=datetime(2026, 4, 8, 12, 0, turn_index),
+        user_id=TEST_USER_ID,
     )
     return SelectedTurn(conversation=conv, query=query)
 
@@ -371,6 +376,7 @@ def test_selected_turns_renders_sources():
         conversation_id=conv.id,
         turn_index=0,
         created_at=datetime(2026, 4, 8, 12, 0, 0),
+        user_id=TEST_USER_ID,
     )
     turns = [SelectedTurn(conversation=conv, query=query)]
     md = serialize_selected_turns_to_markdown(turns)

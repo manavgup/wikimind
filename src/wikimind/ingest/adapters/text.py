@@ -33,7 +33,7 @@ class TextAdapter:
         content: str,
         title: str | None,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> tuple[Source, NormalizedDocument]:
         """Ingest raw text and return source and normalized document."""
         log.info("Ingesting text", title=title, chars=len(content))
@@ -61,7 +61,7 @@ class TextAdapter:
         # Pasted text is already plain text, so the raw and cleaned files are
         # the same .txt file. file_path always points at the .txt the worker
         # reads (see issue #59).
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)
+        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
         text_path.parent.mkdir(parents=True, exist_ok=True)
         text_path.write_text(content, encoding="utf-8")
         source.file_path = f"{source.id}.txt"

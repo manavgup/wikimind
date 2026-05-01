@@ -101,7 +101,7 @@ def _parse_article_titles(raw: str | None) -> list[str]:
     return [str(item) for item in parsed if item]
 
 
-async def _build_citations(query: Query, session: AsyncSession, user_id: str | None = None) -> list[CitationResponse]:
+async def _build_citations(query: Query, session: AsyncSession, user_id: str) -> list[CitationResponse]:
     """Resolve a Q&A record into a full citation chain.
 
     Walks ``Query.source_article_ids`` (which the QA agent populates with
@@ -113,7 +113,7 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str | N
     Args:
         query: The persisted Query record.
         session: Async database session.
-        user_id: Optional user ID to filter articles by ownership.
+        user_id: User ID for data isolation — scopes to this user's articles.
 
     Returns:
         Resolved citation list with full source provenance for each
@@ -250,7 +250,7 @@ class QueryService:
     def __init__(self) -> None:
         self._qa_agent = QAAgent()
 
-    async def ask(self, request: QueryRequest, session: AsyncSession, user_id: str | None = None) -> AskResponse:
+    async def ask(self, request: QueryRequest, session: AsyncSession, user_id: str) -> AskResponse:
         """Ask a question against the wiki and persist the result.
 
         Conversation-aware: passes request.conversation_id to the agent.
@@ -260,7 +260,7 @@ class QueryService:
         Args:
             request: The query request with question and options.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             :class:`AskResponse` with the new query and its parent conversation.
@@ -276,7 +276,7 @@ class QueryService:
         self,
         request: QueryRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> AsyncIterator[str]:
         """Stream an answer token-by-token via SSE events.
 
@@ -291,7 +291,7 @@ class QueryService:
         Args:
             request: The query request.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Yields:
             SSE-formatted event strings.
@@ -314,13 +314,13 @@ class QueryService:
             error_payload = json.dumps({"code": "stream_failed", "message": "Internal server error"})
             yield f"event: error\ndata: {error_payload}\n\n"
 
-    async def query_history(self, session: AsyncSession, limit: int = 50, user_id: str | None = None) -> list[Query]:
+    async def query_history(self, session: AsyncSession, user_id: str, limit: int = 50) -> list[Query]:
         """List past queries ordered by most recent first.
 
         Args:
             session: Async database session.
             limit: Maximum number of results.
-            user_id: Optional user ID filter.
+            user_id: User ID for data isolation.
 
         Returns:
             List of Query records.
@@ -334,8 +334,8 @@ class QueryService:
     async def list_conversations(
         self,
         session: AsyncSession,
+        user_id: str,
         limit: int = 50,
-        user_id: str | None = None,
     ) -> list[ConversationSummary]:
         """List conversations ordered by most-recently-updated first.
 
@@ -344,7 +344,7 @@ class QueryService:
         Args:
             session: Async database session.
             limit: Maximum number of results.
-            user_id: Optional user ID filter.
+            user_id: User ID for data isolation.
 
         Returns:
             List of :class:`ConversationSummary` ordered by updated_at descending.
@@ -400,7 +400,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> ConversationDetail:
         """Return a single conversation with all its queries ordered by turn_index.
 
@@ -410,7 +410,7 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to retrieve.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             :class:`ConversationDetail` with conversation metadata and ordered queries.
@@ -450,7 +450,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, object]:
         """File a whole conversation back to the wiki.
 
@@ -462,7 +462,7 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to file back.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             Dict with article metadata (id, slug, title) and a was_update flag.
@@ -485,7 +485,7 @@ class QueryService:
         conversation_id: str,
         fork_request: ForkRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> AskResponse:
         """Fork a conversation at a specific turn and ask a new question.
 
@@ -498,7 +498,7 @@ class QueryService:
             conversation_id: The parent conversation UUID to fork from.
             fork_request: Contains turn_index (fork point) and new_question.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             :class:`AskResponse` with the new query and the forked conversation.
@@ -546,7 +546,7 @@ class QueryService:
         self,
         request: FileBackSelectionRequest,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> dict[str, object]:
         """File selected turns from one or more conversations back to the wiki.
 
@@ -557,7 +557,7 @@ class QueryService:
         Args:
             request: The file-back selection request with turn selections and optional title.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             Dict with article metadata (id, slug, title).
@@ -654,7 +654,7 @@ class QueryService:
         self,
         conversation_id: str,
         session: AsyncSession,
-        user_id: str | None = None,
+        user_id: str,
     ) -> Response:
         """Export conversation as markdown. Read-only, no DB writes.
 
@@ -665,7 +665,7 @@ class QueryService:
         Args:
             conversation_id: The conversation UUID to export.
             session: Async database session.
-            user_id: Optional user ID for data isolation.
+            user_id: User ID for data isolation.
 
         Returns:
             :class:`Response` with ``text/markdown`` content and a

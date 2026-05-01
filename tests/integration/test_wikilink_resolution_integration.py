@@ -20,7 +20,6 @@ import pytest
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
     Article,
@@ -39,6 +38,7 @@ if TYPE_CHECKING:
 
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
+from wikimind.api.deps import ANONYMOUS_USER_ID
 
 
 @pytest.mark.asyncio
@@ -71,7 +71,7 @@ async def test_wikilink_resolution_end_to_end(
     await db_session.commit()
 
     # 2. Drive the save path
-    compiler = Compiler()
+    compiler = Compiler(user_id=ANONYMOUS_USER_ID)
     result = CompilationResult(
         title="New Compiled Article",
         summary="Two sentence summary. For integration test.",

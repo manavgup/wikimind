@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
+from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
 from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
@@ -48,14 +49,14 @@ def _agent(tmp_path) -> QAAgent:
 
 def test_read_article_content_missing(tmp_path) -> None:
     a = _agent(tmp_path)
-    assert a._read_article_content("/no/such/file.md") is None
+    assert a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
 
 
 def test_read_article_content_ok(tmp_path) -> None:
     a = _agent(tmp_path)
     f = tmp_path / "x.md"
     f.write_text("hello", encoding="utf-8")
-    assert a._read_article_content(str(f)) == "hello"
+    assert a._read_article_content(str(f), user_id=TEST_USER_ID) == "hello"
 
 
 async def test_retrieve_context_scores(db_session, tmp_path) -> None:
@@ -64,21 +65,21 @@ async def test_retrieve_context_scores(db_session, tmp_path) -> None:
     f1.write_text("apple banana cherry", encoding="utf-8")
     f2 = tmp_path / "b.md"
     f2.write_text("nothing here", encoding="utf-8")
-    art1 = Article(slug="a", title="A", file_path=str(f1))
-    art2 = Article(slug="b", title="B", file_path=str(f2))
+    art1 = Article(slug="a", title="A", file_path=str(f1), user_id=TEST_USER_ID)
+    art2 = Article(slug="b", title="B", file_path=str(f2), user_id=TEST_USER_ID)
     db_session.add_all([art1, art2])
     await db_session.commit()
-    ctx = await a._retrieve_context("apple banana", db_session)
+    ctx = await a._retrieve_context("apple banana", db_session, user_id=TEST_USER_ID)
     assert len(ctx) == 1
     assert ctx[0]["title"] == "A"
 
 
 async def test_retrieve_context_skips_unreadable(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
-    art = Article(slug="x", title="X", file_path="/no/such/file")
+    art = Article(slug="x", title="X", file_path="/no/such/file", user_id=TEST_USER_ID)
     db_session.add(art)
     await db_session.commit()
-    assert await a._retrieve_context("anything", db_session) == []
+    assert await a._retrieve_context("anything", db_session, user_id=TEST_USER_ID) == []
 
 
 async def test_query_llm_success(db_session, tmp_path) -> None:
@@ -100,7 +101,7 @@ async def test_query_llm_success(db_session, tmp_path) -> None:
         "related_articles": [],
         "follow_up_questions": [],
     }
-    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session)
+    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session, user_id=TEST_USER_ID)
     assert res.answer == "yes"
     assert res.confidence == "high"
 
@@ -118,20 +119,20 @@ async def test_query_llm_parse_error_returns_fallback(db_session, tmp_path) -> N
     )
     a.router.complete = AsyncMock(return_value=fake_resp)
     a.router.parse_json_response = lambda r: (_ for _ in ()).throw(ValueError("bad"))
-    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session)
+    res = await a._query_llm("Q?", [{"title": "A", "content": "C"}], [], db_session, user_id=TEST_USER_ID)
     assert res.confidence == "low"
 
 
 async def test_answer_no_context(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
     with patch.object(a, "_retrieve_context", AsyncMock(return_value=[])):
-        q, _conversation = await a.answer(QueryRequest(question="hello"), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hello"), db_session, user_id=TEST_USER_ID)
     assert q.confidence == "low"
 
 
 async def test_answer_with_context_and_file_back(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
-    fake_article = Article(id="art-1", slug="hi", title="hi", file_path="/fake/hi.md")
+    fake_article = Article(id="art-1", slug="hi", title="hi", file_path="/fake/hi.md", user_id=TEST_USER_ID)
     with (
         patch.object(a, "_retrieve_context", AsyncMock(return_value=[{"title": "T", "content": "C"}])),
         patch.object(
@@ -141,7 +142,7 @@ async def test_answer_with_context_and_file_back(db_session, tmp_path) -> None:
         ),
         patch.object(a, "_file_back_thread", AsyncMock(return_value=(fake_article, False))),
     ):
-        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session, user_id=TEST_USER_ID)
     assert q.filed_back is True
     assert q.filed_article_id == "art-1"
 
@@ -153,12 +154,12 @@ async def test_answer_with_context_no_file_back(db_session, tmp_path) -> None:
         patch.object(a, "_retrieve_context", AsyncMock(return_value=[{"title": "T", "content": "C"}])),
         patch.object(a, "_query_llm", AsyncMock(return_value=qr)),
     ):
-        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session)
+        q, _conversation = await a.answer(QueryRequest(question="hi", file_back=True), db_session, user_id=TEST_USER_ID)
     assert q.filed_back is False
 
 
 async def test_answer_creates_new_conversation_when_id_missing(db_session, tmp_path) -> None:
-    """answer() with no conversation_id creates a new Conversation and returns turn 0."""
+    """answer(user_id=TEST_USER_ID) with no conversation_id creates a new Conversation and returns turn 0."""
     with (
         patch.object(qa_mod, "get_llm_router"),
         patch.object(
@@ -176,7 +177,7 @@ async def test_answer_creates_new_conversation_when_id_missing(db_session, tmp_p
         patch.object(agent, "_retrieve_context", AsyncMock(return_value=[])),
     ):
         req = QueryRequest(question="What is the meaning of life?")
-        query, conversation = await agent.answer(req, db_session)
+        query, conversation = await agent.answer(req, db_session, user_id=TEST_USER_ID)
 
     assert isinstance(conversation, Conversation)
     assert conversation.title == "What is the meaning of life?"
@@ -185,12 +186,13 @@ async def test_answer_creates_new_conversation_when_id_missing(db_session, tmp_p
 
 
 async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> None:
-    """answer() with a conversation_id appends a new turn with the next turn_index."""
+    """answer(user_id=TEST_USER_ID) with a conversation_id appends a new turn with the next turn_index."""
     conv = Conversation(
         id="conv-existing",
         title="prior question",
         created_at=utcnow_naive(),
         updated_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     db_session.add(conv)
     db_session.add(
@@ -200,6 +202,7 @@ async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> 
             answer="prior answer",
             conversation_id="conv-existing",
             turn_index=0,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
@@ -221,7 +224,7 @@ async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> 
         patch.object(agent, "_retrieve_context", AsyncMock(return_value=[])),
     ):
         req = QueryRequest(question="follow-up question", conversation_id="conv-existing")
-        query, conversation = await agent.answer(req, db_session)
+        query, conversation = await agent.answer(req, db_session, user_id=TEST_USER_ID)
 
     assert conversation.id == "conv-existing"
     assert query.conversation_id == "conv-existing"
@@ -241,6 +244,7 @@ async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_p
                 answer=f"a{i}",
                 conversation_id="conv-x",
                 turn_index=i,
+                user_id=TEST_USER_ID,
             )
         )
     await db_session.commit()
@@ -261,12 +265,12 @@ async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_p
 
 
 async def test_answer_raises_404_when_conversation_id_unknown(db_session, tmp_path) -> None:
-    """answer() raises HTTPException 404 when given a conversation_id that doesn't exist."""
+    """answer(user_id=TEST_USER_ID) raises HTTPException 404 when given a conversation_id that doesn't exist."""
     a = _agent(tmp_path)
     req = QueryRequest(question="follow-up", conversation_id="conv-does-not-exist")
 
     with pytest.raises(HTTPException) as exc_info:
-        await a.answer(req, db_session)
+        await a.answer(req, db_session, user_id=TEST_USER_ID)
 
     assert exc_info.value.status_code == 404
 
@@ -281,6 +285,7 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
         title="What is X?",
         created_at=utcnow_naive(),
         updated_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     db_session.add(conv)
     db_session.add(
@@ -291,12 +296,13 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
             confidence="high",
             conversation_id="c1",
             turn_index=0,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
 
     agent = _agent(tmp_path)
-    article, was_update = await agent._file_back_thread("c1", db_session)
+    article, was_update = await agent._file_back_thread("c1", db_session, user_id=TEST_USER_ID)
     await db_session.commit()  # single-commit pattern — test owns the commit
 
     assert was_update is False
@@ -307,7 +313,7 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
     assert refreshed.filed_article_id == article.id
 
     # The .md file exists on disk
-    assert resolve_wiki_path(article.file_path).exists()
+    assert resolve_wiki_path(article.file_path, user_id=TEST_USER_ID).exists()
 
 
 async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_path, monkeypatch) -> None:
@@ -320,6 +326,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
         title="What is Y?",
         created_at=utcnow_naive(),
         updated_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     db_session.add(conv)
     db_session.add(
@@ -330,12 +337,13 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
             confidence="high",
             conversation_id="c2",
             turn_index=0,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
 
     agent = _agent(tmp_path)
-    first_article, _ = await agent._file_back_thread("c2", db_session)
+    first_article, _ = await agent._file_back_thread("c2", db_session, user_id=TEST_USER_ID)
     await db_session.commit()  # single-commit pattern — test owns the commit
     first_id = first_article.id
     first_path = first_article.file_path
@@ -349,11 +357,12 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
             confidence="high",
             conversation_id="c2",
             turn_index=1,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
 
-    second_article, was_update = await agent._file_back_thread("c2", db_session)
+    second_article, was_update = await agent._file_back_thread("c2", db_session, user_id=TEST_USER_ID)
     await db_session.commit()  # single-commit pattern — test owns the commit
 
     assert was_update is True
@@ -361,7 +370,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     assert second_article.file_path == first_path  # same file path
 
     # The file content now reflects both turns
-    content = resolve_wiki_path(first_path).read_text()
+    content = resolve_wiki_path(first_path, user_id=TEST_USER_ID).read_text()
     assert "Q1: What is Y?" in content
     assert "Q2: follow-up" in content
 
@@ -383,12 +392,14 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
         title="What is machine learning?",
         created_at=utcnow_naive(),
         updated_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     conv_b = Conversation(
         id="conv-bbb",
         title="What is machine learning?",  # same title!
         created_at=utcnow_naive(),
         updated_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     db_session.add(conv_a)
     db_session.add(conv_b)
@@ -399,6 +410,7 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
             answer="First answer",
             conversation_id="conv-aaa",
             turn_index=0,
+            user_id=TEST_USER_ID,
         )
     )
     db_session.add(
@@ -408,16 +420,17 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
             answer="Second answer",
             conversation_id="conv-bbb",
             turn_index=0,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
 
     agent = _agent(tmp_path)
 
-    article_a, _ = await agent._file_back_thread("conv-aaa", db_session)
+    article_a, _ = await agent._file_back_thread("conv-aaa", db_session, user_id=TEST_USER_ID)
     await db_session.commit()  # single-commit pattern — test owns the commit
 
-    article_b, _ = await agent._file_back_thread("conv-bbb", db_session)
+    article_b, _ = await agent._file_back_thread("conv-bbb", db_session, user_id=TEST_USER_ID)
     await db_session.commit()
 
     # Both articles exist with distinct slugs
@@ -428,11 +441,11 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
     assert article_a.file_path != article_b.file_path
 
     # Both files exist on disk
-    assert resolve_wiki_path(article_a.file_path).exists()
-    assert resolve_wiki_path(article_b.file_path).exists()
+    assert resolve_wiki_path(article_a.file_path, user_id=TEST_USER_ID).exists()
+    assert resolve_wiki_path(article_b.file_path, user_id=TEST_USER_ID).exists()
 
     # The first article's content mentions the first answer
-    content_a = resolve_wiki_path(article_a.file_path).read_text()
+    content_a = resolve_wiki_path(article_a.file_path, user_id=TEST_USER_ID).read_text()
     assert "First answer" in content_a
 
 
@@ -472,10 +485,12 @@ def _stream_session(content: str) -> StreamSession:
 
 
 async def test_answer_stream_no_context_yields_text_and_tuple(db_session, tmp_path) -> None:
-    """answer_stream() with no wiki context yields canned answer text + (Query, Conversation)."""
+    """answer_stream(user_id=TEST_USER_ID) with no wiki context yields canned answer text + (Query, Conversation)."""
     a = _agent(tmp_path)
     with patch.object(a, "_retrieve_context", AsyncMock(return_value=[])):
-        items = [item async for item in a.answer_stream(QueryRequest(question="hello"), db_session)]
+        items = [
+            item async for item in a.answer_stream(QueryRequest(question="hello"), db_session, user_id=TEST_USER_ID)
+        ]
 
     # First item: the canned answer text string
     assert isinstance(items[0], str)
@@ -490,7 +505,7 @@ async def test_answer_stream_no_context_yields_text_and_tuple(db_session, tmp_pa
 
 
 async def test_answer_stream_with_context_yields_chunks_and_tuple(db_session, tmp_path) -> None:
-    """answer_stream() with wiki context streams text chunks then yields (Query, Conversation)."""
+    """answer_stream(user_id=TEST_USER_ID) with wiki context streams text chunks then yields (Query, Conversation)."""
     a = _agent(tmp_path)
     with patch.object(
         a,
@@ -499,7 +514,9 @@ async def test_answer_stream_with_context_yields_chunks_and_tuple(db_session, tm
     ):
         a.router.stream_complete = AsyncMock(return_value=_stream_session(_MOCK_QA_JSON))
 
-        items = [item async for item in a.answer_stream(QueryRequest(question="hello"), db_session)]
+        items = [
+            item async for item in a.answer_stream(QueryRequest(question="hello"), db_session, user_id=TEST_USER_ID)
+        ]
 
     # All items except the last should be strings (text chunks)
     text_chunks = [i for i in items if isinstance(i, str)]
@@ -517,7 +534,7 @@ async def test_answer_stream_with_context_yields_chunks_and_tuple(db_session, tm
 
 
 async def test_answer_stream_persists_query_after_completion(db_session, tmp_path) -> None:
-    """answer_stream() persists a Query row after the stream finishes."""
+    """answer_stream(user_id=TEST_USER_ID) persists a Query row after the stream finishes."""
     a = _agent(tmp_path)
     with patch.object(
         a,
@@ -526,7 +543,12 @@ async def test_answer_stream_persists_query_after_completion(db_session, tmp_pat
     ):
         a.router.stream_complete = AsyncMock(return_value=_stream_session(_MOCK_QA_JSON))
 
-        items = [item async for item in a.answer_stream(QueryRequest(question="stream persist test"), db_session)]
+        items = [
+            item
+            async for item in a.answer_stream(
+                QueryRequest(question="stream persist test"), db_session, user_id=TEST_USER_ID
+            )
+        ]
 
     # Extract the final tuple
     final = next(i for i in items if isinstance(i, tuple))
@@ -539,7 +561,7 @@ async def test_answer_stream_persists_query_after_completion(db_session, tmp_pat
 
 
 async def test_answer_stream_raises_on_stream_failure(db_session, tmp_path) -> None:
-    """answer_stream() raises when stream_complete raises (caller handles error)."""
+    """answer_stream(user_id=TEST_USER_ID) raises when stream_complete raises (caller handles error)."""
     a = _agent(tmp_path)
     with patch.object(
         a,
@@ -549,5 +571,5 @@ async def test_answer_stream_raises_on_stream_failure(db_session, tmp_path) -> N
         a.router.stream_complete = AsyncMock(side_effect=RuntimeError("all providers dead"))
 
         with pytest.raises(RuntimeError, match="all providers dead"):
-            async for _ in a.answer_stream(QueryRequest(question="will fail"), db_session):
+            async for _ in a.answer_stream(QueryRequest(question="will fail"), db_session, user_id=TEST_USER_ID):
                 pass
