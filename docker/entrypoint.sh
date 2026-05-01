@@ -7,9 +7,7 @@ set -euo pipefail
 if [ "$(id -u)" = "0" ]; then
     _data_dir="${WIKIMIND_DATA_DIR:-/home/wikimind/.wikimind}"
     mkdir -p "$_data_dir/wiki" "$_data_dir/raw"
-    if [ "$(stat -c '%u' "$_data_dir" 2>/dev/null)" != "1000" ]; then
-        chown -R wikimind:wikimind "$_data_dir"
-    fi
+    chown -R wikimind:wikimind "$_data_dir"
     exec gosu wikimind "$0" "$@"
 fi
 
