@@ -211,7 +211,7 @@ async def test_contradiction_detection_creates_typed_backlink(db_session, _isola
         }
     )
     settings = get_settings()
-    report = LintReport(id="r1")
+    report = LintReport(id="r1", user_id=TEST_USER_ID)
     db_session.add(report)
     await db_session.flush()
     findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)

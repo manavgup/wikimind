@@ -233,7 +233,9 @@ async def test_answer_appends_to_existing_conversation(db_session, tmp_path) -> 
 
 async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_path) -> None:
     """_load_prior_turns returns at most qa.max_prior_turns_in_context, ordered by turn_index."""
-    conv = Conversation(id="conv-x", title="t", created_at=utcnow_naive(), updated_at=utcnow_naive())
+    conv = Conversation(
+        id="conv-x", title="t", created_at=utcnow_naive(), updated_at=utcnow_naive(), user_id=TEST_USER_ID
+    )
     db_session.add(conv)
 
     for i in range(7):

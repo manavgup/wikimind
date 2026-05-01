@@ -330,6 +330,7 @@ async def test_query_service_ask_returns_ask_response_with_conversation(db_sessi
         related_article_ids=json.dumps([]),
         conversation_id="conv-loop",
         turn_index=0,
+        user_id=TEST_USER_ID,
     )
     db_session.add(fake_conv)
     db_session.add(fake_query)

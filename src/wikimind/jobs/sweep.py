@@ -60,7 +60,7 @@ async def _sweep_single_article(
         return False
 
     uid = article.user_id
-    file_path = resolve_wiki_path(article.file_path, user_id=uid)  # type: ignore[arg-type]  # #393
+    file_path = resolve_wiki_path(article.file_path, user_id=uid)
     if not file_path.exists():
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
         return False
@@ -78,7 +78,7 @@ async def _sweep_single_article(
     resolved, _unresolved = await resolve_backlink_candidates(
         unique_candidates,
         session,
-        user_id=uid,  # type: ignore[arg-type]  # #393
+        user_id=uid,
         exclude_article_id=article.id,
     )
 

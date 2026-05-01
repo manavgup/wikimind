@@ -38,13 +38,11 @@ def _make_article(
     article_id: str = "a1",
     slug: str = "test-article",
     title: str = "Test Article",
-    user_id: str | None = None,
+    user_id: str = "test-user",
     claims: list[str] | None = None,
 ) -> Article:
     """Create an Article with a real .md file containing claims."""
-    wiki_dir = tmp_path / "wikimind" / "wiki"
-    if user_id:
-        wiki_dir = wiki_dir / user_id
+    wiki_dir = tmp_path / "wikimind" / "wiki" / user_id
     wiki_dir.mkdir(parents=True, exist_ok=True)
     file_path = wiki_dir / f"{slug}.md"
     body_lines = [f"# {title}", ""]

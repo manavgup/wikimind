@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import ANONYMOUS_USER_ID, get_current_user_id
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import get_llm_router
@@ -217,14 +217,14 @@ async def _get_preference(key: str) -> str | None:
         return pref.value if pref else None
 
 
-async def _set_preference(key: str, value: str) -> None:
+async def _set_preference(key: str, value: str, user_id: str = ANONYMOUS_USER_ID) -> None:
     async with get_session_factory()() as session:
         pref = await session.get(UserPreference, key)
         if pref:
             pref.value = value
             pref.updated_at = utcnow_naive()
         else:
-            pref = UserPreference(key=key, value=value)
+            pref = UserPreference(key=key, value=value, user_id=user_id)
         session.add(pref)
         await session.commit()
 
