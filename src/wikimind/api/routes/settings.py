@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import ANONYMOUS_USER_ID, get_current_user_id
+from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import get_llm_router
@@ -217,7 +217,7 @@ async def _get_preference(key: str) -> str | None:
         return pref.value if pref else None
 
 
-async def _set_preference(key: str, value: str, user_id: str = ANONYMOUS_USER_ID) -> None:
+async def _set_preference(key: str, value: str, user_id: str) -> None:
     async with get_session_factory()() as session:
         pref = await session.get(UserPreference, key)
         if pref:
@@ -229,7 +229,9 @@ async def _set_preference(key: str, value: str, user_id: str = ANONYMOUS_USER_ID
         await session.commit()
 
 
-async def _update_openai_compatible_base_url(request: SettingsUpdateRequest, settings: Settings) -> bool:
+async def _update_openai_compatible_base_url(
+    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+) -> bool:
     """Persist the configured OpenAI-compatible base URL if present."""
     if request.openai_compatible_base_url is None:
         return False
@@ -238,12 +240,14 @@ async def _update_openai_compatible_base_url(request: SettingsUpdateRequest, set
     if base_url and not base_url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="OpenAI-compatible base URL must start with http:// or https://")
 
-    await _set_preference("llm.openai_compatible.base_url", base_url)
+    await _set_preference("llm.openai_compatible.base_url", base_url, user_id)
     settings.llm.openai_compatible.base_url = base_url
     return True
 
 
-async def _update_openai_compatible_model(request: SettingsUpdateRequest, settings: Settings) -> bool:
+async def _update_openai_compatible_model(
+    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+) -> bool:
     """Persist the configured OpenAI-compatible model if present."""
     if request.openai_compatible_model is None:
         return False
@@ -252,12 +256,14 @@ async def _update_openai_compatible_model(request: SettingsUpdateRequest, settin
     if not model:
         raise HTTPException(status_code=400, detail="OpenAI-compatible model must not be empty")
 
-    await _set_preference("llm.openai_compatible.model", model)
+    await _set_preference("llm.openai_compatible.model", model, user_id)
     settings.llm.openai_compatible.model = model
     return True
 
 
-async def _update_openai_compatible_bools(request: SettingsUpdateRequest, settings: Settings) -> bool:
+async def _update_openai_compatible_bools(
+    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+) -> bool:
     """Persist OpenAI-compatible boolean capability flags."""
     updated = False
     cfg = settings.llm.openai_compatible
@@ -269,13 +275,15 @@ async def _update_openai_compatible_bools(request: SettingsUpdateRequest, settin
     for field_name, value in bool_updates.items():
         if value is None:
             continue
-        await _set_preference(f"llm.openai_compatible.{field_name}", str(value).lower())
+        await _set_preference(f"llm.openai_compatible.{field_name}", str(value).lower(), user_id)
         setattr(cfg, field_name, value)
         updated = True
     return updated
 
 
-async def _update_openai_compatible_max_tokens_field(request: SettingsUpdateRequest, settings: Settings) -> bool:
+async def _update_openai_compatible_max_tokens_field(
+    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+) -> bool:
     """Persist the max-tokens field selection if present."""
     if request.openai_compatible_max_tokens_field is None:
         return False
@@ -287,7 +295,7 @@ async def _update_openai_compatible_max_tokens_field(request: SettingsUpdateRequ
             detail="OpenAI-compatible max token field must be max_tokens or max_completion_tokens",
         )
 
-    await _set_preference("llm.openai_compatible.max_tokens_field", max_tokens_field)
+    await _set_preference("llm.openai_compatible.max_tokens_field", max_tokens_field, user_id)
     settings.llm.openai_compatible.max_tokens_field = max_tokens_field
     return True
 
@@ -295,6 +303,7 @@ async def _update_openai_compatible_max_tokens_field(request: SettingsUpdateRequ
 async def _update_openai_compatible_reasoning_format(
     request: SettingsUpdateRequest,
     settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist the reasoning payload style if present."""
     if request.openai_compatible_reasoning_format is None:
@@ -307,7 +316,7 @@ async def _update_openai_compatible_reasoning_format(
             detail="OpenAI-compatible reasoning format must be none, openai, or openrouter",
         )
 
-    await _set_preference("llm.openai_compatible.reasoning_format", reasoning_format)
+    await _set_preference("llm.openai_compatible.reasoning_format", reasoning_format, user_id)
     if reasoning_format == "none":
         settings.llm.openai_compatible.reasoning_format = "none"
     elif reasoning_format == "openai":
@@ -317,7 +326,9 @@ async def _update_openai_compatible_reasoning_format(
     return True
 
 
-async def _update_openai_compatible_settings(request: SettingsUpdateRequest, settings: Settings) -> bool:
+async def _update_openai_compatible_settings(
+    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+) -> bool:
     """Persist runtime OpenAI-compatible settings and update the singleton."""
     updated = False
 
@@ -327,11 +338,11 @@ async def _update_openai_compatible_settings(request: SettingsUpdateRequest, set
             detail="OpenAI-compatible runtime settings are global and cannot be changed by users when auth is enabled",
         )
 
-    updated = await _update_openai_compatible_base_url(request, settings) or updated
-    updated = await _update_openai_compatible_model(request, settings) or updated
-    updated = await _update_openai_compatible_bools(request, settings) or updated
-    updated = await _update_openai_compatible_max_tokens_field(request, settings) or updated
-    updated = await _update_openai_compatible_reasoning_format(request, settings) or updated
+    updated = await _update_openai_compatible_base_url(request, settings, user_id) or updated
+    updated = await _update_openai_compatible_model(request, settings, user_id) or updated
+    updated = await _update_openai_compatible_bools(request, settings, user_id) or updated
+    updated = await _update_openai_compatible_max_tokens_field(request, settings, user_id) or updated
+    updated = await _update_openai_compatible_reasoning_format(request, settings, user_id) or updated
 
     return updated
 
@@ -423,7 +434,7 @@ async def set_default_provider(
                 detail=f"Provider {request.provider} has no API key configured",
             )
 
-    await _set_preference("llm.default_provider", request.provider)
+    await _set_preference("llm.default_provider", request.provider, user_id)
     settings.llm.default_provider = request.provider
     return DefaultProviderResponse(provider=request.provider, status="ok")
 
@@ -431,7 +442,7 @@ async def set_default_provider(
 @router.patch("", response_model=SettingsUpdateResponse)
 async def update_settings(
     request: SettingsUpdateRequest,
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001
+    user_id: str = Depends(get_current_user_id),
 ):
     """Update runtime settings. Changes persist to DB across restarts."""
     settings = get_settings()
@@ -442,6 +453,7 @@ async def update_settings(
         await _set_preference(
             "llm.monthly_budget_usd",
             str(request.monthly_budget_usd),
+            user_id,
         )
         settings.llm.monthly_budget_usd = request.monthly_budget_usd
 
@@ -449,10 +461,11 @@ async def update_settings(
         await _set_preference(
             "llm.fallback_enabled",
             str(request.fallback_enabled).lower(),
+            user_id,
         )
         settings.llm.fallback_enabled = request.fallback_enabled
 
-    if await _update_openai_compatible_settings(request, settings):
+    if await _update_openai_compatible_settings(request, settings, user_id):
         _refresh_openai_compatible_enabled(settings)
 
     if request.default_provider is not None:
@@ -462,7 +475,7 @@ async def update_settings(
                 status_code=400,
                 detail=(f"Unknown provider: {request.default_provider}"),
             )
-        await _set_preference("llm.default_provider", request.default_provider)
+        await _set_preference("llm.default_provider", request.default_provider, user_id)
         settings.llm.default_provider = request.default_provider
 
     return SettingsUpdateResponse(status="ok")
@@ -651,6 +664,6 @@ async def complete_onboarding(
     user_id: str = Depends(get_current_user_id),
 ):
     """Mark onboarding as complete for the current user."""
-    await _set_preference(_onboarding_key("onboarding.completed", user_id), "true")
-    await _set_preference(_onboarding_key("onboarding.step", user_id), "5")
+    await _set_preference(_onboarding_key("onboarding.completed", user_id), "true", user_id)
+    await _set_preference(_onboarding_key("onboarding.step", user_id), "5", user_id)
     return OnboardingStatusResponse(completed=True, step=5)
