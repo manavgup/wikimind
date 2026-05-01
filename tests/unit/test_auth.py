@@ -543,3 +543,145 @@ def test_login_state_is_not_provider_name(monkeypatch):
     token = _generate_oauth_state("google")
     assert token != "google"
     assert token != "github"
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/token — long-lived API tokens
+# ---------------------------------------------------------------------------
+
+
+def _auth_header(
+    user_id: str = "user-1",
+    secret: str = "test-secret",  # pragma: allowlist secret
+) -> dict[str, str]:
+    """Build an Authorization header with a valid session JWT."""
+    token = jwt.encode(
+        {
+            "sub": user_id,
+            "email": "test@example.com",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+        },
+        secret,
+        algorithm="HS256",
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.asyncio
+async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, monkeypatch):
+    """POST /auth/token should return a valid JWT with the expected response shape."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    user = User(
+        id="user-1",
+        email="test@example.com",
+        name="Test User",
+        auth_provider="google",
+        auth_provider_id="g-1",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    response = await client.post(
+        "/auth/token",
+        json={"name": "my-cli-token", "expires_in_days": 90},
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    assert body["name"] == "my-cli-token"
+    assert "access_token" in body
+    assert "expires_at" in body
+
+    # The access_token should be a valid JWT
+    decoded = jwt.decode(
+        body["access_token"],
+        "test-secret",
+        algorithms=["HS256"],
+        options={"verify_aud": False},
+    )
+    assert decoded["sub"] is not None
+
+
+@pytest.mark.asyncio
+async def test_api_token_has_correct_claims(client, db_session: AsyncSession, monkeypatch):
+    """The API token JWT should contain all expected claims."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    user = User(
+        id="user-1",
+        email="test@example.com",
+        name="Test User",
+        auth_provider="google",
+        auth_provider_id="g-1",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    response = await client.post(
+        "/auth/token",
+        json={"name": "automation"},
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+
+    decoded = jwt.decode(
+        response.json()["access_token"],
+        "test-secret",
+        algorithms=["HS256"],
+        options={"verify_aud": False},
+    )
+
+    assert decoded["iss"] == "wikimind"
+    assert decoded["aud"] == "wikimind-api"
+    assert decoded["token_use"] == "api"
+    assert "jti" in decoded
+    assert "iat" in decoded
+    assert "exp" in decoded
+    assert decoded["user"]["id"] == "user-1"
+    assert decoded["user"]["email"] == "test@example.com"
+    assert decoded["user"]["name"] == "Test User"
+
+
+@pytest.mark.asyncio
+async def test_api_token_expires_in_requested_days(client, db_session: AsyncSession, monkeypatch):
+    """The API token exp claim should match the requested expires_in_days."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    user = User(
+        id="user-1",
+        email="test@example.com",
+        name="Test User",
+        auth_provider="google",
+        auth_provider_id="g-1",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    days = 60
+    response = await client.post(
+        "/auth/token",
+        json={"name": "long-token", "expires_in_days": days},
+        headers=_auth_header(),
+    )
+    assert response.status_code == 200
+
+    decoded = jwt.decode(
+        response.json()["access_token"],
+        "test-secret",
+        algorithms=["HS256"],
+        options={"verify_aud": False},
+    )
+
+    now = datetime.now(UTC)
+    exp = datetime.fromtimestamp(decoded["exp"], tz=UTC)
+    expected_seconds = days * 86400
+    # Allow 10-second tolerance for test execution time
+    assert abs((exp - now).total_seconds() - expected_seconds) < 10

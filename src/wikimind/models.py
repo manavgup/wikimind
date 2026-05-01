@@ -1185,3 +1185,24 @@ class MagicLinkVerifyResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
+
+
+# ---------------------------------------------------------------------------
+# API token (long-lived) request/response models
+# ---------------------------------------------------------------------------
+
+
+class TokenCreateRequest(BaseModel):
+    """Request to create a long-lived API token."""
+
+    name: str
+    expires_in_days: int = Field(default=30, ge=1, le=365)
+
+
+class TokenCreateResponse(BaseModel):
+    """Response after creating a long-lived API token (shown only once)."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_at: str
+    name: str

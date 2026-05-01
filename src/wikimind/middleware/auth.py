@@ -84,7 +84,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 options={"verify_aud": False},
             )
             request.state.user_id = payload["sub"]
-            request.state.user_email = payload.get("email")
+            # API tokens include email in a nested ``user`` dict.
+            user_claim = payload.get("user")
+            if isinstance(user_claim, dict):
+                request.state.user_email = user_claim.get("email")
+                request.state.user_email = payload.get("email")
         except jwt.ExpiredSignatureError:
             return JSONResponse(
                 status_code=401,

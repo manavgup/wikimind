@@ -16,7 +16,10 @@ import base64
 import hashlib
 import hmac
 import time
+import uuid
+from datetime import UTC, datetime, timedelta
 
+import jwt as pyjwt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -30,6 +33,8 @@ from wikimind.models import (
     MagicLinkResponse,
     MagicLinkVerifyRequest,
     MagicLinkVerifyResponse,
+    TokenCreateRequest,
+    TokenCreateResponse,
 )
 from wikimind.services.user import UserService, get_user_service
 
@@ -248,6 +253,49 @@ async def verify_magic_link(
             "email": user.email,
             "name": user.name,
         },
+    )
+
+
+@router.post("/token")
+async def create_api_token(
+    body: TokenCreateRequest,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(require_user_id),
+    service: UserService = Depends(get_user_service),
+) -> TokenCreateResponse:
+    """Create a long-lived API token for CLI/automation use.
+
+    The raw JWT is returned only once in the response. The caller must
+    store it securely. The token includes a ``token_use: api`` claim to
+    distinguish it from session JWTs.
+    """
+    settings = get_settings()
+    user = await service.get_or_create(session, user_id)
+
+    now = datetime.now(UTC)
+    expire = now + timedelta(days=body.expires_in_days)
+
+    payload = {
+        "sub": user.id,
+        "iss": "wikimind",
+        "aud": "wikimind-api",
+        "iat": now,
+        "exp": expire,
+        "jti": str(uuid.uuid4()),
+        "token_use": "api",
+        "user": {"id": user.id, "email": user.email, "name": user.name},
+    }
+
+    access_token = pyjwt.encode(
+        payload,
+        settings.auth.jwt_secret_key,
+        algorithm=settings.auth.jwt_algorithm,
+    )
+
+    return TokenCreateResponse(
+        access_token=access_token,
+        name=body.name,
+        expires_at=expire.isoformat(),
     )
 
 

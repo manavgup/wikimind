@@ -1482,6 +1482,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /auth/token:
+    post:
+      tags:
+      - Auth
+      summary: Create Api Token
+      description: 'Create a long-lived API token for CLI/automation use.
+
+
+        The raw JWT is returned only once in the response. The caller must
+
+        store it securely. The token includes a ``token_use: api`` claim to
+
+        distinguish it from session JWTs.'
+      operationId: create_api_token_auth_token_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenCreateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenCreateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/logout:
     post:
       tags:
@@ -3429,6 +3462,44 @@ components:
       - bucket
       title: SyncSettingsResponse
       description: Cloud sync configuration section.
+    TokenCreateRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        expires_in_days:
+          type: integer
+          maximum: 365.0
+          minimum: 1.0
+          title: Expires In Days
+          default: 30
+      type: object
+      required:
+      - name
+      title: TokenCreateRequest
+      description: Request to create a long-lived API token.
+    TokenCreateResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        expires_at:
+          type: string
+          title: Expires At
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - access_token
+      - expires_at
+      - name
+      title: TokenCreateResponse
+      description: Response after creating a long-lived API token (shown only once).
     TurnSelection:
       properties:
         conversation_id:
