@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 async def _make_article(
     session: AsyncSession,
     title: str,
-    user_id: str | None = None,
+    user_id: str = "test-user",
     slug: str | None = None,
 ) -> Article:
     article = Article(
@@ -153,37 +153,3 @@ async def test_ensure_bidirectional_propagates_user_id(
     inverse = result.scalars().first()
     assert inverse is not None
     assert inverse.user_id == user
-
-
-@pytest.mark.asyncio
-async def test_ensure_bidirectional_null_user_id(
-    db_session: AsyncSession,
-) -> None:
-    """Inverse backlink with null user_id is preserved (legacy compat)."""
-    art_a = await _make_article(db_session, "Art A", slug="art-a-legacy")
-    art_b = await _make_article(db_session, "Art B", slug="art-b-legacy")
-
-    bl = Backlink(
-        source_article_id=art_a.id,
-        target_article_id=art_b.id,
-        relation_type=RelationType.RELATED_TO,
-        context="related",
-        user_id=None,
-    )
-    db_session.add(bl)
-    await db_session.commit()
-
-    created = await ensure_bidirectional(bl, db_session)
-    await db_session.commit()
-
-    assert created is True
-
-    result = await db_session.execute(
-        select(Backlink).where(
-            Backlink.source_article_id == art_b.id,
-            Backlink.target_article_id == art_a.id,
-        )
-    )
-    inverse = result.scalars().first()
-    assert inverse is not None
-    assert inverse.user_id is None

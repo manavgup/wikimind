@@ -151,7 +151,7 @@ class Source(SQLModel, table=True):
     """Raw ingested source — before compilation."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     source_type: SourceType
     source_url: str | None = None
     title: str | None = None
@@ -176,7 +176,7 @@ class Source(SQLModel, table=True):
             return False
         from wikimind.storage import find_original_sibling, resolve_raw_path  # noqa: PLC0415
 
-        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id)  # type: ignore[arg-type]  # #393
+        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id)
         return find_original_sibling(txt_path) is not None
 
 
@@ -186,7 +186,7 @@ class Article(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("user_id", "slug", name="uq_article_user_slug"),)
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     slug: str = Field(index=True)
     title: str
     file_path: str  # Path to .md file in wiki/
@@ -255,7 +255,7 @@ class Concept(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("user_id", "name", name="uq_concept_user_name"),)
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     name: str = Field(index=True)
     parent_id: str | None = Field(default=None, foreign_key="concept.id")
     article_count: int = 0
@@ -269,7 +269,7 @@ class Backlink(SQLModel, table=True):
 
     source_article_id: str = Field(foreign_key="article.id", primary_key=True)
     target_article_id: str = Field(foreign_key="article.id", primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     context: str | None = None  # Sentence where link appears
     relation_type: str = Field(default=RelationType.REFERENCES)
     resolution: str | None = None
@@ -292,7 +292,7 @@ class Conversation(SQLModel, table=True):
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     title: str
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
@@ -305,7 +305,7 @@ class Query(SQLModel, table=True):
     """Q&A history entry."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     question: str
     answer: str
     confidence: str | None = None
@@ -326,7 +326,7 @@ class Job(SQLModel, table=True):
     """Async job record."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     job_type: JobType
     status: JobStatus = JobStatus.QUEUED
     source_id: str | None = None
@@ -343,7 +343,7 @@ class CostLog(SQLModel, table=True):
     """LLM API cost tracking."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     provider: Provider
     model: str
     task_type: TaskType
@@ -359,7 +359,7 @@ class SyncLog(SQLModel, table=True):
     """Cloud sync history."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     direction: str  # push | pull
     articles_pushed: int = 0
     articles_pulled: int = 0
@@ -395,7 +395,7 @@ class UserPreference(SQLModel, table=True):
     """
 
     key: str = Field(primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     value: str
     updated_at: datetime = Field(default_factory=utcnow_naive)
 
@@ -623,7 +623,7 @@ class LintReport(SQLModel, table=True):
     """One run of the linter. All findings from a run FK back to this row via report_id."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     generated_at: datetime = Field(default_factory=utcnow_naive, index=True)
     completed_at: datetime | None = None
     status: LintReportStatus = LintReportStatus.IN_PROGRESS
@@ -645,7 +645,7 @@ class _LintFindingBase(SQLModel):
     """Fields shared across every per-kind finding table. NOT a table itself."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
     report_id: str = Field(foreign_key="lintreport.id", index=True)
     severity: LintSeverity = LintSeverity.WARN
     description: str

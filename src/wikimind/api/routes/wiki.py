@@ -280,6 +280,7 @@ async def recompile_article(
         job_type=JobType.RECOMPILE_ARTICLE,
         status=JobStatus.QUEUED,
         source_id=article_id,
+        user_id=user_id,
     )
     session.add(job)
     await session.commit()

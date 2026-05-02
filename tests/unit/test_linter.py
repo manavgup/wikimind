@@ -122,7 +122,7 @@ async def test_detect_contradictions_single_concept(db_session, _isolated_data_d
     )
 
     settings = get_settings()
-    report = LintReport(id="r1")
+    report = LintReport(id="r1", user_id=TEST_USER_ID)
     db_session.add(report)
     await db_session.flush()
     findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
@@ -170,7 +170,7 @@ async def test_detect_contradictions_no_contradictions(db_session, _isolated_dat
     mock_router.parse_json_response = MagicMock(return_value={"contradictions": []})
 
     settings = get_settings()
-    report = LintReport(id="r1")
+    report = LintReport(id="r1", user_id=TEST_USER_ID)
     db_session.add(report)
     await db_session.flush()
     findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
@@ -209,7 +209,7 @@ async def test_detect_contradictions_respects_pair_cap(db_session, _isolated_dat
     # Disable batching so each pair = one LLM call
     settings.linter.contradiction_batch_enabled = False
 
-    report = LintReport(id="r1")
+    report = LintReport(id="r1", user_id=TEST_USER_ID)
     db_session.add(report)
     await db_session.flush()
     await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
@@ -246,7 +246,7 @@ async def test_detect_contradictions_batch_single_dict_response(db_session, _iso
     settings.linter.contradiction_batch_enabled = True
     settings.linter.enable_pair_cache = False
 
-    report = LintReport(id="r1")
+    report = LintReport(id="r1", user_id=TEST_USER_ID)
     db_session.add(report)
     await db_session.flush()
     findings = await detect_contradictions(db_session, mock_router, settings, report, user_id=TEST_USER_ID)
@@ -406,6 +406,7 @@ async def test_dismiss_finding_persists_and_suppresses_on_next_run(db_session, _
         id="r1",
         status=LintReportStatus.COMPLETE,
         article_count=2,
+        user_id=TEST_USER_ID,
     )
     db_session.add(report)
 
@@ -425,6 +426,7 @@ async def test_dismiss_finding_persists_and_suppresses_on_next_run(db_session, _
         article_a_claim="claim a",
         article_b_claim="claim b",
         llm_confidence="high",
+        user_id=TEST_USER_ID,
     )
     db_session.add(finding)
     await db_session.commit()
@@ -492,6 +494,7 @@ async def test_linter_service_get_report_filters_dismissed(db_session, _isolated
         article_b_claim="c2",
         llm_confidence="high",
         dismissed=False,
+        user_id=TEST_USER_ID,
     )
     f2 = ContradictionFinding(
         id="f2",
@@ -505,6 +508,7 @@ async def test_linter_service_get_report_filters_dismissed(db_session, _isolated
         llm_confidence="low",
         dismissed=True,
         dismissed_at=utcnow_naive(),
+        user_id=TEST_USER_ID,
     )
     db_session.add(f1)
     db_session.add(f2)

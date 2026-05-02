@@ -134,7 +134,7 @@ class IngestService:
             append_log_entry(
                 "ingest",
                 source.title or "untitled",
-                user_id=source.user_id,  # type: ignore[arg-type]  # #393
+                user_id=source.user_id,
                 extra={"source_type": source.source_type, "source_url": source.source_url},
             )
         except OSError:
@@ -169,7 +169,7 @@ class IngestService:
             )
             return
         compiler = get_background_compiler()
-        await compiler.schedule_compile(source.id, user_id=source.user_id, doc=doc)  # type: ignore[arg-type]  # #393
+        await compiler.schedule_compile(source.id, user_id=source.user_id, doc=doc)
         log.info("compilation scheduled", source_id=source.id)
 
     async def list_sources(
@@ -274,12 +274,12 @@ class IngestService:
         files are silently ignored — this method is best-effort cleanup.
         """
         if source.file_path:
-            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)  # type: ignore[arg-type]  # #393
+            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)
             with suppress(OSError):
                 resolved.unlink(missing_ok=True)
 
         # Resolve the user-scoped raw directory to find sibling files
-        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id)  # type: ignore[arg-type]  # #393.parent
+        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id).parent
         if not raw_dir.is_dir():
             return
         for sibling in raw_dir.glob(f"{source.id}.*"):

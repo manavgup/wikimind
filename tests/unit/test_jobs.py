@@ -297,6 +297,7 @@ async def test_lint_wiki_with_articles(db_session, tmp_path) -> None:
         status=LintReportStatus.COMPLETE,
         contradictions_count=1,
         orphans_count=0,
+        user_id=TEST_USER_ID,
     )
     with (
         _patch_session_factory(db_session),

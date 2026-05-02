@@ -66,7 +66,7 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
 def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)  # type: ignore[arg-type]  # #393
+        wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
         content = wiki_path.read_text(encoding="utf-8")
     except (OSError, FileNotFoundError):
         return []

@@ -81,7 +81,7 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         msg = "No cleaned text file path for source"
         raise ValueError(msg)
 
-    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)  # type: ignore[arg-type]  # #393
+    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
     content = text_path.read_text(encoding="utf-8")
 
     return NormalizedDocument(
@@ -110,13 +110,13 @@ def _try_embed_article(article: Article) -> None:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
             uid = article.user_id
-            wiki_path = resolve_wiki_path(article.file_path, user_id=uid)  # type: ignore[arg-type]  # #393
+            wiki_path = resolve_wiki_path(article.file_path, user_id=uid)
             content = wiki_path.read_text(encoding="utf-8")
             embedding_service.embed_article(
                 article.id,
                 article.title,
                 content,
-                user_id=uid,  # type: ignore[arg-type]  # #393
+                user_id=uid,
             )
             log.info("Article embedded", article_id=article.id)
     except (RuntimeError, ValueError, OSError) as embed_err:
@@ -422,35 +422,25 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
 
 async def lint_all_users(ctx) -> None:
-    """Weekly lint — runs for each user with data, plus legacy unowned data."""
+    """Weekly lint — runs for each user with data."""
     async with get_session_factory()() as session:
         result = await session.execute(
-            select(distinct(Article.user_id)).where(  # type: ignore[arg-type]
-                Article.user_id.isnot(None)  # type: ignore[union-attr]
-            )
+            select(distinct(Article.user_id))  # type: ignore[arg-type]
         )
         user_ids = [row[0] for row in result]
     for uid in user_ids:
         await lint_wiki(ctx, user_id=uid)
-    # Also lint data with no user_id (legacy single-user).
-    # Remove once #393 makes user_id NOT NULL on all models.
-    await lint_wiki(ctx, user_id="anonymous")
 
 
 async def sweep_all_users(ctx) -> None:
-    """Daily sweep — runs for each user with data, plus legacy unowned data."""
+    """Daily sweep — runs for each user with data."""
     async with get_session_factory()() as session:
         result = await session.execute(
-            select(distinct(Article.user_id)).where(  # type: ignore[arg-type]
-                Article.user_id.isnot(None)  # type: ignore[union-attr]
-            )
+            select(distinct(Article.user_id))  # type: ignore[arg-type]
         )
         user_ids = [row[0] for row in result]
     for uid in user_ids:
         await sweep_wikilinks(ctx, user_id=uid)
-    # Also sweep data with no user_id (legacy single-user).
-    # Remove once #393 makes user_id NOT NULL on all models.
-    await sweep_wikilinks(ctx, user_id="anonymous")
 
 
 # ---------------------------------------------------------------------------

@@ -379,37 +379,6 @@ class TestEmbeddingServiceUserScoping:
         not _SEARCH_AVAILABLE,
         reason="search extras not installed",
     )
-    def test_embed_article_omits_user_id_when_none(self) -> None:
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
-
-        with (
-            patch.object(EmbeddingService, "__init__", lambda self: None),
-            patch.object(
-                EmbeddingService,
-                "_encode",
-                return_value=[[0.1, 0.2]],
-            ),
-        ):
-            svc = EmbeddingService.__new__(EmbeddingService)
-            svc._chunk_size = 500
-            svc._chunk_overlap = 50
-            mock_collection = MagicMock()
-            mock_collection.count.return_value = 0
-            svc._collection = mock_collection
-
-            svc.embed_article("art-1", "Test", "Content here.", user_id=TEST_USER_ID)
-
-            call_args = mock_collection.add.call_args
-            metadatas = call_args.kwargs.get(
-                "metadatas",
-                call_args[1].get("metadatas"),
-            )
-            assert "user_id" not in metadatas[0]
-
-    @pytest.mark.skipif(
-        not _SEARCH_AVAILABLE,
-        reason="search extras not installed",
-    )
     def test_search_passes_user_id_filter(self) -> None:
         from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
 
@@ -446,35 +415,3 @@ class TestEmbeddingServiceUserScoping:
 
             call_kwargs = mock_collection.query.call_args.kwargs
             assert call_kwargs["where"] == {"user_id": "alice"}
-
-    @pytest.mark.skipif(
-        not _SEARCH_AVAILABLE,
-        reason="search extras not installed",
-    )
-    def test_search_no_where_without_user_id(self) -> None:
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
-
-        with (
-            patch.object(EmbeddingService, "__init__", lambda self: None),
-            patch.object(
-                EmbeddingService,
-                "_encode",
-                return_value=[[0.1, 0.2]],
-            ),
-        ):
-            svc = EmbeddingService.__new__(EmbeddingService)
-            mock_collection = MagicMock()
-            mock_collection.count.return_value = 5
-            mock_collection.query.return_value = {
-                "ids": [[]],
-                "distances": [[]],
-                "metadatas": [[]],
-                "documents": [[]],
-            }
-            svc._collection = mock_collection
-            svc._min_score = 0.65
-
-            svc.search("query text", limit=5, user_id=TEST_USER_ID)
-
-            call_kwargs = mock_collection.query.call_args.kwargs
-            assert "where" not in call_kwargs

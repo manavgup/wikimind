@@ -411,13 +411,16 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
 
         def _select_legacy(sync_conn):
             return sync_conn.execute(
-                sa_text("SELECT id, question, created_at, filed_article_id FROM query WHERE conversation_id IS NULL")
+                sa_text(
+                    "SELECT id, question, created_at, filed_article_id, user_id"
+                    " FROM query WHERE conversation_id IS NULL"
+                )
             ).fetchall()
 
         legacy_rows = await conn.run_sync(_select_legacy)
 
         for row in legacy_rows:
-            query_id, question, created_at_raw, filed_article_id = row
+            query_id, question, created_at_raw, filed_article_id, user_id = row
             conv_id = str(uuid.uuid4())
             title = (question or "")[:title_max]
             # SQLite stores datetimes as strings via SQLModel; reuse the raw value if present
@@ -425,11 +428,12 @@ async def _backfill_conversation_for_legacy_queries(engine) -> None:
 
             await conn.execute(
                 sa_text(
-                    "INSERT INTO conversation (id, title, created_at, updated_at, filed_article_id) "
-                    "VALUES (:id, :title, :created_at, :updated_at, :filed_article_id)"
+                    "INSERT INTO conversation (id, user_id, title, created_at, updated_at, filed_article_id) "
+                    "VALUES (:id, :user_id, :title, :created_at, :updated_at, :filed_article_id)"
                 ),
                 {
                     "id": conv_id,
+                    "user_id": user_id or "anonymous",
                     "title": title,
                     "created_at": created_at,
                     "updated_at": created_at,
