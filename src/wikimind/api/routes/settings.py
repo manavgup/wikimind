@@ -230,7 +230,9 @@ async def _set_preference(key: str, value: str, user_id: str) -> None:
 
 
 async def _update_openai_compatible_base_url(
-    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+    request: SettingsUpdateRequest,
+    settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist the configured OpenAI-compatible base URL if present."""
     if request.openai_compatible_base_url is None:
@@ -246,7 +248,9 @@ async def _update_openai_compatible_base_url(
 
 
 async def _update_openai_compatible_model(
-    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+    request: SettingsUpdateRequest,
+    settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist the configured OpenAI-compatible model if present."""
     if request.openai_compatible_model is None:
@@ -262,7 +266,9 @@ async def _update_openai_compatible_model(
 
 
 async def _update_openai_compatible_bools(
-    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+    request: SettingsUpdateRequest,
+    settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist OpenAI-compatible boolean capability flags."""
     updated = False
@@ -282,7 +288,9 @@ async def _update_openai_compatible_bools(
 
 
 async def _update_openai_compatible_max_tokens_field(
-    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+    request: SettingsUpdateRequest,
+    settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist the max-tokens field selection if present."""
     if request.openai_compatible_max_tokens_field is None:
@@ -327,7 +335,9 @@ async def _update_openai_compatible_reasoning_format(
 
 
 async def _update_openai_compatible_settings(
-    request: SettingsUpdateRequest, settings: Settings, user_id: str,
+    request: SettingsUpdateRequest,
+    settings: Settings,
+    user_id: str,
 ) -> bool:
     """Persist runtime OpenAI-compatible settings and update the singleton."""
     updated = False

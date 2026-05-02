@@ -415,4 +415,3 @@ class TestEmbeddingServiceUserScoping:
 
             call_kwargs = mock_collection.query.call_args.kwargs
             assert call_kwargs["where"] == {"user_id": "alice"}
-
