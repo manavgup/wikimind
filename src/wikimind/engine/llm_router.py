@@ -18,10 +18,16 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
+try:
+    from redis.exceptions import RedisError
+except ImportError:  # redis package not installed
+    RedisError = OSError  # type: ignore[assignment,misc]
+
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session_factory
+from wikimind.errors import UpstreamError
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
 from wikimind.services.api_keys import get_user_api_key
 
@@ -56,7 +62,7 @@ async def _get_budget_redis():
 
         _budget_redis_pool = Redis.from_url(redis_url, decode_responses=True)
         return _budget_redis_pool
-    except Exception:
+    except (ImportError, RedisError, OSError):
         log.debug("Redis unavailable for budget dedup — per-process flags only")
         return None
 
@@ -64,6 +70,11 @@ async def _get_budget_redis():
 # ---------------------------------------------------------------------------
 # Provider imports -- each provider lives in its own file under providers/
 # ---------------------------------------------------------------------------
+
+import anthropic  # noqa: E402
+import httpx  # noqa: E402
+import openai  # noqa: E402
+from google.genai import errors as google_errors  # noqa: E402
 
 from wikimind.engine.providers import (  # noqa: E402
     AnthropicProvider,
@@ -78,6 +89,17 @@ from wikimind.engine.providers.mock import (  # noqa: E402, F401 -- backward com
     _MOCK_COMPILE_RESPONSE,
     _MOCK_LINT_RESPONSE,
     _MOCK_QA_RESPONSE,
+)
+
+_LLM_PROVIDER_ERRORS = (
+    openai.OpenAIError,
+    anthropic.AnthropicError,
+    google_errors.APIError,
+    httpx.HTTPError,
+    UpstreamError,
+    ValueError,
+    KeyError,
+    OSError,
 )
 
 # ---------------------------------------------------------------------------
@@ -197,7 +219,7 @@ class LLMRouter:
         try:
             async with get_session_factory()() as session:
                 return await get_user_api_key(session, user_id, provider)
-        except Exception:
+        except (SQLAlchemyError, OSError):
             log.debug("BYOK key lookup failed", provider=provider, exc_info=True)
             return None
 
@@ -224,7 +246,7 @@ class LLMRouter:
         redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
         try:
             return bool(await redis.exists(redis_key))
-        except Exception:
+        except (RedisError, OSError):
             return False
 
     async def _set_budget_flag(self, flag_name: str, month_key: tuple[int, int]) -> None:
@@ -242,7 +264,7 @@ class LLMRouter:
         redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
         try:
             await redis.set(redis_key, "1", ex=35 * 86400)  # 35-day TTL
-        except Exception:
+        except (RedisError, OSError):
             log.debug("Failed to set budget flag in Redis", flag=flag_name)
 
     async def _check_budget(self, user_id: str) -> None:
@@ -380,14 +402,14 @@ class LLMRouter:
                 task.add_done_callback(_log_budget_error)
                 return response
 
-            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
+            except _LLM_PROVIDER_ERRORS as e:
                 log.warning("LLM provider failed", provider=provider, error=str(e))
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
                     raise
 
         msg = f"All LLM providers failed. Last error: {last_error}"
-        raise RuntimeError(msg)
+        raise UpstreamError(msg)
 
     async def complete_multimodal(
         self,
@@ -418,7 +440,7 @@ class LLMRouter:
             CompletionResponse with the LLM's text output.
 
         Raises:
-            RuntimeError: When all providers fail.
+            UpstreamError: When all providers fail.
         """
         provider_order = self._get_provider_order(preferred_provider)
 
@@ -461,14 +483,14 @@ class LLMRouter:
                 )
                 return response
 
-            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
+            except _LLM_PROVIDER_ERRORS as e:
                 log.warning("LLM multimodal provider failed", provider=provider, error=str(e))
                 last_error = e
                 if not self.settings.llm.fallback_enabled:
                     raise
 
         msg = f"All LLM providers failed. Last error: {last_error}"
-        raise RuntimeError(msg)
+        raise UpstreamError(msg)
 
     async def stream_complete(
         self,
@@ -489,7 +511,7 @@ class LLMRouter:
             A :class:`StreamSession` that yields text chunks.
 
         Raises:
-            RuntimeError: When all providers fail during stream creation.
+            UpstreamError: When all providers fail during stream creation.
         """
         provider_order = self._get_provider_order(request.preferred_provider)
 
@@ -514,7 +536,7 @@ class LLMRouter:
                 )
                 instance = await self._get_provider_instance(provider, api_key_override=user_key)
                 return await instance.stream(request, model)
-            except Exception as e:  # TODO: narrow once provider error hierarchy is unified
+            except _LLM_PROVIDER_ERRORS as e:
                 log.warning(
                     "LLM stream provider failed",
                     provider=provider,
@@ -525,7 +547,7 @@ class LLMRouter:
                     raise
 
         msg = f"All LLM providers failed. Last error: {last_error}"
-        raise RuntimeError(msg)
+        raise UpstreamError(msg)
 
     def parse_json_response(self, response: CompletionResponse) -> dict:
         """Parse JSON from LLM response, handling common formatting issues.

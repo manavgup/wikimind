@@ -23,7 +23,7 @@ import structlog
 
 from wikimind.api.routes.ws import emit_source_progress
 from wikimind.config import get_settings
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.llm_router import _LLM_PROVIDER_ERRORS, get_llm_router
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -216,7 +216,7 @@ class PDFAdapter:
         # back into the extracted text.
         try:
             clean_text = await self._enhance_with_vision(file_bytes, clean_text, source.id, user_id=user_id)
-        except Exception:  # TODO: narrow once provider error hierarchy is unified
+        except _LLM_PROVIDER_ERRORS:
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
         text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)

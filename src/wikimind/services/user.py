@@ -7,6 +7,7 @@ Route handlers in ``api/routes/auth.py`` are thin delegates.
 """
 
 import base64
+import binascii
 import functools
 import hashlib
 import hmac
@@ -282,7 +283,7 @@ class UserService:
         """
         try:
             decoded = base64.urlsafe_b64decode(token.encode()).decode()
-        except Exception as exc:
+        except (ValueError, binascii.Error) as exc:
             msg = "Invalid token encoding"
             raise ValueError(msg) from exc
 
@@ -302,7 +303,7 @@ class UserService:
         ).digest()
         try:
             actual_sig = base64.urlsafe_b64decode(encoded_sig.encode())
-        except Exception as exc:
+        except (ValueError, binascii.Error) as exc:
             msg = "Invalid signature encoding"
             raise ValueError(msg) from exc
 

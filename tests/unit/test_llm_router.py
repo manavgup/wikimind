@@ -7,6 +7,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import openai
 import pytest
 
 from tests.conftest import TEST_USER_ID
@@ -28,6 +29,7 @@ from wikimind.engine.providers import anthropic as anthropic_provider_mod
 from wikimind.engine.providers import ollama as ollama_provider_mod
 from wikimind.engine.providers import openai_compatible as openai_compatible_provider_mod
 from wikimind.engine.providers.openai_compatible import OpenAICompatibleProvider
+from wikimind.errors import UpstreamError
 from wikimind.models import (
     CompilationResult,
     CompletionRequest,
@@ -445,7 +447,7 @@ async def test_router_complete_falls_through_to_next_provider() -> None:
         cost_usd=0.0,
         latency_ms=5,
     )
-    bad = SimpleNamespace(complete=AsyncMock(side_effect=RuntimeError("boom")))
+    bad = SimpleNamespace(complete=AsyncMock(side_effect=openai.OpenAIError("boom")))
     good = SimpleNamespace(complete=AsyncMock(return_value=fake_resp))
 
     instances = [bad, good]
@@ -464,18 +466,18 @@ async def test_router_complete_falls_through_to_next_provider() -> None:
 async def test_router_complete_no_fallback_raises() -> None:
     router = _router_with_settings()
     router.settings.llm.fallback_enabled = False
-    bad = SimpleNamespace(complete=AsyncMock(side_effect=RuntimeError("boom")))
+    bad = SimpleNamespace(complete=AsyncMock(side_effect=openai.OpenAIError("boom")))
     with (
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
-        pytest.raises(RuntimeError),
+        pytest.raises(openai.OpenAIError),
     ):
         await router.complete(_req(), user_id=TEST_USER_ID)
 
 
 async def test_router_complete_skips_unavailable_providers() -> None:
     router = _router_with_settings()
-    with patch.object(router, "_is_provider_available", return_value=False), pytest.raises(RuntimeError):
+    with patch.object(router, "_is_provider_available", return_value=False), pytest.raises(UpstreamError):
         await router.complete(_req(), user_id=TEST_USER_ID)
 
 
@@ -788,7 +790,7 @@ async def test_router_stream_complete_falls_through_on_error() -> None:
     """stream_complete() tries next provider when first fails."""
     router = _router_with_settings()
     good_session = StreamSession(_chunks=_fake_aiter(["ok"]))
-    bad = SimpleNamespace(stream=AsyncMock(side_effect=RuntimeError("boom")))
+    bad = SimpleNamespace(stream=AsyncMock(side_effect=openai.OpenAIError("boom")))
     good = SimpleNamespace(stream=AsyncMock(return_value=good_session))
 
     instances = [bad, good]
@@ -805,11 +807,11 @@ async def test_router_stream_complete_falls_through_on_error() -> None:
 
 
 async def test_router_stream_complete_no_available_providers() -> None:
-    """stream_complete() raises RuntimeError when no providers are available."""
+    """stream_complete() raises UpstreamError when no providers are available."""
     router = _router_with_settings()
     with (
         patch.object(router, "_is_provider_available", return_value=False),
-        pytest.raises(RuntimeError),
+        pytest.raises(UpstreamError),
     ):
         await router.stream_complete(_req(), user_id=TEST_USER_ID)
 
@@ -818,11 +820,11 @@ async def test_router_stream_complete_no_fallback_raises() -> None:
     """stream_complete() raises immediately when fallback_enabled=False."""
     router = _router_with_settings()
     router.settings.llm.fallback_enabled = False
-    bad = SimpleNamespace(stream=AsyncMock(side_effect=RuntimeError("boom")))
+    bad = SimpleNamespace(stream=AsyncMock(side_effect=openai.OpenAIError("boom")))
     with (
         patch.object(router, "_is_provider_available", return_value=True),
         patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
-        pytest.raises(RuntimeError),
+        pytest.raises(openai.OpenAIError),
     ):
         await router.stream_complete(_req(), user_id=TEST_USER_ID)
 
