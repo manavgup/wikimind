@@ -51,7 +51,7 @@ from wikimind.models import (
     Source,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
-from wikimind.storage import resolve_raw_path, resolve_wiki_path
+from wikimind.storage import get_raw_storage, get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -61,7 +61,7 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 
-def _build_normalized_doc(source: Source) -> NormalizedDocument:
+async def _build_normalized_doc(source: Source) -> NormalizedDocument:
     """Read a source's cleaned text file and build a NormalizedDocument.
 
     Used as fallback when no pre-built document is passed (ARQ path or
@@ -81,8 +81,8 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         msg = "No cleaned text file path for source"
         raise ValueError(msg)
 
-    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
-    content = text_path.read_text(encoding="utf-8")
+    storage = get_raw_storage(source.user_id)
+    content = await storage.read(source.file_path)
 
     return NormalizedDocument(
         raw_source_id=source.id,
@@ -95,7 +95,7 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
     )
 
 
-def _try_embed_article(article: Article) -> None:
+async def _try_embed_article(article: Article) -> None:
     """Embed article chunks for semantic search (non-blocking, best-effort).
 
     Silently logs and returns on failure so compilation is never blocked
@@ -110,8 +110,8 @@ def _try_embed_article(article: Article) -> None:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
             uid = article.user_id
-            wiki_path = resolve_wiki_path(article.file_path, user_id=uid)
-            content = wiki_path.read_text(encoding="utf-8")
+            storage = get_wiki_storage(uid)
+            content = await storage.read(article.file_path)
             embedding_service.embed_article(
                 article.id,
                 article.title,
@@ -174,7 +174,7 @@ async def compile_source(
         try:
             if doc is None:
                 await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
-                doc = _build_normalized_doc(source)
+                doc = await _build_normalized_doc(source)
 
             await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
 
@@ -202,7 +202,7 @@ async def compile_source(
             await emit_compilation_complete(article.slug, article.title, user_id=user_id)
             log.info("compile_source complete", source_id=source_id, slug=article.slug)
 
-            _try_embed_article(article)
+            await _try_embed_article(article)
 
             # Sweep existing articles — a newly compiled article may resolve
             # brackets that were previously unresolvable. Fast (no LLM),
@@ -307,7 +307,7 @@ async def _recompile_from_source(article: Article, session, user_id: str) -> Non
         msg = "Source or source file_path not found"
         raise ValueError(msg)
 
-    doc = _build_normalized_doc(source)
+    doc = await _build_normalized_doc(source)
 
     compiler = Compiler(user_id=user_id)
     result = await compiler.compile(doc, session)

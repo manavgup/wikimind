@@ -24,7 +24,7 @@ from wikimind.services.wiki_index import (
     generate_meta_health_page,
     regenerate_index_md,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,7 +82,7 @@ class TestRegenerateIndexMdPageType:
     async def test_frontmatter_includes_page_type(self, db_session: AsyncSession) -> None:
         """The index should have page_type: index in its frontmatter."""
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "page_type: index" in content
         assert "scope: global" in content
@@ -96,7 +96,7 @@ class TestRegenerateIndexMdPageType:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "2 articles" in content
         assert "1 source" in content
@@ -116,7 +116,7 @@ class TestRegenerateIndexMdPageType:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "## Concept Pages" in content
         assert "[[llm-reasoning]]" in content
@@ -131,7 +131,7 @@ class TestRegenerateIndexMdPageType:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "`[Answer]`" in content
 
@@ -146,7 +146,7 @@ class TestGenerateMetaHealthPage:
     async def test_empty_database_produces_health_page(self, db_session: AsyncSession) -> None:
         """An empty DB should produce a valid health page."""
         rel = await generate_meta_health_page(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "page_type: meta" in content
@@ -164,7 +164,7 @@ class TestGenerateMetaHealthPage:
         await db_session.commit()
 
         rel = await generate_meta_health_page(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "| Source | 2 |" in content
         assert "| Answer | 1 |" in content
@@ -183,7 +183,7 @@ class TestGenerateMetaHealthPage:
         await db_session.commit()
 
         rel = await generate_meta_health_page(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "**1** articles with no inbound or outbound links" in content
 
@@ -211,7 +211,7 @@ class TestGenerateMetaHealthPage:
         await db_session.commit()
 
         rel = await generate_meta_health_page(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
         assert "| contradicts | 1 |" in content
         assert "| references | 1 |" in content

@@ -21,7 +21,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -91,11 +91,9 @@ class URLAdapter:
 
         # Save clean extracted text (used by the compiler worker) and
         # keep the raw HTML alongside it for reference/reprocessing.
-        html_path = resolve_raw_path(f"{source.id}.html", user_id=user_id)
-        html_path.parent.mkdir(parents=True, exist_ok=True)
-        html_path.write_text(html, encoding="utf-8")
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
-        text_path.write_text(downloaded, encoding="utf-8")
+        storage = get_raw_storage(user_id)
+        await storage.write(f"{source.id}.html", html)
+        await storage.write(f"{source.id}.txt", downloaded)
         source.file_path = f"{source.id}.txt"
 
         # Normalize

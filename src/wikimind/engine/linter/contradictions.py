@@ -41,7 +41,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,11 +63,11 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _extract_claims(article: Article) -> list[str]:
+async def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
-        content = wiki_path.read_text(encoding="utf-8")
+        storage = get_wiki_storage(article.user_id)
+        content = await storage.read(article.file_path)
     except (OSError, FileNotFoundError):
         return []
 
@@ -578,8 +578,8 @@ async def detect_contradictions(
                     continue
 
             # Collect claims for uncached pair
-            claims_a = _extract_claims(article_a)
-            claims_b = _extract_claims(article_b)
+            claims_a = await _extract_claims(article_a)
+            claims_b = await _extract_claims(article_b)
             if claims_a and claims_b:
                 uncached_pairs.append((article_a, article_b, claims_a, claims_b))
             else:
@@ -621,8 +621,8 @@ async def _compare_article_pair(
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
-    claims_a = _extract_claims(article_a)
-    claims_b = _extract_claims(article_b)
+    claims_a = await _extract_claims(article_a)
+    claims_b = await _extract_claims(article_b)
 
     if not claims_a or not claims_b:
         return []

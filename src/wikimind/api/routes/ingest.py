@@ -10,7 +10,7 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import IngestTextRequest, IngestURLRequest, Source
 from wikimind.services.ingest import IngestService, get_ingest_service
-from wikimind.storage import find_original_sibling, resolve_raw_path
+from wikimind.storage import find_original_sibling, get_raw_storage
 
 router = APIRouter()
 
@@ -113,7 +113,11 @@ async def get_source_original(
     if not source.file_path:
         raise HTTPException(status_code=404, detail="No original document available")
 
-    txt_path = resolve_raw_path(source.file_path, user_id=user_id)
+    # Requires raw filesystem path for find_original_sibling (directory scan)
+    # and StreamingResponse (chunked binary read). This is a legitimate use of
+    # storage.root — the streaming response cannot use the async abstraction.
+    storage = get_raw_storage(user_id)
+    txt_path = storage.root / source.file_path
     original = find_original_sibling(txt_path)
     if original is None:
         raise HTTPException(status_code=404, detail="No original document available")

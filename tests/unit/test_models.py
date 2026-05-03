@@ -1,11 +1,11 @@
 """Tests for core data models — enums, SQLModel tables, Pydantic schemas."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
 from tests.conftest import TEST_USER_ID
+from wikimind.config import get_settings
 from wikimind.models import (
     Article,
     ConfidenceLevel,
@@ -81,19 +81,27 @@ class TestJobModel:
 
 def test_source_has_original_true_when_pdf_sibling_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """has_original is True when a non-.txt sibling exists in raw/."""
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
-    (tmp_path / "src-1.txt").write_text("text")
-    (tmp_path / "src-1.pdf").write_bytes(b"%PDF")
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    raw_dir = tmp_path / "raw" / TEST_USER_ID
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "src-1.txt").write_text("text")
+    (raw_dir / "src-1.pdf").write_bytes(b"%PDF")
     source = Source(id="src-1", source_type=SourceType.PDF, file_path="src-1.txt", user_id=TEST_USER_ID)
     assert source.has_original is True
+    get_settings.cache_clear()
 
 
 def test_source_has_original_false_for_text_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """has_original is False when only the .txt exists."""
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
-    (tmp_path / "src-2.txt").write_text("text")
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    raw_dir = tmp_path / "raw" / TEST_USER_ID
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "src-2.txt").write_text("text")
     source = Source(id="src-2", source_type=SourceType.TEXT, file_path="src-2.txt", user_id=TEST_USER_ID)
     assert source.has_original is False
+    get_settings.cache_clear()
 
 
 def test_source_has_original_false_when_no_file_path() -> None:
@@ -102,13 +110,15 @@ def test_source_has_original_false_when_no_file_path() -> None:
     assert source.has_original is False
 
 
-def test_source_has_original_passes_user_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """has_original passes user_id to resolve_raw_path for correct directory scoping."""
-    mock_resolve = MagicMock(return_value=tmp_path / "src-4.txt")
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", mock_resolve)
-    (tmp_path / "src-4.txt").write_text("text")
+def test_source_has_original_scopes_by_user_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """has_original uses the correct user-scoped raw directory."""
+    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    raw_dir = tmp_path / "raw" / "user-abc"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "src-4.txt").write_text("text")
+    (raw_dir / "src-4.pdf").write_bytes(b"%PDF")
 
     source = Source(id="src-4", source_type=SourceType.PDF, file_path="src-4.txt", user_id="user-abc")
-    _ = source.has_original
-
-    mock_resolve.assert_called_once_with("src-4.txt", user_id="user-abc")
+    assert source.has_original is True
+    get_settings.cache_clear()

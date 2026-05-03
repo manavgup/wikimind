@@ -116,8 +116,13 @@ class LocalFileStorage:
         return await asyncio.to_thread(_list)
 
 
-def get_wiki_storage(user_id: str) -> FileStorage:
-    """Return wiki file storage, optionally scoped to a user."""
+def get_wiki_storage(user_id: str) -> LocalFileStorage:
+    """Return wiki file storage, optionally scoped to a user.
+
+    Returns LocalFileStorage so callers that legitimately need the
+    filesystem root (e.g., streaming binary responses) can access
+    ``storage.root``.
+    """
     settings = get_settings()
     root = Path(settings.data_dir) / "wiki"
     if user_id:
@@ -125,45 +130,18 @@ def get_wiki_storage(user_id: str) -> FileStorage:
     return LocalFileStorage(root=root)
 
 
-def get_raw_storage(user_id: str) -> FileStorage:
-    """Return raw source file storage, optionally scoped to a user."""
+def get_raw_storage(user_id: str) -> LocalFileStorage:
+    """Return raw source file storage, optionally scoped to a user.
+
+    Returns LocalFileStorage so callers that legitimately need the
+    filesystem root (e.g., streaming binary responses, PDF extraction
+    via external tools) can access ``storage.root``.
+    """
     settings = get_settings()
     root = Path(settings.data_dir) / "raw"
     if user_id:
         root = root / user_id
     return LocalFileStorage(root=root)
-
-
-def resolve_wiki_path(relative_path: str, user_id: str) -> Path:
-    """Resolve a wiki-relative path to an absolute filesystem path.
-
-    Handles backward compatibility: if the path is already absolute,
-    returns it as-is.
-    """
-    path = Path(relative_path)
-    if path.is_absolute():
-        return path
-    settings = get_settings()
-    root = Path(settings.data_dir) / "wiki"
-    if user_id:
-        root = root / user_id
-    return root / relative_path
-
-
-def resolve_raw_path(relative_path: str, user_id: str) -> Path:
-    """Resolve a raw-relative path to an absolute filesystem path.
-
-    Handles backward compatibility: if the path is already absolute,
-    returns it as-is.
-    """
-    path = Path(relative_path)
-    if path.is_absolute():
-        return path
-    settings = get_settings()
-    root = Path(settings.data_dir) / "raw"
-    if user_id:
-        root = root / user_id
-    return root / relative_path
 
 
 def find_original_sibling(txt_path: Path) -> Path | None:

@@ -14,7 +14,7 @@ import structlog
 from sqlmodel import select
 
 from wikimind.models import DocumentChunk, NormalizedDocument, Source
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -305,14 +305,14 @@ async def _check_source_dedup(
                 source_id=existing.id,
                 hash=content_hash[:16],
             )
-            return existing, reconstruct_normalized_doc(existing)
+            return existing, await reconstruct_normalized_doc(existing)
         log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
         await session.delete(existing)
         await session.commit()
     return None
 
 
-def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
+async def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     """Rebuild a :class:`NormalizedDocument` from a previously-ingested source.
 
     Used by the dedup hit path so the adapter's return contract
@@ -332,8 +332,8 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     if not source.file_path:
         msg = f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument"
         raise ValueError(msg)
-    raw_path = resolve_raw_path(source.file_path, user_id=source.user_id)
-    clean_text = raw_path.read_text(encoding="utf-8")
+    storage = get_raw_storage(source.user_id)
+    clean_text = await storage.read(source.file_path)
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,

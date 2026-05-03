@@ -62,14 +62,16 @@ async def _seed_kind(s, name="topic"):
 
 
 async def _mk_art(s, tp, slug, title, concepts, summary="Sum."):
-    d = tp / "wiki" / "test"
-    d.mkdir(parents=True, exist_ok=True)
-    fp = d / f"{slug}.md"
+    # Write under the storage root set by the autouse _isolated_data_dir fixture
+    wiki_dir = tp / "wikimind" / "wiki" / TEST_USER_ID / "test"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    fp = wiki_dir / f"{slug}.md"
     fp.write_text(f"# {title}\n{summary}", encoding="utf-8")
+    relative_path = f"test/{slug}.md"
     a = Article(
         slug=slug,
         title=title,
-        file_path=str(fp),
+        file_path=relative_path,
         summary=summary,
         concept_ids=json.dumps(concepts),
         page_type=PageType.SOURCE,
@@ -108,14 +110,14 @@ class TestCollectSourceArticles:
 
     async def test_excludes_concept(self, db_session, tmp_path):
         await _mk_art(db_session, tmp_path, "s1", "S1", ["ml"])
-        d = tmp_path / "wiki" / "ml"
+        d = tmp_path / "wikimind" / "wiki" / TEST_USER_ID / "ml"
         d.mkdir(parents=True, exist_ok=True)
         fp = d / "c.md"
         fp.write_text("# C", encoding="utf-8")
         ca = Article(
             slug="concept-ml",
             title="ML",
-            file_path=str(fp),
+            file_path="ml/c.md",
             concept_ids=json.dumps(["ml"]),
             page_type=PageType.CONCEPT,
             user_id=TEST_USER_ID,
@@ -202,7 +204,7 @@ class TestConceptPageOutput:
             patch(
                 "wikimind.engine.concept_compiler.get_settings",
                 return_value=SimpleNamespace(
-                    data_dir=str(tmp_path),
+                    data_dir=str(tmp_path / "wikimind"),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
                     compiler=SimpleNamespace(
                         max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000
@@ -212,7 +214,7 @@ class TestConceptPageOutput:
         ):
             art = await ConceptCompiler(user_id=TEST_USER_ID).compile_concept_page(c, db_session)
         assert art is not None
-        content = (Path(tmp_path) / "wiki" / TEST_USER_ID / art.file_path).read_text(encoding="utf-8")
+        content = (Path(tmp_path) / "wikimind" / "wiki" / TEST_USER_ID / art.file_path).read_text(encoding="utf-8")
         assert "page_type: concept" in content
         for s in [
             "## Overview",

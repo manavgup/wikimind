@@ -34,7 +34,7 @@ from wikimind.services.wiki_index import (
     generate_meta_health_page,
     regenerate_index_md,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -327,7 +327,8 @@ class TestFileBackSelectionPathScoping:
         art_result = await db_session.execute(select(Article).where(Article.id == article_info["id"]))
         article = art_result.scalar_one()
         assert article.file_path.startswith("qa-answers/")
-        resolved = resolve_wiki_path(article.file_path, user_id="alice")
+        storage = get_wiki_storage("alice")
+        resolved = storage.root / article.file_path
         assert "/alice/" in str(resolved)
 
 

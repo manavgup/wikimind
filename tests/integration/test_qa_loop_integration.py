@@ -238,7 +238,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     production conditional that gates file-back on confidence.
     """
     # Build the agent with patched router and settings, with data_dir matching
-    # the autouse _isolated_data_dir fixture so resolve_wiki_path is consistent.
+    # the autouse _isolated_data_dir fixture so get_wiki_storage is consistent.
     data_dir = tmp_path / "wikimind"
     with (
         patch.object(qa_mod, "get_llm_router"),

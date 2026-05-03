@@ -171,12 +171,18 @@ class Source(SQLModel, table=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def has_original(self) -> bool:
-        """Whether the original document (PDF, HTML) exists alongside the .txt."""
+        """Whether the original document (PDF, HTML) exists alongside the .txt.
+
+        Uses get_raw_storage().root for synchronous filesystem access — this is
+        a @property on a Pydantic model and cannot be async. The raw path is
+        needed for find_original_sibling which scans the directory.
+        """
         if not self.file_path:
             return False
-        from wikimind.storage import find_original_sibling, resolve_raw_path  # noqa: PLC0415
+        from wikimind.storage import find_original_sibling, get_raw_storage  # noqa: PLC0415
 
-        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id)
+        storage = get_raw_storage(self.user_id)
+        txt_path = storage.root / self.file_path
         return find_original_sibling(txt_path) is not None
 
 

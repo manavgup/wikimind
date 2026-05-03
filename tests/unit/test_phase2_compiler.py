@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from sqlmodel import select
@@ -55,10 +54,7 @@ def _doc(tokens=100):
 
 
 def _compiler_for(tmp_path):
-    with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
-    ):
+    with patch.object(compiler_mod, "get_llm_router"):
         return Compiler(user_id=TEST_USER_ID)
 
 
@@ -282,14 +278,12 @@ def test_parse_frontmatter_extracts_yaml():
 
 
 async def test_write_article_file_includes_page_type(tmp_path):
-    with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
-    ):
+    with patch.object(compiler_mod, "get_llm_router"):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id=TEST_USER_ID)
     rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
-    full_path = Path(tmp_path) / "wiki" / TEST_USER_ID / rel_path
+    # The autouse _isolated_data_dir fixture sets data_dir to tmp_path / "wikimind"
+    full_path = Path(tmp_path) / "wikimind" / "wiki" / TEST_USER_ID / rel_path
     assert full_path.exists()
     text = full_path.read_text()
     assert "page_type: source" in text

@@ -24,7 +24,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType, PageType
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,12 +60,12 @@ async def _sweep_single_article(
         return False
 
     uid = article.user_id
-    file_path = resolve_wiki_path(article.file_path, user_id=uid)
-    if not file_path.exists():
-        log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
+    storage = get_wiki_storage(uid)
+    if not await storage.exists(article.file_path):
+        log.warning("sweep: file not found, skipping", article_id=article.id, path=article.file_path)
         return False
 
-    content = file_path.read_text(encoding="utf-8")
+    content = await storage.read(article.file_path)
 
     # Collect all unique bracket texts
     matches = _WIKILINK_RE.findall(content)
@@ -105,7 +105,7 @@ async def _sweep_single_article(
         return False  # pragma: no cover — defensive; resolved non-empty implies change
 
     # Write the updated file
-    file_path.write_text(new_content, encoding="utf-8")
+    await storage.write(article.file_path, new_content)
 
     # Persist Backlink rows — use get-or-create to handle duplicates
     # gracefully. We check each backlink by composite PK and only insert
@@ -154,9 +154,9 @@ async def _cleanup_orphaned_concept_pages(
     concept_articles = list(result.scalars().all())
 
     cleaned = 0
+    storage = get_wiki_storage(user_id)
     for article in concept_articles:
-        file_path = resolve_wiki_path(article.file_path, user_id=user_id)
-        if file_path.exists():
+        if await storage.exists(article.file_path):
             continue
 
         # Bulk-delete backlinks referencing the orphaned article to avoid
@@ -177,7 +177,7 @@ async def _cleanup_orphaned_concept_pages(
             "sweep: removed orphaned concept page (file missing)",
             article_id=article.id,
             slug=article.slug,
-            path=str(file_path),
+            path=article.file_path,
         )
 
     if cleaned:

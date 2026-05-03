@@ -14,8 +14,6 @@ from wikimind.storage import (
     find_original_sibling,
     get_raw_storage,
     get_wiki_storage,
-    resolve_raw_path,
-    resolve_wiki_path,
 )
 
 
@@ -147,48 +145,6 @@ def test_get_raw_storage_with_user_id(tmp_path, monkeypatch):
     storage = get_raw_storage(user_id="user-456")
     assert isinstance(storage, LocalFileStorage)
     assert storage.root == tmp_path / "raw" / "user-456"
-    get_settings.cache_clear()
-
-
-# ---------------------------------------------------------------------------
-# resolve_wiki_path / resolve_raw_path tests
-# ---------------------------------------------------------------------------
-
-
-def test_resolve_wiki_path_relative(tmp_path, monkeypatch):
-    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    get_settings.cache_clear()
-    result = resolve_wiki_path("concept/article.md", user_id=TEST_USER_ID)
-    assert result == tmp_path / "wiki" / TEST_USER_ID / "concept" / "article.md"
-    get_settings.cache_clear()
-
-
-def test_resolve_wiki_path_absolute():
-    result = resolve_wiki_path("/absolute/path/article.md", user_id=TEST_USER_ID)
-    assert result == Path("/absolute/path/article.md")
-
-
-def test_resolve_wiki_path_with_user_id(tmp_path, monkeypatch):
-    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    get_settings.cache_clear()
-    result = resolve_wiki_path("concept/article.md", user_id="user-abc")
-    assert result == tmp_path / "wiki" / "user-abc" / "concept" / "article.md"
-    get_settings.cache_clear()
-
-
-def test_resolve_raw_path_relative(tmp_path, monkeypatch):
-    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    get_settings.cache_clear()
-    result = resolve_raw_path("source-id.txt", user_id=TEST_USER_ID)
-    assert result == tmp_path / "raw" / TEST_USER_ID / "source-id.txt"
-    get_settings.cache_clear()
-
-
-def test_resolve_raw_path_with_user_id(tmp_path, monkeypatch):
-    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    get_settings.cache_clear()
-    result = resolve_raw_path("source-id.txt", user_id="user-xyz")
-    assert result == tmp_path / "raw" / "user-xyz" / "source-id.txt"
     get_settings.cache_clear()
 
 

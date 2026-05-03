@@ -20,7 +20,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -78,9 +78,8 @@ class YouTubeAdapter:
 
         # YouTube transcripts are already plain text, so the raw and cleaned
         # files are the same .txt. There is no separate raw video payload.
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
-        text_path.parent.mkdir(parents=True, exist_ok=True)
-        text_path.write_text(transcript_text, encoding="utf-8")
+        storage = get_raw_storage(user_id)
+        await storage.write(f"{source.id}.txt", transcript_text)
         source.file_path = f"{source.id}.txt"
         session.add(source)
         await session.commit()
