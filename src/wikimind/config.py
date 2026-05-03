@@ -390,7 +390,7 @@ def _reconcile_providers(settings: Settings) -> None:
                 hint="set WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL",
             )
         elif not has_key and cfg.enabled:
-            log.warning("provider enabled but no API key", provider=name, hint=f"set {raw_env}")
+            log.warning("provider enabled but no API key", provider=name, env_var=raw_env)
         elif name == "openai_compatible" and cfg.enabled and not cfg.base_url:
             log.warning(
                 "provider enabled but required base URL is missing",
