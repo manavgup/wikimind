@@ -7,6 +7,7 @@ file is rewritten in place on every call (NOT append-only).
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 from collections import Counter, defaultdict
@@ -206,7 +207,7 @@ async def regenerate_index_md(
     concept_articles, uncategorized = await _group_articles_by_concept(articles, session)
     lines = _build_index_lines(articles, concept_articles, uncategorized)
 
-    index_path.write_text("".join(lines), encoding="utf-8")
+    await asyncio.to_thread(index_path.write_text, "".join(lines), encoding="utf-8")
     log.info("index.md regenerated", article_count=len(articles))
     return "index.md"
 
@@ -312,6 +313,6 @@ async def generate_meta_health_page(
     lines.append("## Orphan Articles\n\n")
     lines.append(f"**{orphan_count}** articles with no inbound or outbound links.\n")
 
-    health_path.write_text("".join(lines), encoding="utf-8")
+    await asyncio.to_thread(health_path.write_text, "".join(lines), encoding="utf-8")
     log.info("wiki-health.md generated", article_count=total, orphan_count=orphan_count)
     return "meta/wiki-health.md"

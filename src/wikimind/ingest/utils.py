@@ -6,6 +6,7 @@ functions used by all adapters and the orchestrating IngestService.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from typing import TYPE_CHECKING
@@ -305,7 +306,8 @@ async def _check_source_dedup(
                 source_id=existing.id,
                 hash=content_hash[:16],
             )
-            return existing, reconstruct_normalized_doc(existing)
+            doc = await asyncio.to_thread(reconstruct_normalized_doc, existing)
+            return existing, doc
         log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
         await session.delete(existing)
         await session.commit()
