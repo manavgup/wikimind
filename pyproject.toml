@@ -59,6 +59,7 @@ dependencies = [
     "python-slugify>=8.0.4",
     "python-dateutil>=2.9.0",
     "toml>=0.10.2",
+    "pyyaml>=6.0",
     "structlog>=24.4.0",
 ]
 
@@ -99,6 +100,7 @@ lint = [
     "bandit[toml]>=1.7",
     "vulture>=2.11",
     "interrogate>=1.7.0",
+    "deptry>=0.25.1",
     # Doc-sync scripts (export_openapi, check_doc_sync, etc.)
     "pyyaml>=6.0",
     "pathspec>=0.12",
@@ -286,6 +288,35 @@ ignore-module = true
 quiet = false
 verbose = 1
 
+# ---------- Deptry (unused/missing dependency detection) ----------
+[tool.deptry]
+# Only test/lint/dev extras are true dev-only groups; search/transcribe/pdf/export
+# are optional runtime features whose deps may be lazily imported.
+optional_dependencies_dev_groups = ["test", "lint", "dev"]
+
+# DEP002: packages that are not directly imported but are needed at runtime.
+# DEP003: transitive deps whose public API we use (sqlalchemy via sqlmodel,
+#         starlette via fastapi).
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "python-multipart",   # required by FastAPI for file/form uploads (runtime loaded)
+    "aiosqlite",          # SQLAlchemy async SQLite driver (loaded by connection URL)
+    "asyncpg",            # SQLAlchemy async Postgres driver (loaded by connection URL)
+    "alembic",            # database migration CLI tool (not imported in app code)
+    "fakeredis",          # mock Redis backend for dev/test when no real Redis
+    "lxml",               # transitive dep pinned to force CVE-safe version
+    "feedparser",         # RSS/Atom feed ingestion adapter
+    "boto3",              # S3 sync feature
+    "gunicorn",           # production WSGI server (CLI tool)
+    "python-dateutil",    # date parsing utility (used transitively)
+    "toml",               # config file parsing utility
+    "openai-whisper",     # Whisper CLI transcription tool (optional extra)
+]
+DEP003 = [
+    "sqlalchemy",         # public API used via sqlmodel
+    "starlette",          # public API used via fastapi
+]
+
 # ---------- uv ----------
 [tool.uv]
 # The PyTorch CPU-only index (set via UV_EXTRA_INDEX_URL in Docker) ships old
@@ -295,3 +326,4 @@ verbose = 1
 # "unsafe-best-match" considers *all* indexes and picks the highest compatible
 # version, which mirrors pip's --extra-index-url semantics.
 index-strategy = "unsafe-best-match"
+
