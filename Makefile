@@ -302,7 +302,8 @@ docker-logs: ## Tail logs from all dev stack services
 
 .PHONY: docker-down
 docker-down: ## Stop and remove the dev stack
-	docker compose down
+	docker compose down --remove-orphans
+	docker compose rm -f 2>/dev/null || true
 
 ##@ 🚀 DEPLOY
 
