@@ -89,35 +89,28 @@ class SPAFallbackMiddleware:
         await self._app(scope, receive, send)
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    """Startup and shutdown lifecycle."""
-    configure_logging()
+async def _verify_write_permissions(settings) -> None:
+    """Verify write permissions to data directories (fail fast before DB init)."""
+    if settings.storage_backend != "local":
+        return
+    for subdir in ("wiki", "raw"):
+        test_dir = Path(settings.data_dir) / subdir
+        test_dir.mkdir(parents=True, exist_ok=True)
+        test_file = test_dir / ".write-test"
+        try:
+            test_file.write_text("ok")
+            test_file.unlink()
+        except PermissionError:
+            log.critical("No write permission", path=str(test_dir))
+            raise SystemExit(1) from None
 
-    settings = get_settings()
-    settings.ensure_dirs()
 
-    # Verify write permissions to data directories (fail fast before DB init)
-    if settings.storage_backend == "local":
-        for subdir in ("wiki", "raw"):
-            test_dir = Path(settings.data_dir) / subdir
-            test_dir.mkdir(parents=True, exist_ok=True)
-            test_file = test_dir / ".write-test"
-            try:
-                test_file.write_text("ok")
-                test_file.unlink()
-            except PermissionError:
-                log.critical("No write permission", path=str(test_dir))
-                raise SystemExit(1) from None
+async def _reset_stuck_sources() -> None:
+    """Reset sources stuck in PROCESSING from a prior crash/restart.
 
-    log.info("WikiMind gateway starting", port=settings.gateway_port)
-    await init_db()
-    await apply_runtime_llm_preferences()
-    log.info("Database initialized")
-
-    # Reset sources stuck in PROCESSING from a prior crash/restart.
-    # If the server is starting, no worker is mid-compilation, so any
-    # source still in PROCESSING was interrupted.
+    If the server is starting, no worker is mid-compilation, so any
+    source still in PROCESSING was interrupted.
+    """
     async with get_session_factory()() as session:
         result = await session.execute(select(Source).where(Source.status == IngestStatus.PROCESSING))
         stuck = list(result.scalars().all())
@@ -129,8 +122,23 @@ async def lifespan(_app: FastAPI):
             await session.commit()
             log.info("Reset stuck processing sources", count=len(stuck))
 
-    # Start Redis Pub/Sub subscriber for cross-replica WebSocket broadcasts.
-    # Idempotent — no-op when Redis is not configured (single-replica dev mode).
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Startup and shutdown lifecycle."""
+    configure_logging()
+
+    settings = get_settings()
+    settings.ensure_dirs()
+
+    await _verify_write_permissions(settings)
+
+    log.info("WikiMind gateway starting", port=settings.gateway_port)
+    await init_db()
+    await apply_runtime_llm_preferences()
+    log.info("Database initialized")
+
+    await _reset_stuck_sources()
     await _start_redis_subscriber()
 
     yield
