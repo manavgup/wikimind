@@ -3316,8 +3316,15 @@ components:
         has_original:
           type: boolean
           title: Has Original
-          description: Whether the original document (PDF, HTML) exists alongside
+          description: 'Whether the original document (PDF, HTML) exists alongside
             the .txt.
+
+
+            Uses get_raw_storage().root for synchronous filesystem access — this is
+
+            a @property on a Pydantic model and cannot be async. The raw path is
+
+            needed for find_original_sibling which scans the directory.'
           readOnly: true
       type: object
       required:
