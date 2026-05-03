@@ -331,30 +331,76 @@ Compile this into a wiki article following the JSON schema exactly."""
         provider: Provider | None,
     ) -> Article:
         """Create a brand-new article (no existing same-provider article)."""
-        slug = await self._generate_unique_slug(result.title, session)
+        return await self._upsert_article(result, source, session, provider, existing=None)
+
+    async def _replace_article_in_place(
+        self,
+        existing: Article,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+    ) -> Article:
+        """Replace an existing same-source same-provider article in place."""
+        return await self._upsert_article(result, source, session, existing.provider, existing=existing)
+
+    async def _upsert_article(
+        self,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+        provider: Provider | None,
+        existing: Article | None,
+    ) -> Article:
+        """Unified create-or-replace logic for a compiled article."""
+        if existing is not None:
+            slug = existing.slug
+            old_path = resolve_wiki_path(existing.file_path, user_id=self.user_id)
+        else:
+            slug = await self._generate_unique_slug(result.title, session)
 
         resolved, unresolved = await resolve_backlink_candidates(
             result.backlink_suggestions,
             session,
+            exclude_article_id=existing.id if existing is not None else None,
             relation_types=self._last_typed_suggestions,
             user_id=self.user_id,
         )
 
         relative_path = await self._write_article_file(result, source, slug, resolved, unresolved)
 
-        article = Article(
-            slug=slug,
-            title=result.title,
-            file_path=relative_path,
-            confidence=self._overall_confidence(result),
-            summary=result.summary,
-            source_ids=json.dumps([source.id]),
-            concept_ids=json.dumps(result.concepts),
-            provider=provider,
-            page_type=PageType.SOURCE,
-            user_id=self.user_id,
-        )
-        session.add(article)
+        if existing is not None:
+            # Delete old file only after new file is written successfully to
+            # avoid data loss if the write fails (issue #183).
+            if old_path != resolve_wiki_path(relative_path, user_id=self.user_id):
+                old_path.unlink(missing_ok=True)
+
+            existing.title = result.title
+            existing.summary = result.summary
+            existing.confidence = self._overall_confidence(result)
+            existing.file_path = relative_path
+            existing.concept_ids = json.dumps(result.concepts)
+            existing.page_type = PageType.SOURCE
+            existing.updated_at = utcnow_naive()
+            existing.user_id = source.user_id
+            session.add(existing)
+            article = existing
+
+            # Remove stale backlinks and join-table rows before re-populating.
+            await self._clear_article_relations(existing.id, session)
+        else:
+            article = Article(
+                slug=slug,
+                title=result.title,
+                file_path=relative_path,
+                confidence=self._overall_confidence(result),
+                summary=result.summary,
+                source_ids=json.dumps([source.id]),
+                concept_ids=json.dumps(result.concepts),
+                provider=provider,
+                page_type=PageType.SOURCE,
+                user_id=self.user_id,
+            )
+            session.add(article)
 
         source.status = IngestStatus.COMPILED
         source.compiled_at = utcnow_naive()
@@ -376,6 +422,42 @@ Compile this into a wiki article following the JSON schema exactly."""
             user_id=self.user_id,
         )
 
+        await self._post_save_side_effects(article, result, source, session)
+
+        log.info(
+            "Article saved" if existing is None else "Article replaced in place",
+            slug=slug,
+            title=result.title,
+            provider=provider,
+            resolved_backlinks=len(resolved),
+            unresolved_backlinks=len(unresolved),
+        )
+        return article
+
+    async def _clear_article_relations(
+        self,
+        article_id: str,
+        session: AsyncSession,
+    ) -> None:
+        """Delete backlinks and join-table rows for an article before re-populating."""
+        old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == article_id))
+        for row in old_bl.scalars().all():
+            await session.delete(row)
+        old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
+        for ac in old_ac.scalars().all():
+            await session.delete(ac)
+        old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == article_id))
+        for a_s in old_as.scalars().all():
+            await session.delete(a_s)
+
+    async def _post_save_side_effects(
+        self,
+        article: Article,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+    ) -> None:
+        """Run taxonomy updates, activity logging, and index regeneration."""
         try:
             await upsert_concepts(result.concepts, session, user_id=self.user_id)
             await update_article_counts(session, user_id=self.user_id)
@@ -403,134 +485,6 @@ Compile this into a wiki article following the JSON schema exactly."""
             await regenerate_index_md(session, user_id=self.user_id)
         except (OSError, SQLAlchemyError):
             log.warning("index.md regeneration failed", article_id=article.id)
-
-        log.info(
-            "Article saved",
-            slug=slug,
-            title=result.title,
-            provider=provider,
-            resolved_backlinks=len(resolved),
-            unresolved_backlinks=len(unresolved),
-        )
-        return article
-
-    async def _replace_article_in_place(
-        self,
-        existing: Article,
-        result: CompilationResult,
-        source: Source,
-        session: AsyncSession,
-    ) -> Article:
-        """Replace an existing same-source same-provider article in place."""
-        old_concept_ids = existing.concept_ids
-
-        old_path = resolve_wiki_path(existing.file_path, user_id=self.user_id)
-
-        resolved, unresolved = await resolve_backlink_candidates(
-            result.backlink_suggestions,
-            session,
-            exclude_article_id=existing.id,
-            relation_types=self._last_typed_suggestions,
-            user_id=self.user_id,
-        )
-
-        relative_path = await self._write_article_file(result, source, existing.slug, resolved, unresolved)
-
-        # Delete old file only after new file is written successfully to
-        # avoid data loss if the write fails (issue #183).
-        if old_path != resolve_wiki_path(relative_path, user_id=self.user_id):
-            old_path.unlink(missing_ok=True)
-
-        existing.title = result.title
-        existing.summary = result.summary
-        existing.confidence = self._overall_confidence(result)
-        existing.file_path = relative_path
-        existing.concept_ids = json.dumps(result.concepts)
-        existing.page_type = PageType.SOURCE
-        existing.updated_at = utcnow_naive()
-        existing.user_id = source.user_id
-        session.add(existing)
-
-        source.status = IngestStatus.COMPILED
-        source.compiled_at = utcnow_naive()
-        session.add(source)
-
-        old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == existing.id))
-        for row in old_bl.scalars().all():
-            await session.delete(row)
-
-        # Refresh join tables
-        old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == existing.id))
-        for ac in old_ac.scalars().all():
-            await session.delete(ac)
-        old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == existing.id))
-        for a_s in old_as.scalars().all():
-            await session.delete(a_s)
-
-        await session.commit()
-        await session.refresh(existing)
-
-        # Re-populate join tables
-        session.add(ArticleSource(article_id=existing.id, source_id=source.id))
-        for concept_name in result.concepts:
-            session.add(ArticleConcept(article_id=existing.id, concept_name=concept_name))
-        await session.commit()
-
-        await self._persist_resolved_backlinks(
-            existing.id,
-            resolved,
-            session,
-            user_id=self.user_id,
-        )
-
-        try:
-            await upsert_concepts(
-                result.concepts,
-                session,
-                user_id=self.user_id,
-            )
-            await update_article_counts(session, user_id=self.user_id)
-            await maybe_trigger_taxonomy_rebuild(
-                session,
-                user_id=self.user_id,
-            )
-            # Concept page generation must use its own session to avoid
-            # identity-map conflicts (same pattern as _create_article,
-            # issue #152).  Added here so recompiling an existing source
-            # also updates concept pages (issue #162).
-            async with get_session_factory()() as concept_session:
-                await maybe_trigger_concept_pages(concept_session, user_id=self.user_id)
-        except (SQLAlchemyError, RuntimeError, ValueError):
-            log.warning(
-                "taxonomy upsert failed",
-                article_id=existing.id,
-                old_concept_ids=old_concept_ids,
-            )
-
-        try:
-            append_log_entry(
-                "compile",
-                existing.title,
-                extra={"source_id": source.id, "article_slug": existing.slug},
-                user_id=self.user_id,
-            )
-        except OSError:
-            log.warning("activity log write failed", op="compile", article_id=existing.id)
-
-        try:
-            await regenerate_index_md(session, user_id=self.user_id)
-        except (OSError, SQLAlchemyError):
-            log.warning("index.md regeneration failed", article_id=existing.id)
-
-        log.info(
-            "Article replaced in place",
-            slug=existing.slug,
-            title=result.title,
-            provider=existing.provider,
-            resolved_backlinks=len(resolved),
-            unresolved_backlinks=len(unresolved),
-        )
-        return existing
 
     async def _persist_resolved_backlinks(
         self,
