@@ -321,10 +321,9 @@ class TestFileBackSelectionPathScoping:
             db_session,
             user_id="alice",
         )
-        article_info = result["article"]
 
         # Verify the article stores a relative path and resolves under wiki/alice/
-        art_result = await db_session.execute(select(Article).where(Article.id == article_info["id"]))
+        art_result = await db_session.execute(select(Article).where(Article.id == result.article.id))
         article = art_result.scalar_one()
         assert article.file_path.startswith("qa-answers/")
         resolved = resolve_wiki_path(article.file_path, user_id="alice")

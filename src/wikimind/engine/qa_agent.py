@@ -24,8 +24,10 @@ from wikimind.models import (
     CompletionRequest,
     Conversation,
     CostLog,
+    FileBackThreadResult,
     PageType,
     Query,
+    QueryConversationResult,
     QueryRequest,
     QueryResult,
     TaskType,
@@ -316,7 +318,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         ctx: _PreparedContext,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation]:
+    ) -> QueryConversationResult:
         """Persist the Query row and handle file-back.
 
         Shared by ``answer()`` and the ``answer_stream()`` completion path.
@@ -329,7 +331,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation).
+            The new Query row and its parent Conversation.
         """
         query_record = Query(
             question=request.question,
@@ -372,14 +374,14 @@ conversation context contradicts the wiki, prefer the wiki."""
         await session.refresh(query_record)
         await session.refresh(ctx.conversation)
 
-        return query_record, ctx.conversation
+        return QueryConversationResult(query=query_record, conversation=ctx.conversation)
 
     async def answer(
         self,
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation]:
+    ) -> QueryConversationResult:
         """Answer a question against the wiki.
 
         Conversation-aware: if request.conversation_id is None a new
@@ -393,7 +395,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation).
+            The new Query row and its parent Conversation.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
@@ -415,16 +417,16 @@ conversation context contradicts the wiki, prefer the wiki."""
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> AsyncIterator[str | tuple[Query, Conversation]]:
-        """Stream LLM tokens, then yield the persisted (Query, Conversation) tuple.
+    ) -> AsyncIterator[str | QueryConversationResult]:
+        """Stream LLM tokens, then yield the persisted QueryConversationResult.
 
         Yields text chunk strings during streaming. After all tokens have been
-        yielded, yields a single ``(Query, Conversation)`` tuple as the final
+        yielded, yields a single ``QueryConversationResult`` as the final
         item. The caller (service layer) is responsible for constructing SSE
         events from these values.
 
         If wiki context is empty, yields the canned answer text as one chunk
-        followed by the persisted tuple.
+        followed by the persisted result.
 
         Raises:
             RuntimeError: When all LLM providers fail.
@@ -435,15 +437,14 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Yields:
-            ``str`` text chunks, then a final ``tuple[Query, Conversation]``.
+            ``str`` text chunks, then a final ``QueryConversationResult``.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
             yield result.answer
-            query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
-            yield (query_record, conversation)
+            yield await self._persist_query(request, result, ctx, session, user_id=user_id)
             return
 
         assert ctx.completion_request is not None
@@ -504,8 +505,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 related_articles=[],
             )
 
-        query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
-        yield (query_record, conversation)
+        yield await self._persist_query(request, result, ctx, session, user_id=user_id)
 
     async def _retrieve_context(self, question: str, session: AsyncSession, user_id: str) -> list[dict]:
         """Retrieve relevant wiki articles for the question."""
@@ -575,7 +575,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         conversation_id: str,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Article, bool]:
+    ) -> FileBackThreadResult:
         """File a whole conversation back to the wiki as a single article.
 
         STAGES changes but does NOT commit — the caller owns the
@@ -596,8 +596,7 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (article, was_update). was_update is True when an
-            existing article was overwritten.
+            The article and whether it was an update of an existing article.
         """
         conversation = await session.get(Conversation, conversation_id)
         if conversation is None:
@@ -662,7 +661,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 conversation_id=conversation_id,
                 article_id=article.id,
             )
-            return article, False
+            return FileBackThreadResult(article=article, was_update=False)
 
         # Update path: overwrite the existing Article's file in place
         resolve_wiki_path(existing_article.file_path, user_id=user_id).write_text(markdown, encoding="utf-8")
@@ -676,4 +675,4 @@ conversation context contradicts the wiki, prefer the wiki."""
             conversation_id=conversation_id,
             article_id=existing_article.id,
         )
-        return existing_article, True
+        return FileBackThreadResult(article=existing_article, was_update=True)

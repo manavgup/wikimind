@@ -31,6 +31,7 @@ from wikimind.models import (
     Article,
     ArticleConcept,
     Backlink,
+    BatchPrompt,
     CompletionRequest,
     Concept,
     ContradictionFinding,
@@ -38,6 +39,7 @@ from wikimind.models import (
     LintPairCache,
     LintReport,
     LintSeverity,
+    ProcessedPairsResult,
     RelationType,
     TaskType,
 )
@@ -202,10 +204,10 @@ async def _create_contradiction_backlink(
 
 def _build_batch_prompt(
     pairs_with_claims: list[tuple[Article, Article, list[str], list[str]]],
-) -> tuple[str, str]:
+) -> BatchPrompt:
     """Build batch system + user prompt for multiple article pairs.
 
-    Returns (system_str, user_str).
+    Returns system and user prompt strings.
     """
     sections: list[str] = []
     for idx, (art_a, art_b, claims_a, claims_b) in enumerate(pairs_with_claims):
@@ -224,7 +226,7 @@ def _build_batch_prompt(
         pair_count=len(pairs_with_claims),
         pair_sections="\n\n".join(sections),
     )
-    return CONTRADICTION_BATCH_SYSTEM, user_msg
+    return BatchPrompt(system=CONTRADICTION_BATCH_SYSTEM, user=user_msg)
 
 
 def _parse_batch_response(response_data: list[dict], expected_count: int) -> dict[int, list[dict]]:
@@ -447,10 +449,10 @@ async def _process_uncached_pairs(
     session: AsyncSession,
     checked: int,
     user_id: str,
-) -> tuple[list[ContradictionFinding], int]:
+) -> ProcessedPairsResult:
     """Process uncached pairs via batch or per-pair LLM calls.
 
-    Returns (findings, updated_checked_count).
+    Returns findings and the updated checked count.
     """
     cfg = settings.linter
     findings: list[ContradictionFinding] = []
@@ -499,7 +501,7 @@ async def _process_uncached_pairs(
             session.add(report)
             await session.flush()
 
-    return findings, checked
+    return ProcessedPairsResult(findings=findings, checked_count=checked)
 
 
 # ---------------------------------------------------------------------------

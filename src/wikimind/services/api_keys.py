@@ -19,7 +19,7 @@ from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
-from wikimind.models import Provider, UserApiKey
+from wikimind.models import EncryptedKey, Provider, UserApiKey
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -50,20 +50,20 @@ def _derive_fernet_key(salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(kdf.derive(secret.encode()))
 
 
-def encrypt_api_key(plaintext: str) -> tuple[str, str]:
-    """Encrypt an API key, returning (encrypted_key, salt_hex).
+def encrypt_api_key(plaintext: str) -> EncryptedKey:
+    """Encrypt an API key, returning the encrypted key and salt.
 
     Args:
         plaintext: The raw API key to encrypt.
 
     Returns:
-        Tuple of (Fernet-encrypted key as base64 string, salt as hex string).
+        NamedTuple with encrypted_key (base64 string) and salt_hex fields.
     """
     salt = os.urandom(16)
     fernet_key = _derive_fernet_key(salt)
     f = Fernet(fernet_key)
     encrypted = f.encrypt(plaintext.encode())
-    return encrypted.decode(), salt.hex()
+    return EncryptedKey(encrypted_key=encrypted.decode(), salt_hex=salt.hex())
 
 
 def decrypt_api_key(encrypted_key: str, salt_hex: str) -> str:

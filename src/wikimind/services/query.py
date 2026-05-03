@@ -38,6 +38,8 @@ from wikimind.models import (
     ConversationDetail,
     ConversationResponse,
     ConversationSummary,
+    FileBackArticleRef,
+    FileBackResult,
     FileBackSelectionRequest,
     ForkRequest,
     PageType,
@@ -301,7 +303,7 @@ class QueryService:
                 if isinstance(item, str):
                     yield (f"event: chunk\ndata: {json.dumps({'text': item})}\n\n")
                 else:
-                    # Final tuple: (Query, Conversation)
+                    # Final item: QueryConversationResult
                     query_record, conversation = item
                     citations = await _build_citations(query_record, session, user_id=user_id)
                     done_payload = AskResponse(
@@ -452,7 +454,7 @@ class QueryService:
         conversation_id: str,
         session: AsyncSession,
         user_id: str,
-    ) -> dict[str, object]:
+    ) -> FileBackResult:
         """File a whole conversation back to the wiki.
 
         Delegates to QAAgent._file_back_thread which handles create-vs-update
@@ -466,7 +468,7 @@ class QueryService:
             user_id: User ID for data isolation.
 
         Returns:
-            Dict with article metadata (id, slug, title) and a was_update flag.
+            File-back result with article metadata and update flag.
         """
         # Ownership check before delegating to QAAgent
         conversation = await session.get(Conversation, conversation_id)
@@ -477,10 +479,10 @@ class QueryService:
             raise NotFoundError(msg)
 
         article, was_update = await self._qa_agent._file_back_thread(conversation_id, session, user_id=user_id)
-        return {
-            "article": {"id": article.id, "slug": article.slug, "title": article.title},
-            "was_update": was_update,
-        }
+        return FileBackResult(
+            article=FileBackArticleRef(id=article.id, slug=article.slug, title=article.title),
+            was_update=was_update,
+        )
 
     async def fork_conversation(
         self,
@@ -551,7 +553,7 @@ class QueryService:
         request: FileBackSelectionRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> dict[str, object]:
+    ) -> FileBackResult:
         """File selected turns from one or more conversations back to the wiki.
 
         Validates that all referenced conversations and turns exist, builds
@@ -564,7 +566,7 @@ class QueryService:
             user_id: User ID for data isolation.
 
         Returns:
-            Dict with article metadata (id, slug, title).
+            File-back result with article metadata.
 
         Raises:
             QueryError: If selections are empty or invalid.
@@ -646,9 +648,9 @@ class QueryService:
         await session.commit()
         await session.refresh(article)
 
-        return {
-            "article": {"id": article.id, "slug": article.slug, "title": article.title},
-        }
+        return FileBackResult(
+            article=FileBackArticleRef(id=article.id, slug=article.slug, title=article.title),
+        )
 
     async def export_conversation(
         self,

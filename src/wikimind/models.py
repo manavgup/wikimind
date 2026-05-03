@@ -8,7 +8,7 @@ Pydantic models carry data through the ingest → compile → query pipeline.
 import uuid
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, NamedTuple, TypedDict
 
 from pydantic import BaseModel, computed_field
 from sqlalchemy import Column, String, UniqueConstraint
@@ -1206,3 +1206,84 @@ class TokenCreateResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: str
     name: str
+
+
+# ---------------------------------------------------------------------------
+# Typed return types for service/engine internals (issue #394)
+# ---------------------------------------------------------------------------
+
+
+class DeleteSourceResult(TypedDict):
+    """Return type for IngestService.delete_source."""
+
+    deleted: str
+
+
+class FileBackArticleRef(BaseModel):
+    """Minimal article reference inside a file-back response."""
+
+    id: str
+    slug: str
+    title: str
+
+
+class FileBackResult(BaseModel):
+    """Return type for file-back operations (conversation or selection)."""
+
+    article: FileBackArticleRef
+    was_update: bool = False
+
+
+class EncryptedKey(NamedTuple):
+    """Result of encrypting an API key."""
+
+    encrypted_key: str
+    salt_hex: str
+
+
+class FileBackThreadResult(NamedTuple):
+    """Result of filing a conversation thread back to the wiki."""
+
+    article: "Article"
+    was_update: bool
+
+
+class QueryConversationResult(NamedTuple):
+    """A persisted Query row and its parent Conversation."""
+
+    query: "Query"
+    conversation: "Conversation"
+
+
+class BatchPrompt(NamedTuple):
+    """System and user prompt strings for a batched LLM call."""
+
+    system: str
+    user: str
+
+
+class ProcessedPairsResult(NamedTuple):
+    """Findings from processing uncached contradiction pairs."""
+
+    findings: list["ContradictionFinding"]
+    checked_count: int
+
+
+class GroupedArticles(NamedTuple):
+    """Articles grouped by concept and uncategorized remainder."""
+
+    by_concept: dict[str, list["Article"]]
+    uncategorized: list["Article"]
+
+
+class HealthData(NamedTuple):
+    """Articles and backlinks for health page generation."""
+
+    articles: list["Article"]
+    backlinks: list["Backlink"]
+
+
+class EmbeddingStats(TypedDict):
+    """Statistics from the embedding/vector store."""
+
+    total_chunks: int

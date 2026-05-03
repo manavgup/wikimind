@@ -17,6 +17,7 @@ from typing import Any
 import structlog
 
 from wikimind.config import get_settings
+from wikimind.models import EmbeddingStats
 
 log = structlog.get_logger()
 
@@ -298,15 +299,13 @@ class EmbeddingService:
             # Collection may be empty or article may not exist -- both are fine
             log.debug("delete_article no-op", article_id=article_id)
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> EmbeddingStats:
         """Return basic statistics about the vector store.
 
         Returns:
-            Dict with ``total_chunks`` count.
+            Statistics including total chunk count.
         """
-        return {
-            "total_chunks": self._collection.count(),
-        }
+        return EmbeddingStats(total_chunks=self._collection.count())
 
 
 # ---------------------------------------------------------------------------

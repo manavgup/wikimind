@@ -474,9 +474,9 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
 
     result = await svc.file_back_conversation("conv-fb", db_session, user_id=TEST_USER_ID)
 
-    assert result["was_update"] is False
-    assert result["article"]["id"] == "art-1"
-    assert result["article"]["slug"] == "conv-fb"
+    assert result.was_update is False
+    assert result.article.id == "art-1"
+    assert result.article.slug == "conv-fb"
     svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session, user_id=TEST_USER_ID)
 
 

@@ -7,7 +7,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.jobs.background import get_background_compiler
-from wikimind.models import Article, Backlink, Concept, Conversation, Source
+from wikimind.models import (
+    AdminActionResult,
+    Article,
+    Backlink,
+    Concept,
+    Conversation,
+    EligibleConcept,
+    OrphanArticle,
+    Source,
+    SystemStats,
+)
 from wikimind.storage import resolve_wiki_path
 
 log = structlog.get_logger()
@@ -20,7 +30,7 @@ class AdminService:
         self,
         session: AsyncSession,
         user_id: str,
-    ) -> dict:
+    ) -> SystemStats:
         """Compute aggregate counts across all tables.
 
         Args:
@@ -28,7 +38,7 @@ class AdminService:
             user_id: Optional user ID filter.
 
         Returns:
-            Dict with aggregate counts and breakdowns.
+            Aggregate counts and breakdowns.
         """
         counts: dict[str, int] = {}
         for model, key in [
@@ -63,17 +73,17 @@ class AdminService:
                 if not wiki_path.exists():
                     orphan_count += 1
 
-        return {
+        return SystemStats(
             **counts,
-            "orphan_count": orphan_count,
-            "articles_by_type": articles_by_type,
-        }
+            orphan_count=orphan_count,
+            articles_by_type=articles_by_type,
+        )
 
     async def get_orphan_articles(
         self,
         session: AsyncSession,
         user_id: str,
-    ) -> list[dict]:
+    ) -> list[OrphanArticle]:
         """Find articles whose wiki file is missing from disk.
 
         Args:
@@ -81,26 +91,26 @@ class AdminService:
             user_id: Optional user ID filter.
 
         Returns:
-            List of dicts with orphan article info.
+            List of orphan article records.
         """
         stmt = select(Article)
         if user_id:
             stmt = stmt.where(Article.user_id == user_id)
         result = await session.execute(stmt)
 
-        orphans = []
+        orphans: list[OrphanArticle] = []
         for article in result.scalars().all():
             if not article.file_path:
                 continue
             wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
             if not wiki_path.exists():
                 orphans.append(
-                    {
-                        "id": article.id,
-                        "slug": article.slug,
-                        "title": article.title,
-                        "file_path": article.file_path,
-                    }
+                    OrphanArticle(
+                        id=article.id,
+                        slug=article.slug,
+                        title=article.title,
+                        file_path=article.file_path,
+                    )
                 )
         return orphans
 
@@ -108,7 +118,7 @@ class AdminService:
         self,
         session: AsyncSession,
         user_id: str,
-    ) -> list[dict]:
+    ) -> list[EligibleConcept]:
         """Find concepts eligible for concept-page generation.
 
         A concept is eligible when its article_count meets the threshold
@@ -119,7 +129,7 @@ class AdminService:
             user_id: Optional user ID filter.
 
         Returns:
-            List of dicts with eligible concept info.
+            List of eligible concept records.
         """
         settings = get_settings()
         threshold = settings.taxonomy.concept_page_min_sources
@@ -130,7 +140,7 @@ class AdminService:
         result = await session.execute(stmt)
         concepts = result.scalars().all()
 
-        eligible = []
+        eligible: list[EligibleConcept] = []
         for concept in concepts:
             # Check if a concept page article already exists
             page_stmt = select(Article).where(
@@ -143,38 +153,38 @@ class AdminService:
             has_page = page_result.scalar_one_or_none() is not None
 
             eligible.append(
-                {
-                    "id": concept.id,
-                    "name": concept.name,
-                    "article_count": concept.article_count,
-                    "has_existing_page": has_page,
-                }
+                EligibleConcept(
+                    id=concept.id,
+                    name=concept.name,
+                    article_count=concept.article_count,
+                    has_existing_page=has_page,
+                )
             )
         return eligible
 
     async def trigger_sweep(
         self,
         user_id: str,
-    ) -> dict:
+    ) -> AdminActionResult:
         """Trigger a wikilink sweep manually.
 
         Args:
             user_id: Optional user ID to scope the sweep.
 
         Returns:
-            Dict with action result.
+            Action result with status.
         """
         bg = get_background_compiler()
         await bg.schedule_lint(user_id=user_id)
-        return {"action": "sweep", "status": "scheduled"}
+        return AdminActionResult(action="sweep", status="scheduled")
 
-    async def trigger_reindex(self) -> dict:
+    async def trigger_reindex(self) -> AdminActionResult:
         """Rebuild the search index.
 
         Returns:
-            Dict with action result.
+            Action result with status.
         """
-        return {"action": "reindex", "status": "scheduled"}
+        return AdminActionResult(action="reindex", status="scheduled")
 
 
 _admin_service: AdminService | None = None

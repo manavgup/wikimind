@@ -441,12 +441,11 @@ class TestFileBackSelection:
         )
         result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
-        assert "article" in result
-        article_data = result["article"]
-        assert article_data["title"] == "First Thread"  # defaults to first conv title
+        assert result.article is not None
+        assert result.article.title == "First Thread"  # defaults to first conv title
 
         # Verify the article was created on disk
-        article = await db_session.get(Article, article_data["id"])
+        article = await db_session.get(Article, result.article.id)
         assert article is not None
         resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
@@ -469,10 +468,9 @@ class TestFileBackSelection:
         )
         result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
-        article_data = result["article"]
-        assert article_data["title"] == "Merged Research"
+        assert result.article.title == "Merged Research"
 
-        article = await db_session.get(Article, article_data["id"])
+        article = await db_session.get(Article, result.article.id)
         resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
         assert "# Merged Research" in content
@@ -491,7 +489,7 @@ class TestFileBackSelection:
             ],
         )
         result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
-        article_id = result["article"]["id"]
+        article_id = result.article.id
 
         # Refresh the selected queries
         res = await db_session.execute(select(Query).where(Query.conversation_id == "conv-sel-1"))
@@ -554,8 +552,8 @@ class TestFileBackSelection:
         )
         result = await service.file_back_selection(request, db_session, user_id=TEST_USER_ID)
 
-        assert result["article"]["title"] == "My Custom Title"
-        article = await db_session.get(Article, result["article"]["id"])
+        assert result.article.title == "My Custom Title"
+        article = await db_session.get(Article, result.article.id)
         resolved = resolve_wiki_path(article.file_path, user_id=TEST_USER_ID)
         content = resolved.read_text(encoding="utf-8")
         assert "# My Custom Title" in content

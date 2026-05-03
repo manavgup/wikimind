@@ -20,7 +20,7 @@ There is NO fuzzy matching. See the design spec for rationale
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from sqlmodel import select
 
@@ -50,13 +50,20 @@ class ResolvedBacklink:
     relation_type: str = "references"
 
 
+class ResolveBacklinksResult(NamedTuple):
+    """Resolved and unresolved backlink candidates."""
+
+    resolved: list[ResolvedBacklink]
+    unresolved: list[str]
+
+
 async def resolve_backlink_candidates(
     candidates: list[str],
     session: AsyncSession,
     user_id: str,
     exclude_article_id: str | None = None,
     relation_types: dict[str, str] | None = None,
-) -> tuple[list[ResolvedBacklink], list[str]]:
+) -> ResolveBacklinksResult:
     """Resolve wikilink candidates against the Article table.
 
     Args:
@@ -75,9 +82,9 @@ async def resolve_backlink_candidates(
             considered for resolution. Prevents cross-user link leakage.
 
     Returns:
-        A tuple ``(resolved, unresolved)``. Resolved contains one
-        :class:`ResolvedBacklink` per unique target article (so two
-        candidates pointing at the same article produce one row).
+        Resolved backlinks and unresolved candidate strings. Resolved
+        contains one :class:`ResolvedBacklink` per unique target article
+        (so two candidates pointing at the same article produce one row).
         Unresolved is the list of candidate strings that matched no
         article, in input order.
     """
@@ -86,7 +93,7 @@ async def resolve_backlink_candidates(
     # Drop empty / whitespace-only candidates up front.
     cleaned = [c.strip() for c in candidates if c and c.strip()]
     if not cleaned:
-        return [], []
+        return ResolveBacklinksResult(resolved=[], unresolved=[])
 
     # Load articles for resolution. When user_id is provided, only that
     # user's articles are considered — prevents cross-user link leakage.
@@ -127,4 +134,7 @@ async def resolve_backlink_candidates(
                 relation_type=rel_map.get(candidate.lower(), "references"),
             )
 
-    return list(resolved_by_target.values()), unresolved
+    return ResolveBacklinksResult(
+        resolved=list(resolved_by_target.values()),
+        unresolved=unresolved,
+    )
