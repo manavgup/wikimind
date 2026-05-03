@@ -197,22 +197,19 @@ async def init_db():
     """Create all tables and run idempotent data migrations.
 
     ``create_all()`` runs on both SQLite and Postgres (idempotent).
-    Lightweight column migrations (ALTER TABLE) only run on SQLite;
-    Postgres uses Alembic for schema evolution.
+    Schema evolution is handled by Alembic; ``create_all`` ensures
+    internal tables (e.g. migrationhistory) exist on first boot.
 
     Each data migration is guarded by a MigrationHistory version check so
     it runs at most once, avoiding O(n) startup scans on subsequent boots.
     """
     engine = get_async_engine()
-    settings = get_settings()
 
     # create_all is idempotent — safe on both SQLite and Postgres.
-    # On Postgres, Alembic handles schema evolution but create_all ensures
+    # Alembic handles schema evolution but create_all ensures
     # internal tables (e.g. migrationhistory) exist on first boot.
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-    if is_sqlite(settings.database_url):
-        await _migrate_added_columns(engine)
 
     # Ensure the "anonymous" user row exists so FK constraints are satisfied
     # when auth is disabled (get_current_user_id returns "anonymous").
@@ -243,145 +240,6 @@ async def init_db():
         else:
             await migration_fn(engine)  # type: ignore[operator]
         await _record_migration(engine, version)
-
-
-async def _migrate_added_columns(engine) -> None:
-    """Add missing columns to existing tables (idempotent).
-
-    Uses SQLAlchemy's Inspector API to check existing columns, which
-    works on both SQLite and PostgreSQL. Runs ALTER TABLE ADD COLUMN
-    for any column declared in the SQLModel definitions that isn't
-    already on disk.
-
-    Currently tracks:
-        - source.content_hash (issue #67) + index
-        - article.provider    (issue #67)
-        - query.conversation_id (ADR-011)
-        - query.turn_index    (ADR-011)
-        - article.page_type   (issue #143)
-        - backlink.relation_type + resolution columns (issue #143)
-        - concept.concept_kind (issue #143)
-    """
-    additions: list[tuple[str, str, str]] = [
-        # (table, column, ALTER fragment)
-        ("source", "content_hash", "ALTER TABLE source ADD COLUMN content_hash TEXT"),
-        ("article", "provider", "ALTER TABLE article ADD COLUMN provider TEXT"),
-        # ADR-011 — conversation grouping for Q&A turns
-        (
-            "query",
-            "conversation_id",
-            "ALTER TABLE query ADD COLUMN conversation_id TEXT REFERENCES conversation(id)",
-        ),
-        ("query", "turn_index", "ALTER TABLE query ADD COLUMN turn_index INTEGER NOT NULL DEFAULT 0"),
-        # Lint report — additional columns
-        (
-            "lintreport",
-            "missing_pages_count",
-            "ALTER TABLE lintreport ADD COLUMN missing_pages_count INTEGER NOT NULL DEFAULT 0",
-        ),
-        (
-            "lintreport",
-            "dismissed_count",
-            "ALTER TABLE lintreport ADD COLUMN dismissed_count INTEGER NOT NULL DEFAULT 0",
-        ),
-        ("lintreport", "total_pairs", "ALTER TABLE lintreport ADD COLUMN total_pairs INTEGER NOT NULL DEFAULT 0"),
-        ("lintreport", "checked_pairs", "ALTER TABLE lintreport ADD COLUMN checked_pairs INTEGER NOT NULL DEFAULT 0"),
-        # Issue #89 — conversation branching (fork-on-edit)
-        (
-            "conversation",
-            "parent_conversation_id",
-            "ALTER TABLE conversation ADD COLUMN parent_conversation_id TEXT REFERENCES conversation(id)",
-        ),
-        (
-            "conversation",
-            "forked_at_turn_index",
-            "ALTER TABLE conversation ADD COLUMN forked_at_turn_index INTEGER",
-        ),
-        # Issue #143 — schema overhaul Phase 1
-        ("article", "page_type", "ALTER TABLE article ADD COLUMN page_type TEXT NOT NULL DEFAULT 'source'"),
-        (
-            "backlink",
-            "relation_type",
-            "ALTER TABLE backlink ADD COLUMN relation_type TEXT NOT NULL DEFAULT 'references'",
-        ),
-        ("backlink", "resolution", "ALTER TABLE backlink ADD COLUMN resolution TEXT"),
-        ("backlink", "resolution_note", "ALTER TABLE backlink ADD COLUMN resolution_note TEXT"),
-        ("backlink", "resolved_at", "ALTER TABLE backlink ADD COLUMN resolved_at TEXT"),
-        ("backlink", "resolved_by", "ALTER TABLE backlink ADD COLUMN resolved_by TEXT"),
-        ("concept", "concept_kind", "ALTER TABLE concept ADD COLUMN concept_kind TEXT NOT NULL DEFAULT 'topic'"),
-        # PR #151 — backlink enforcer integration
-        (
-            "lintreport",
-            "structural_count",
-            "ALTER TABLE lintreport ADD COLUMN structural_count INTEGER NOT NULL DEFAULT 0",
-        ),
-        ("lintreport", "checked_articles", "ALTER TABLE lintreport ADD COLUMN checked_articles INTEGER"),
-        # PR #206 — multi-user data isolation: nullable user_id FK on all data tables
-        *[
-            (table, "user_id", f"ALTER TABLE {table} ADD COLUMN user_id TEXT REFERENCES user(id)")
-            for table in [
-                "source",
-                "article",
-                "concept",
-                "backlink",
-                "conversation",
-                "query",
-                "job",
-                "costlog",
-                "synclog",
-                "userpreference",
-                "lintreport",
-                "contradictionfinding",
-                "orphanfinding",
-                "structuralfinding",
-            ]
-        ],
-    ]
-    indexes: list[tuple[str, str]] = [
-        # (index name, CREATE fragment)
-        (
-            "ix_source_content_hash",
-            "CREATE INDEX IF NOT EXISTS ix_source_content_hash ON source (content_hash)",
-        ),
-        (
-            "ix_conversation_parent_id",
-            "CREATE INDEX IF NOT EXISTS ix_conversation_parent_id ON conversation (parent_conversation_id)",
-        ),
-        # PR #206 — user_id indexes for multi-user queries
-        *[
-            (f"ix_{table}_user_id", f"CREATE INDEX IF NOT EXISTS ix_{table}_user_id ON {table} (user_id)")
-            for table in [
-                "source",
-                "article",
-                "concept",
-                "backlink",
-                "conversation",
-                "query",
-                "job",
-                "costlog",
-                "synclog",
-                "userpreference",
-                "lintreport",
-                "contradictionfinding",
-                "orphanfinding",
-                "structuralfinding",
-            ]
-        ],
-    ]
-
-    def _get_existing_columns(sync_conn, table_name: str) -> set[str]:
-        inspector = sa_inspect(sync_conn)
-        if table_name not in inspector.get_table_names():
-            return set()
-        return {col["name"] for col in inspector.get_columns(table_name)}
-
-    async with engine.begin() as conn:
-        for table, column, alter_sql in additions:
-            existing = await conn.run_sync(lambda sync_conn, t=table: _get_existing_columns(sync_conn, t))
-            if column not in existing:
-                await conn.exec_driver_sql(alter_sql)
-        for _name, create_sql in indexes:
-            await conn.exec_driver_sql(create_sql)
 
 
 async def _backfill_conversation_for_legacy_queries(engine) -> None:
