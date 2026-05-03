@@ -36,6 +36,26 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export async function checkConnection(): Promise<{ ok: boolean; message: string }> {
+  const base = await getBaseUrl();
+  try {
+    const response = await fetch(`${base}/health`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) {
+      return { ok: true, message: "Connected" };
+    }
+    return { ok: false, message: `Server returned ${response.status}` };
+  } catch {
+    return {
+      ok: false,
+      message: `Cannot reach WikiMind server at ${base}. Make sure your WikiMind instance is running and the URL is correct in Settings.`,
+    };
+  }
+}
+
 export function clipUrl(url: string, autoCompile = true): Promise<Source> {
   const body: IngestURLRequest = { url, auto_compile: autoCompile };
   return withRetry(() =>
