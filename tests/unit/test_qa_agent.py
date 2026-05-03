@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
@@ -15,6 +14,7 @@ from wikimind.config import QAConfig, get_settings
 from wikimind.engine import qa_agent as qa_mod
 from wikimind.engine.provider_base import StreamSession
 from wikimind.engine.qa_agent import QAAgent
+from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     CompletionResponse,
@@ -267,11 +267,11 @@ async def test_load_prior_turns_returns_in_order_capped_at_max(db_session, tmp_p
 
 
 async def test_answer_raises_404_when_conversation_id_unknown(db_session, tmp_path) -> None:
-    """answer(user_id=TEST_USER_ID) raises HTTPException 404 when given a conversation_id that doesn't exist."""
+    """answer(user_id=TEST_USER_ID) raises NotFoundError when given a conversation_id that doesn't exist."""
     a = _agent(tmp_path)
     req = QueryRequest(question="follow-up", conversation_id="conv-does-not-exist")
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await a.answer(req, db_session, user_id=TEST_USER_ID)
 
     assert exc_info.value.status_code == 404

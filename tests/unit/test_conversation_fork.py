@@ -5,10 +5,10 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
+from wikimind.errors import NotFoundError, QueryError
 from wikimind.models import (
     AskResponse,
     Conversation,
@@ -109,22 +109,22 @@ class TestForkConversation:
         assert result.query.question == "Different question?"
 
     async def test_fork_404_for_nonexistent_parent(self, db_session):
-        """Forking a nonexistent conversation raises 404."""
+        """Forking a nonexistent conversation raises NotFoundError."""
         service = QueryService()
         fork_request = ForkRequest(turn_index=0, new_question="Any question?")
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await service.fork_conversation("nonexistent-id", fork_request, db_session, user_id=TEST_USER_ID)
 
         assert exc_info.value.status_code == 404
 
     async def test_fork_400_for_negative_turn_index(self, db_session):
-        """Forking with negative turn_index raises 400."""
+        """Forking with negative turn_index raises QueryError."""
         parent, _queries = await _seed_conversation_with_turns(db_session)
         service = QueryService()
         fork_request = ForkRequest(turn_index=-1, new_question="Bad index?")
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(QueryError) as exc_info:
             await service.fork_conversation(parent.id, fork_request, db_session, user_id=TEST_USER_ID)
 
         assert exc_info.value.status_code == 400

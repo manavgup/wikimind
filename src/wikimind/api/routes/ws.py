@@ -21,6 +21,11 @@ import json
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+try:
+    from redis.exceptions import RedisError
+except ImportError:  # redis package not installed
+    RedisError = OSError  # type: ignore[assignment,misc]
+
 from wikimind.api.deps import get_ws_user_id
 from wikimind.config import get_settings
 
@@ -62,7 +67,7 @@ async def _get_redis():
 
         _redis_publish_pool = Redis.from_url(redis_url, decode_responses=True)
         return _redis_publish_pool
-    except Exception:
+    except (ImportError, RedisError, OSError):
         log.debug("Redis unavailable for WebSocket pub/sub — local-only mode")
         return None
 
@@ -81,7 +86,7 @@ async def _publish_to_redis(event: dict, user_id: str) -> bool:
     try:
         await redis.publish(_REDIS_WS_CHANNEL, payload)
         return True
-    except Exception:
+    except (RedisError, OSError):
         log.warning("Failed to publish WebSocket event to Redis", exc_info=True)
         return False
 
@@ -105,7 +110,7 @@ async def _start_redis_subscriber() -> None:
         from redis.asyncio import Redis  # noqa: PLC0415
 
         subscriber_redis = Redis.from_url(redis_url, decode_responses=True)
-    except Exception:
+    except (ImportError, RedisError, OSError):
         log.debug("Redis unavailable — skipping WebSocket subscriber")
         return
 
@@ -128,7 +133,7 @@ async def _start_redis_subscriber() -> None:
         except asyncio.CancelledError:
             await pubsub.unsubscribe(_REDIS_WS_CHANNEL)
             await subscriber_redis.aclose()
-        except Exception:
+        except (RedisError, OSError):
             log.warning("Redis WebSocket subscriber error", exc_info=True)
 
     _subscriber_task = asyncio.create_task(_listen())

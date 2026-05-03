@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.linter.contradictions import detect_contradictions
 from wikimind.engine.linter.orphans import detect_orphans
 from wikimind.engine.linter.runner import run_lint
+from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     ArticleConcept,
@@ -467,7 +467,7 @@ async def test_linter_service_list_reports(db_session, _isolated_data_dir) -> No
 async def test_linter_service_get_latest_returns_404_when_empty(db_session, _isolated_data_dir) -> None:
     """get_latest raises 404 when no reports exist."""
     svc = LinterService()
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await svc.get_latest(db_session, user_id=TEST_USER_ID)
     assert exc_info.value.status_code == 404
 
@@ -576,7 +576,7 @@ async def test_get_report_rejects_other_user(db_session, _isolated_data_dir) -> 
     assert detail.report.id == "r-owned"
 
     # Different user gets 404
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await svc.get_report(db_session, "r-owned", user_id="user-b")
     assert exc_info.value.status_code == 404
 

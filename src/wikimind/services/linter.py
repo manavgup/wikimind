@@ -10,10 +10,10 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
-from fastapi import HTTPException
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
+from wikimind.errors import NotFoundError, WikiMindError
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Backlink,
@@ -87,13 +87,14 @@ class LinterService:
             LintReportDetail with report metadata and grouped findings.
 
         Raises:
-            HTTPException: 404 if report not found or not owned by user.
+            NotFoundError: If report not found or not owned by user.
         """
         report = await session.get(LintReport, report_id)
+        msg = "Lint report not found"
         if not report:
-            raise HTTPException(status_code=404, detail="Lint report not found")
+            raise NotFoundError(msg)
         if user_id and report.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Lint report not found")
+            raise NotFoundError(msg)
 
         contradiction_query = select(ContradictionFinding).where(ContradictionFinding.report_id == report_id)
         orphan_query = select(OrphanFinding).where(OrphanFinding.report_id == report_id)
@@ -162,7 +163,7 @@ class LinterService:
             LintReportDetail for the latest report.
 
         Raises:
-            HTTPException: 404 if no reports exist.
+            NotFoundError: If no reports exist.
         """
         latest_stmt = (
             select(LintReport)
@@ -174,7 +175,8 @@ class LinterService:
         result = await session.execute(latest_stmt)
         report = result.scalars().first()
         if not report:
-            raise HTTPException(status_code=404, detail="No lint reports exist yet")
+            msg = "No lint reports exist yet"
+            raise NotFoundError(msg)
 
         return await self.get_report(session, report.id, user_id=user_id)
 
@@ -199,7 +201,8 @@ class LinterService:
             DismissFindingResponse confirming dismissal.
 
         Raises:
-            HTTPException: 404 if finding not found.
+            WikiMindError: If finding kind is unknown.
+            NotFoundError: If finding not found.
         """
         _ = user_id  # TODO(#344): add finding ownership check
 
@@ -213,10 +216,12 @@ class LinterService:
         elif kind == LintFindingKind.STRUCTURAL:
             finding = await session.get(StructuralFinding, finding_id)
         else:
-            raise HTTPException(status_code=400, detail=f"Unknown finding kind: {kind}")
+            msg = f"Unknown finding kind: {kind}"
+            raise WikiMindError(msg)
 
         if not finding:
-            raise HTTPException(status_code=404, detail="Finding not found")
+            msg = "Finding not found"
+            raise NotFoundError(msg)
 
         finding.dismissed = True
         finding.dismissed_at = now

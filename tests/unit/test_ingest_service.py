@@ -101,7 +101,7 @@ async def test_pdf_adapter_fitz_path(db_session, tmp_path, monkeypatch) -> None:
     fake_text_doc.close = MagicMock()
 
     # Disable vision so _enhance_with_vision is a no-op
-    mock_enhance = AsyncMock(side_effect=lambda fb, ct, sid: ct)
+    mock_enhance = AsyncMock(side_effect=lambda fb, ct, sid, **kwargs: ct)
     monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", mock_enhance)
 
     # Make docling-serve unavailable so fitz fallback is used
@@ -463,7 +463,7 @@ def test_first_markdown_heading_skips_h2() -> None:
 
 async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
     """PDF with metadata title uses it instead of filename."""
-    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid, **kwargs: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {
         "title": "Attention Is All You Need",
@@ -499,7 +499,7 @@ async def test_pdf_adapter_metadata_title(db_session, monkeypatch) -> None:
 
 async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
     """When PDF has no metadata title, falls back to first markdown heading."""
-    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid, **kwargs: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
     fake_meta_doc.close = MagicMock()
@@ -528,7 +528,7 @@ async def test_pdf_adapter_heading_fallback(db_session, monkeypatch) -> None:
 
 async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
     """When no metadata title and no heading, falls back to filename."""
-    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid: ct))
+    monkeypatch.setattr(PDFAdapter, "_enhance_with_vision", AsyncMock(side_effect=lambda fb, ct, sid, **kwargs: ct))
     fake_meta_doc = MagicMock()
     fake_meta_doc.metadata = {"title": "", "author": "", "creationDate": ""}
     fake_meta_doc.close = MagicMock()

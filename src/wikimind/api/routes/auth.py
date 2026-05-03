@@ -13,6 +13,7 @@ multi-worker deployments work without coordination.
 """
 
 import base64
+import binascii
 import hashlib
 import hmac
 import time
@@ -65,7 +66,7 @@ def _consume_oauth_state(state: str) -> str | None:
     settings = get_settings()
     try:
         raw = base64.urlsafe_b64decode(state.encode()).decode()
-    except Exception:
+    except (ValueError, binascii.Error):
         return None
 
     parts = raw.rsplit(":", 2)

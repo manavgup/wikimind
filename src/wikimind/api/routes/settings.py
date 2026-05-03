@@ -13,7 +13,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session, get_session_factory
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.llm_router import _LLM_PROVIDER_ERRORS, get_llm_router
 from wikimind.models import Article, CompletionRequest, CostLog, Provider, TaskType, UserPreference
 from wikimind.services.api_keys import get_user_api_key
 
@@ -520,7 +520,7 @@ async def test_llm_connection(
             status="ok",
             latency_ms=response.latency_ms,
         )
-    except Exception as e:  # TODO: narrow once provider error hierarchy is unified
+    except _LLM_PROVIDER_ERRORS as e:
         log.warning("LLM connection test failed", provider=provider, error=str(e))
         return LLMTestResponse(
             provider=provider,

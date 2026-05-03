@@ -7,6 +7,7 @@ Route handlers in ``api/routes/auth.py`` are thin delegates.
 """
 
 import base64
+import binascii
 import functools
 import hashlib
 import hmac
@@ -15,11 +16,11 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import jwt as pyjwt
-from fastapi import HTTPException
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import Settings
+from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     ArticleConcept,
@@ -282,7 +283,7 @@ class UserService:
         """
         try:
             decoded = base64.urlsafe_b64decode(token.encode()).decode()
-        except Exception as exc:
+        except (ValueError, binascii.Error) as exc:
             msg = "Invalid token encoding"
             raise ValueError(msg) from exc
 
@@ -302,7 +303,7 @@ class UserService:
         ).digest()
         try:
             actual_sig = base64.urlsafe_b64decode(encoded_sig.encode())
-        except Exception as exc:
+        except (ValueError, binascii.Error) as exc:
             msg = "Invalid signature encoding"
             raise ValueError(msg) from exc
 
@@ -370,11 +371,12 @@ class UserService:
             user_id: The user ID to delete.
 
         Raises:
-            HTTPException: 404 if the user does not exist.
+            NotFoundError: If the user does not exist.
         """
         user = await session.get(User, user_id)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            msg = "User not found"
+            raise NotFoundError(msg)
 
         # Collect IDs for join-table / child-table cleanup
         article_ids = [

@@ -15,7 +15,6 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import structlog
-from fastapi import HTTPException
 from fastapi.responses import Response
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -28,6 +27,7 @@ from wikimind.engine.conversation_serializer import (
     serialize_selected_turns_to_markdown,
 )
 from wikimind.engine.qa_agent import QAAgent
+from wikimind.errors import NotFoundError, QueryError
 from wikimind.models import (
     Article,
     ArticleSource,
@@ -416,13 +416,14 @@ class QueryService:
             :class:`ConversationDetail` with conversation metadata and ordered queries.
 
         Raises:
-            HTTPException: 404 if the conversation is not found.
+            NotFoundError: If the conversation is not found.
         """
         conversation = await session.get(Conversation, conversation_id)
+        msg = "Conversation not found"
         if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
         if user_id and conversation.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
 
         # Use thread materialization for forked conversations
         if conversation.parent_conversation_id is not None:
@@ -469,10 +470,11 @@ class QueryService:
         """
         # Ownership check before delegating to QAAgent
         conversation = await session.get(Conversation, conversation_id)
+        msg = "Conversation not found"
         if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
         if user_id and conversation.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
 
         article, was_update = await self._qa_agent._file_back_thread(conversation_id, session, user_id=user_id)
         return {
@@ -504,19 +506,21 @@ class QueryService:
             :class:`AskResponse` with the new query and the forked conversation.
 
         Raises:
-            HTTPException: 404 if the parent conversation is not found.
-            HTTPException: 400 if turn_index is invalid.
+            NotFoundError: If the parent conversation is not found.
+            QueryError: If turn_index is invalid.
         """
         parent = await session.get(Conversation, conversation_id)
+        msg = "Conversation not found"
         if parent is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
         if user_id and parent.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
 
         # Validate turn_index: must be >= 0 and there must be at least that
         # many turns in the parent (or its materialized thread)
         if fork_request.turn_index < 0:
-            raise HTTPException(status_code=400, detail="turn_index must be >= 0")
+            msg = "turn_index must be >= 0"
+            raise QueryError(msg)
 
         # Create the fork conversation
         title_max = self._qa_agent.settings.qa.conversation_title_max_chars
@@ -563,26 +567,23 @@ class QueryService:
             Dict with article metadata (id, slug, title).
 
         Raises:
-            HTTPException: 400 if selections are empty or invalid.
-            HTTPException: 404 if a conversation is not found.
+            QueryError: If selections are empty or invalid.
+            NotFoundError: If a conversation is not found.
         """
         if not request.selections:
-            raise HTTPException(status_code=400, detail="No selections provided")
+            msg = "No selections provided"
+            raise QueryError(msg)
 
         selected_turns: list[SelectedTurn] = []
 
         for selection in request.selections:
             conversation = await session.get(Conversation, selection.conversation_id)
             if conversation is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Conversation not found: {selection.conversation_id}",
-                )
+                msg = f"Conversation not found: {selection.conversation_id}"
+                raise NotFoundError(msg)
             if user_id and conversation.user_id != user_id:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Conversation not found: {selection.conversation_id}",
-                )
+                msg = f"Conversation not found: {selection.conversation_id}"
+                raise NotFoundError(msg)
 
             if not selection.turn_indices:
                 continue
@@ -598,15 +599,14 @@ class QueryService:
             found_indices = {q.turn_index for q in queries}
             missing = set(selection.turn_indices) - found_indices
             if missing:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"Turn indices {sorted(missing)} not found in conversation {selection.conversation_id}"),
-                )
+                msg = f"Turn indices {sorted(missing)} not found in conversation {selection.conversation_id}"
+                raise QueryError(msg)
 
             selected_turns.extend(SelectedTurn(conversation=conversation, query=query) for query in queries)
 
         if not selected_turns:
-            raise HTTPException(status_code=400, detail="No turns selected")
+            msg = "No turns selected"
+            raise QueryError(msg)
 
         markdown = serialize_selected_turns_to_markdown(selected_turns, title=request.title)
 
@@ -672,13 +672,14 @@ class QueryService:
             ``Content-Disposition`` header for download.
 
         Raises:
-            HTTPException: 404 if the conversation is not found.
+            NotFoundError: If the conversation is not found.
         """
         conversation = await session.get(Conversation, conversation_id)
+        msg = "Conversation not found"
         if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
         if user_id and conversation.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise NotFoundError(msg)
 
         result = await session.execute(
             select(Query).where(Query.conversation_id == conversation_id).order_by(Query.turn_index.asc())  # type: ignore[attr-defined]
