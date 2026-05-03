@@ -1,6 +1,6 @@
 import type { ClipRecord, ExtensionSettings, IngestStatus } from "../types";
 
-const DEFAULT_GATEWAY_URL = "http://localhost:7842";
+const DEFAULT_GATEWAY_URL = "https://wikimind.fly.dev";
 const MAX_RECENT_CLIPS = 20;
 
 export async function getSettings(): Promise<ExtensionSettings> {

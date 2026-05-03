@@ -28,7 +28,7 @@ describe("clipUrl", () => {
     expect(result).toEqual(source);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/url",
+      "https://wikimind.fly.dev/ingest/url",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -74,7 +74,7 @@ describe("getSource", () => {
     const result = await getSource("abc");
     expect(result).toEqual(source);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/sources/abc",
+      "https://wikimind.fly.dev/ingest/sources/abc",
       expect.anything()
     );
   });
@@ -86,7 +86,7 @@ describe("listRecentSources", () => {
 
     await listRecentSources(3);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/sources?limit=3",
+      "https://wikimind.fly.dev/ingest/sources?limit=3",
       expect.anything()
     );
   });
@@ -99,7 +99,7 @@ describe("checkConnection", () => {
     const result = await checkConnection();
     expect(result).toEqual({ ok: true, message: "Connected" });
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/health",
+      "https://wikimind.fly.dev/health",
       expect.objectContaining({ method: "GET" })
     );
   });
@@ -118,6 +118,6 @@ describe("checkConnection", () => {
     const result = await checkConnection();
     expect(result.ok).toBe(false);
     expect(result.message).toContain("Cannot reach WikiMind server");
-    expect(result.message).toContain("localhost:7842");
+    expect(result.message).toContain("wikimind.fly.dev");
   });
 });

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "preact/hooks";
 import type { Source, ClipRecord } from "../../types";
 import { clipUrl, checkConnection } from "../../lib/api";
-import { addRecentClip, getRecentClips } from "../../lib/storage";
+import { ApiError } from "../../lib/retry";
+import { addRecentClip, getRecentClips, getSettings } from "../../lib/storage";
 import { ClipButton } from "./ClipButton";
 import { StatusBadge } from "./StatusBadge";
 import { RecentClips } from "./RecentClips";
@@ -59,7 +60,10 @@ export function ClipTab() {
     } catch (err) {
       setClipState("error");
       let msg: string;
-      if (err instanceof TypeError) {
+      if (err instanceof ApiError && err.status === 401) {
+        const { gatewayUrl } = await getSettings();
+        msg = `Sign in required. Please log in to your WikiMind instance at ${gatewayUrl}`;
+      } else if (err instanceof TypeError) {
         msg =
           "Could not reach the WikiMind server. Ensure your instance is running and the URL in Settings is correct.";
       } else {
