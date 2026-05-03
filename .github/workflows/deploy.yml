@@ -93,8 +93,7 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false  # let in-flight deploys finish
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   # -----------------------------------------------------------
@@ -104,6 +103,8 @@ jobs:
     name: deploy to staging
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -111,10 +112,10 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: 🪁  Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 
       # 0️⃣  Pre-flight: ensure all secrets are configured
       - name: 🔐  Validate required secrets
@@ -254,14 +255,16 @@ jobs:
     name: deploy to production
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     needs: smoke-test-staging
 
     steps:
       - name: ⬇️  Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: 🪁  Install flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 
       - name: 🏗️  Ensure production app exists
         run: |

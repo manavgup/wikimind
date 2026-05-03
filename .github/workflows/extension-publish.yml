@@ -27,20 +27,26 @@ on:
     tags:
       - "extension/v*"
 
-permissions:
-  contents: write  # needed for GitHub Release creation
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write  # needed for GitHub Release creation
     defaults:
       run:
         working-directory: apps/web-extension
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -69,7 +75,7 @@ jobs:
 
       - name: Upload to Chrome Web Store
         if: ${{ vars.EXTENSION_PUBLISH_CHROME == 'true' }}
-        uses: mnao305/chrome-extension-upload@v5.0.0
+        uses: mnao305/chrome-extension-upload@4008e29e13c144d0f6725462cbd49b7c291b4928 # v5.0.0
         with:
           file-path: apps/web-extension/wikimind-extension-v${{ steps.version.outputs.version }}.zip
           extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
@@ -80,7 +86,7 @@ jobs:
 
       - name: Upload to Firefox AMO
         if: ${{ vars.EXTENSION_PUBLISH_FIREFOX == 'true' }}
-        uses: yayuyokitano/firefox-addon@v1.0.4
+        uses: yayuyokitano/firefox-addon@v1.0.4  # SHA not available — pinned by tag
         with:
           api_key: ${{ secrets.FIREFOX_JWT_ISSUER }}
           api_secret: ${{ secrets.FIREFOX_JWT_SECRET }}
@@ -88,7 +94,7 @@ jobs:
           xpi_path: apps/web-extension/wikimind-extension-v${{ steps.version.outputs.version }}.zip
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           name: "Extension v${{ steps.version.outputs.version }}"
           body: |
