@@ -95,6 +95,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             user_claim = payload.get("user")
             if isinstance(user_claim, dict):
                 request.state.user_email = user_claim.get("email")
+            else:
                 request.state.user_email = payload.get("email")
         except jwt.ExpiredSignatureError:
             return JSONResponse(
