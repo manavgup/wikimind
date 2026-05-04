@@ -44,10 +44,11 @@ def upgrade() -> None:
 
     # Verify the composite constraint exists before dropping the old index
     if not _constraint_exists(conn, "concept", "uq_concept_user_name"):
-        raise RuntimeError(
+        msg = (
             "Composite unique constraint uq_concept_user_name does not exist on concept. "
             "Run migration 0002 first."
         )
+        raise RuntimeError(msg)
 
     if not _index_exists(conn, "concept", "ix_concept_name"):
         return  # Nothing to do — index was already removed
