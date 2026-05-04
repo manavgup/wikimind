@@ -101,6 +101,14 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 
 .PHONY: dev
 dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
+	@if lsof -i :7842 -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo ""; \
+		echo "ERROR: port 7842 is already in use."; \
+		echo "  A Docker container or another process may be listening."; \
+		echo "  Run: make docker-down  (or: lsof -i :7842 to inspect)"; \
+		echo ""; \
+		exit 1; \
+	fi
 	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
 .PHONY: serve
