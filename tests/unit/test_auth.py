@@ -586,7 +586,7 @@ async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, mo
 
     response = await client.post(
         "/auth/token",
-        json={"name": "my-cli-token", "expires_in_days": 90},
+        json={"email": "test@example.com", "name": "my-cli-token", "expires_in_days": 90},
         headers=_auth_header(),
     )
     assert response.status_code == 200
@@ -625,7 +625,7 @@ async def test_api_token_has_correct_claims(client, db_session: AsyncSession, mo
 
     response = await client.post(
         "/auth/token",
-        json={"name": "automation"},
+        json={"email": "test@example.com", "name": "automation"},
         headers=_auth_header(),
     )
     assert response.status_code == 200
@@ -668,7 +668,7 @@ async def test_api_token_expires_in_requested_days(client, db_session: AsyncSess
     days = 60
     response = await client.post(
         "/auth/token",
-        json={"name": "long-token", "expires_in_days": days},
+        json={"email": "test@example.com", "name": "long-token", "expires_in_days": days},
         headers=_auth_header(),
     )
     assert response.status_code == 200
@@ -685,3 +685,32 @@ async def test_api_token_expires_in_requested_days(client, db_session: AsyncSess
     expected_seconds = days * 86400
     # Allow 10-second tolerance for test execution time
     assert abs((exp - now).total_seconds() - expected_seconds) < 10
+
+
+@pytest.mark.asyncio
+async def test_create_api_token_without_jwt(client, db_session: AsyncSession, monkeypatch):
+    """POST /auth/token should succeed without a JWT (auth-exempt)."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    user = User(
+        id="user-1",
+        email="test@example.com",
+        name="Test User",
+        auth_provider="google",
+        auth_provider_id="g-1",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    # No Authorization header — should still succeed because /auth/token is exempt
+    response = await client.post(
+        "/auth/token",
+        json={"email": "test@example.com", "name": "bootstrap-token"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    assert body["name"] == "bootstrap-token"
+    assert "access_token" in body

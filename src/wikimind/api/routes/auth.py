@@ -261,17 +261,20 @@ async def verify_magic_link(
 async def create_api_token(
     body: TokenCreateRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(require_user_id),
     service: UserService = Depends(get_user_service),
 ) -> TokenCreateResponse:
     """Create a long-lived API token for CLI/automation use.
+
+    This endpoint is auth-exempt so callers can bootstrap their first
+    API token without an existing JWT. The ``email`` field in the
+    request body identifies the user.
 
     The raw JWT is returned only once in the response. The caller must
     store it securely. The token includes a ``token_use: api`` claim to
     distinguish it from session JWTs.
     """
     settings = get_settings()
-    user = await service.get_or_create(session, user_id)
+    user = await service.get_or_create_by_email(session, body.email)
 
     now = datetime.now(UTC)
     expire = now + timedelta(days=body.expires_in_days)
