@@ -33,9 +33,7 @@ def _index_exists(conn: sa.engine.Connection, table: str, index_name: str) -> bo
 def _constraint_exists(conn: sa.engine.Connection, table: str, constraint_name: str) -> bool:
     """Return True if a unique constraint with *constraint_name* exists on *table*."""
     inspector = sa_inspect(conn)
-    return any(
-        uc["name"] == constraint_name for uc in inspector.get_unique_constraints(table)
-    )
+    return any(uc["name"] == constraint_name for uc in inspector.get_unique_constraints(table))
 
 
 def upgrade() -> None:
@@ -44,10 +42,7 @@ def upgrade() -> None:
 
     # Verify the composite constraint exists before dropping the old index
     if not _constraint_exists(conn, "concept", "uq_concept_user_name"):
-        msg = (
-            "Composite unique constraint uq_concept_user_name does not exist on concept. "
-            "Run migration 0002 first."
-        )
+        msg = "Composite unique constraint uq_concept_user_name does not exist on concept. Run migration 0002 first."
         raise RuntimeError(msg)
 
     if not _index_exists(conn, "concept", "ix_concept_name"):
