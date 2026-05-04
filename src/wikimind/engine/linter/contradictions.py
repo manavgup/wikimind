@@ -10,6 +10,7 @@ contradictions are modelled as first-class edges in the knowledge graph.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import itertools
 import json
@@ -578,8 +579,8 @@ async def detect_contradictions(
                     continue
 
             # Collect claims for uncached pair
-            claims_a = _extract_claims(article_a)
-            claims_b = _extract_claims(article_b)
+            claims_a = await asyncio.to_thread(_extract_claims, article_a)
+            claims_b = await asyncio.to_thread(_extract_claims, article_b)
             if claims_a and claims_b:
                 uncached_pairs.append((article_a, article_b, claims_a, claims_b))
             else:
@@ -621,8 +622,8 @@ async def _compare_article_pair(
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
-    claims_a = _extract_claims(article_a)
-    claims_b = _extract_claims(article_b)
+    claims_a = await asyncio.to_thread(_extract_claims, article_a)
+    claims_b = await asyncio.to_thread(_extract_claims, article_b)
 
     if not claims_a or not claims_b:
         return []

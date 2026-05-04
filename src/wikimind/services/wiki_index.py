@@ -195,7 +195,7 @@ async def regenerate_index_md(
     wiki_dir = Path(settings.data_dir) / "wiki"
     if user_id:
         wiki_dir = wiki_dir / user_id
-    wiki_dir.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
     index_path = wiki_dir / "index.md"
 
     article_stmt = select(Article)
@@ -259,7 +259,7 @@ async def generate_meta_health_page(
     if user_id:
         meta_dir = meta_dir / user_id
     meta_dir = meta_dir / "meta"
-    meta_dir.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(meta_dir.mkdir, parents=True, exist_ok=True)
     health_path = meta_dir / "wiki-health.md"
 
     articles, backlinks = await _fetch_health_data(session, user_id=user_id)

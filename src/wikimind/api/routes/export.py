@@ -1,5 +1,7 @@
 """Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks."""
 
+import asyncio
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -76,7 +78,7 @@ async def export_article(
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
     article = await _resolve_article(id_or_slug, session, user_id)
-    content = _read_article_content(article.file_path, user_id=user_id)
+    content = await asyncio.to_thread(_read_article_content, article.file_path, user_id=user_id)
 
     if not content:
         raise HTTPException(status_code=404, detail="Article content not found on disk")

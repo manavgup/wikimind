@@ -7,6 +7,7 @@ chains so callers can trace every answer back to the raw source it came
 from.
 """
 
+import asyncio
 import functools
 import json
 import re
@@ -615,14 +616,14 @@ class QueryService:
         if user_id:
             wiki_dir = wiki_dir / user_id
         wiki_dir = wiki_dir / "qa-answers"
-        wiki_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
 
         now = utcnow_naive()
         effective_title = request.title or selected_turns[0].conversation.title
 
         slug = str(uuid.uuid4())
         file_path = wiki_dir / f"{slug}.md"
-        file_path.write_text(markdown, encoding="utf-8")
+        await asyncio.to_thread(file_path.write_text, markdown, encoding="utf-8")
 
         article = Article(
             slug=slug,

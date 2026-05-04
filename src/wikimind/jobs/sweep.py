@@ -12,6 +12,7 @@ promote is a no-op.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import TYPE_CHECKING
 
@@ -61,11 +62,11 @@ async def _sweep_single_article(
 
     uid = article.user_id
     file_path = resolve_wiki_path(article.file_path, user_id=uid)
-    if not file_path.exists():
+    if not await asyncio.to_thread(file_path.exists):
         log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
         return False
 
-    content = file_path.read_text(encoding="utf-8")
+    content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
 
     # Collect all unique bracket texts
     matches = _WIKILINK_RE.findall(content)
@@ -105,7 +106,7 @@ async def _sweep_single_article(
         return False  # pragma: no cover — defensive; resolved non-empty implies change
 
     # Write the updated file
-    file_path.write_text(new_content, encoding="utf-8")
+    await asyncio.to_thread(file_path.write_text, new_content, encoding="utf-8")
 
     # Persist Backlink rows — use get-or-create to handle duplicates
     # gracefully. We check each backlink by composite PK and only insert

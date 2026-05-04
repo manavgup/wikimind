@@ -7,6 +7,7 @@ and cleaned files written by adapters under ``~/.wikimind/raw/`` (see issue
 #59) and removes them on delete.
 """
 
+import asyncio
 import functools
 from contextlib import suppress
 
@@ -260,7 +261,7 @@ class IngestService:
         if user_id and source.user_id != user_id:
             raise NotFoundError(msg)
 
-        self._remove_source_files(source)
+        await asyncio.to_thread(self._remove_source_files, source)
 
         await session.delete(source)
         await session.commit()
