@@ -326,4 +326,3 @@ DEP003 = [
 # "unsafe-best-match" considers *all* indexes and picks the highest compatible
 # version, which mirrors pip's --extra-index-url semantics.
 index-strategy = "unsafe-best-match"
-
