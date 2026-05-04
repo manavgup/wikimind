@@ -282,6 +282,7 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | Target | Description |
 |--------|-------------|
 | `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
+| `make dev-token` | Generate a JWT API token for dev/testing (uses .env secret) |
 | `make serve` | Run production server on :7842 (gunicorn) |
 | `make pg-up` | Start local Postgres (docker-compose.dev.yml, port 5433) |
 | `make pg-down` | Stop local Postgres |

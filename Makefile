@@ -111,6 +111,10 @@ dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
 	fi
 	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
+.PHONY: dev-token
+dev-token: ## Generate a JWT API token for dev/testing (uses .env secret)
+	@$(BIN)/python -m wikimind.cli.create_token --email $${EMAIL:-dev@wikimind.dev} --name $${NAME:-dev-token} --exp-days $${EXP_DAYS:-30}
+
 .PHONY: serve
 serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842

@@ -266,6 +266,9 @@ async def create_api_token(
 ) -> TokenCreateResponse:
     """Create a long-lived API token for CLI/automation use.
 
+    Requires an existing session (cookie or Bearer token). Users must
+    authenticate first via OAuth or magic link, then create API tokens.
+
     The raw JWT is returned only once in the response. The caller must
     store it securely. The token includes a ``token_use: api`` claim to
     distinguish it from session JWTs.

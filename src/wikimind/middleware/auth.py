@@ -20,7 +20,13 @@ from starlette.responses import JSONResponse, Response
 from wikimind.config import get_settings
 
 EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
-EXEMPT_PREFIXES = ("/auth/login/", "/auth/callback", "/auth/logout", "/auth/magic-link", "/assets/")
+EXEMPT_PREFIXES = (
+    "/auth/login/",
+    "/auth/callback",
+    "/auth/logout",
+    "/auth/magic-link",
+    "/assets/",
+)
 # Static frontend files that must load without auth so users can see the login page.
 _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
 # API route prefixes that require auth. Everything else is a frontend SPA route
@@ -88,6 +94,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             user_claim = payload.get("user")
             if isinstance(user_claim, dict):
                 request.state.user_email = user_claim.get("email")
+            else:
                 request.state.user_email = payload.get("email")
         except jwt.ExpiredSignatureError:
             return JSONResponse(
