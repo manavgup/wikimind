@@ -6,6 +6,7 @@ Every answer can be filed back to make the wiki smarter.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -520,7 +521,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         relevant = []
         for article in all_articles:
-            content = self._read_article_content(article.file_path, user_id=user_id)
+            content = await asyncio.to_thread(self._read_article_content, article.file_path, user_id=user_id)
             if not content:
                 continue
 
@@ -631,11 +632,11 @@ conversation context contradicts the wiki, prefer the wiki."""
             if user_id:
                 wiki_dir = wiki_dir / user_id
             wiki_dir = wiki_dir / "qa-answers"
-            wiki_dir.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
 
             slug = conversation.id  # UUID — guaranteed unique, no collision possible
             file_path = wiki_dir / f"{slug}.md"
-            file_path.write_text(markdown, encoding="utf-8")
+            await asyncio.to_thread(file_path.write_text, markdown, encoding="utf-8")
 
             # Store wiki-relative path in the DB
             relative_path = f"qa-answers/{slug}.md"
@@ -665,7 +666,8 @@ conversation context contradicts the wiki, prefer the wiki."""
             return article, False
 
         # Update path: overwrite the existing Article's file in place
-        resolve_wiki_path(existing_article.file_path, user_id=user_id).write_text(markdown, encoding="utf-8")
+        update_path = resolve_wiki_path(existing_article.file_path, user_id=user_id)
+        await asyncio.to_thread(update_path.write_text, markdown, encoding="utf-8")
         existing_article.updated_at = now
         conversation.updated_at = now
         session.add(existing_article)

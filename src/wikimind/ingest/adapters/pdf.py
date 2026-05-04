@@ -12,6 +12,7 @@ pointing at the latter.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import re
 from datetime import date
@@ -191,8 +192,8 @@ class PDFAdapter:
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
         raw_pdf_path = resolve_raw_path(f"{source.id}.pdf", user_id=user_id)
-        raw_pdf_path.parent.mkdir(parents=True, exist_ok=True)
-        raw_pdf_path.write_bytes(file_bytes)
+        await asyncio.to_thread(raw_pdf_path.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(raw_pdf_path.write_bytes, file_bytes)
 
         # Extract text — prefer docling-serve for structured output (markdown
         # with heading hierarchy, table-aware), fall back to fitz plain text
@@ -220,7 +221,7 @@ class PDFAdapter:
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
         text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
-        text_path.write_text(clean_text, encoding="utf-8")
+        await asyncio.to_thread(text_path.write_text, clean_text, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
 
         token_count = estimate_tokens(clean_text)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -182,7 +183,7 @@ class ConceptCompiler:
         min_sources = self.settings.taxonomy.concept_page_min_sources
         if len(source_articles) < min_sources:
             return None
-        source_material = _build_source_material(source_articles, user_id=self.user_id)
+        source_material = await asyncio.to_thread(_build_source_material, source_articles, user_id=self.user_id)
         source_ids = [a.id for a in source_articles]
         ct = await _collect_contradictions(source_ids, session)
         contradiction_section = ct or "No known contradictions."

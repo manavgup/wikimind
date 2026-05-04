@@ -11,6 +11,7 @@ vector similarity and results are merged via configurable hybrid
 scoring. Otherwise the service falls back to keyword-only search.
 """
 
+import asyncio
 import functools
 import json
 from pathlib import Path
@@ -78,6 +79,19 @@ def _read_article_content(file_path: str, user_id: str) -> str:
         return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+async def _read_article_content_async(file_path: str, user_id: str) -> str:
+    """Read article markdown content from disk without blocking the event loop.
+
+    Args:
+        file_path: Absolute path to the article markdown file.
+        user_id: Optional user ID for storage namespacing.
+
+    Returns:
+        The file content, or an empty string if the file cannot be read.
+    """
+    return await asyncio.to_thread(_read_article_content, file_path, user_id)
 
 
 def _parse_source_ids(raw: str | None) -> list[str]:
@@ -380,7 +394,7 @@ class WikiService:
             concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
-            content=_read_article_content(article.file_path, user_id=article.user_id),
+            content=await _read_article_content_async(article.file_path, user_id=article.user_id),
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
             updated_at=article.updated_at,
@@ -525,7 +539,7 @@ class WikiService:
         q_lower = q.lower()
         raw_scores: dict[str, int] = {}
         for article in all_articles:
-            content = _read_article_content(article.file_path, user_id=article.user_id)
+            content = await _read_article_content_async(article.file_path, user_id=article.user_id)
             if q_lower in article.title.lower() or q_lower in content.lower():
                 score = 10 if q_lower in article.title.lower() else 0
                 score += content.lower().count(q_lower)
@@ -655,8 +669,9 @@ class WikiService:
             health_dir = health_dir / user_id
         health_path = health_dir / "_meta" / "health.json"
 
-        if health_path.exists():
-            return json.loads(health_path.read_text())
+        if await asyncio.to_thread(health_path.exists):
+            content = await asyncio.to_thread(health_path.read_text)
+            return json.loads(content)
 
         article_stmt = select(Article)
         if user_id:

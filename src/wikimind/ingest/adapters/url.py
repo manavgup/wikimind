@@ -6,6 +6,7 @@ and returns a NormalizedDocument for downstream compilation.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -92,10 +93,10 @@ class URLAdapter:
         # Save clean extracted text (used by the compiler worker) and
         # keep the raw HTML alongside it for reference/reprocessing.
         html_path = resolve_raw_path(f"{source.id}.html", user_id=user_id)
-        html_path.parent.mkdir(parents=True, exist_ok=True)
-        html_path.write_text(html, encoding="utf-8")
+        await asyncio.to_thread(html_path.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(html_path.write_text, html, encoding="utf-8")
         text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
-        text_path.write_text(downloaded, encoding="utf-8")
+        await asyncio.to_thread(text_path.write_text, downloaded, encoding="utf-8")
         source.file_path = f"{source.id}.txt"
 
         # Normalize
