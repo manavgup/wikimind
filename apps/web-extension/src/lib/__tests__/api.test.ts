@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { clipUrl, getSource, listRecentSources } from "../api";
+import { clipUrl, getSource, listRecentSources, checkConnection } from "../api";
 import { resetStorage } from "../../test-setup";
 
 const fetchMock = vi.fn();
@@ -28,7 +28,7 @@ describe("clipUrl", () => {
     expect(result).toEqual(source);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/url",
+      "https://wikimind.fly.dev/ingest/url",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -74,7 +74,7 @@ describe("getSource", () => {
     const result = await getSource("abc");
     expect(result).toEqual(source);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/sources/abc",
+      "https://wikimind.fly.dev/ingest/sources/abc",
       expect.anything()
     );
   });
@@ -86,8 +86,38 @@ describe("listRecentSources", () => {
 
     await listRecentSources(3);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:7842/ingest/sources?limit=3",
+      "https://wikimind.fly.dev/ingest/sources?limit=3",
       expect.anything()
     );
+  });
+});
+
+describe("checkConnection", () => {
+  it("returns ok:true when server responds 200", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: "ok" }));
+
+    const result = await checkConnection();
+    expect(result).toEqual({ ok: true, message: "Connected" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://wikimind.fly.dev/health",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("returns ok:false with message when server returns non-200", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, 503));
+
+    const result = await checkConnection();
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("503");
+  });
+
+  it("returns ok:false with helpful message on network error", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const result = await checkConnection();
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Cannot reach WikiMind server");
+    expect(result.message).toContain("wikimind.fly.dev");
   });
 });

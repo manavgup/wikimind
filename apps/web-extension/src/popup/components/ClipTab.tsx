@@ -1,7 +1,8 @@
 import { useState, useEffect } from "preact/hooks";
 import type { Source, ClipRecord } from "../../types";
-import { clipUrl } from "../../lib/api";
-import { addRecentClip, getRecentClips } from "../../lib/storage";
+import { clipUrl, checkConnection } from "../../lib/api";
+import { ApiError } from "../../lib/retry";
+import { addRecentClip, getRecentClips, getSettings } from "../../lib/storage";
 import { ClipButton } from "./ClipButton";
 import { StatusBadge } from "./StatusBadge";
 import { RecentClips } from "./RecentClips";
@@ -20,12 +21,18 @@ export function ClipTab() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState("");
   const [recentClips, setRecentClips] = useState<ClipRecord[]>([]);
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [connectionMsg, setConnectionMsg] = useState<string>("");
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.url) setCurrentUrl(tabs[0].url);
     });
     getRecentClips().then((clips) => setRecentClips(clips.slice(0, 5)));
+    checkConnection().then(({ ok, message }) => {
+      setConnected(ok);
+      setConnectionMsg(message);
+    });
   }, []);
 
   async function handleClip() {
@@ -52,17 +59,72 @@ export function ClipTab() {
       chrome.runtime.sendMessage({ type: "clip:success" });
     } catch (err) {
       setClipState("error");
-      const msg = err instanceof Error ? err.message : "Unknown error";
+      let msg: string;
+      if (err instanceof ApiError && err.status === 401) {
+        const { gatewayUrl } = await getSettings();
+        msg = `Sign in required. Please log in to your WikiMind instance at ${gatewayUrl}`;
+      } else if (err instanceof TypeError) {
+        msg =
+          "Could not reach the WikiMind server. Ensure your instance is running and the URL in Settings is correct.";
+      } else {
+        msg = err instanceof Error ? err.message : "Unknown error";
+      }
       setErrorMsg(msg);
       chrome.runtime.sendMessage({ type: "clip:error" });
     }
   }
 
-  const canClip = currentUrl !== "" && isClippableUrl(currentUrl);
+  const canClip = currentUrl !== "" && isClippableUrl(currentUrl) && connected === true;
+
+  if (connected === false) {
+    return (
+      <div>
+        <div
+          style={{
+            padding: "16px",
+            borderRadius: "8px",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>&#9888;</div>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#dc2626",
+              margin: "0 0 8px",
+            }}
+          >
+            WikiMind server not reachable
+          </p>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>
+            {connectionMsg}
+          </p>
+        </div>
+        <p
+          style={{
+            fontSize: "11px",
+            color: "#94a3b8",
+            marginTop: "12px",
+            textAlign: "center",
+          }}
+        >
+          Open Settings &#9881; to configure your server URL.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div style={{ marginBottom: "12px" }}>
+        {connected === null && (
+          <p style={{ fontSize: "12px", color: "#94a3b8", margin: "0 0 4px" }}>
+            Checking connection...
+          </p>
+        )}
         {currentUrl && isClippableUrl(currentUrl) ? (
           <p
             style={{

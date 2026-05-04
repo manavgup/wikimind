@@ -108,7 +108,7 @@ export function Settings({ onBack }: Props) {
           boxSizing: "border-box",
           outline: "none",
         }}
-        placeholder="http://localhost:7842"
+        placeholder="https://wikimind.fly.dev"
       />
 
       {error && (

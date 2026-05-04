@@ -27,7 +27,7 @@ function makeClip(overrides: Partial<ClipRecord> = {}): ClipRecord {
 describe("getSettings", () => {
   it("returns default gateway URL when empty", async () => {
     const settings = await getSettings();
-    expect(settings.gatewayUrl).toBe("http://localhost:7842");
+    expect(settings.gatewayUrl).toBe("https://wikimind.fly.dev");
   });
 
   it("returns stored gateway URL", async () => {
