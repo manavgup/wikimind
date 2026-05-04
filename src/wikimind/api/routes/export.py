@@ -12,7 +12,7 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import Article, ExportFormat, ExportResponse
 from wikimind.services.export import ExportService, get_export_service
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -22,7 +22,9 @@ router = APIRouter()
 def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk."""
     try:
-        return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
+        storage = get_wiki_storage(user_id)
+        path = storage.root / file_path
+        return path.read_text(encoding="utf-8")
     except OSError:
         return ""
 

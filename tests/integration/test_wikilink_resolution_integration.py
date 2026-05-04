@@ -31,7 +31,7 @@ from wikimind.models import (
     Source,
     SourceType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -92,7 +92,7 @@ async def test_wikilink_resolution_end_to_end(
     assert backlinks[0].target_article_id == target.id
 
     # 4. Markdown has the resolved link by ID and the unresolved bracket
-    content = resolve_wiki_path(article.file_path, user_id=article.user_id).read_text()
+    content = (get_wiki_storage(article.user_id).root / article.file_path).read_text()
     assert f"[Existing Target](/wiki/{target.id})" in content
     assert "[[Nonexistent Topic]]" in content
 

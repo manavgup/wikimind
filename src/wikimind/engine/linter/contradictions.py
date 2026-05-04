@@ -42,7 +42,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +67,8 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
 def _extract_claims(article: Article) -> list[str]:
     """Extract key claims from an article's markdown file."""
     try:
-        wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
+        storage = get_wiki_storage(article.user_id)
+        wiki_path = storage.root / article.file_path
         content = wiki_path.read_text(encoding="utf-8")
     except (OSError, FileNotFoundError):
         return []

@@ -14,8 +14,6 @@ from wikimind.storage import (
     find_original_sibling,
     get_raw_storage,
     get_wiki_storage,
-    resolve_raw_path,
-    resolve_wiki_path,
 )
 
 
@@ -151,43 +149,42 @@ def test_get_raw_storage_with_user_id(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# resolve_wiki_path / resolve_raw_path tests
+# get_wiki_storage / get_raw_storage root resolution tests
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_wiki_path_relative(tmp_path, monkeypatch):
+def test_wiki_storage_root_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_wiki_path("concept/article.md", user_id=TEST_USER_ID)
+    storage = get_wiki_storage(TEST_USER_ID)
+    result = storage.root / "concept/article.md"
     assert result == tmp_path / "wiki" / TEST_USER_ID / "concept" / "article.md"
     get_settings.cache_clear()
 
 
-def test_resolve_wiki_path_absolute():
-    result = resolve_wiki_path("/absolute/path/article.md", user_id=TEST_USER_ID)
-    assert result == Path("/absolute/path/article.md")
-
-
-def test_resolve_wiki_path_with_user_id(tmp_path, monkeypatch):
+def test_wiki_storage_root_with_user_id(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_wiki_path("concept/article.md", user_id="user-abc")
+    storage = get_wiki_storage("user-abc")
+    result = storage.root / "concept/article.md"
     assert result == tmp_path / "wiki" / "user-abc" / "concept" / "article.md"
     get_settings.cache_clear()
 
 
-def test_resolve_raw_path_relative(tmp_path, monkeypatch):
+def test_raw_storage_root_relative(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_raw_path("source-id.txt", user_id=TEST_USER_ID)
+    storage = get_raw_storage(TEST_USER_ID)
+    result = storage.root / "source-id.txt"
     assert result == tmp_path / "raw" / TEST_USER_ID / "source-id.txt"
     get_settings.cache_clear()
 
 
-def test_resolve_raw_path_with_user_id(tmp_path, monkeypatch):
+def test_raw_storage_root_with_user_id(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
-    result = resolve_raw_path("source-id.txt", user_id="user-xyz")
+    storage = get_raw_storage("user-xyz")
+    result = storage.root / "source-id.txt"
     assert result == tmp_path / "raw" / "user-xyz" / "source-id.txt"
     get_settings.cache_clear()
 

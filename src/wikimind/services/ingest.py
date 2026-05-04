@@ -21,7 +21,7 @@ from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import DeleteConfirmation, NormalizedDocument, Source
 from wikimind.services.activity_log import append_log_entry
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 log = structlog.get_logger()
 
@@ -271,19 +271,20 @@ class IngestService:
     def _remove_source_files(source: Source) -> None:
         """Remove the cleaned ``.txt`` file and any sibling raw file for a source.
 
-        The cleaned file path is resolved via ``resolve_raw_path()`` which
+        The cleaned file path is resolved via ``get_raw_storage().root`` which
         scopes to the user's directory when ``user_id`` is set. The raw
         sibling is discovered by scanning the same directory for files sharing
         the ``{source_id}`` stem (e.g. ``{id}.pdf``, ``{id}.html``). Missing
         files are silently ignored — this method is best-effort cleanup.
         """
+        raw_storage = get_raw_storage(source.user_id)
         if source.file_path:
-            resolved = resolve_raw_path(source.file_path, user_id=source.user_id)
+            resolved = raw_storage.root / source.file_path
             with suppress(OSError):
                 resolved.unlink(missing_ok=True)
 
-        # Resolve the user-scoped raw directory to find sibling files
-        raw_dir = resolve_raw_path(f"{source.id}.txt", user_id=source.user_id).parent
+        # Use the storage root to find sibling files
+        raw_dir = raw_storage.root
         if not raw_dir.is_dir():
             return
         for sibling in raw_dir.glob(f"{source.id}.*"):

@@ -15,7 +15,7 @@ import structlog
 from sqlmodel import select
 
 from wikimind.models import DocumentChunk, NormalizedDocument, Source
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -334,7 +334,8 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     if not source.file_path:
         msg = f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument"
         raise ValueError(msg)
-    raw_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+    raw_storage = get_raw_storage(source.user_id)
+    raw_path = raw_storage.root / source.file_path
     clean_text = raw_path.read_text(encoding="utf-8")
     return NormalizedDocument(
         raw_source_id=source.id,

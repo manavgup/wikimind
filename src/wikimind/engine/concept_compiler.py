@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -29,7 +28,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
-from wikimind.storage import LocalFileStorage, resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,7 +121,8 @@ def _build_source_material(articles: list[Article], user_id: str) -> str:
         if article.summary:
             section += f"Summary: {article.summary}\n"
         try:
-            fc = resolve_wiki_path(article.file_path, user_id=user_id).read_text(encoding="utf-8")
+            storage = get_wiki_storage(user_id)
+            fc = (storage.root / article.file_path).read_text(encoding="utf-8")
             if len(fc) > max_chars:
                 fc = fc[:max_chars] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
@@ -365,10 +365,7 @@ provider: {self._last_provider_used or "unknown"}
 
 {compilation.sources_summary}
 """
-        wiki_root = Path(self.settings.data_dir) / "wiki"
-        if concept.user_id:
-            wiki_root = wiki_root / concept.user_id
-        storage = LocalFileStorage(root=wiki_root)
+        storage = get_wiki_storage(concept.user_id)
         await storage.write(relative_path, content)
         return relative_path
 

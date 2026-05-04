@@ -212,7 +212,7 @@ class TestConceptPageOutput:
         ):
             art = await ConceptCompiler(user_id=TEST_USER_ID).compile_concept_page(c, db_session)
         assert art is not None
-        content = (Path(tmp_path) / "wiki" / TEST_USER_ID / art.file_path).read_text(encoding="utf-8")
+        content = (Path(tmp_path) / "wikimind" / "wiki" / TEST_USER_ID / art.file_path).read_text(encoding="utf-8")
         assert "page_type: concept" in content
         for s in [
             "## Overview",

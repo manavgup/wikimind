@@ -12,7 +12,6 @@ promote is a no-op.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import TYPE_CHECKING
 
@@ -25,7 +24,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType, PageType
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,12 +60,16 @@ async def _sweep_single_article(
         return False
 
     uid = article.user_id
-    file_path = resolve_wiki_path(article.file_path, user_id=uid)
-    if not await asyncio.to_thread(file_path.exists):
-        log.warning("sweep: file not found, skipping", article_id=article.id, path=str(file_path))
+    wiki_storage = get_wiki_storage(uid)
+    if not await wiki_storage.exists(article.file_path):
+        log.warning(
+            "sweep: file not found, skipping",
+            article_id=article.id,
+            path=str(wiki_storage.root / article.file_path),
+        )
         return False
 
-    content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
+    content = await wiki_storage.read(article.file_path)
 
     # Collect all unique bracket texts
     matches = _WIKILINK_RE.findall(content)
@@ -106,7 +109,7 @@ async def _sweep_single_article(
         return False  # pragma: no cover — defensive; resolved non-empty implies change
 
     # Write the updated file
-    await asyncio.to_thread(file_path.write_text, new_content, encoding="utf-8")
+    await wiki_storage.write(article.file_path, new_content)
 
     # Persist Backlink rows — use get-or-create to handle duplicates
     # gracefully. We check each backlink by composite PK and only insert
@@ -154,9 +157,10 @@ async def _cleanup_orphaned_concept_pages(
     result = await session.execute(stmt)
     concept_articles = list(result.scalars().all())
 
+    wiki_storage = get_wiki_storage(user_id)
     cleaned = 0
     for article in concept_articles:
-        file_path = resolve_wiki_path(article.file_path, user_id=user_id)
+        file_path = wiki_storage.root / article.file_path
         if file_path.exists():
             continue
 

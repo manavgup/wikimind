@@ -14,7 +14,7 @@ from wikimind.services.wiki_index import (
     _first_sentence,
     regenerate_index_md,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +52,7 @@ class TestRegenerateIndexMd:
     async def test_empty_database_produces_header_only(self, db_session: AsyncSession) -> None:
         """An empty DB should produce a file with frontmatter and the header."""
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "page_type: index" in content
@@ -88,7 +88,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         # Both concept headings should appear
@@ -117,7 +117,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         assert "## Uncategorized" in content
@@ -138,7 +138,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         assert "## Machine Learning" in content
@@ -164,7 +164,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         expected = "- [[unit-testing-guide]] \u2014 How to write effective unit tests."
@@ -190,7 +190,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         # The entry line should contain a truncated summary
@@ -219,7 +219,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         first_content = path.read_text(encoding="utf-8")
         assert "[[first-article]]" in first_content
 
@@ -236,7 +236,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         second_content = path.read_text(encoding="utf-8")
 
         # Both should be present
@@ -261,7 +261,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         assert "- [[no-summary]]\n" in content
@@ -287,7 +287,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         # Should appear under both headings
@@ -324,7 +324,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         assert content.index("[[alpha]]") < content.index("[[zebra]]")
@@ -344,7 +344,7 @@ class TestRegenerateIndexMd:
         await db_session.commit()
 
         rel = await regenerate_index_md(db_session, user_id=TEST_USER_ID)
-        path = resolve_wiki_path(rel, user_id=TEST_USER_ID)
+        path = get_wiki_storage(TEST_USER_ID).root / rel
         content = path.read_text(encoding="utf-8")
 
         assert "## Uncategorized" in content

@@ -51,7 +51,7 @@ from wikimind.models import (
     Source,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
-from wikimind.storage import resolve_raw_path, resolve_wiki_path
+from wikimind.storage import get_raw_storage, get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -81,7 +81,8 @@ def _build_normalized_doc(source: Source) -> NormalizedDocument:
         msg = "No cleaned text file path for source"
         raise ValueError(msg)
 
-    text_path = resolve_raw_path(source.file_path, user_id=source.user_id)
+    raw_storage = get_raw_storage(source.user_id)
+    text_path = raw_storage.root / source.file_path
     content = text_path.read_text(encoding="utf-8")
 
     return NormalizedDocument(
@@ -110,7 +111,8 @@ def _try_embed_article(article: Article) -> None:
         embedding_service = get_embedding_service()
         if embedding_service is not None:
             uid = article.user_id
-            wiki_path = resolve_wiki_path(article.file_path, user_id=uid)
+            wiki_storage = get_wiki_storage(uid)
+            wiki_path = wiki_storage.root / article.file_path
             content = wiki_path.read_text(encoding="utf-8")
             embedding_service.embed_article(
                 article.id,

@@ -17,6 +17,7 @@ from wikimind.models import (
     Source,
     SourceType,
 )
+from wikimind.storage import LocalFileStorage
 
 
 class TestEnums:
@@ -81,7 +82,7 @@ class TestJobModel:
 
 def test_source_has_original_true_when_pdf_sibling_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """has_original is True when a non-.txt sibling exists in raw/."""
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
+    monkeypatch.setattr("wikimind.storage.get_raw_storage", lambda uid: LocalFileStorage(root=tmp_path))
     (tmp_path / "src-1.txt").write_text("text")
     (tmp_path / "src-1.pdf").write_bytes(b"%PDF")
     source = Source(id="src-1", source_type=SourceType.PDF, file_path="src-1.txt", user_id=TEST_USER_ID)
@@ -90,7 +91,7 @@ def test_source_has_original_true_when_pdf_sibling_exists(tmp_path: Path, monkey
 
 def test_source_has_original_false_for_text_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """has_original is False when only the .txt exists."""
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", lambda p, **kw: tmp_path / p)
+    monkeypatch.setattr("wikimind.storage.get_raw_storage", lambda uid: LocalFileStorage(root=tmp_path))
     (tmp_path / "src-2.txt").write_text("text")
     source = Source(id="src-2", source_type=SourceType.TEXT, file_path="src-2.txt", user_id=TEST_USER_ID)
     assert source.has_original is False
@@ -103,12 +104,12 @@ def test_source_has_original_false_when_no_file_path() -> None:
 
 
 def test_source_has_original_passes_user_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """has_original passes user_id to resolve_raw_path for correct directory scoping."""
-    mock_resolve = MagicMock(return_value=tmp_path / "src-4.txt")
-    monkeypatch.setattr("wikimind.storage.resolve_raw_path", mock_resolve)
+    """has_original passes user_id to get_raw_storage for correct directory scoping."""
+    mock_get_storage = MagicMock(return_value=LocalFileStorage(root=tmp_path))
+    monkeypatch.setattr("wikimind.storage.get_raw_storage", mock_get_storage)
     (tmp_path / "src-4.txt").write_text("text")
 
     source = Source(id="src-4", source_type=SourceType.PDF, file_path="src-4.txt", user_id="user-abc")
     _ = source.has_original
 
-    mock_resolve.assert_called_once_with("src-4.txt", user_id="user-abc")
+    mock_get_storage.assert_called_once_with("user-abc")

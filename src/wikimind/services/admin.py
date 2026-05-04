@@ -18,7 +18,7 @@ from wikimind.models import (
     Source,
     SystemStats,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -69,8 +69,8 @@ class AdminService:
         orphan_count = 0
         for article in art_result.scalars().all():
             if article.file_path:
-                wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
-                if not wiki_path.exists():
+                wiki_storage = get_wiki_storage(article.user_id)
+                if not await wiki_storage.exists(article.file_path):
                     orphan_count += 1
 
         return SystemStats(
@@ -102,8 +102,8 @@ class AdminService:
         for article in result.scalars().all():
             if not article.file_path:
                 continue
-            wiki_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
-            if not wiki_path.exists():
+            wiki_storage = get_wiki_storage(article.user_id)
+            if not await wiki_storage.exists(article.file_path):
                 orphans.append(
                     OrphanArticle(
                         id=article.id,

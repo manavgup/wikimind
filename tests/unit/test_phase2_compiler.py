@@ -289,7 +289,7 @@ async def test_write_article_file_includes_page_type(tmp_path):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id=TEST_USER_ID)
     rel_path = await c._write_article_file(_result(), src, "test-slug", [], [])
-    full_path = Path(tmp_path) / "wiki" / TEST_USER_ID / rel_path
+    full_path = Path(tmp_path) / "wikimind" / "wiki" / TEST_USER_ID / rel_path
     assert full_path.exists()
     text = full_path.read_text()
     assert "page_type: source" in text

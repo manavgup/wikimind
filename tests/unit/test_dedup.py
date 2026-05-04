@@ -39,7 +39,7 @@ from wikimind.models import (
 )
 from wikimind.services import ingest as svc_ingest
 from wikimind.services.ingest import IngestService
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -177,7 +177,7 @@ class TestTextAdapterDedup:
         body = "Stable text content."
 
         first, _ = await adapter.ingest(body, "first", db_session, user_id=TEST_USER_ID)
-        text_path = resolve_raw_path(first.file_path, user_id=TEST_USER_ID)
+        text_path = get_raw_storage(TEST_USER_ID).root / first.file_path
         first_mtime = text_path.stat().st_mtime_ns
 
         second, _ = await adapter.ingest(body, "second", db_session, user_id=TEST_USER_ID)

@@ -174,9 +174,10 @@ class Source(SQLModel, table=True):
         """Whether the original document (PDF, HTML) exists alongside the .txt."""
         if not self.file_path:
             return False
-        from wikimind.storage import find_original_sibling, resolve_raw_path  # noqa: PLC0415
+        from wikimind.storage import find_original_sibling, get_raw_storage  # noqa: PLC0415
 
-        txt_path = resolve_raw_path(self.file_path, user_id=self.user_id)
+        raw_storage = get_raw_storage(self.user_id)
+        txt_path = raw_storage.root / self.file_path
         return find_original_sibling(txt_path) is not None
 
 
