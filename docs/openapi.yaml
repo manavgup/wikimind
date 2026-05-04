@@ -1490,11 +1490,9 @@ paths:
       description: 'Create a long-lived API token for CLI/automation use.
 
 
-        This endpoint is auth-exempt so callers can bootstrap their first
+        Requires an existing session (cookie or Bearer token). Users must
 
-        API token without an existing JWT. The ``email`` field in the
-
-        request body identifies the user.
+        authenticate first via OAuth or magic link, then create API tokens.
 
 
         The raw JWT is returned only once in the response. The caller must
@@ -3466,9 +3464,6 @@ components:
       description: Cloud sync configuration section.
     TokenCreateRequest:
       properties:
-        email:
-          type: string
-          title: Email
         name:
           type: string
           title: Name
@@ -3480,7 +3475,6 @@ components:
           default: 30
       type: object
       required:
-      - email
       - name
       title: TokenCreateRequest
       description: Request to create a long-lived API token.

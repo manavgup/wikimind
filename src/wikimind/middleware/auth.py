@@ -25,7 +25,6 @@ EXEMPT_PREFIXES = (
     "/auth/callback",
     "/auth/logout",
     "/auth/magic-link",
-    "/auth/token",
     "/assets/",
 )
 # Static frontend files that must load without auth so users can see the login page.

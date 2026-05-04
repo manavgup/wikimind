@@ -1195,7 +1195,6 @@ class MagicLinkVerifyResponse(BaseModel):
 class TokenCreateRequest(BaseModel):
     """Request to create a long-lived API token."""
 
-    email: str
     name: str
     expires_in_days: int = Field(default=30, ge=1, le=365)
 
