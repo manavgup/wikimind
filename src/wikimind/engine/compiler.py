@@ -352,6 +352,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing: Article | None,
     ) -> Article:
         """Unified create-or-replace logic for a compiled article."""
+        old_path: Path | None = None
         if existing is not None:
             slug = existing.slug
             old_path = resolve_wiki_path(existing.file_path, user_id=self.user_id)
@@ -371,7 +372,9 @@ Compile this into a wiki article following the JSON schema exactly."""
         if existing is not None:
             # Delete old file only after new file is written successfully to
             # avoid data loss if the write fails (issue #183).
-            if old_path != resolve_wiki_path(relative_path, user_id=self.user_id):
+            if old_path is not None and old_path != resolve_wiki_path(
+                relative_path, user_id=self.user_id
+            ):
                 old_path.unlink(missing_ok=True)
 
             existing.title = result.title
