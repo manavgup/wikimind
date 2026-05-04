@@ -187,6 +187,10 @@ bandit: ## Run bandit security scanner
 vulture: ## Detect dead code (80% confidence)
 	$(BIN)/vulture src/wikimind vulture_whitelist.py --min-confidence 80
 
+.PHONY: deptry
+deptry: ## Detect unused/missing/transitive dependencies
+	$(BIN)/deptry src/
+
 .PHONY: dead-code
 dead-code: vulture ## Alias for vulture — find unused functions, imports, variables
 
