@@ -30,10 +30,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  actions: read
-  contents: read
-  security-events: write
+permissions: {}
 
 jobs:
   analyze:
@@ -41,6 +38,10 @@ jobs:
     name: codeql (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
     strategy:
       fail-fast: false
@@ -49,17 +50,17 @@ jobs:
 
     steps:
       - name: ⬇️  Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
 
       - name: 🧰  Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@0daab03d71ff584ef619d027a3fd9146679c5d84 # v3
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
 
       - name: 🔎  Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@0daab03d71ff584ef619d027a3fd9146679c5d84 # v3
         with:
           category: "/language:${{ matrix.language }}"

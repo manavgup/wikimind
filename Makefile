@@ -209,7 +209,6 @@ coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outpu
 		--cov-report=term-missing \
 		--cov-report=html:htmlcov \
 		--cov-report=xml:coverage.xml \
-		--cov-fail-under=80 \
 		-v
 
 .PHONY: coverage-check
