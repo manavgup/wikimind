@@ -227,7 +227,7 @@ async def test_ingest_service_delete_source(db_session, tmp_path, monkeypatch) -
     db_session.add(s)
     await db_session.commit()
     result = await svc.delete_source(s.id, db_session, user_id=TEST_USER_ID)
-    assert result["deleted"] == s.id
+    assert result.deleted == s.id
 
 
 async def test_ingest_service_delete_missing(db_session) -> None:
@@ -474,9 +474,9 @@ async def test_query_service_file_back_conversation(db_session, tmp_path, monkey
 
     result = await svc.file_back_conversation("conv-fb", db_session, user_id=TEST_USER_ID)
 
-    assert result["was_update"] is False
-    assert result["article"]["id"] == "art-1"
-    assert result["article"]["slug"] == "conv-fb"
+    assert result.was_update is False
+    assert result.article.id == "art-1"
+    assert result.article.slug == "conv-fb"
     svc._qa_agent._file_back_thread.assert_awaited_once_with("conv-fb", db_session, user_id=TEST_USER_ID)
 
 

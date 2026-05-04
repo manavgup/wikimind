@@ -992,6 +992,33 @@ class AdminActionResult(BaseModel):
     job_id: str | None = None
 
 
+class FileBackArticleRef(BaseModel):
+    """Minimal article reference returned by file-back operations."""
+
+    id: str
+    slug: str
+    title: str
+
+
+class FileBackResult(BaseModel):
+    """Result of filing a conversation or selection back to the wiki."""
+
+    article: FileBackArticleRef
+    was_update: bool = False
+
+
+class DeleteConfirmation(BaseModel):
+    """Confirmation of a resource deletion."""
+
+    deleted: str
+
+
+class EmbeddingStats(BaseModel):
+    """Basic statistics about the vector store."""
+
+    total_chunks: int
+
+
 class CitationArticleRef(BaseModel):
     """Minimal reference to an article used inside a :class:`CitationResponse`."""
 

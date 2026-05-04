@@ -12,7 +12,7 @@ import contextlib
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import structlog
 from sqlmodel import select
@@ -71,10 +71,17 @@ def _article_entry(article: Article) -> str:
     return f"- [[{article.slug}]]{type_badge}{summary_part}\n"
 
 
+class GroupedArticles(NamedTuple):
+    """Articles grouped by concept with uncategorized remainder."""
+
+    by_concept: dict[str, list[Article]]
+    uncategorized: list[Article]
+
+
 async def _group_articles_by_concept(
     articles: list[Article],
     session: AsyncSession,
-) -> tuple[dict[str, list[Article]], list[Article]]:
+) -> GroupedArticles:
     """Group articles by concept name and identify uncategorized articles.
 
     Reads from the ArticleConcept join table with a fallback to the legacy
@@ -85,7 +92,7 @@ async def _group_articles_by_concept(
         session: Async database session.
 
     Returns:
-        A tuple of (concept_name -> article list, uncategorized articles).
+        GroupedArticles with by_concept mapping and uncategorized list.
     """
     concepts_result = await session.execute(select(Concept))
     concept_map: dict[str, str] = {c.id: c.name for c in concepts_result.scalars().all()}
@@ -115,7 +122,7 @@ async def _group_articles_by_concept(
             name = concept_map.get(raw_id, raw_id)
             concept_articles[name].append(article)
 
-    return concept_articles, uncategorized
+    return GroupedArticles(concept_articles, uncategorized)
 
 
 def _build_index_lines(
@@ -212,10 +219,17 @@ async def regenerate_index_md(
     return "index.md"
 
 
+class HealthData(NamedTuple):
+    """Articles and backlinks fetched for the health page."""
+
+    articles: list[Article]
+    backlinks: list[Backlink]
+
+
 async def _fetch_health_data(
     session: AsyncSession,
     user_id: str,
-) -> tuple[list[Article], list[Backlink]]:
+) -> HealthData:
     """Fetch articles and backlinks for the health page, scoped by user_id."""
     article_stmt = select(Article)
     if user_id:
@@ -234,7 +248,7 @@ async def _fetch_health_data(
     backlinks_result = await session.execute(backlink_stmt)
     backlinks: list[Backlink] = list(backlinks_result.scalars().all())
 
-    return articles, backlinks
+    return HealthData(articles, backlinks)
 
 
 async def generate_meta_health_page(

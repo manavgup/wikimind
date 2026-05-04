@@ -15,7 +15,7 @@ import hashlib
 import itertools
 import json
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import structlog
 from sqlalchemy import delete
@@ -201,12 +201,19 @@ async def _create_contradiction_backlink(
 # ---------------------------------------------------------------------------
 
 
+class BatchPrompt(NamedTuple):
+    """System and user prompts for a batch LLM call."""
+
+    system: str
+    user: str
+
+
 def _build_batch_prompt(
     pairs_with_claims: list[tuple[Article, Article, list[str], list[str]]],
-) -> tuple[str, str]:
+) -> BatchPrompt:
     """Build batch system + user prompt for multiple article pairs.
 
-    Returns (system_str, user_str).
+    Returns BatchPrompt with system and user strings.
     """
     sections: list[str] = []
     for idx, (art_a, art_b, claims_a, claims_b) in enumerate(pairs_with_claims):
@@ -225,7 +232,7 @@ def _build_batch_prompt(
         pair_count=len(pairs_with_claims),
         pair_sections="\n\n".join(sections),
     )
-    return CONTRADICTION_BATCH_SYSTEM, user_msg
+    return BatchPrompt(CONTRADICTION_BATCH_SYSTEM, user_msg)
 
 
 def _parse_batch_response(response_data: list[dict], expected_count: int) -> dict[int, list[dict]]:
@@ -439,6 +446,13 @@ def _cache_data_from_findings(new_findings: list[ContradictionFinding]) -> list[
     ]
 
 
+class PairProcessResult(NamedTuple):
+    """Result of processing uncached article pairs."""
+
+    findings: list[ContradictionFinding]
+    checked_count: int
+
+
 async def _process_uncached_pairs(
     uncached_pairs: list[tuple[Article, Article, list[str], list[str]]],
     concept_id: str | None,
@@ -448,10 +462,10 @@ async def _process_uncached_pairs(
     session: AsyncSession,
     checked: int,
     user_id: str,
-) -> tuple[list[ContradictionFinding], int]:
+) -> PairProcessResult:
     """Process uncached pairs via batch or per-pair LLM calls.
 
-    Returns (findings, updated_checked_count).
+    Returns PairProcessResult with findings and updated checked count.
     """
     cfg = settings.linter
     findings: list[ContradictionFinding] = []
@@ -500,7 +514,7 @@ async def _process_uncached_pairs(
             session.add(report)
             await session.flush()
 
-    return findings, checked
+    return PairProcessResult(findings, checked)
 
 
 # ---------------------------------------------------------------------------
