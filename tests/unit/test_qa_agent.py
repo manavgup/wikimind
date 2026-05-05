@@ -47,16 +47,17 @@ def _agent(tmp_path) -> QAAgent:
         return QAAgent()
 
 
-def test_read_article_content_missing(tmp_path) -> None:
+async def test_read_article_content_missing(tmp_path) -> None:
     a = _agent(tmp_path)
-    assert a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
+    assert await a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
 
 
-def test_read_article_content_ok(tmp_path) -> None:
+async def test_read_article_content_ok(tmp_path) -> None:
     a = _agent(tmp_path)
-    f = tmp_path / "x.md"
+    f = tmp_path / "wikimind" / "wiki" / TEST_USER_ID / "x.md"
+    f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("hello", encoding="utf-8")
-    assert a._read_article_content(str(f), user_id=TEST_USER_ID) == "hello"
+    assert await a._read_article_content("x.md", user_id=TEST_USER_ID) == "hello"
 
 
 async def test_retrieve_context_scores(db_session, tmp_path) -> None:

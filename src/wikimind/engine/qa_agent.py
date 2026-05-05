@@ -521,7 +521,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         relevant = []
         for article in all_articles:
-            content = await asyncio.to_thread(self._read_article_content, article.file_path, user_id=user_id)
+            content = await self._read_article_content(article.file_path, user_id=user_id)
             if not content:
                 continue
 
@@ -540,11 +540,10 @@ conversation context contradicts the wiki, prefer the wiki."""
         relevant.sort(key=lambda x: x["score"], reverse=True)
         return relevant[:5]
 
-    def _read_article_content(self, file_path: str, user_id: str) -> str | None:
+    async def _read_article_content(self, file_path: str, user_id: str) -> str | None:
         try:
             storage = get_wiki_storage(user_id)
-            path = storage.root / file_path
-            return path.read_text(encoding="utf-8")
+            return await storage.read(file_path)
         except OSError:
             return None
 

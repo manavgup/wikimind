@@ -261,17 +261,17 @@ class TestReconstructNormalizedDoc:
         body = "Cached body content."
         source, _ = await adapter.ingest(body, "title", db_session, user_id=TEST_USER_ID)
 
-        doc = reconstruct_normalized_doc(source)
+        doc = await reconstruct_normalized_doc(source)
 
         assert doc.raw_source_id == source.id
         assert doc.clean_text == body
         assert doc.title == "title"
         assert doc.chunks  # at least one chunk
 
-    def test_raises_when_file_path_missing(self) -> None:
+    async def test_raises_when_file_path_missing(self) -> None:
         source = Source(source_type=SourceType.TEXT, title="x", file_path=None, user_id=TEST_USER_ID)
         with pytest.raises(ValueError, match="no file_path"):
-            reconstruct_normalized_doc(source)
+            await reconstruct_normalized_doc(source)
 
 
 # ---------------------------------------------------------------------------

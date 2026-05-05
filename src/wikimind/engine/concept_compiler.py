@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import TYPE_CHECKING
 
@@ -113,16 +112,16 @@ async def _collect_source_articles(concept_name: str, session: AsyncSession) -> 
     return list(result.scalars().all())
 
 
-def _build_source_material(articles: list[Article], user_id: str) -> str:
+async def _build_source_material(articles: list[Article], user_id: str) -> str:
     max_chars = get_settings().compiler.concept_source_max_chars
+    storage = get_wiki_storage(user_id)
     parts: list[str] = []
     for i, article in enumerate(articles, 1):
         section = f"### Source {i}: {article.title}\n"
         if article.summary:
             section += f"Summary: {article.summary}\n"
         try:
-            storage = get_wiki_storage(user_id)
-            fc = (storage.root / article.file_path).read_text(encoding="utf-8")
+            fc = await storage.read(article.file_path)
             if len(fc) > max_chars:
                 fc = fc[:max_chars] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
@@ -183,7 +182,7 @@ class ConceptCompiler:
         min_sources = self.settings.taxonomy.concept_page_min_sources
         if len(source_articles) < min_sources:
             return None
-        source_material = await asyncio.to_thread(_build_source_material, source_articles, user_id=self.user_id)
+        source_material = await _build_source_material(source_articles, user_id=self.user_id)
         source_ids = [a.id for a in source_articles]
         ct = await _collect_contradictions(source_ids, session)
         contradiction_section = ct or "No known contradictions."

@@ -6,7 +6,6 @@ functions used by all adapters and the orchestrating IngestService.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import re
 from typing import TYPE_CHECKING
@@ -306,7 +305,7 @@ async def _check_source_dedup(
                 source_id=existing.id,
                 hash=content_hash[:16],
             )
-            doc = await asyncio.to_thread(reconstruct_normalized_doc, existing)
+            doc = await reconstruct_normalized_doc(existing)
             return existing, doc
         log.warning("Deleting zombie source (no file_path)", source_id=existing.id)
         await session.delete(existing)
@@ -314,7 +313,7 @@ async def _check_source_dedup(
     return None
 
 
-def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
+async def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     """Rebuild a :class:`NormalizedDocument` from a previously-ingested source.
 
     Used by the dedup hit path so the adapter's return contract
@@ -335,8 +334,7 @@ def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
         msg = f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument"
         raise ValueError(msg)
     raw_storage = get_raw_storage(source.user_id)
-    raw_path = raw_storage.root / source.file_path
-    clean_text = raw_path.read_text(encoding="utf-8")
+    clean_text = await raw_storage.read(source.file_path)
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,

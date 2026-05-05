@@ -1,7 +1,5 @@
 """Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks."""
 
-import asyncio
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -19,12 +17,11 @@ log = structlog.get_logger()
 router = APIRouter()
 
 
-def _read_article_content(file_path: str, user_id: str) -> str:
+async def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk."""
     try:
         storage = get_wiki_storage(user_id)
-        path = storage.root / file_path
-        return path.read_text(encoding="utf-8")
+        return await storage.read(file_path)
     except OSError:
         return ""
 
@@ -80,7 +77,7 @@ async def export_article(
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
     article = await _resolve_article(id_or_slug, session, user_id)
-    content = await asyncio.to_thread(_read_article_content, article.file_path, user_id=user_id)
+    content = await _read_article_content(article.file_path, user_id=user_id)
 
     if not content:
         raise HTTPException(status_code=404, detail="Article content not found on disk")

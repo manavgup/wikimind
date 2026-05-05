@@ -66,35 +66,21 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
     return items[0] if items else None
 
 
-def _read_article_content(file_path: str, user_id: str) -> str:
+async def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk.
 
     Args:
-        file_path: Absolute path to the article markdown file.
-        user_id: Optional user ID for storage namespacing.
+        file_path: Relative path to the article markdown file.
+        user_id: User ID for storage namespacing.
 
     Returns:
         The file content, or an empty string if the file cannot be read.
     """
     try:
         storage = get_wiki_storage(user_id)
-        path = storage.root / file_path
-        return path.read_text(encoding="utf-8")
+        return await storage.read(file_path)
     except OSError:
         return ""
-
-
-async def _read_article_content_async(file_path: str, user_id: str) -> str:
-    """Read article markdown content from disk without blocking the event loop.
-
-    Args:
-        file_path: Absolute path to the article markdown file.
-        user_id: Optional user ID for storage namespacing.
-
-    Returns:
-        The file content, or an empty string if the file cannot be read.
-    """
-    return await asyncio.to_thread(_read_article_content, file_path, user_id)
 
 
 def _parse_source_ids(raw: str | None) -> list[str]:
@@ -397,7 +383,7 @@ class WikiService:
             concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
-            content=await _read_article_content_async(article.file_path, user_id=article.user_id),
+            content=await _read_article_content(article.file_path, user_id=article.user_id),
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
             updated_at=article.updated_at,
@@ -542,7 +528,7 @@ class WikiService:
         q_lower = q.lower()
         raw_scores: dict[str, int] = {}
         for article in all_articles:
-            content = await _read_article_content_async(article.file_path, user_id=article.user_id)
+            content = await _read_article_content(article.file_path, user_id=article.user_id)
             if q_lower in article.title.lower() or q_lower in content.lower():
                 score = 10 if q_lower in article.title.lower() else 0
                 score += content.lower().count(q_lower)
