@@ -1,7 +1,5 @@
 """Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks."""
 
-import asyncio
-
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -12,17 +10,18 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import Article, ExportFormat, ExportResponse
 from wikimind.services.export import ExportService, get_export_service
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
 
 router = APIRouter()
 
 
-def _read_article_content(file_path: str, user_id: str) -> str:
+async def _read_article_content(file_path: str, user_id: str) -> str:
     """Read article markdown content from disk."""
     try:
-        return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
+        storage = get_wiki_storage(user_id)
+        return await storage.read(file_path)
     except OSError:
         return ""
 
@@ -78,7 +77,7 @@ async def export_article(
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
     article = await _resolve_article(id_or_slug, session, user_id)
-    content = await asyncio.to_thread(_read_article_content, article.file_path, user_id=user_id)
+    content = await _read_article_content(article.file_path, user_id=user_id)
 
     if not content:
         raise HTTPException(status_code=404, detail="Article content not found on disk")

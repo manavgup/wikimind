@@ -6,9 +6,7 @@ This is the core value-creation step.
 
 from __future__ import annotations
 
-import asyncio
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -51,7 +49,7 @@ from wikimind.services.taxonomy import (
     upsert_concepts,
 )
 from wikimind.services.wiki_index import regenerate_index_md
-from wikimind.storage import LocalFileStorage, resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -353,10 +351,12 @@ Compile this into a wiki article following the JSON schema exactly."""
         existing: Article | None,
     ) -> Article:
         """Unified create-or-replace logic for a compiled article."""
-        old_path: Path | None = None
+        wiki_storage = get_wiki_storage(self.user_id)
+        old_relative: str | None = None
         if existing is not None:
             slug = existing.slug
-            old_path = resolve_wiki_path(existing.file_path, user_id=self.user_id)
+            # Strip any legacy absolute prefix to get a relative path for comparison.
+            old_relative = existing.file_path.removeprefix(str(wiki_storage.root) + "/")
         else:
             slug = await self._generate_unique_slug(result.title, session)
 
@@ -373,8 +373,8 @@ Compile this into a wiki article following the JSON schema exactly."""
         if existing is not None:
             # Delete old file only after new file is written successfully to
             # avoid data loss if the write fails (issue #183).
-            if old_path is not None and old_path != resolve_wiki_path(relative_path, user_id=self.user_id):
-                await asyncio.to_thread(lambda: old_path.unlink(missing_ok=True))
+            if old_relative is not None and old_relative != relative_path:
+                await wiki_storage.delete(old_relative)
 
             existing.title = result.title
             existing.summary = result.summary
@@ -605,10 +605,7 @@ provider: {provider_str}
 - {source.title or source.source_url or "Uploaded document"} (ingested {source.ingested_at.strftime("%Y-%m-%d")})
 """
 
-        wiki_root = Path(self.settings.data_dir) / "wiki"
-        if source.user_id:
-            wiki_root = wiki_root / source.user_id
-        storage = LocalFileStorage(root=wiki_root)
+        storage = get_wiki_storage(source.user_id)
         await storage.write(relative_path, content)
 
         # Post-write frontmatter validation (best-effort, log warnings)

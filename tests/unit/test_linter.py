@@ -47,7 +47,7 @@ def _make_article(
     claims: list[str] | None = None,
 ) -> Article:
     """Create an Article with a real .md file containing claims."""
-    # Write into the wiki directory so resolve_wiki_path can find it.
+    # Write into the wiki directory so get_wiki_storage().root can find it.
     wiki_dir = tmp_path / "wikimind" / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     file_path = wiki_dir / f"{slug}.md"

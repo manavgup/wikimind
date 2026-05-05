@@ -13,6 +13,7 @@ from wikimind.database import get_session
 from wikimind.main import app
 from wikimind.models import Source, SourceType
 from wikimind.services.ingest import get_ingest_service
+from wikimind.storage import LocalFileStorage
 
 
 @pytest.fixture
@@ -56,8 +57,8 @@ async def test_original_endpoint_streams_pdf(tmp_path: Path, source_with_pdf: So
 
     try:
         with patch(
-            "wikimind.api.routes.ingest.resolve_raw_path",
-            return_value=tmp_path / "src-pdf.txt",
+            "wikimind.api.routes.ingest.get_raw_storage",
+            return_value=LocalFileStorage(root=tmp_path),
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -83,8 +84,8 @@ async def test_original_endpoint_404_for_text_source(tmp_path: Path, source_text
 
     try:
         with patch(
-            "wikimind.api.routes.ingest.resolve_raw_path",
-            return_value=tmp_path / "src-text.txt",
+            "wikimind.api.routes.ingest.get_raw_storage",
+            return_value=LocalFileStorage(root=tmp_path),
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -111,8 +112,8 @@ async def test_original_endpoint_passes_user_id(tmp_path: Path, source_with_pdf:
 
     try:
         with patch(
-            "wikimind.api.routes.ingest.resolve_raw_path",
-            return_value=tmp_path / "src-pdf.txt",
+            "wikimind.api.routes.ingest.get_raw_storage",
+            return_value=LocalFileStorage(root=tmp_path),
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:

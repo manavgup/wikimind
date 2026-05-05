@@ -24,7 +24,7 @@ from wikimind.models import (
     QueryRequest,
     QueryResult,
 )
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 
 def _agent(tmp_path) -> QAAgent:
@@ -47,16 +47,17 @@ def _agent(tmp_path) -> QAAgent:
         return QAAgent()
 
 
-def test_read_article_content_missing(tmp_path) -> None:
+async def test_read_article_content_missing(tmp_path) -> None:
     a = _agent(tmp_path)
-    assert a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
+    assert await a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
 
 
-def test_read_article_content_ok(tmp_path) -> None:
+async def test_read_article_content_ok(tmp_path) -> None:
     a = _agent(tmp_path)
-    f = tmp_path / "x.md"
+    f = tmp_path / "wikimind" / "wiki" / TEST_USER_ID / "x.md"
+    f.parent.mkdir(parents=True, exist_ok=True)
     f.write_text("hello", encoding="utf-8")
-    assert a._read_article_content(str(f), user_id=TEST_USER_ID) == "hello"
+    assert await a._read_article_content("x.md", user_id=TEST_USER_ID) == "hello"
 
 
 async def test_retrieve_context_scores(db_session, tmp_path) -> None:
@@ -315,7 +316,7 @@ async def test_file_back_thread_creates_article_when_first_save(db_session, tmp_
     assert refreshed.filed_article_id == article.id
 
     # The .md file exists on disk
-    assert resolve_wiki_path(article.file_path, user_id=TEST_USER_ID).exists()
+    assert (get_wiki_storage(TEST_USER_ID).root / article.file_path).exists()
 
 
 async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_path, monkeypatch) -> None:
@@ -372,7 +373,7 @@ async def test_file_back_thread_updates_in_place_on_second_save(db_session, tmp_
     assert second_article.file_path == first_path  # same file path
 
     # The file content now reflects both turns
-    content = resolve_wiki_path(first_path, user_id=TEST_USER_ID).read_text()
+    content = (get_wiki_storage(TEST_USER_ID).root / first_path).read_text()
     assert "Q1: What is Y?" in content
     assert "Q2: follow-up" in content
 
@@ -443,11 +444,11 @@ async def test_file_back_thread_uses_uuid_slug_so_identical_titles_coexist(db_se
     assert article_a.file_path != article_b.file_path
 
     # Both files exist on disk
-    assert resolve_wiki_path(article_a.file_path, user_id=TEST_USER_ID).exists()
-    assert resolve_wiki_path(article_b.file_path, user_id=TEST_USER_ID).exists()
+    assert (get_wiki_storage(TEST_USER_ID).root / article_a.file_path).exists()
+    assert (get_wiki_storage(TEST_USER_ID).root / article_b.file_path).exists()
 
     # The first article's content mentions the first answer
-    content_a = resolve_wiki_path(article_a.file_path, user_id=TEST_USER_ID).read_text()
+    content_a = (get_wiki_storage(TEST_USER_ID).root / article_a.file_path).read_text()
     assert "First answer" in content_a
 
 

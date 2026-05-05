@@ -32,7 +32,7 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.activity_log import append_log_entry
-from wikimind.storage import resolve_wiki_path
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -521,7 +521,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         relevant = []
         for article in all_articles:
-            content = await asyncio.to_thread(self._read_article_content, article.file_path, user_id=user_id)
+            content = await self._read_article_content(article.file_path, user_id=user_id)
             if not content:
                 continue
 
@@ -540,9 +540,10 @@ conversation context contradicts the wiki, prefer the wiki."""
         relevant.sort(key=lambda x: x["score"], reverse=True)
         return relevant[:5]
 
-    def _read_article_content(self, file_path: str, user_id: str) -> str | None:
+    async def _read_article_content(self, file_path: str, user_id: str) -> str | None:
         try:
-            return resolve_wiki_path(file_path, user_id=user_id).read_text(encoding="utf-8")
+            storage = get_wiki_storage(user_id)
+            return await storage.read(file_path)
         except OSError:
             return None
 
@@ -666,8 +667,8 @@ conversation context contradicts the wiki, prefer the wiki."""
             return article, False
 
         # Update path: overwrite the existing Article's file in place
-        update_path = resolve_wiki_path(existing_article.file_path, user_id=user_id)
-        await asyncio.to_thread(update_path.write_text, markdown, encoding="utf-8")
+        wiki_storage = get_wiki_storage(user_id)
+        await wiki_storage.write(existing_article.file_path, markdown)
         existing_article.updated_at = now
         conversation.updated_at = now
         session.add(existing_article)

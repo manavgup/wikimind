@@ -579,15 +579,15 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
     from sqlalchemy import or_ as sa_or  # noqa: PLC0415
 
     from wikimind.models import Article, Backlink, PageType  # noqa: PLC0415
-    from wikimind.storage import resolve_wiki_path  # noqa: PLC0415
+    from wikimind.storage import get_wiki_storage  # noqa: PLC0415
 
     result = await session.execute(select(Article).where(Article.page_type == PageType.CONCEPT))
     concept_articles = list(result.scalars().all())
 
     cleaned = 0
     for article in concept_articles:
-        file_path = resolve_wiki_path(article.file_path, user_id=article.user_id)
-        if file_path.exists():
+        wiki_storage = get_wiki_storage(article.user_id)
+        if await wiki_storage.exists(article.file_path):
             continue
 
         # Remove backlinks referencing the orphaned article first.
@@ -605,7 +605,7 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
             "startup: removed orphaned concept page (file missing)",
             article_id=article.id,
             slug=article.slug,
-            path=str(file_path),
+            path=str(wiki_storage.root / article.file_path),
         )
 
     if cleaned:

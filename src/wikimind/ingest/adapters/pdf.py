@@ -12,7 +12,6 @@ pointing at the latter.
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import re
 from datetime import date
@@ -32,7 +31,7 @@ from wikimind.ingest.utils import (
     estimate_tokens,
 )
 from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType, TaskType
-from wikimind.storage import resolve_raw_path
+from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -191,9 +190,10 @@ class PDFAdapter:
         # worker only ever reads the .txt file (see issue #59), so file_path
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
-        raw_pdf_path = resolve_raw_path(f"{source.id}.pdf", user_id=user_id)
-        await asyncio.to_thread(raw_pdf_path.parent.mkdir, parents=True, exist_ok=True)
-        await asyncio.to_thread(raw_pdf_path.write_bytes, file_bytes)
+        raw_storage = get_raw_storage(user_id)
+        await raw_storage.write_bytes(f"{source.id}.pdf", file_bytes)
+        # Docling and fitz need a filesystem Path to open the PDF.
+        raw_pdf_path = raw_storage.root / f"{source.id}.pdf"
 
         # Extract text — prefer docling-serve for structured output (markdown
         # with heading hierarchy, table-aware), fall back to fitz plain text
@@ -220,8 +220,7 @@ class PDFAdapter:
         except _LLM_PROVIDER_ERRORS:
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
-        text_path = resolve_raw_path(f"{source.id}.txt", user_id=user_id)
-        await asyncio.to_thread(text_path.write_text, clean_text, encoding="utf-8")
+        await raw_storage.write(f"{source.id}.txt", clean_text)
         source.file_path = f"{source.id}.txt"
 
         token_count = estimate_tokens(clean_text)
