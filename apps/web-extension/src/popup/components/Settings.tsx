@@ -1,5 +1,5 @@
 import { useState, useEffect } from "preact/hooks";
-import { getSettings, setGatewayUrl } from "../../lib/storage";
+import { getSettings, setGatewayUrl, setAuthToken } from "../../lib/storage";
 
 interface Props {
   onBack: () => void;
@@ -16,11 +16,15 @@ function isValidUrl(str: string): boolean {
 
 export function Settings({ onBack }: Props) {
   const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSettings().then(({ gatewayUrl }) => setUrl(gatewayUrl));
+    getSettings().then(({ gatewayUrl, authToken }) => {
+      setUrl(gatewayUrl);
+      setToken(authToken);
+    });
   }, []);
 
   async function handleSave() {
@@ -48,6 +52,7 @@ export function Settings({ onBack }: Props) {
     }
 
     await setGatewayUrl(cleanUrl);
+    await setAuthToken(token.trim());
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -110,6 +115,47 @@ export function Settings({ onBack }: Props) {
         }}
         placeholder="https://wikimind.fly.dev"
       />
+
+      <label
+        style={{
+          display: "block",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "#64748b",
+          marginBottom: "4px",
+          marginTop: "12px",
+        }}
+      >
+        API Token
+      </label>
+      <input
+        type="password"
+        value={token}
+        onInput={(e) => {
+          setToken((e.target as HTMLInputElement).value);
+          setSaved(false);
+          setError(null);
+        }}
+        style={{
+          width: "100%",
+          padding: "8px",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          fontSize: "13px",
+          boxSizing: "border-box",
+          outline: "none",
+        }}
+        placeholder="Paste your API token"
+      />
+      <p
+        style={{
+          fontSize: "11px",
+          color: "#94a3b8",
+          margin: "4px 0 0",
+        }}
+      >
+        Generate with: python3 -m wikimind.cli.create_token
+      </p>
 
       {error && (
         <p style={{ fontSize: "11px", color: "#ef4444", margin: "4px 0 0" }}>

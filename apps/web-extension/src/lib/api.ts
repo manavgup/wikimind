@@ -7,13 +7,23 @@ async function getBaseUrl(): Promise<string> {
   return gatewayUrl.replace(/\/$/, "");
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const { authToken } = await getSettings();
+  if (authToken) {
+    return { Authorization: `Bearer ${authToken}` };
+  }
+  return {};
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = await getBaseUrl();
+  const auth = await authHeaders();
   const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...auth,
       ...init?.headers,
     },
   });

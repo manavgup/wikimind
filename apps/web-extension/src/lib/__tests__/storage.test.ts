@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   getSettings,
   setGatewayUrl,
+  setAuthToken,
   getRecentClips,
   addRecentClip,
   updateClipStatus,
@@ -42,6 +43,19 @@ describe("setGatewayUrl", () => {
     await setGatewayUrl("http://new:8080");
     const settings = await getSettings();
     expect(settings.gatewayUrl).toBe("http://new:8080");
+  });
+});
+
+describe("authToken", () => {
+  it("returns empty string when no token stored", async () => {
+    const settings = await getSettings();
+    expect(settings.authToken).toBe("");
+  });
+
+  it("returns stored token", async () => {
+    await setAuthToken("eyJhbGciOiJIUzI1NiJ9.test");
+    const settings = await getSettings();
+    expect(settings.authToken).toBe("eyJhbGciOiJIUzI1NiJ9.test");
   });
 });
 
