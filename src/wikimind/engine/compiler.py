@@ -355,7 +355,8 @@ Compile this into a wiki article following the JSON schema exactly."""
         old_relative: str | None = None
         if existing is not None:
             slug = existing.slug
-            old_relative = existing.file_path
+            # Strip any legacy absolute prefix to get a relative path for comparison.
+            old_relative = existing.file_path.removeprefix(str(wiki_storage.root) + "/")
         else:
             slug = await self._generate_unique_slug(result.title, session)
 
