@@ -95,9 +95,15 @@ def _consume_oauth_state(state: str) -> str | None:
 
 
 def _callback_url(request: Request) -> str:
-    """Build the OAuth callback URL from the request's Host header."""
+    """Build the OAuth callback URL from the request's Host header.
+
+    Behind a reverse proxy (Fly.io, nginx) the app sees ``http`` even
+    though the client used ``https``.  Honour ``X-Forwarded-Proto`` so
+    the redirect URI matches the one registered with the OAuth provider.
+    """
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("host", request.url.netloc)
-    return f"{request.url.scheme}://{host}/auth/callback"
+    return f"{scheme}://{host}/auth/callback"
 
 
 @router.get("/login/{provider}")
