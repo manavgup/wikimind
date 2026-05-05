@@ -160,8 +160,7 @@ async def _cleanup_orphaned_concept_pages(
     wiki_storage = get_wiki_storage(user_id)
     cleaned = 0
     for article in concept_articles:
-        file_path = wiki_storage.root / article.file_path
-        if file_path.exists():
+        if await wiki_storage.exists(article.file_path):
             continue
 
         # Bulk-delete backlinks referencing the orphaned article to avoid
