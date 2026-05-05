@@ -1482,6 +1482,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /auth/tokens:
+    get:
+      tags:
+      - Auth
+      summary: Token Page
+      description: 'Serve the API token generation page.
+
+
+        This is a self-contained HTML page that lets authenticated users
+
+        create API tokens for the browser extension or other API clients.
+
+        Authentication is handled client-side via the session cookie.'
+      operationId: token_page_auth_tokens_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/html:
+              schema:
+                type: string
   /auth/token:
     post:
       tags:

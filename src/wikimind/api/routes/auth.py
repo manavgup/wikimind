@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 import jwt as pyjwt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
@@ -255,6 +255,195 @@ async def verify_magic_link(
             "name": user.name,
         },
     )
+
+
+_TOKEN_PAGE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WikiMind — API Token</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: #f8fafc; color: #1e293b; min-height: 100vh;
+         display: flex; justify-content: center; align-items: center; }
+  .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1);
+          padding: 32px; max-width: 420px; width: 100%; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: #64748b;
+          margin-bottom: 4px; }
+  input, select { width: 100%; padding: 8px; border: 1px solid #cbd5e1;
+         border-radius: 6px; font-size: 13px; outline: none; margin-bottom: 12px; }
+  input:focus, select:focus { border-color: #6366f1; }
+  .btn { width: 100%; padding: 10px; border: none; border-radius: 6px;
+         font-weight: 600; font-size: 13px; cursor: pointer; color: white;
+         transition: background-color .15s; }
+  .btn-primary { background: #6366f1; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+  .btn-login { background: #374151; margin-bottom: 8px; }
+  .btn-login:hover { background: #1f2937; }
+  .btn-copy { background: #22c55e; margin-top: 8px; }
+  .btn-copy:hover { background: #16a34a; }
+  .token-box { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px;
+               padding: 12px; font-family: monospace; font-size: 12px;
+               word-break: break-all; margin: 12px 0 4px; }
+  .warn { font-size: 11px; color: #dc2626; margin-bottom: 12px; }
+  .info { font-size: 12px; color: #64748b; margin-top: 8px; text-align: center; }
+  .error { color: #dc2626; font-size: 12px; margin-bottom: 12px; }
+  .hidden { display: none; }
+  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>WikiMind API Token</h1>
+  <p class="subtitle">Generate a token for the browser extension or API access.</p>
+
+  <!-- Login section (shown when not authenticated) -->
+  <div id="login-section" class="hidden">
+    <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
+      Sign in to generate a token.
+    </p>
+    <button class="btn btn-login" onclick="location.href='/auth/login/google'">
+      Sign in with Google
+    </button>
+    <button class="btn btn-login" onclick="location.href='/auth/login/github'">
+      Sign in with GitHub
+    </button>
+  </div>
+
+  <!-- Token form (shown when authenticated) -->
+  <div id="token-section" class="hidden">
+    <p id="user-info" style="font-size:13px; color:#64748b; margin-bottom:16px;"></p>
+    <label for="token-name">Token name</label>
+    <input id="token-name" type="text" placeholder="e.g. browser-extension" value="browser-extension">
+    <label for="token-expiry">Expires in</label>
+    <select id="token-expiry">
+      <option value="30">30 days</option>
+      <option value="90">90 days</option>
+      <option value="180">180 days</option>
+      <option value="365">1 year</option>
+    </select>
+    <div id="form-error" class="error hidden"></div>
+    <button id="generate-btn" class="btn btn-primary" onclick="generateToken()">
+      Generate Token
+    </button>
+  </div>
+
+  <!-- Token result (shown after generation) -->
+  <div id="result-section" class="hidden">
+    <p class="warn">Copy this token now. You will not be able to see it again.</p>
+    <div class="token-box" id="token-value"></div>
+    <button class="btn btn-copy" onclick="copyToken()">Copy to Clipboard</button>
+    <hr class="divider">
+    <button class="btn btn-primary" onclick="resetForm()">Generate Another</button>
+  </div>
+
+  <div id="loading" class="info">Checking authentication...</div>
+</div>
+
+<script>
+async function checkAuth() {
+  try {
+    const resp = await fetch('/auth/me', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin'
+    });
+    if (resp.ok) {
+      const user = await resp.json();
+      if (user.id === 'anonymous' || !user.email) {
+        showLogin();
+      } else {
+        showTokenForm(user);
+      }
+    } else {
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+}
+
+function showLogin() {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('login-section').classList.remove('hidden');
+}
+
+function showTokenForm(user) {
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('token-section').classList.remove('hidden');
+  document.getElementById('user-info').textContent = 'Signed in as ' + user.email;
+}
+
+async function generateToken() {
+  const btn = document.getElementById('generate-btn');
+  const errEl = document.getElementById('form-error');
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+
+  try {
+    const resp = await fetch('/auth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        name: document.getElementById('token-name').value || 'api-token',
+        expires_in_days: parseInt(document.getElementById('token-expiry').value)
+      })
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => null);
+      throw new Error(data?.error?.message || data?.detail || 'Failed to create token');
+    }
+    const data = await resp.json();
+    document.getElementById('token-value').textContent = data.access_token;
+    document.getElementById('token-section').classList.add('hidden');
+    document.getElementById('result-section').classList.remove('hidden');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate Token';
+  }
+}
+
+function copyToken() {
+  const token = document.getElementById('token-value').textContent;
+  navigator.clipboard.writeText(token).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = 'Copied!';
+    btn.style.backgroundColor = '#16a34a';
+    setTimeout(() => { btn.textContent = 'Copy to Clipboard'; btn.style.backgroundColor = ''; }, 2000);
+  });
+}
+
+function resetForm() {
+  document.getElementById('result-section').classList.add('hidden');
+  document.getElementById('token-section').classList.remove('hidden');
+}
+
+checkAuth();
+</script>
+</body>
+</html>
+"""
+
+
+@router.get("/tokens", response_class=HTMLResponse)
+async def token_page() -> HTMLResponse:
+    """Serve the API token generation page.
+
+    This is a self-contained HTML page that lets authenticated users
+    create API tokens for the browser extension or other API clients.
+    Authentication is handled client-side via the session cookie.
+    """
+    return HTMLResponse(content=_TOKEN_PAGE_HTML)
 
 
 @router.post("/token")

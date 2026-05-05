@@ -546,6 +546,21 @@ def test_login_state_is_not_provider_name(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# GET /auth/tokens — token generation page
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_token_page_returns_html(client):
+    """GET /auth/tokens should return the token generation HTML page."""
+    resp = await client.get("/auth/tokens", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "WikiMind" in resp.text
+    assert "Generate Token" in resp.text
+
+
+# ---------------------------------------------------------------------------
 # POST /auth/token — long-lived API tokens
 # ---------------------------------------------------------------------------
 

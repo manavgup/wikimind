@@ -147,15 +147,22 @@ export function Settings({ onBack }: Props) {
         }}
         placeholder="Paste your API token"
       />
-      <p
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          chrome.tabs.create({ url: `${url.replace(/\/$/, "")}/auth/tokens` });
+        }}
         style={{
+          display: "block",
           fontSize: "11px",
-          color: "#94a3b8",
+          color: "#6366f1",
           margin: "4px 0 0",
+          textDecoration: "none",
         }}
       >
-        Get your token from your WikiMind server admin.
-      </p>
+        Generate a token on your server &rarr;
+      </a>
 
       {error && (
         <p style={{ fontSize: "11px", color: "#ef4444", margin: "4px 0 0" }}>
