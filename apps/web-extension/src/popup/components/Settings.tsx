@@ -154,7 +154,7 @@ export function Settings({ onBack }: Props) {
           margin: "4px 0 0",
         }}
       >
-        Generate with: python3 -m wikimind.cli.create_token
+        Get your token from your WikiMind server admin.
       </p>
 
       {error && (
