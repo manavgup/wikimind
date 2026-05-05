@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import structlog
 from cryptography.fernet import Fernet
@@ -50,20 +50,27 @@ def _derive_fernet_key(salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(kdf.derive(secret.encode()))
 
 
-def encrypt_api_key(plaintext: str) -> tuple[str, str]:
+class EncryptedApiKey(NamedTuple):
+    """Result of encrypting an API key."""
+
+    encrypted_key: str
+    salt_hex: str
+
+
+def encrypt_api_key(plaintext: str) -> EncryptedApiKey:
     """Encrypt an API key, returning (encrypted_key, salt_hex).
 
     Args:
         plaintext: The raw API key to encrypt.
 
     Returns:
-        Tuple of (Fernet-encrypted key as base64 string, salt as hex string).
+        EncryptedApiKey with Fernet-encrypted key and salt hex string.
     """
     salt = os.urandom(16)
     fernet_key = _derive_fernet_key(salt)
     f = Fernet(fernet_key)
     encrypted = f.encrypt(plaintext.encode())
-    return encrypted.decode(), salt.hex()
+    return EncryptedApiKey(encrypted.decode(), salt.hex())
 
 
 def decrypt_api_key(encrypted_key: str, salt_hex: str) -> str:

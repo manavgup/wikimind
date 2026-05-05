@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.errors import IngestError, NotFoundError
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
-from wikimind.models import NormalizedDocument, Source
+from wikimind.models import DeleteConfirmation, NormalizedDocument, Source
 from wikimind.services.activity_log import append_log_entry
 from wikimind.storage import resolve_raw_path
 
@@ -234,7 +234,7 @@ class IngestService:
         source_id: str,
         session: AsyncSession,
         user_id: str,
-    ) -> dict[str, str]:
+    ) -> DeleteConfirmation:
         """Delete a source by ID and remove its raw and cleaned files from disk.
 
         Adapters write a cleaned ``{id}.txt`` and may also write a sibling raw
@@ -249,7 +249,7 @@ class IngestService:
             user_id: When provided, verify the source belongs to this user.
 
         Returns:
-            Confirmation dict with the deleted ID.
+            DeleteConfirmation with the deleted ID.
 
         Raises:
             NotFoundError: If the source is not found or doesn't belong to the user.
@@ -265,7 +265,7 @@ class IngestService:
 
         await session.delete(source)
         await session.commit()
-        return {"deleted": source_id}
+        return DeleteConfirmation(deleted=source_id)
 
     @staticmethod
     def _remove_source_files(source: Source) -> None:

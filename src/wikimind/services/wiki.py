@@ -32,6 +32,7 @@ from wikimind.models import (
     Backlink,
     BacklinkEntry,
     Concept,
+    ConceptDetailResponse,
     GraphEdge,
     GraphNode,
     GraphResponse,
@@ -583,7 +584,7 @@ class WikiService:
         name: str,
         session: AsyncSession,
         user_id: str,
-    ) -> dict:
+    ) -> ConceptDetailResponse:
         """Retrieve a concept by name with its linked articles.
 
         Args:
@@ -592,7 +593,7 @@ class WikiService:
             user_id: Optional user ID filter.
 
         Returns:
-            Dict with concept fields and linked articles list.
+            ConceptDetailResponse with concept fields and linked articles list.
 
         Raises:
             NotFoundError: If concept not found.
@@ -607,16 +608,16 @@ class WikiService:
             raise NotFoundError(msg)
 
         articles = await self.list_articles(session=session, concept=name, user_id=user_id)
-        return {
-            "id": concept.id,
-            "name": concept.name,
-            "description": concept.description,
-            "article_count": concept.article_count,
-            "parent_id": concept.parent_id,
-            "concept_kind": concept.concept_kind,
-            "created_at": concept.created_at,
-            "articles": articles,
-        }
+        return ConceptDetailResponse(
+            id=concept.id,
+            name=concept.name,
+            description=concept.description,
+            article_count=concept.article_count,
+            parent_id=concept.parent_id,
+            concept_kind=concept.concept_kind,
+            created_at=concept.created_at,
+            articles=articles,
+        )
 
     async def get_concept_articles(
         self,

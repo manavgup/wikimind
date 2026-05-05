@@ -549,7 +549,7 @@ class LLMRouter:
         msg = f"All LLM providers failed. Last error: {last_error}"
         raise UpstreamError(msg)
 
-    def parse_json_response(self, response: CompletionResponse) -> dict:
+    def parse_json_response(self, response: CompletionResponse) -> Any:
         """Parse JSON from LLM response, handling common formatting issues.
 
         Handles markdown fences, leading/trailing text around JSON, and
