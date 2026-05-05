@@ -181,7 +181,7 @@ async def _cleanup_orphaned_concept_pages(
             "sweep: removed orphaned concept page (file missing)",
             article_id=article.id,
             slug=article.slug,
-            path=str(file_path),
+            path=article.file_path,
         )
 
     if cleaned:
