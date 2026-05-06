@@ -56,7 +56,7 @@ export function ClipTab() {
       await addRecentClip(clip);
       setRecentClips((await getRecentClips()).slice(0, 5));
 
-      chrome.runtime.sendMessage({ type: "clip:success" });
+      chrome.runtime.sendMessage({ type: "clip:success", sourceId: source.id });
     } catch (err) {
       setClipState("error");
       let msg: string;
