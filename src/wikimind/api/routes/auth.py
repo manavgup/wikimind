@@ -152,7 +152,15 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     # so the callback can redirect back after login.
     next_url = request.query_params.get("next", "")
     if next_url and next_url in _SAFE_REDIRECT_PATHS:
-        response.set_cookie("wikimind_next", next_url, max_age=600, httponly=True, path="/")
+        response.set_cookie(
+            "wikimind_next",
+            next_url,
+            max_age=600,
+            httponly=True,
+            samesite="lax",
+            secure=settings.auth.cookie_secure,
+            path="/",
+        )
 
     return response
 

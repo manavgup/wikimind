@@ -48,10 +48,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function checkConnection(): Promise<{ ok: boolean; message: string }> {
   const base = await getBaseUrl();
+  const auth = await authHeaders();
   try {
     const response = await fetch(`${base}/health`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...auth },
       signal: AbortSignal.timeout(5000),
     });
     if (response.ok) {
