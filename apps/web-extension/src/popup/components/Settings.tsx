@@ -100,9 +100,12 @@ export function Settings({ onBack }: Props) {
         type="url"
         value={url}
         onInput={(e) => {
-          setUrl((e.target as HTMLInputElement).value);
+          const val = (e.target as HTMLInputElement).value;
+          setUrl(val);
           setSaved(false);
           setError(null);
+          // Persist immediately so the value survives popup close
+          chrome.storage.local.set({ gatewayUrl: val });
         }}
         style={{
           width: "100%",
@@ -132,9 +135,11 @@ export function Settings({ onBack }: Props) {
         type="password"
         value={token}
         onInput={(e) => {
-          setToken((e.target as HTMLInputElement).value);
+          const val = (e.target as HTMLInputElement).value;
+          setToken(val);
           setSaved(false);
           setError(null);
+          chrome.storage.local.set({ authToken: val });
         }}
         style={{
           width: "100%",
@@ -147,18 +152,23 @@ export function Settings({ onBack }: Props) {
         }}
         placeholder="Paste your API token"
       />
-      <p
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          const cleanUrl = url.replace(/\/$/, "");
+          chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
+        }}
         style={{
+          display: "block",
           fontSize: "11px",
-          color: "#94a3b8",
+          color: "#6366f1",
           margin: "4px 0 0",
+          textDecoration: "none",
         }}
       >
-        Generate a token at{" "}
-        <span style={{ color: "#6366f1", userSelect: "all" }}>
-          {url.replace(/\/$/, "")}/auth/tokens
-        </span>
-      </p>
+        Generate a token on your server &rarr;
+      </a>
 
       {error && (
         <p style={{ fontSize: "11px", color: "#ef4444", margin: "4px 0 0" }}>
