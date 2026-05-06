@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import ForceGraph from "react-force-graph-2d";
 import type { ForceGraphMethods } from "react-force-graph-2d";
-import type { GraphNode, GraphEdge } from "../../types/api";
+import type { GraphNode, GraphEdge, RelationType } from "../../types/api";
+import { RELATION_COLORS, DEFAULT_RELATION_COLOR } from "./relationColors";
 
 /** Simple palette for concept clusters. Cycles if more concepts than colors. */
 const CONCEPT_COLORS = [
@@ -33,6 +34,8 @@ interface GraphCanvasLink {
   source: string;
   target: string;
   context: string | null;
+  relation_type?: RelationType;
+  color: string;
 }
 
 interface GraphCanvasData {
@@ -83,6 +86,8 @@ export function GraphCanvas({ nodes, edges, width, height, onNodeClick }: GraphC
       source: e.source,
       target: e.target,
       context: e.context,
+      relation_type: e.relation_type,
+      color: e.relation_type ? (RELATION_COLORS[e.relation_type] ?? DEFAULT_RELATION_COLOR) : DEFAULT_RELATION_COLOR,
     })),
   };
 
@@ -114,7 +119,7 @@ export function GraphCanvas({ nodes, edges, width, height, onNodeClick }: GraphC
       nodeColor="color"
       nodeVal="val"
       nodeRelSize={4}
-      linkColor={() => "#cbd5e1"}
+      linkColor={(link) => (link as GraphCanvasLink).color}
       linkWidth={1}
       linkDirectionalArrowLength={3}
       linkDirectionalArrowRelPos={1}

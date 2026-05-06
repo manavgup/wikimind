@@ -309,7 +309,7 @@ async def test_graph_api_includes_relation_type(client, async_engine):
                 relation_type=RelationType.CONTRADICTS,
                 context="contradiction",
                 resolution="source_a_wins",
-                user_id=TEST_USER_ID,
+                user_id=ANONYMOUS_USER_ID,
             )
         )
         await session.commit()

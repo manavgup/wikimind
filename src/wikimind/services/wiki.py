@@ -27,6 +27,7 @@ from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     ArticleConcept,
+    ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSource,
     ArticleSourceSummary,
@@ -39,6 +40,7 @@ from wikimind.models import (
     GraphNode,
     GraphResponse,
     PageType,
+    RelationshipEdge,
     RelationType,
     Source,
     SourceResponse,
@@ -407,29 +409,93 @@ class WikiService:
             updated_at=article.updated_at,
         )
 
-    async def get_graph(self, session: AsyncSession, user_id: str) -> GraphResponse:
-        """Build the full knowledge graph from articles and backlinks.
+    async def _resolve_article_id(
+        self,
+        id_or_slug: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> str | None:
+        """Resolve an article id-or-slug reference to its canonical UUID id.
+
+        Tries id-match first, then falls back to slug. Returns ``None`` when
+        no article matches under the given user scope.
+        """
+        if not id_or_slug:
+            return None
+        id_stmt = select(Article.id).where(Article.id == id_or_slug)
+        if user_id:
+            id_stmt = id_stmt.where(Article.user_id == user_id)
+        row = (await session.execute(id_stmt)).first()
+        if row is not None:
+            return row[0]
+        slug_stmt = select(Article.id).where(Article.slug == id_or_slug)
+        if user_id:
+            slug_stmt = slug_stmt.where(Article.user_id == user_id)
+        row = (await session.execute(slug_stmt)).first()
+        return row[0] if row is not None else None
+
+    async def get_graph(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        relation_type: RelationType | None = None,
+        from_article: str | None = None,
+        to_article: str | None = None,
+    ) -> GraphResponse:
+        """Build the knowledge graph, optionally filtered by relation type and endpoints.
+
+        Filters compose with AND semantics and are pushed down into the SQL
+        query so we never load and discard rows in Python.
 
         Args:
             session: Async database session.
             user_id: Optional user ID filter.
+            relation_type: If set, return only edges of this relation type.
+            from_article: Optional source article id or slug. Resolved to an
+                id under the same user scope.
+            to_article: Optional target article id or slug. Resolved to an
+                id under the same user scope.
 
         Returns:
-            GraphResponse containing nodes and edges.
+            GraphResponse containing nodes (all visible articles for the
+            user) and edges that satisfy every supplied filter.
         """
-        # Backlinks are eager-loaded via selectin on Article.backlinks_out
+        # Resolve from/to references (id or slug) to canonical article ids.
+        from_id: str | None = None
+        to_id: str | None = None
+        if from_article:
+            from_id = await self._resolve_article_id(from_article, session, user_id)
+            if from_id is None:
+                # No such article — no edges can match.
+                return GraphResponse(nodes=[], edges=[])
+        if to_article:
+            to_id = await self._resolve_article_id(to_article, session, user_id)
+            if to_id is None:
+                return GraphResponse(nodes=[], edges=[])
+
+        # Push every filter into a single SQL query against Backlink.
+        bl_stmt = select(Backlink)
+        if user_id:
+            bl_stmt = bl_stmt.where(Backlink.user_id == user_id)
+        if relation_type is not None:
+            bl_stmt = bl_stmt.where(Backlink.relation_type == relation_type.value)
+        if from_id is not None:
+            bl_stmt = bl_stmt.where(Backlink.source_article_id == from_id)
+        if to_id is not None:
+            bl_stmt = bl_stmt.where(Backlink.target_article_id == to_id)
+        bl_result = await session.execute(bl_stmt)
+        backlinks = list(bl_result.scalars().all())
+
+        # Articles for node list — full set per user scope so the graph
+        # remains visually consistent across edge filters.
         graph_stmt = select(Article)
         if user_id:
             graph_stmt = graph_stmt.where(Article.user_id == user_id)
         articles_result = await session.execute(graph_stmt)
         articles = articles_result.scalars().all()
 
-        all_backlinks: list[Backlink] = []
-        for a in articles:
-            all_backlinks.extend(a.backlinks_out)
-
         connection_counts: dict[str, int] = {}
-        for bl in all_backlinks:
+        for bl in backlinks:
             connection_counts[bl.source_article_id] = connection_counts.get(bl.source_article_id, 0) + 1
             connection_counts[bl.target_article_id] = connection_counts.get(bl.target_article_id, 0) + 1
 
@@ -454,10 +520,96 @@ class WikiService:
                 relation_type=RelationType(bl.relation_type),
                 resolution=bl.resolution if bl.relation_type == "contradicts" else None,
             )
-            for bl in all_backlinks
+            for bl in backlinks
         ]
 
         return GraphResponse(nodes=nodes, edges=edges)
+
+    async def get_relationships(
+        self,
+        id_or_slug: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> ArticleRelationshipsResponse:
+        """Return typed relationships for a single article, grouped by direction.
+
+        Args:
+            id_or_slug: Article UUID or slug.
+            session: Async database session.
+            user_id: User scope for both the article lookup and the joined
+                article rows on the other side of each edge.
+
+        Returns:
+            :class:`ArticleRelationshipsResponse` with ``incoming`` and
+            ``outgoing`` maps from relation type to edge lists.
+
+        Raises:
+            NotFoundError: If the article does not exist for this user.
+        """
+        article_id = await self._resolve_article_id(id_or_slug, session, user_id)
+        if article_id is None:
+            msg = "Article not found"
+            raise NotFoundError(msg)
+
+        # Outgoing: this article is the source. Join target Article for metadata.
+        out_stmt = (
+            select(  # type: ignore[call-overload]
+                Backlink.target_article_id,
+                Article.slug,
+                Article.title,
+                Backlink.relation_type,
+                Backlink.context,
+                Backlink.resolution,
+            )
+            .join(Article, Article.id == Backlink.target_article_id)
+            .where(Backlink.source_article_id == article_id)
+        )
+        if user_id:
+            out_stmt = out_stmt.where(Article.user_id == user_id)
+        out_rows = (await session.execute(out_stmt)).all()
+
+        # Incoming: this article is the target. Join source Article for metadata.
+        in_stmt = (
+            select(  # type: ignore[call-overload]
+                Backlink.source_article_id,
+                Article.slug,
+                Article.title,
+                Backlink.relation_type,
+                Backlink.context,
+                Backlink.resolution,
+            )
+            .join(Article, Article.id == Backlink.source_article_id)
+            .where(Backlink.target_article_id == article_id)
+        )
+        if user_id:
+            in_stmt = in_stmt.where(Article.user_id == user_id)
+        in_rows = (await session.execute(in_stmt)).all()
+
+        outgoing: dict[str, list[RelationshipEdge]] = {}
+        for other_id, other_slug, other_title, rel, ctx, resolution in out_rows:
+            edge = RelationshipEdge(
+                article_id=other_id,
+                slug=other_slug,
+                title=other_title,
+                relation_type=RelationType(rel),
+                context=ctx,
+                resolution=resolution,
+            )
+            outgoing.setdefault(rel, []).append(edge)
+
+        incoming: dict[str, list[RelationshipEdge]] = {}
+        for other_id, other_slug, other_title, rel, ctx, resolution in in_rows:
+            edge = RelationshipEdge(
+                article_id=other_id,
+                slug=other_slug,
+                title=other_title,
+                relation_type=RelationType(rel),
+                context=ctx,
+                resolution=resolution,
+            )
+            incoming.setdefault(rel, []).append(edge)
+
+        return ArticleRelationshipsResponse(incoming=incoming, outgoing=outgoing)
 
     async def search(
         self,

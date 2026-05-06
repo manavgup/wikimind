@@ -4,6 +4,7 @@ import { Spinner } from "../shared/Spinner";
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphFilters, type GraphFilterState } from "./GraphFilters";
 import { GraphDetailPanel } from "./GraphDetailPanel";
+import { GraphLegend } from "./GraphLegend";
 import type { ConfidenceLevel, GraphNode } from "../../types/api";
 
 function useContainerSize() {
@@ -145,7 +146,7 @@ export function GraphView() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Canvas area — always mounted so the ref is attached for ResizeObserver */}
-        <div ref={containerRef} className="flex-1 bg-slate-50">
+        <div ref={containerRef} className="relative flex-1 bg-slate-50">
           {graphQuery.isLoading ? (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
               <Spinner size={16} /> Loading graph...
@@ -155,13 +156,16 @@ export function GraphView() {
               Failed to load graph data.
             </div>
           ) : isReady ? (
-            <GraphCanvas
-              nodes={filteredData.nodes}
-              edges={filteredData.edges}
-              width={size.width}
-              height={size.height}
-              onNodeClick={handleNodeClick}
-            />
+            <>
+              <GraphCanvas
+                nodes={filteredData.nodes}
+                edges={filteredData.edges}
+                width={size.width}
+                height={size.height}
+                onNodeClick={handleNodeClick}
+              />
+              <GraphLegend />
+            </>
           ) : null}
         </div>
 
