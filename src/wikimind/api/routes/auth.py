@@ -137,7 +137,11 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
-    response = RedirectResponse(url=authorize_url)
+    # The authorize URL redirects to Google/GitHub OAuth whose registered
+    # redirect_uri whitelist prevents open-redirect abuse.
+    response = RedirectResponse(
+        url=authorize_url
+    )  # CodeQL: py/url-redirection — safe, OAuth provider validates redirect_uri
 
     # If a ?next= param was provided, store it in a short-lived cookie
     # so the callback can redirect back after login.
@@ -176,7 +180,11 @@ async def callback(
     jwt_token = service.create_jwt(user, settings)
 
     # Redirect to the stored return URL or the default SPA callback page.
-    next_url = request.cookies.get("wikimind_next", "/callback")
+    # The cookie value is validated against a strict allowlist to prevent
+    # open redirect attacks (CodeQL py/url-redirection).
+    next_url = request.cookies.get("wikimind_next", "")
+    if next_url not in _SAFE_REDIRECT_PATHS:
+        next_url = "/callback"
     response = RedirectResponse(url=next_url, status_code=302)
     response.delete_cookie("wikimind_next", path="/")
     response.set_cookie(
