@@ -2,7 +2,7 @@ import { useState, useEffect } from "preact/hooks";
 import type { Source, ClipRecord } from "../../types";
 import { clipUrl, checkConnection } from "../../lib/api";
 import { ApiError } from "../../lib/retry";
-import { addRecentClip, getRecentClips } from "../../lib/storage";
+import { addRecentClip, getRecentClips, getSettings } from "../../lib/storage";
 import { ClipButton } from "./ClipButton";
 import { StatusBadge } from "./StatusBadge";
 import { RecentClips } from "./RecentClips";
@@ -23,12 +23,14 @@ export function ClipTab() {
   const [recentClips, setRecentClips] = useState<ClipRecord[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [connectionMsg, setConnectionMsg] = useState<string>("");
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.url) setCurrentUrl(tabs[0].url);
     });
     getRecentClips().then((clips) => setRecentClips(clips.slice(0, 5)));
+    getSettings().then(({ authToken }) => setHasToken(!!authToken));
     checkConnection().then(({ ok, message }) => {
       setConnected(ok);
       setConnectionMsg(message);
@@ -74,6 +76,47 @@ export function ClipTab() {
   }
 
   const canClip = currentUrl !== "" && isClippableUrl(currentUrl) && connected === true;
+
+  if (hasToken === false) {
+    return (
+      <div>
+        <div
+          style={{
+            padding: "16px",
+            borderRadius: "8px",
+            backgroundColor: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>&#128273;</div>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "#1d4ed8",
+              margin: "0 0 8px",
+            }}
+          >
+            API token required
+          </p>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>
+            Add your API token in Settings to start clipping pages.
+          </p>
+        </div>
+        <p
+          style={{
+            fontSize: "11px",
+            color: "#94a3b8",
+            marginTop: "12px",
+            textAlign: "center",
+          }}
+        >
+          Open Settings &#9881; to configure your token.
+        </p>
+      </div>
+    );
+  }
 
   if (connected === false) {
     return (
