@@ -573,9 +573,7 @@ async def test_login_sets_next_cookie_for_safe_path(client, monkeypatch):
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
     monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
 
-    resp = await client.get(
-        "/auth/login/google?next=/auth/tokens", follow_redirects=False
-    )
+    resp = await client.get("/auth/login/google?next=/auth/tokens", follow_redirects=False)
     assert resp.status_code == 307
     assert "wikimind_next" in resp.cookies
     assert "/auth/tokens" in resp.cookies["wikimind_next"]
@@ -589,9 +587,7 @@ async def test_login_ignores_unsafe_next_url(client, monkeypatch):
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
     monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
 
-    resp = await client.get(
-        "/auth/login/google?next=//evil.com", follow_redirects=False
-    )
+    resp = await client.get("/auth/login/google?next=//evil.com", follow_redirects=False)
     assert resp.status_code == 307
     assert "wikimind_next" not in resp.cookies
 
