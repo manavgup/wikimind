@@ -147,31 +147,18 @@ export function Settings({ onBack }: Props) {
         }}
         placeholder="Paste your API token"
       />
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          const cleanUrl = url.replace(/\/$/, "");
-          const tokenUrl = `${cleanUrl}/auth/tokens`;
-          if (isValidUrl(cleanUrl)) {
-            chrome.storage.local.set(
-              { gatewayUrl: cleanUrl, authToken: token.trim() },
-              () => chrome.tabs.create({ url: tokenUrl })
-            );
-          } else {
-            chrome.tabs.create({ url: tokenUrl });
-          }
-        }}
+      <p
         style={{
-          display: "block",
           fontSize: "11px",
-          color: "#6366f1",
+          color: "#94a3b8",
           margin: "4px 0 0",
-          textDecoration: "none",
         }}
       >
-        Generate a token on your server &rarr;
-      </a>
+        Generate a token at{" "}
+        <span style={{ color: "#6366f1", userSelect: "all" }}>
+          {url.replace(/\/$/, "")}/auth/tokens
+        </span>
+      </p>
 
       {error && (
         <p style={{ fontSize: "11px", color: "#ef4444", margin: "4px 0 0" }}>
