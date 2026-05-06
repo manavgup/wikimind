@@ -149,14 +149,16 @@ export function Settings({ onBack }: Props) {
       />
       <a
         href="#"
-        onClick={async (e) => {
+        onClick={(e) => {
           e.preventDefault();
           const cleanUrl = url.replace(/\/$/, "");
+          const openTab = () =>
+            chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
           if (isValidUrl(cleanUrl)) {
-            await setGatewayUrl(cleanUrl);
-            await setAuthToken(token.trim());
+            Promise.all([setGatewayUrl(cleanUrl), setAuthToken(token.trim())]).then(openTab);
+          } else {
+            openTab();
           }
-          chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
         }}
         style={{
           display: "block",
