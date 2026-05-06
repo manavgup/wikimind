@@ -106,7 +106,7 @@ def _callback_url(request: Request) -> str:
     return f"{scheme}://{host}/auth/callback"
 
 
-_SAFE_REDIRECT_PREFIXES = ("/auth/", "/")
+_SAFE_REDIRECT_PATHS = ("/auth/tokens",)
 
 
 @router.get("/login/{provider}")
@@ -142,7 +142,7 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     # If a ?next= param was provided, store it in a short-lived cookie
     # so the callback can redirect back after login.
     next_url = request.query_params.get("next", "")
-    if next_url and any(next_url.startswith(p) for p in _SAFE_REDIRECT_PREFIXES):
+    if next_url and next_url in _SAFE_REDIRECT_PATHS:
         response.set_cookie("wikimind_next", next_url, max_age=600, httponly=True, path="/")
 
     return response

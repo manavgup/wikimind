@@ -561,6 +561,65 @@ async def test_token_page_returns_html(client):
 
 
 # ---------------------------------------------------------------------------
+# OAuth login ?next= redirect cookie
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_sets_next_cookie_for_safe_path(client, monkeypatch):
+    """GET /auth/login/google?next=/auth/tokens should set a wikimind_next cookie."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    resp = await client.get(
+        "/auth/login/google?next=/auth/tokens", follow_redirects=False
+    )
+    assert resp.status_code == 307
+    assert "wikimind_next" in resp.cookies
+    assert "/auth/tokens" in resp.cookies["wikimind_next"]
+
+
+@pytest.mark.asyncio
+async def test_login_ignores_unsafe_next_url(client, monkeypatch):
+    """GET /auth/login/google?next=//evil.com should NOT set a wikimind_next cookie."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    resp = await client.get(
+        "/auth/login/google?next=//evil.com", follow_redirects=False
+    )
+    assert resp.status_code == 307
+    assert "wikimind_next" not in resp.cookies
+
+
+# ---------------------------------------------------------------------------
+# X-Forwarded-Proto support
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_uses_x_forwarded_proto(client, monkeypatch):
+    """Login redirect should use X-Forwarded-Proto for the callback URL."""
+    settings = get_settings()
+    monkeypatch.setattr(settings.auth, "enabled", True)
+    monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+
+    resp = await client.get(
+        "/auth/login/google",
+        headers={"X-Forwarded-Proto": "https", "Host": "wikimind.fly.dev"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 307
+    location = resp.headers["location"]
+    assert "redirect_uri=https://wikimind.fly.dev/auth/callback" in location
+
+
+# ---------------------------------------------------------------------------
 # POST /auth/token — long-lived API tokens
 # ---------------------------------------------------------------------------
 

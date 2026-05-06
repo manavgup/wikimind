@@ -29,7 +29,7 @@ async function pollPendingClips(): Promise<void> {
   const clips = await getRecentClips();
   for (const clip of clips) {
     if (!TERMINAL_STATUSES.includes(clip.status)) {
-      pollSource(clip.sourceId);
+      void pollSource(clip.sourceId);
     }
   }
 }
@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     // Start polling the newly clipped source.
     if (msg.sourceId) {
-      pollSource(msg.sourceId);
+      void pollSource(msg.sourceId);
     }
   }
 
@@ -57,4 +57,4 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 // On service worker startup, poll any clips still in progress.
-pollPendingClips();
+void pollPendingClips();
