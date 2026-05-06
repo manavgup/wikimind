@@ -54,6 +54,27 @@ describe("clipUrl", () => {
     );
   });
 
+  it("includes Authorization header when token is set", async () => {
+    await chrome.storage.local.set({ authToken: "my-secret-token" });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ id: "x", status: "pending" })
+    );
+
+    await clipUrl("https://example.com");
+    const callHeaders = fetchMock.mock.calls[0][1].headers;
+    expect(callHeaders["Authorization"]).toBe("Bearer my-secret-token");
+  });
+
+  it("omits Authorization header when no token set", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ id: "x", status: "pending" })
+    );
+
+    await clipUrl("https://example.com");
+    const callHeaders = fetchMock.mock.calls[0][1].headers;
+    expect(callHeaders["Authorization"]).toBeUndefined();
+  });
+
   it("parses error response in WikiMind format", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(

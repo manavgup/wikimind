@@ -217,6 +217,9 @@ class AuthConfig(BaseModel):
     cookie_name: str = "wikimind_session"
     cookie_secure: bool = True  # False in dev (HTTP), True in prod (HTTPS)
     cookie_domain: str | None = None  # None = current host; set for subdomains
+    # Public base URL for OAuth callbacks (e.g. "https://wikimind.fly.dev").
+    # When set, used instead of the request Host header to build redirect URIs.
+    public_url: str = ""
     # Magic link (passwordless email) login
     magic_link_enabled: bool = True
     magic_link_ttl_seconds: int = 600  # 10 minutes

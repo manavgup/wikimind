@@ -4,12 +4,22 @@ const DEFAULT_GATEWAY_URL = "https://wikimind.fly.dev";
 const MAX_RECENT_CLIPS = 20;
 
 export async function getSettings(): Promise<ExtensionSettings> {
-  const { gatewayUrl } = await chrome.storage.local.get("gatewayUrl");
-  return { gatewayUrl: (gatewayUrl as string) ?? DEFAULT_GATEWAY_URL };
+  const { gatewayUrl, authToken } = await chrome.storage.local.get([
+    "gatewayUrl",
+    "authToken",
+  ]);
+  return {
+    gatewayUrl: (gatewayUrl as string) ?? DEFAULT_GATEWAY_URL,
+    authToken: (authToken as string) ?? "",
+  };
 }
 
 export async function setGatewayUrl(url: string): Promise<void> {
   await chrome.storage.local.set({ gatewayUrl: url });
+}
+
+export async function setAuthToken(token: string): Promise<void> {
+  await chrome.storage.local.set({ authToken: token });
 }
 
 export async function getRecentClips(): Promise<ClipRecord[]> {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "preact/hooks";
-import { getSettings, setGatewayUrl } from "../../lib/storage";
+import { getSettings, setGatewayUrl, setAuthToken } from "../../lib/storage";
 
 interface Props {
   onBack: () => void;
@@ -16,11 +16,18 @@ function isValidUrl(str: string): boolean {
 
 export function Settings({ onBack }: Props) {
   const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getSettings().then(({ gatewayUrl }) => setUrl(gatewayUrl));
+    getSettings().then(({ gatewayUrl, authToken }) => {
+      setUrl(gatewayUrl);
+      setToken(authToken);
+      // Mark as not dirty if both are already configured
+      setDirty(!gatewayUrl || !authToken);
+    });
   }, []);
 
   async function handleSave() {
@@ -48,8 +55,16 @@ export function Settings({ onBack }: Props) {
     }
 
     await setGatewayUrl(cleanUrl);
+    await setAuthToken(token.trim());
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setDirty(false);
+
+    // If both URL and token are set, go back to Clip tab after a brief flash
+    if (cleanUrl && token.trim()) {
+      setTimeout(() => onBack(), 800);
+    } else {
+      setTimeout(() => setSaved(false), 2000);
+    }
   }
 
   return (
@@ -95,9 +110,13 @@ export function Settings({ onBack }: Props) {
         type="url"
         value={url}
         onInput={(e) => {
-          setUrl((e.target as HTMLInputElement).value);
+          const val = (e.target as HTMLInputElement).value;
+          setUrl(val);
           setSaved(false);
+          setDirty(true);
           setError(null);
+          // Persist immediately so the value survives popup close
+          chrome.storage.local.set({ gatewayUrl: val });
         }}
         style={{
           width: "100%",
@@ -111,6 +130,58 @@ export function Settings({ onBack }: Props) {
         placeholder="https://wikimind.fly.dev"
       />
 
+      <label
+        style={{
+          display: "block",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "#64748b",
+          marginBottom: "4px",
+          marginTop: "12px",
+        }}
+      >
+        API Token
+      </label>
+      <input
+        type="password"
+        value={token}
+        onInput={(e) => {
+          const val = (e.target as HTMLInputElement).value;
+          setToken(val);
+          setSaved(false);
+          setDirty(true);
+          setError(null);
+          chrome.storage.local.set({ authToken: val });
+        }}
+        style={{
+          width: "100%",
+          padding: "8px",
+          border: "1px solid #cbd5e1",
+          borderRadius: "6px",
+          fontSize: "13px",
+          boxSizing: "border-box",
+          outline: "none",
+        }}
+        placeholder="Paste your API token"
+      />
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          const cleanUrl = url.replace(/\/$/, "");
+          chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
+        }}
+        style={{
+          display: "block",
+          fontSize: "11px",
+          color: "#6366f1",
+          margin: "4px 0 0",
+          textDecoration: "none",
+        }}
+      >
+        Generate a token on your server &rarr;
+      </a>
+
       {error && (
         <p style={{ fontSize: "11px", color: "#ef4444", margin: "4px 0 0" }}>
           {error}
@@ -119,16 +190,17 @@ export function Settings({ onBack }: Props) {
 
       <button
         onClick={handleSave}
+        disabled={!dirty && !saved}
         style={{
           marginTop: "12px",
           width: "100%",
           padding: "8px",
           borderRadius: "6px",
           border: "none",
-          cursor: "pointer",
+          cursor: dirty ? "pointer" : "not-allowed",
           fontWeight: 600,
           fontSize: "13px",
-          backgroundColor: saved ? "#22c55e" : "#6366f1",
+          backgroundColor: saved ? "#22c55e" : dirty ? "#6366f1" : "#cbd5e1",
           color: "white",
           transition: "background-color 0.15s",
         }}

@@ -7,13 +7,23 @@ async function getBaseUrl(): Promise<string> {
   return gatewayUrl.replace(/\/$/, "");
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const { authToken } = await getSettings();
+  if (authToken) {
+    return { Authorization: `Bearer ${authToken}` };
+  }
+  return {};
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = await getBaseUrl();
+  const auth = await authHeaders();
   const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...auth,
       ...init?.headers,
     },
   });
@@ -38,10 +48,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function checkConnection(): Promise<{ ok: boolean; message: string }> {
   const base = await getBaseUrl();
+  const auth = await authHeaders();
   try {
     const response = await fetch(`${base}/health`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...auth },
       signal: AbortSignal.timeout(5000),
     });
     if (response.ok) {

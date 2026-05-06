@@ -35,4 +35,5 @@ export interface ClipRecord {
 
 export interface ExtensionSettings {
   gatewayUrl: string;
+  authToken: string;
 }
