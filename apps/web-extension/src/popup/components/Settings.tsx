@@ -152,12 +152,14 @@ export function Settings({ onBack }: Props) {
         onClick={(e) => {
           e.preventDefault();
           const cleanUrl = url.replace(/\/$/, "");
-          const openTab = () =>
-            chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
+          const tokenUrl = `${cleanUrl}/auth/tokens`;
           if (isValidUrl(cleanUrl)) {
-            Promise.all([setGatewayUrl(cleanUrl), setAuthToken(token.trim())]).then(openTab);
+            chrome.storage.local.set(
+              { gatewayUrl: cleanUrl, authToken: token.trim() },
+              () => chrome.tabs.create({ url: tokenUrl })
+            );
           } else {
-            openTab();
+            chrome.tabs.create({ url: tokenUrl });
           }
         }}
         style={{
