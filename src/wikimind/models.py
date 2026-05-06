@@ -197,6 +197,14 @@ class Article(SQLModel, table=True):
     summary: str | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
+    # Numeric article-level confidence in [0.0, 1.0] computed from source
+    # count, recency, source-type quality, and contradiction count. Distinct
+    # from the categorical per-claim ``confidence`` field above. See
+    # ``wikimind.engine.confidence`` for the formula.
+    confidence_score: float = Field(default=0.5)
+    # Timestamp of the most recent (re)compilation; used by ``apply_decay``
+    # to compute ``effective_confidence`` at read time.
+    last_reinforced_at: datetime | None = None
     source_ids: str | None = None  # JSON array of source IDs
     # Which LLM provider compiled this article (issue #67). Recompiling the
     # same source with the same provider replaces this article in place;
@@ -848,6 +856,8 @@ class ArticleResponse(BaseModel):
     summary: str | None
     confidence: ConfidenceLevel | None
     linter_score: float | None
+    confidence_score: float = 0.5
+    effective_confidence: float = 0.5
     concepts: list[str] = []
     backlinks_in: list[BacklinkEntry] = []
     backlinks_out: list[BacklinkEntry] = []
@@ -1048,6 +1058,8 @@ class CitationResponse(BaseModel):
 
     article: CitationArticleRef
     sources: list[SourceResponse] = []
+    confidence_score: float = 0.5
+    effective_confidence: float = 0.5
 
 
 class QueryResponse(BaseModel):
@@ -1114,6 +1126,8 @@ class GraphNode(BaseModel):
     concept_cluster: str | None
     connection_count: int
     confidence: ConfidenceLevel | None
+    confidence_score: float = 0.5
+    effective_confidence: float = 0.5
 
 
 class GraphEdge(BaseModel):
