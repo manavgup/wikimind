@@ -154,6 +154,9 @@ class QAConfig(BaseModel):
     prior_answer_truncate_chars: int = 500
     conversation_title_max_chars: int = 120
     max_tokens: int = 2048
+    auto_file_back_enabled: bool = False
+    auto_file_back_min_words: int = 200
+    auto_file_back_min_sources: int = 3
 
 
 class TaxonomyConfig(BaseModel):

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+from slugify import slugify
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
@@ -30,6 +31,7 @@ from wikimind.models import (
     QueryRequest,
     QueryResult,
     TaskType,
+    WikiWorthinessScore,
 )
 from wikimind.services.activity_log import append_log_entry
 from wikimind.storage import get_wiki_storage
@@ -77,6 +79,82 @@ class _PreparedContext:
     wiki_context: list[dict]
     completion_request: CompletionRequest | None  # None when wiki_context is empty
     no_context_result: QueryResult | None  # non-None when wiki_context is empty
+
+
+def _derive_auto_file_back_title(result: QueryResult) -> str:
+    """Pick a title for an auto-filed Q&A answer.
+
+    Uses ``result.new_article_suggested`` when the LLM proposed one, else
+    falls back to the first 8 words of the answer.
+
+    Args:
+        result: The Q&A result returned by the LLM.
+
+    Returns:
+        A non-empty title string.
+    """
+    if result.new_article_suggested:
+        return result.new_article_suggested.strip()
+    words = result.answer.split()
+    if not words:
+        return "Untitled answer"
+    return " ".join(words[:8])
+
+
+async def _score_wiki_worthiness(
+    result: QueryResult,
+    answer_text: str,
+    db_session: AsyncSession,
+    *,
+    min_words: int,
+    min_sources: int,
+    user_id: str,
+) -> WikiWorthinessScore:
+    """Score whether a Q&A answer should be auto-filed back as a wiki page.
+
+    Pure-ish helper — runs a single SELECT against ``Article`` to detect
+    slug collisions. Does not write.
+
+    Args:
+        result: Parsed Q&A result from the LLM.
+        answer_text: The answer string used for word counting (caller
+            may pass ``result.answer`` or, in the streaming path, the
+            assembled streamed text).
+        db_session: Async session used to detect slug collisions.
+        min_words: Threshold for ``word_count``.
+        min_sources: Threshold for ``source_count``.
+        user_id: User scope for the dedup lookup.
+
+    Returns:
+        :class:`WikiWorthinessScore` describing the verdict. ``passed``
+        is True when all thresholds are met regardless of dedup; the
+        caller decides whether to skip on collision.
+    """
+    word_count = len(answer_text.split())
+    source_count = len(result.sources)
+    synthesizes = source_count >= 2 and result.confidence != "low"
+
+    derived_title = _derive_auto_file_back_title(result)
+    candidate_slug = slugify(derived_title)
+
+    dedup_collision = False
+    if candidate_slug:
+        stmt = select(Article).where(Article.slug == candidate_slug)
+        if user_id:
+            stmt = stmt.where(Article.user_id == user_id)
+        existing = await db_session.execute(stmt)
+        dedup_collision = existing.scalar_one_or_none() is not None
+
+    passed = word_count >= min_words and source_count >= min_sources and synthesizes
+
+    return WikiWorthinessScore(
+        word_count=word_count,
+        source_count=source_count,
+        synthesizes=synthesizes,
+        dedup_collision=dedup_collision,
+        passed=passed,
+        auto_filed=False,
+    )
 
 
 class QAAgent:
@@ -317,7 +395,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         ctx: _PreparedContext,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation]:
+    ) -> tuple[Query, Conversation, WikiWorthinessScore | None]:
         """Persist the Query row and handle file-back.
 
         Shared by ``answer()`` and the ``answer_stream()`` completion path.
@@ -330,7 +408,9 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation).
+            Tuple of (the new Query row, the parent Conversation, optional
+            wiki-worthiness score). The score is non-None only when the
+            ``auto_file_back_enabled`` config flag is set.
         """
         query_record = Query(
             question=request.question,
@@ -356,6 +436,41 @@ conversation context contradicts the wiki, prefer the wiki."""
             filed_article = article
             session.add(query_record)
 
+        # Auto file-back: independent of request.file_back. Runs only when the
+        # config flag is on, the score passes thresholds, there's no dedup
+        # collision, and we haven't already filed-back via the manual path.
+        score: WikiWorthinessScore | None = None
+        if self.settings.qa.auto_file_back_enabled:
+            score = await _score_wiki_worthiness(
+                result,
+                result.answer,
+                session,
+                min_words=self.settings.qa.auto_file_back_min_words,
+                min_sources=self.settings.qa.auto_file_back_min_sources,
+                user_id=user_id,
+            )
+            already_filed = filed_article is not None
+            if score.passed and not score.dedup_collision and not already_filed:
+                try:
+                    derived_title = _derive_auto_file_back_title(result)
+                    # Update the Conversation title so _file_back_thread uses it
+                    # for the new Article row (it reads conversation.title).
+                    ctx.conversation.title = derived_title
+                    session.add(ctx.conversation)
+                    await session.flush()
+                    article, _ = await self._file_back_thread(ctx.conversation.id, session, user_id=user_id)
+                    query_record.filed_back = True
+                    query_record.filed_article_id = article.id
+                    filed_article = article
+                    session.add(query_record)
+                    score.auto_filed = True
+                except Exception:
+                    # Must never fail the user-facing answer.
+                    log.exception(
+                        "Auto file-back failed; user-facing answer is unaffected",
+                        conversation_id=ctx.conversation.id,
+                    )
+
         await session.commit()
 
         try:
@@ -373,14 +488,14 @@ conversation context contradicts the wiki, prefer the wiki."""
         await session.refresh(query_record)
         await session.refresh(ctx.conversation)
 
-        return query_record, ctx.conversation
+        return query_record, ctx.conversation, score
 
     async def answer(
         self,
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation]:
+    ) -> tuple[Query, Conversation, WikiWorthinessScore | None]:
         """Answer a question against the wiki.
 
         Conversation-aware: if request.conversation_id is None a new
@@ -394,7 +509,9 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation).
+            Tuple of (the new Query row, the parent Conversation, optional
+            wiki-worthiness score). The score is non-None only when the
+            ``auto_file_back_enabled`` config flag is set.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
@@ -416,13 +533,13 @@ conversation context contradicts the wiki, prefer the wiki."""
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> AsyncIterator[str | tuple[Query, Conversation]]:
-        """Stream LLM tokens, then yield the persisted (Query, Conversation) tuple.
+    ) -> AsyncIterator[str | tuple[Query, Conversation, WikiWorthinessScore | None]]:
+        """Stream LLM tokens, then yield the persisted result tuple.
 
         Yields text chunk strings during streaming. After all tokens have been
-        yielded, yields a single ``(Query, Conversation)`` tuple as the final
-        item. The caller (service layer) is responsible for constructing SSE
-        events from these values.
+        yielded, yields a single ``(Query, Conversation, WikiWorthinessScore | None)``
+        tuple as the final item. The caller (service layer) is responsible for
+        constructing SSE events from these values.
 
         If wiki context is empty, yields the canned answer text as one chunk
         followed by the persisted tuple.
@@ -436,15 +553,18 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Yields:
-            ``str`` text chunks, then a final ``tuple[Query, Conversation]``.
+            ``str`` text chunks, then a final
+            ``tuple[Query, Conversation, WikiWorthinessScore | None]``.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
             yield result.answer
-            query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
-            yield (query_record, conversation)
+            query_record, conversation, score = await self._persist_query(
+                request, result, ctx, session, user_id=user_id
+            )
+            yield (query_record, conversation, score)
             return
 
         assert ctx.completion_request is not None
@@ -505,8 +625,8 @@ conversation context contradicts the wiki, prefer the wiki."""
                 related_articles=[],
             )
 
-        query_record, conversation = await self._persist_query(request, result, ctx, session, user_id=user_id)
-        yield (query_record, conversation)
+        query_record, conversation, score = await self._persist_query(request, result, ctx, session, user_id=user_id)
+        yield (query_record, conversation, score)
 
     async def _retrieve_context(self, question: str, session: AsyncSession, user_id: str) -> list[dict]:
         """Retrieve relevant wiki articles for the question."""

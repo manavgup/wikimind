@@ -3107,6 +3107,10 @@ components:
           type: array
           title: Citations
           default: []
+        wiki_worthiness:
+          anyOf:
+          - $ref: '#/components/schemas/WikiWorthinessScore'
+          - type: 'null'
       type: object
       required:
       - id
@@ -3563,6 +3567,44 @@ components:
       - msg
       - type
       title: ValidationError
+    WikiWorthinessScore:
+      properties:
+        word_count:
+          type: integer
+          title: Word Count
+        source_count:
+          type: integer
+          title: Source Count
+        synthesizes:
+          type: boolean
+          title: Synthesizes
+        dedup_collision:
+          type: boolean
+          title: Dedup Collision
+        passed:
+          type: boolean
+          title: Passed
+        auto_filed:
+          type: boolean
+          title: Auto Filed
+          default: false
+      type: object
+      required:
+      - word_count
+      - source_count
+      - synthesizes
+      - dedup_collision
+      - passed
+      title: WikiWorthinessScore
+      description: 'Score describing whether a Q&A answer is worth filing back as
+        a wiki page.
+
+
+        Produced by the Q&A agent''s auto file-back scorer. ``passed`` is the
+
+        overall verdict; ``auto_filed`` records whether a wiki article was
+
+        actually created as a result of this score.'
 tags:
 - name: Wiki
   description: Browse wiki articles, knowledge graph, and search

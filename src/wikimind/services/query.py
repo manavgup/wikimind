@@ -49,6 +49,7 @@ from wikimind.models import (
     QueryResponse,
     Source,
     SourceResponse,
+    WikiWorthinessScore,
 )
 
 log = structlog.get_logger()
@@ -168,7 +169,11 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
     return citations
 
 
-def _to_query_response(query: Query, citations: list[CitationResponse]) -> QueryResponse:
+def _to_query_response(
+    query: Query,
+    citations: list[CitationResponse],
+    wiki_worthiness: WikiWorthinessScore | None = None,
+) -> QueryResponse:
     """Project a persisted :class:`Query` plus citations into a :class:`QueryResponse`."""
     return QueryResponse(
         id=query.id,
@@ -183,6 +188,7 @@ def _to_query_response(query: Query, citations: list[CitationResponse]) -> Query
         conversation_id=query.conversation_id,
         turn_index=query.turn_index,
         citations=citations,
+        wiki_worthiness=wiki_worthiness,
     )
 
 
@@ -268,10 +274,10 @@ class QueryService:
         Returns:
             :class:`AskResponse` with the new query and its parent conversation.
         """
-        query, conversation = await self._qa_agent.answer(request, session, user_id=user_id)
+        query, conversation, wiki_worthiness = await self._qa_agent.answer(request, session, user_id=user_id)
         citations = await _build_citations(query, session, user_id=user_id)
         return AskResponse(
-            query=_to_query_response(query, citations),
+            query=_to_query_response(query, citations, wiki_worthiness=wiki_worthiness),
             conversation=_to_conversation_response(conversation),
         )
 
@@ -304,11 +310,11 @@ class QueryService:
                 if isinstance(item, str):
                     yield (f"event: chunk\ndata: {json.dumps({'text': item})}\n\n")
                 else:
-                    # Final tuple: (Query, Conversation)
-                    query_record, conversation = item
+                    # Final tuple: (Query, Conversation, WikiWorthinessScore | None)
+                    query_record, conversation, wiki_worthiness = item
                     citations = await _build_citations(query_record, session, user_id=user_id)
                     done_payload = AskResponse(
-                        query=_to_query_response(query_record, citations),
+                        query=_to_query_response(query_record, citations, wiki_worthiness=wiki_worthiness),
                         conversation=_to_conversation_response(conversation),
                     )
                     yield (f"event: done\ndata: {done_payload.model_dump_json()}\n\n")
@@ -541,11 +547,11 @@ class QueryService:
             question=fork_request.new_question,
             conversation_id=fork_conv.id,
         )
-        query, conversation = await self._qa_agent.answer(ask_request, session, user_id=user_id)
+        query, conversation, wiki_worthiness = await self._qa_agent.answer(ask_request, session, user_id=user_id)
         citations = await _build_citations(query, session, user_id=user_id)
         fork_count = await _count_forks(fork_conv.id, session)
         return AskResponse(
-            query=_to_query_response(query, citations),
+            query=_to_query_response(query, citations, wiki_worthiness=wiki_worthiness),
             conversation=_to_conversation_response(conversation, fork_count),
         )
 
