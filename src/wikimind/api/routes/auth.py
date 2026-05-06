@@ -106,6 +106,9 @@ def _callback_url(request: Request) -> str:
     return f"{scheme}://{host}/auth/callback"
 
 
+_SAFE_REDIRECT_PREFIXES = ("/auth/", "/")
+
+
 @router.get("/login/{provider}")
 async def login(provider: str, request: Request) -> RedirectResponse:
     """Redirect to OAuth2 provider's authorize URL."""
@@ -134,7 +137,15 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
-    return RedirectResponse(url=authorize_url)
+    response = RedirectResponse(url=authorize_url)
+
+    # If a ?next= param was provided, store it in a short-lived cookie
+    # so the callback can redirect back after login.
+    next_url = request.query_params.get("next", "")
+    if next_url and any(next_url.startswith(p) for p in _SAFE_REDIRECT_PREFIXES):
+        response.set_cookie("wikimind_next", next_url, max_age=600, httponly=True, path="/")
+
+    return response
 
 
 @router.get("/callback", name="auth_callback")
@@ -164,7 +175,10 @@ async def callback(
     user = await service.upsert_oauth_user(session, provider, user_info)
     jwt_token = service.create_jwt(user, settings)
 
-    response = RedirectResponse(url="/callback", status_code=302)
+    # Redirect to the stored return URL or the default SPA callback page.
+    next_url = request.cookies.get("wikimind_next", "/callback")
+    response = RedirectResponse(url=next_url, status_code=302)
+    response.delete_cookie("wikimind_next", path="/")
     response.set_cookie(
         key=settings.auth.cookie_name,
         value=jwt_token,
@@ -314,10 +328,10 @@ _TOKEN_PAGE_HTML = """\
     <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
       Sign in to generate a token.
     </p>
-    <button class="btn btn-login" onclick="location.href='/auth/login/google'">
+    <button class="btn btn-login" onclick="location.href='/auth/login/google?next=/auth/tokens'">
       Sign in with Google
     </button>
-    <button class="btn btn-login" onclick="location.href='/auth/login/github'">
+    <button class="btn btn-login" onclick="location.href='/auth/login/github?next=/auth/tokens'">
       Sign in with GitHub
     </button>
   </div>
