@@ -18,12 +18,15 @@ export function Settings({ onBack }: Props) {
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then(({ gatewayUrl, authToken }) => {
       setUrl(gatewayUrl);
       setToken(authToken);
+      // Mark as not dirty if both are already configured
+      setDirty(!gatewayUrl || !authToken);
     });
   }, []);
 
@@ -54,7 +57,14 @@ export function Settings({ onBack }: Props) {
     await setGatewayUrl(cleanUrl);
     await setAuthToken(token.trim());
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setDirty(false);
+
+    // If both URL and token are set, go back to Clip tab after a brief flash
+    if (cleanUrl && token.trim()) {
+      setTimeout(() => onBack(), 800);
+    } else {
+      setTimeout(() => setSaved(false), 2000);
+    }
   }
 
   return (
@@ -103,6 +113,7 @@ export function Settings({ onBack }: Props) {
           const val = (e.target as HTMLInputElement).value;
           setUrl(val);
           setSaved(false);
+          setDirty(true);
           setError(null);
           // Persist immediately so the value survives popup close
           chrome.storage.local.set({ gatewayUrl: val });
@@ -138,6 +149,7 @@ export function Settings({ onBack }: Props) {
           const val = (e.target as HTMLInputElement).value;
           setToken(val);
           setSaved(false);
+          setDirty(true);
           setError(null);
           chrome.storage.local.set({ authToken: val });
         }}
@@ -178,16 +190,17 @@ export function Settings({ onBack }: Props) {
 
       <button
         onClick={handleSave}
+        disabled={!dirty && !saved}
         style={{
           marginTop: "12px",
           width: "100%",
           padding: "8px",
           borderRadius: "6px",
           border: "none",
-          cursor: "pointer",
+          cursor: dirty ? "pointer" : "not-allowed",
           fontWeight: 600,
           fontSize: "13px",
-          backgroundColor: saved ? "#22c55e" : "#6366f1",
+          backgroundColor: saved ? "#22c55e" : dirty ? "#6366f1" : "#cbd5e1",
           color: "white",
           transition: "background-color 0.15s",
         }}
