@@ -7,6 +7,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -30,6 +31,7 @@ from wikimind.config import get_settings
 from wikimind.database import close_db, get_db_path, get_session_factory, init_db
 from wikimind.errors import WikiMindError
 from wikimind.middleware import logging_config
+from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import _sanitize_event_dict
 from wikimind.models import CompletionResponse, Conversation, Provider, Query
@@ -172,6 +174,62 @@ async def test_error_handling_wikimind_error() -> None:
         r = c.get("/crash")
         assert r.status_code == 500
         assert r.json()["error"]["code"] == "internal_error"
+
+
+# ----- middleware correlation (structlog contextvars) -----
+
+
+def test_correlation_middleware_binds_request_id_to_contextvars() -> None:
+    """Correlation middleware binds request_id to structlog contextvars."""
+    captured_ctx: dict = {}
+
+    app = FastAPI()
+    app.add_middleware(CorrelationIdMiddleware)
+
+    @app.get("/check")
+    async def check():
+        captured_ctx.update(structlog.contextvars.get_contextvars())
+        return {"ok": True}
+
+    with TestClient(app) as c:
+        r = c.get("/check")
+    assert r.status_code == 200
+    assert "request_id" in captured_ctx
+
+
+def test_correlation_middleware_uses_provided_request_id() -> None:
+    """Correlation middleware re-uses the X-Request-ID header value."""
+    captured_ctx: dict = {}
+
+    app = FastAPI()
+    app.add_middleware(CorrelationIdMiddleware)
+
+    @app.get("/check")
+    async def check():
+        captured_ctx.update(structlog.contextvars.get_contextvars())
+        return {"ok": True}
+
+    custom_id = "my-trace-42"
+    with TestClient(app) as c:
+        r = c.get("/check", headers={"X-Request-ID": custom_id})
+    assert r.status_code == 200
+    assert captured_ctx.get("request_id") == custom_id
+    assert r.headers["x-request-id"] == custom_id
+
+
+def test_correlation_middleware_clears_contextvars_after_request() -> None:
+    """Contextvars are cleared after the request to prevent leaking."""
+    app = FastAPI()
+    app.add_middleware(CorrelationIdMiddleware)
+
+    @app.get("/check")
+    async def check():
+        return {"ok": True}
+
+    with TestClient(app) as c:
+        c.get("/check")
+    # After the request completes, contextvars should be empty.
+    assert structlog.contextvars.get_contextvars() == {}
 
 
 # ----- middleware logging_config -----

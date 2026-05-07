@@ -1,9 +1,10 @@
 """Middleware that emits a structured log line for every HTTP request.
 
 Captures method, path, status code, response time, and the correlation
-ID assigned by ``CorrelationIdMiddleware``.  Noisy endpoints such as
-``/health`` and ``/docs`` are silently skipped to keep logs focused on
-meaningful application traffic.
+ID assigned by ``CorrelationIdMiddleware``.  Also binds ``user_id`` to
+structlog contextvars so all downstream log entries automatically
+include it. Noisy endpoints such as ``/health`` and ``/docs`` are
+silently skipped to keep logs focused on meaningful application traffic.
 """
 
 import time
@@ -31,7 +32,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         if request.url.path in _SKIP_PATHS:
             return await call_next(request)
 
-        request_id: str = getattr(request.state, "request_id", "unknown")
+        # Bind user_id to structlog contextvars so all downstream log
+        # entries include it automatically.  At this point in the middleware
+        # stack, AuthMiddleware has already set request.state.user_id.
+        user_id: str | None = getattr(request.state, "user_id", None)
+        if user_id:
+            structlog.contextvars.bind_contextvars(user_id=user_id)
+
         start = time.perf_counter()
 
         response = await call_next(request)
@@ -43,6 +50,5 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             path=request.url.path,
             status_code=response.status_code,
             duration_ms=duration_ms,
-            request_id=request_id,
         )
         return response

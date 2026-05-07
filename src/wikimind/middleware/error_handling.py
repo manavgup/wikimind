@@ -29,7 +29,6 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 "domain_error",
                 code=exc.code,
                 message=exc.message,
-                request_id=request_id,
                 path=request.url.path,
             )
             return _error_response(exc.status_code, exc.code, exc.message, request_id)
@@ -38,7 +37,6 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             log.exception(
                 "unhandled_error",
                 error=str(exc),
-                request_id=request_id,
                 path=request.url.path,
             )
             return _error_response(500, "internal_error", "An unexpected error occurred", request_id)
