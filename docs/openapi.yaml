@@ -1910,6 +1910,14 @@ components:
           - type: number
           - type: 'null'
           title: Linter Score
+        confidence_score:
+          type: number
+          title: Confidence Score
+          default: 0.5
+        effective_confidence:
+          type: number
+          title: Effective Confidence
+          default: 0.5
         sources:
           items:
             $ref: '#/components/schemas/ArticleSourceSummary'
