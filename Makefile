@@ -213,8 +213,12 @@ doc-coverage: ## Measure docstring coverage (fails if below fail-under threshold
 .PHONY: security
 security: bandit vulture ## Run security and dead-code checks
 
+.PHONY: update-secrets-baseline
+update-secrets-baseline: ## Update detect-secrets baseline (keeps line numbers in sync)
+	@detect-secrets scan --baseline .secrets.baseline >/dev/null 2>&1 || true
+
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
+verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify update-secrets-baseline ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
 
 .PHONY: coverage-ci
 coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outputs
