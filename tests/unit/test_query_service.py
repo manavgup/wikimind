@@ -298,7 +298,7 @@ class TestAskStream:
         async def _fake_stream(request, session, user_id=None):
             yield "hello "
             yield "world"
-            yield (q, conv)
+            yield (q, conv, None)
 
         with patch.object(service._qa_agent, "answer_stream", side_effect=_fake_stream):
             events = [

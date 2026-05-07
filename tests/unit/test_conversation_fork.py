@@ -97,7 +97,7 @@ class TestForkConversation:
                 await session.commit()
                 await session.refresh(q)
                 await session.refresh(fork_conv)
-                return q, fork_conv
+                return q, fork_conv, None
 
             mock_answer.side_effect = _fake_answer
 

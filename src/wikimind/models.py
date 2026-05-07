@@ -569,6 +569,22 @@ class QueryResult(BaseModel):
     follow_up_questions: list[str] = []
 
 
+class WikiWorthinessScore(BaseModel):
+    """Score describing whether a Q&A answer is worth filing back as a wiki page.
+
+    Produced by the Q&A agent's auto file-back scorer. ``passed`` is the
+    overall verdict; ``auto_filed`` records whether a wiki article was
+    actually created as a result of this score.
+    """
+
+    word_count: int
+    source_count: int
+    synthesizes: bool
+    dedup_collision: bool
+    passed: bool
+    auto_filed: bool = False
+
+
 class LinterContradiction(BaseModel):
     """A contradiction found by the linter."""
 
@@ -1054,6 +1070,7 @@ class QueryResponse(BaseModel):
     conversation_id: str | None = None
     turn_index: int = 0
     citations: list[CitationResponse] = []
+    wiki_worthiness: WikiWorthinessScore | None = None
 
 
 class ConversationResponse(BaseModel):

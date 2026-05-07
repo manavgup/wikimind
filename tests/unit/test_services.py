@@ -337,7 +337,7 @@ async def test_query_service_ask_returns_ask_response_with_conversation(db_sessi
     await db_session.commit()
 
     svc._qa_agent = MagicMock()
-    svc._qa_agent.answer = AsyncMock(return_value=(fake_query, fake_conv))
+    svc._qa_agent.answer = AsyncMock(return_value=(fake_query, fake_conv, None))
 
     request = QueryRequest(question="What is the loop?")
     response = await svc.ask(request, db_session, user_id=TEST_USER_ID)

@@ -27,6 +27,7 @@ from wikimind.engine.qa_agent import QAAgent
 from wikimind.models import (
     Article,
     CompletionResponse,
+    PageType,
     Provider,
     Query,
     QueryRequest,
@@ -43,6 +44,9 @@ _FAKE_QA_SETTINGS = SimpleNamespace(
         prior_answer_truncate_chars=500,
         conversation_title_max_chars=120,
         max_tokens=2048,
+        auto_file_back_enabled=False,
+        auto_file_back_min_words=200,
+        auto_file_back_min_sources=3,
     ),
 )
 
@@ -89,6 +93,9 @@ async def test_ask_with_file_back_creates_article_end_to_end(
                     prior_answer_truncate_chars=500,
                     conversation_title_max_chars=120,
                     max_tokens=2048,
+                    auto_file_back_enabled=False,
+                    auto_file_back_min_words=200,
+                    auto_file_back_min_sources=3,
                 ),
             ),
         ),
@@ -124,7 +131,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # Real call — must not raise. Pre-fix this raised ValueError because
     # ConfidenceLevel("high") is not a member of the enum.
     # answer(user_id="anonymous") now returns a tuple of (Query, Conversation).
-    query, _ = await agent.answer(request, db_session, user_id=ANONYMOUS_USER_ID)
+    query, _, _ = await agent.answer(request, db_session, user_id=ANONYMOUS_USER_ID)
 
     # Query row was persisted with the agent-confidence string preserved.
     assert query.id is not None
@@ -192,10 +199,10 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     agent._retrieve_context = AsyncMock(return_value=[{"title": "Seed Article", "content": "seed content", "score": 1}])
 
     # Q1 — starts a new conversation
-    _q1, conv = await agent.answer(QueryRequest(question="What is X?"), db_session, user_id=ANONYMOUS_USER_ID)
+    _q1, conv, _ = await agent.answer(QueryRequest(question="What is X?"), db_session, user_id=ANONYMOUS_USER_ID)
 
     # Q2 — continues the same conversation
-    _q2, _ = await agent.answer(
+    _q2, _, _ = await agent.answer(
         QueryRequest(question="How does it work?", conversation_id=conv.id),
         db_session,
         user_id=ANONYMOUS_USER_ID,
@@ -252,6 +259,9 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
                     prior_answer_truncate_chars=500,
                     conversation_title_max_chars=120,
                     max_tokens=2048,
+                    auto_file_back_enabled=False,
+                    auto_file_back_min_words=200,
+                    auto_file_back_min_sources=3,
                 ),
             ),
         ),
@@ -301,7 +311,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     # Phase 1: Conversation A asks with file_back=True, exercising the production
     # conditional: if request.file_back and result.confidence in ("high", "medium").
     # answer(user_id="anonymous") commits internally — no manual commit needed.
-    q_a, _conv_a = await agent.answer(
+    q_a, _conv_a, _score_a = await agent.answer(
         QueryRequest(question="How does the Karpathy loop work?", file_back=True),
         db_session,
         user_id=ANONYMOUS_USER_ID,
@@ -327,3 +337,89 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
         f"LOOP CLOSURE FAILED: filed-back article was not found by a related "
         f"future question. Retrieved: {retrieved_titles}"
     )
+
+
+async def test_auto_file_back_creates_answer_article_when_flag_on(
+    db_session: AsyncSession,
+    tmp_path,
+) -> None:
+    """With ``auto_file_back_enabled=True`` and a qualifying answer, an ANSWER Article is created.
+
+    Exercises the new wire-up: scoring runs after ``_query_llm`` returns,
+    passes thresholds, and ``_file_back_thread`` is invoked even though
+    ``request.file_back`` is False.
+    """
+    data_dir = tmp_path / "wikimind"
+    with (
+        patch.object(qa_mod, "get_llm_router"),
+        patch.object(
+            qa_mod,
+            "get_settings",
+            return_value=SimpleNamespace(
+                data_dir=str(data_dir),
+                qa=SimpleNamespace(
+                    max_prior_turns_in_context=5,
+                    prior_answer_truncate_chars=500,
+                    conversation_title_max_chars=120,
+                    max_tokens=2048,
+                    auto_file_back_enabled=True,
+                    auto_file_back_min_words=200,
+                    auto_file_back_min_sources=3,
+                ),
+            ),
+        ),
+    ):
+        agent = QAAgent()
+
+    seed_md = tmp_path / "seed.md"
+    seed_md.write_text("seed content used by retrieval", encoding="utf-8")
+    seed = Article(
+        slug="seed-article",
+        title="Seed Article",
+        file_path=str(seed_md),
+        summary="seed",
+        user_id=ANONYMOUS_USER_ID,
+    )
+    db_session.add(seed)
+    await db_session.commit()
+
+    long_answer = " ".join(["wikimind"] * 220)
+    fake_response = CompletionResponse(
+        content="{}",
+        provider_used=Provider.ANTHROPIC,
+        model_used="test-model",
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=0.0,
+        latency_ms=0,
+    )
+    agent.router.complete = AsyncMock(return_value=fake_response)
+    agent.router.parse_json_response = lambda _resp: {
+        "answer": long_answer,
+        "confidence": "high",
+        "sources": ["A1", "A2", "A3"],
+        "related_articles": [],
+        "new_article_suggested": "How wikimind compiles knowledge",
+        "follow_up_questions": [],
+    }
+    agent._retrieve_context = AsyncMock(  # type: ignore[method-assign]
+        return_value=[{"title": "Seed Article", "content": "seed content", "score": 1}]
+    )
+
+    # file_back=False — proves the auto path fires independently.
+    query, _conv, score = await agent.answer(
+        QueryRequest(question="How does wikimind work?", file_back=False),
+        db_session,
+        user_id=ANONYMOUS_USER_ID,
+    )
+
+    assert score is not None
+    assert score.passed is True
+    assert score.auto_filed is True
+    assert query.filed_back is True
+    assert query.filed_article_id is not None
+
+    filed = await db_session.get(Article, query.filed_article_id)
+    assert filed is not None
+    assert filed.page_type == PageType.ANSWER
+    assert filed.title == "How wikimind compiles knowledge"
