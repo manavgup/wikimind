@@ -1280,6 +1280,18 @@ wheels = [
 ]
 
 [[package]]
+name = "honcho"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/65/c8/d860888358bf5c8a6e7d78d1b508b59b0e255afd5655f243b8f65166dafd/honcho-2.0.0.tar.gz", hash = "sha256:af3815c03c634bf67d50f114253ea9fef72ecff26e4fd06b29234789ac5b8b2e", size = 45618 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/1c/25631fc359955569e63f5446dbb7022c320edf9846cbe892ee5113433a7e/honcho-2.0.0-py3-none-any.whl", hash = "sha256:56dcd04fc72d362a4befb9303b1a1a812cba5da283526fbc6509be122918ddf3", size = 22093 },
+]
+
+[[package]]
 name = "htmldate"
 version = "1.9.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4747,6 +4759,7 @@ dev = [
     { name = "bandit" },
     { name = "deptry" },
     { name = "greenlet" },
+    { name = "honcho" },
     { name = "httpx" },
     { name = "interrogate" },
     { name = "mypy" },
@@ -4813,6 +4826,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "greenlet", marker = "extra == 'test'", specifier = ">=3.0.0" },
     { name = "gunicorn", specifier = ">=22.0.0" },
+    { name = "honcho", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "httpx", specifier = ">=0.27.2" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27.2" },
     { name = "interrogate", marker = "extra == 'lint'", specifier = ">=1.7.0" },

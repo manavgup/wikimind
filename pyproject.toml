@@ -81,6 +81,7 @@ transcribe = [
 ]
 dev = [
     "wikimind[test,lint]",
+    "honcho>=2.0.0",
 ]
 test = [
     "pytest>=8.3.3",

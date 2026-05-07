@@ -69,8 +69,9 @@ cp .env.example .env
 # For OpenRouter/other OpenAI-compatible gateways, see .env.example.
 # Providers auto-enable when their key is detected.
 
-# 3. Start the local gateway (FastAPI on :7842)
+# 3. Start the full local stack (API server + ARQ worker + Redis)
 make dev
+# (Requires Docker for Redis. Use `make dev-api` for just the API server.)
 
 # 4. (optional) Start the React UI in another terminal
 cd apps/web
@@ -281,7 +282,8 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 
 | Target | Description |
 |--------|-------------|
-| `make dev` | Run fast-reload dev server on :7842 (uvicorn) |
+| `make dev` | Start full local stack: API server + ARQ worker + Redis (via honcho) |
+| `make dev-api` | Run only the fast-reload API server on :7842 (uvicorn) |
 | `make dev-token` | Generate a JWT API token for dev/testing (uses .env secret) |
 | `make serve` | Run production server on :7842 (gunicorn) |
 | `make pg-up` | Start local Postgres (docker-compose.dev.yml, port 5433) |
