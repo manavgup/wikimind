@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "WikiMind",
   "version": "0.1.0",
-  "description": "Save web pages to your WikiMind knowledge base. Requires a running WikiMind instance — configure the server URL in extension settings.",
+  "description": "Save web pages to your WikiMind knowledge base. Requires a WikiMind instance — configure the server URL in Settings.",
   "browser_specific_settings": {
     "gecko": {
       "id": "wikimind@wikimind.io",
