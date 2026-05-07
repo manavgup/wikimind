@@ -1149,6 +1149,35 @@ class GraphResponse(BaseModel):
     edges: list[GraphEdge]
 
 
+class RelationshipEdge(BaseModel):
+    """One end of a typed relationship to another article.
+
+    Used by ``GET /wiki/articles/{id_or_slug}/relationships`` to describe
+    the article on the *other* side of a backlink, plus any context or
+    resolution metadata recorded on the edge.
+    """
+
+    article_id: str
+    slug: str
+    title: str
+    relation_type: RelationType = RelationType.REFERENCES
+    context: str | None = None
+    resolution: str | None = None
+
+
+class ArticleRelationshipsResponse(BaseModel):
+    """Typed relationships for one article, grouped by direction and relation_type.
+
+    ``incoming`` are edges where this article is the *target*.
+    ``outgoing`` are edges where this article is the *source*.
+    Each direction maps a :class:`RelationType` value (string) to the list
+    of edges of that type.
+    """
+
+    incoming: dict[str, list[RelationshipEdge]] = {}
+    outgoing: dict[str, list[RelationshipEdge]] = {}
+
+
 class HealthReport(BaseModel):
     """Wiki health report from linter."""
 

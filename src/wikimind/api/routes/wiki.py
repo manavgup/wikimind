@@ -13,6 +13,7 @@ from wikimind.database import get_session
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Article,
+    ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
@@ -91,12 +92,45 @@ async def get_article(
 
 @router.get("/graph", response_model=GraphResponse)
 async def get_graph(
+    relation_type: RelationType | None = Query(default=None),
+    from_article: str | None = Query(default=None),
+    to_article: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
 ):
-    """Full knowledge graph -- nodes and edges."""
-    return await service.get_graph(session, user_id=user_id)
+    """Full knowledge graph -- nodes and edges.
+
+    Optional query parameters filter the returned edge set:
+
+    * ``relation_type`` — keep only edges of one semantic relation type.
+    * ``from_article`` — id or slug of the source article.
+    * ``to_article`` — id or slug of the target article.
+
+    Filters compose with AND. Filtering is pushed down into SQL.
+    """
+    return await service.get_graph(
+        session,
+        user_id=user_id,
+        relation_type=relation_type,
+        from_article=from_article,
+        to_article=to_article,
+    )
+
+
+@router.get(
+    "/articles/{id_or_slug}/relationships",
+    response_model=ArticleRelationshipsResponse,
+    responses={404: {"description": "Article not found"}},
+)
+async def get_article_relationships(
+    id_or_slug: str,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return typed relationships for an article, grouped by direction and type."""
+    return await service.get_relationships(id_or_slug, session, user_id=user_id)
 
 
 @router.get("/search", response_model=list[ArticleSummaryResponse])

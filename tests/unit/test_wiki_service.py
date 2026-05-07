@@ -6,7 +6,18 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import TEST_USER_ID
-from wikimind.models import Article, ArticleConcept, ArticleSource, Backlink, BacklinkEntry, Concept, Source, SourceType
+from wikimind.errors import NotFoundError
+from wikimind.models import (
+    Article,
+    ArticleConcept,
+    ArticleSource,
+    Backlink,
+    BacklinkEntry,
+    Concept,
+    RelationType,
+    Source,
+    SourceType,
+)
 from wikimind.services.wiki import WikiService
 
 
@@ -575,3 +586,141 @@ class TestArticleSummaryCounts:
         assert len(results) == 1
         assert results[0].source_count == 0
         assert results[0].backlink_count == 0
+
+
+@pytest.mark.asyncio
+class TestTypedGraphFiltering:
+    """Tests for issue #423 — typed-edge filters on get_graph + get_relationships."""
+
+    async def _seed(self, db_session, tmp_path: Path) -> None:
+        for slug, title in [("art-a", "A"), ("art-b", "B"), ("art-c", "C")]:
+            fp = tmp_path / f"{slug}.md"
+            fp.write_text(f"# {title}", encoding="utf-8")
+            db_session.add(
+                Article(id=slug.replace("art-", "id-"), slug=slug, title=title, file_path=str(fp), user_id=TEST_USER_ID)
+            )
+        await db_session.commit()
+        db_session.add(
+            Backlink(
+                source_article_id="id-a",
+                target_article_id="id-b",
+                relation_type=RelationType.REFERENCES,
+                user_id=TEST_USER_ID,
+            )
+        )
+        db_session.add(
+            Backlink(
+                source_article_id="id-a",
+                target_article_id="id-c",
+                relation_type=RelationType.CONTRADICTS,
+                context="conflict",
+                user_id=TEST_USER_ID,
+            )
+        )
+        db_session.add(
+            Backlink(
+                source_article_id="id-b",
+                target_article_id="id-c",
+                relation_type=RelationType.SUPERSEDES,
+                user_id=TEST_USER_ID,
+            )
+        )
+        await db_session.commit()
+
+    async def test_resolve_article_id_returns_none_when_empty(self, db_session):
+        service = WikiService()
+        assert await service._resolve_article_id("", db_session, TEST_USER_ID) is None
+
+    async def test_resolve_article_id_by_id(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        assert await service._resolve_article_id("id-a", db_session, TEST_USER_ID) == "id-a"
+
+    async def test_resolve_article_id_by_slug(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        assert await service._resolve_article_id("art-a", db_session, TEST_USER_ID) == "id-a"
+
+    async def test_resolve_article_id_unknown(self, db_session):
+        service = WikiService()
+        assert await service._resolve_article_id("does-not-exist", db_session, TEST_USER_ID) is None
+
+    async def test_get_graph_filter_by_relation_type(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, relation_type=RelationType.CONTRADICTS)
+        assert len(graph.edges) == 1
+        assert graph.edges[0].relation_type == RelationType.CONTRADICTS
+
+    async def test_get_graph_filter_by_from_id(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, from_article="id-a")
+        assert len(graph.edges) == 2
+
+    async def test_get_graph_filter_by_from_slug(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, from_article="art-a")
+        assert len(graph.edges) == 2
+
+    async def test_get_graph_filter_by_to(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, to_article="id-c")
+        assert len(graph.edges) == 2
+
+    async def test_get_graph_filter_by_to_slug(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, to_article="art-c")
+        assert len(graph.edges) == 2
+
+    async def test_get_graph_unknown_from_returns_empty(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, from_article="missing")
+        assert graph.edges == []
+        assert graph.nodes == []
+
+    async def test_get_graph_unknown_to_returns_empty(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(db_session, user_id=TEST_USER_ID, to_article="missing")
+        assert graph.edges == []
+        assert graph.nodes == []
+
+    async def test_get_graph_compose_and(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        graph = await service.get_graph(
+            db_session,
+            user_id=TEST_USER_ID,
+            from_article="id-a",
+            relation_type=RelationType.CONTRADICTS,
+        )
+        assert len(graph.edges) == 1
+        assert graph.edges[0].source == "id-a"
+        assert graph.edges[0].target == "id-c"
+
+    async def test_get_relationships_groups_outgoing(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        rels = await service.get_relationships("id-a", db_session, user_id=TEST_USER_ID)
+        assert rels.incoming == {}
+        assert set(rels.outgoing.keys()) == {"references", "contradicts"}
+        assert rels.outgoing["references"][0].article_id == "id-b"
+        assert rels.outgoing["references"][0].slug == "art-b"
+        assert rels.outgoing["contradicts"][0].article_id == "id-c"
+
+    async def test_get_relationships_groups_incoming_by_slug(self, db_session, tmp_path):
+        await self._seed(db_session, tmp_path)
+        service = WikiService()
+        rels = await service.get_relationships("art-c", db_session, user_id=TEST_USER_ID)
+        assert rels.outgoing == {}
+        assert set(rels.incoming.keys()) == {"contradicts", "supersedes"}
+
+    async def test_get_relationships_404_when_missing(self, db_session):
+        service = WikiService()
+        with pytest.raises(NotFoundError):
+            await service.get_relationships("missing", db_session, user_id=TEST_USER_ID)

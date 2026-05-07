@@ -134,6 +134,8 @@ export interface GraphEdge {
   source: string;
   target: string;
   context: string | null;
+  relation_type?: RelationType;
+  resolution?: string | null;
 }
 
 export interface GraphResponse {

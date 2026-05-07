@@ -335,8 +335,46 @@ paths:
       tags:
       - Wiki
       summary: Get Graph
-      description: Full knowledge graph -- nodes and edges.
+      description: 'Full knowledge graph -- nodes and edges.
+
+
+        Optional query parameters filter the returned edge set:
+
+
+        * ``relation_type`` — keep only edges of one semantic relation type.
+
+        * ``from_article`` — id or slug of the source article.
+
+        * ``to_article`` — id or slug of the target article.
+
+
+        Filters compose with AND. Filtering is pushed down into SQL.'
       operationId: get_graph_wiki_graph_get
+      parameters:
+      - name: relation_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/RelationType'
+          - type: 'null'
+          title: Relation Type
+      - name: from_article
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Article
+      - name: to_article
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: To Article
       responses:
         '200':
           description: Successful Response
@@ -344,6 +382,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GraphResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/articles/{id_or_slug}/relationships:
+    get:
+      tags:
+      - Wiki
+      summary: Get Article Relationships
+      description: Return typed relationships for an article, grouped by direction
+        and type.
+      operationId: get_article_relationships_wiki_articles__id_or_slug__relationships_get
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleRelationshipsResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/search:
     get:
       tags:
@@ -1777,6 +1851,37 @@ components:
       - status
       title: ApiKeySetResponse
       description: Response after setting an API key.
+    ArticleRelationshipsResponse:
+      properties:
+        incoming:
+          additionalProperties:
+            items:
+              $ref: '#/components/schemas/RelationshipEdge'
+            type: array
+          type: object
+          title: Incoming
+          default: {}
+        outgoing:
+          additionalProperties:
+            items:
+              $ref: '#/components/schemas/RelationshipEdge'
+            type: array
+          type: object
+          title: Outgoing
+          default: {}
+      type: object
+      title: ArticleRelationshipsResponse
+      description: 'Typed relationships for one article, grouped by direction and
+        relation_type.
+
+
+        ``incoming`` are edges where this article is the *target*.
+
+        ``outgoing`` are edges where this article is the *source*.
+
+        Each direction maps a :class:`RelationType` value (string) to the list
+
+        of edges of that type.'
     ArticleResponse:
       properties:
         id:
@@ -3199,6 +3304,44 @@ components:
       - related_to
       title: RelationType
       description: Semantic relationship between two linked articles.
+    RelationshipEdge:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        relation_type:
+          $ref: '#/components/schemas/RelationType'
+          default: references
+        context:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Context
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
+      type: object
+      required:
+      - article_id
+      - slug
+      - title
+      title: RelationshipEdge
+      description: 'One end of a typed relationship to another article.
+
+
+        Used by ``GET /wiki/articles/{id_or_slug}/relationships`` to describe
+
+        the article on the *other* side of a backlink, plus any context or
+
+        resolution metadata recorded on the edge.'
     ResolveContradictionRequest:
       properties:
         resolution:
