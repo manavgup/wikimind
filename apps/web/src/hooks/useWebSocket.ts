@@ -36,10 +36,12 @@ export function useWebSocket(): void {
       socketRef.current = socket;
 
       socket.onopen = () => {
+        if (socketRef.current !== socket) return;
         setState("open");
       };
 
       socket.onmessage = (msg) => {
+        if (socketRef.current !== socket) return;
         try {
           const event = JSON.parse(msg.data) as WSEvent;
           ingest(event);
@@ -82,6 +84,12 @@ export function useWebSocket(): void {
       };
 
       socket.onclose = () => {
+        // Guard against StrictMode double-mount: if this socket was already
+        // replaced by a newer connection (cleanup closed it, then the second
+        // effect created a fresh one), skip the reconnect so we don't end up
+        // with two live sockets — which would cause duplicate event handling
+        // (e.g. double "Compilation complete" toasts).
+        if (socketRef.current !== socket) return;
         setState("closed");
         scheduleReconnect();
       };
