@@ -1,3 +1,3 @@
 api: .venv/bin/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 worker: .venv/bin/python -m arq wikimind.jobs.worker.WorkerSettings
-redis: docker run --rm -p 6379:6379 --name wikimind-redis redis:7-alpine
+redis: sh -c 'docker start -a wikimind-redis 2>/dev/null || docker run --rm -p 6379:6379 --name wikimind-redis redis:7-alpine'
