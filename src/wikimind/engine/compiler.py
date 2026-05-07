@@ -17,6 +17,7 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
+from wikimind.engine.confidence import compute_confidence
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.engine.wikilink_resolver import (
@@ -424,6 +425,8 @@ Compile this into a wiki article following the JSON schema exactly."""
             user_id=self.user_id,
         )
 
+        await self._refresh_confidence_score(article, session)
+
         await self._post_save_side_effects(article, result, source, session)
 
         log.info(
@@ -435,6 +438,51 @@ Compile this into a wiki article following the JSON schema exactly."""
             unresolved_backlinks=len(unresolved),
         )
         return article
+
+    async def _refresh_confidence_score(
+        self,
+        article: Article,
+        session: AsyncSession,
+    ) -> None:
+        """Recompute and persist ``confidence_score`` and ``last_reinforced_at``.
+
+        Aggregates the article's current source set (via the
+        :class:`ArticleSource` join table) and counts incoming
+        ``CONTRADICTS`` backlinks, then delegates to
+        :func:`wikimind.engine.confidence.compute_confidence`.
+        """
+        now = utcnow_naive()
+        # Gather sources currently linked to the article.
+        src_result = await session.execute(
+            select(Source)
+            .join(ArticleSource, ArticleSource.source_id == Source.id)  # type: ignore[arg-type]
+            .where(ArticleSource.article_id == article.id)
+        )
+        sources = list(src_result.scalars().all())
+        source_count = len(sources)
+        if sources:
+            newest = max(s.ingested_at for s in sources)
+            newest_age_days = max(0, (now - newest).days)
+        else:
+            newest_age_days = 0
+
+        # Count incoming CONTRADICTS backlinks pointing at this article.
+        contra_result = await session.execute(
+            select(Backlink).where(
+                Backlink.target_article_id == article.id,
+                Backlink.relation_type == RelationType.CONTRADICTS,
+            )
+        )
+        contradiction_count = len(list(contra_result.scalars().all()))
+
+        article.confidence_score = compute_confidence(
+            source_count=source_count,
+            newest_source_age_days=newest_age_days,
+            contradiction_count=contradiction_count,
+        )
+        article.last_reinforced_at = now
+        session.add(article)
+        await session.commit()
 
     async def _clear_article_relations(
         self,

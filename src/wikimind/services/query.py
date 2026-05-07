@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.engine.confidence import apply_decay
 from wikimind.engine.conversation_serializer import (
     SelectedTurn,
     serialize_conversation_to_markdown,
@@ -151,6 +152,11 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
             )
             by_id = {s.id: s for s in src_result.scalars().all()}
             sources = [by_id[sid] for sid in source_ids if sid in by_id]
+        if article.last_reinforced_at is None:
+            effective = article.confidence_score
+        else:
+            days = max(0, (utcnow_naive() - article.last_reinforced_at).days)
+            effective = apply_decay(article.confidence_score, days)
         citations.append(
             CitationResponse(
                 article=CitationArticleRef(slug=article.slug, title=article.title),
@@ -164,6 +170,8 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
                     )
                     for s in sources
                 ],
+                confidence_score=article.confidence_score,
+                effective_confidence=effective,
             ),
         )
     return citations

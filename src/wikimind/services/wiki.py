@@ -20,7 +20,9 @@ import structlog
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.engine.confidence import apply_decay
 from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
@@ -45,6 +47,18 @@ from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
+
+
+def _effective_confidence(article: Article) -> float:
+    """Decay an article's stored ``confidence_score`` based on staleness.
+
+    Returns the base score unchanged when ``last_reinforced_at`` is unset
+    (e.g. articles compiled before the field was introduced).
+    """
+    if article.last_reinforced_at is None:
+        return article.confidence_score
+    days = max(0, (utcnow_naive() - article.last_reinforced_at).days)
+    return apply_decay(article.confidence_score, days)
 
 
 def _first_concept(concept_ids_json: str | None) -> str | None:
@@ -207,6 +221,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         backlink_count=backlink_count,
         created_at=article.created_at,
         updated_at=article.updated_at,
+        confidence_score=article.confidence_score,
+        effective_confidence=_effective_confidence(article),
         concepts=concepts,
         source_ids=source_ids,
         user_id=article.user_id,
@@ -379,6 +395,8 @@ class WikiService:
             summary=article.summary,
             confidence=article.confidence,
             linter_score=article.linter_score,
+            confidence_score=article.confidence_score,
+            effective_confidence=_effective_confidence(article),
             page_type=article.page_type,
             concepts=concepts,
             backlinks_in=backlinks_in,
@@ -422,6 +440,8 @@ class WikiService:
                 concept_cluster=_first_concept(a.concept_ids),
                 connection_count=connection_counts.get(a.id, 0),
                 confidence=a.confidence,
+                confidence_score=a.confidence_score,
+                effective_confidence=_effective_confidence(a),
             )
             for a in articles
         ]
