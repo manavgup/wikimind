@@ -221,6 +221,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         backlink_count=backlink_count,
         created_at=article.created_at,
         updated_at=article.updated_at,
+        confidence_score=article.confidence_score,
+        effective_confidence=_effective_confidence(article),
         concepts=concepts,
         source_ids=source_ids,
         user_id=article.user_id,

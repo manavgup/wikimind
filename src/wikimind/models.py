@@ -882,6 +882,8 @@ class ArticleSummaryResponse(BaseModel):
     summary: str | None
     confidence: ConfidenceLevel | None
     linter_score: float | None
+    confidence_score: float = 0.5
+    effective_confidence: float = 0.5
     sources: list[ArticleSourceSummary] = []
     source_count: int = 0
     backlink_count: int = 0
