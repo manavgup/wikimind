@@ -57,7 +57,7 @@ setup-git-mergedrivers: ## Configure custom git merge drivers (secrets baseline)
 
 # Path to the editable install marker file inside the venv. We use this to
 # detect when an agent worktree has hijacked the root venv (issue #66).
-EDITABLE_PTH := $(VENV)/lib/python3.12/site-packages/__editable__.wikimind-0.1.0.pth
+EDITABLE_PTH := $(firstword $(wildcard $(VENV)/lib/python3.*/site-packages/__editable__.wikimind-0.1.0.pth))
 EXPECTED_SRC := $(abspath src)
 
 .PHONY: check-venv
@@ -100,7 +100,11 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 ##@ ▶️  SERVE
 
 .PHONY: dev
-dev: check-venv ## Run fast-reload dev server on :7842 (uvicorn)
+dev: check-venv ## Start full local stack: API server + ARQ worker + Redis (via honcho)
+	$(BIN)/honcho start -f Procfile.dev
+
+.PHONY: dev-api
+dev-api: check-venv ## Run only the fast-reload API server on :7842 (uvicorn)
 	@if lsof -i :7842 -sTCP:LISTEN >/dev/null 2>&1; then \
 		echo ""; \
 		echo "ERROR: port 7842 is already in use."; \

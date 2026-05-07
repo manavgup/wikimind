@@ -8,7 +8,8 @@ WikiMind is a personal LLM-powered knowledge OS. The backend is a local FastAPI 
 
 ```bash
 make install-dev   # Install all dependencies
-make dev           # Start gateway (port 7842)
+make dev           # Start full local stack (API + worker + Redis)
+make dev-api       # Start only the API server (port 7842)
 make lint          # Run ruff linter
 make format        # Run ruff formatter
 make typecheck     # Run mypy
