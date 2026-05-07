@@ -20,11 +20,50 @@ Security note:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
+
+
+async def _lookup_user_by_email(email: str) -> tuple[str, str | None]:
+    """Look up a user by email and return (user_id, user_name).
+
+    Raises SystemExit if the user is not found.
+    """
+    from sqlmodel import select
+
+    from wikimind.database import get_async_engine, get_session_factory
+    from wikimind.models import User
+
+    engine = get_async_engine()
+
+    # Ensure tables exist (engine may point at a fresh DB)
+    async with engine.begin() as conn:
+        from sqlmodel import SQLModel
+
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+    if user is None:
+        print(f"ERROR: No user found with email '{email}'.", file=sys.stderr)
+        print(
+            "  The user must log in via OAuth or magic link first to create an account.",
+            file=sys.stderr,
+        )
+        print(
+            "  Then re-run this command to generate a token with the correct user ID.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    return user.id, user.name
 
 
 def main() -> None:  # noqa: D103
@@ -38,8 +77,8 @@ def main() -> None:  # noqa: D103
     )
     parser.add_argument(
         "--name",
-        default="cli-token",
-        help="Token name (default: cli-token).",
+        default=None,
+        help="Token name (default: user's name from DB, or 'cli-token').",
     )
     parser.add_argument(
         "--exp-days",
@@ -78,11 +117,12 @@ def main() -> None:  # noqa: D103
         print("  or pass --secret <key>.", file=sys.stderr)
         sys.exit(1)
 
+    # Look up the user by email to get their actual UUID
+    user_id, user_name = asyncio.run(_lookup_user_by_email(args.email))
+    token_name = args.name or user_name or "cli-token"
+
     now = datetime.now(UTC)
     expire = now + timedelta(days=args.exp_days)
-
-    # Use email as a stable user ID (matches get_or_create_by_email behavior)
-    user_id = args.email
 
     payload = {
         "sub": user_id,
@@ -95,7 +135,7 @@ def main() -> None:  # noqa: D103
         "user": {
             "id": user_id,
             "email": args.email,
-            "name": args.name,
+            "name": token_name,
         },
     }
 
@@ -103,8 +143,9 @@ def main() -> None:  # noqa: D103
 
     print(token)
     print(f"\n# Expires: {expire.isoformat()}", file=sys.stderr)
+    print(f"# User ID: {user_id}", file=sys.stderr)
     print(f"# Email: {args.email}", file=sys.stderr)
-    print(f"# Name: {args.name}", file=sys.stderr)
+    print(f"# Name: {token_name}", file=sys.stderr)
     print("#", file=sys.stderr)
     print("# Usage:", file=sys.stderr)
     print(f'#   export TOKEN="{token}"', file=sys.stderr)
