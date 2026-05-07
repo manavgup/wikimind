@@ -176,6 +176,27 @@ async def _fetch_concept_names_from_join(session: AsyncSession, article_id: str)
     return _parse_source_ids(row[0] if row else None)
 
 
+async def _fetch_concepts_for_articles(
+    session: AsyncSession,
+    article_ids: list[str],
+) -> dict[str, list[str]]:
+    """Batch-fetch concept names for multiple articles from the join table.
+
+    Returns a dict mapping article ID to the list of concept names.
+    """
+    result: dict[str, list[str]] = {aid: [] for aid in article_ids}
+    if not article_ids:
+        return result
+    ac_result = await session.execute(
+        select(ArticleConcept.article_id, ArticleConcept.concept_name).where(
+            ArticleConcept.article_id.in_(article_ids)  # type: ignore[attr-defined]
+        )
+    )
+    for row in ac_result.all():
+        result[row[0]].append(row[1])
+    return result
+
+
 def _to_source_response(source: Source) -> SourceResponse:
     """Project a :class:`Source` row into the API-facing :class:`SourceResponse`."""
     return SourceResponse(
@@ -499,11 +520,16 @@ class WikiService:
             connection_counts[bl.source_article_id] = connection_counts.get(bl.source_article_id, 0) + 1
             connection_counts[bl.target_article_id] = connection_counts.get(bl.target_article_id, 0) + 1
 
+        # Batch-load all concept names per article from the join table so
+        # the frontend can filter on every concept, not just the primary one.
+        concepts_by_article = await _fetch_concepts_for_articles(session, [a.id for a in articles])
+
         nodes = [
             GraphNode(
                 id=a.id,
                 label=a.title,
                 concept_cluster=_first_concept(a.concept_ids),
+                concepts=concepts_by_article.get(a.id, []),
                 connection_count=connection_counts.get(a.id, 0),
                 confidence=a.confidence,
                 confidence_score=a.confidence_score,

@@ -107,12 +107,14 @@ export function GraphView() {
       // Orphan filter
       if (!filters.showOrphans && !connectedIds.has(n.id)) return false;
 
-      // Concept filter — normalize concept_cluster to match Concept.name
-      // (slugified). Some older articles store raw names with spaces.
+      // Concept filter — match against all concepts the article belongs to,
+      // not just the primary concept_cluster. Normalize names to match
+      // the slugified Concept.name used in the filter sidebar.
       if (filters.selectedConcepts.size > 0) {
-        const normalized = n.concept_cluster
-          ?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-        if (!normalized || !filters.selectedConcepts.has(normalized)) {
+        const normalize = (s: string) =>
+          s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+        const allConcepts = (n.concepts ?? []).map(normalize);
+        if (!allConcepts.some((c) => filters.selectedConcepts.has(c))) {
           return false;
         }
       }

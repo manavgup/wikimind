@@ -126,6 +126,7 @@ export interface GraphNode {
   id: string;
   label: string;
   concept_cluster: string | null;
+  concepts: string[];
   connection_count: number;
   confidence: ConfidenceLevel | null;
 }
