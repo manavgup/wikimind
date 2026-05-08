@@ -1,0 +1,91 @@
+# ===============================================================
+# 🗑️  Prune Stale — close idle PRs, delete merged branches
+# ===============================================================
+#
+#   - runs weekly (Sunday midnight UTC) + manual trigger
+#   - labels PRs with no activity for 21+ days as 'stale'
+#   - closes PRs with no activity for 30+ days
+#   - deletes remote branches whose PRs are already merged
+#   - never touches main or master
+# ---------------------------------------------------------------
+
+name: Prune Stale
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"   # Every Sunday at midnight UTC
+  workflow_dispatch:       # Manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Label and close stale PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Ensure labels exist
+          gh label create "stale" --color "EDEDED" --description "No activity for 21+ days" 2>/dev/null || true
+
+          NOW=$(date +%s)
+          STALE_DAYS=21
+          CLOSE_DAYS=30
+
+          gh pr list --state open --json number,updatedAt,labels \
+            --jq '.[] | "\(.number) \(.updatedAt) \([.labels[].name] | join(","))"' | \
+          while read -r pr_number updated_at labels; do
+            updated_epoch=$(date -d "$updated_at" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$updated_at" +%s 2>/dev/null || echo 0)
+            age_days=$(( (NOW - updated_epoch) / 86400 ))
+
+            if [ "$age_days" -ge "$CLOSE_DAYS" ]; then
+              gh pr close "$pr_number" --comment "Closing: no activity for ${age_days} days. Reopen if still needed."
+              echo "Closed PR #${pr_number} (${age_days} days idle)"
+            elif [ "$age_days" -ge "$STALE_DAYS" ]; then
+              if ! echo "$labels" | grep -q "stale"; then
+                gh pr edit "$pr_number" --add-label "stale"
+                gh pr comment "$pr_number" --body "Marking stale: no activity for ${age_days} days. Will auto-close at ${CLOSE_DAYS} days."
+                echo "Labeled PR #${pr_number} as stale (${age_days} days idle)"
+              fi
+            fi
+          done
+
+      - name: Delete branches from merged PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+
+          # Get all remote branches
+          BRANCHES=$(git branch -r --list 'origin/*' | sed 's|origin/||' | grep -v 'HEAD' | xargs)
+
+          DELETED=0
+          for branch in $BRANCHES; do
+            # Skip protected branches
+            if [[ "$branch" == "main" || "$branch" == "master" ]]; then
+              continue
+            fi
+
+            # Check if this branch has a merged PR
+            MERGED=$(gh pr list --state merged --head "$branch" --json number --jq 'length' 2>/dev/null || echo 0)
+
+            if [ "$MERGED" -gt 0 ]; then
+              if gh api "repos/${REPO}/git/refs/heads/${branch}" --method DELETE 2>/dev/null; then
+                DELETED=$((DELETED + 1))
+                echo "Deleted merged branch: $branch"
+              fi
+            fi
+          done
+
+          echo "Deleted ${DELETED} merged branch(es)"

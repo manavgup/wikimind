@@ -3,6 +3,7 @@
 [![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/test.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/test.yml)
 [![Lint & Static Analysis](https://github.com/manavgup/wikimind/actions/workflows/lint.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/lint.yml)
 [![Deploy](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml)
+[![Claude Review](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > I feed it everything I read. It writes my wiki for me. When I ask questions, it cites its sources.
@@ -36,6 +37,7 @@ Feed → Compile → Query → Answer files back → Wiki gets smarter → Repea
 | **Export** | PDF, LinkedIn draft, Marp slides |
 | **Browser extension** | Chrome + Firefox clipper — save any page in one click |
 | **Self-hosted** | Your data, your API keys, your models |
+| **PR automation** | Claude-powered review response, auto-rebase, stale cleanup |
 
 ## Compare
 

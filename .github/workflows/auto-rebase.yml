@@ -1,0 +1,83 @@
+# ===============================================================
+# 🔄  Auto-Rebase — keep open PRs up to date with main
+# ===============================================================
+#
+#   - triggers on push to main
+#   - finds all open PRs and rebases each onto updated main
+#   - skips PRs with merge conflicts (adds 'needs-rebase' label)
+#   - removes 'needs-rebase' label on successful rebase
+# ---------------------------------------------------------------
+
+name: Auto-Rebase
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          prs=$(gh pr list --state open --json number,headRefName --jq '.[] | "\(.number) \(.headRefName)"')
+
+          if [ -z "$prs" ]; then
+            echo "No open PRs to rebase"
+            exit 0
+          fi
+
+          echo "$prs" | while read -r pr_number branch; do
+            echo "::group::PR #${pr_number} (${branch})"
+
+            git fetch origin "$branch" 2>/dev/null || {
+              echo "Could not fetch branch ${branch}, skipping"
+              echo "::endgroup::"
+              continue
+            }
+
+            git checkout "$branch" 2>/dev/null || {
+              echo "Could not checkout branch ${branch}, skipping"
+              echo "::endgroup::"
+              continue
+            }
+
+            if git rebase origin/main; then
+              git push --force-with-lease origin "$branch"
+              # Remove needs-rebase label if present
+              gh pr edit "$pr_number" --remove-label "needs-rebase" 2>/dev/null || true
+              echo "Rebased PR #${pr_number}"
+            else
+              git rebase --abort
+              # Add needs-rebase label
+              gh label create "needs-rebase" --color "D93F0B" --description "PR has merge conflicts with main" 2>/dev/null || true
+              gh pr edit "$pr_number" --add-label "needs-rebase"
+              echo "PR #${pr_number} has conflicts — labeled needs-rebase"
+            fi
+
+            git checkout main
+            echo "::endgroup::"
+          done
