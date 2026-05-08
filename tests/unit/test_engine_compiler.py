@@ -524,3 +524,48 @@ async def test_replace_article_upserts_new_concepts(db_session, tmp_path) -> Non
     assert "alpha" in names
     assert "beta" in names
     assert "gamma" in names
+
+
+# ---------------------------------------------------------------------------
+# save_article_in_place — bypasses provider lookup (issue #492)
+# ---------------------------------------------------------------------------
+
+
+async def test_save_article_in_place_updates_existing_row(db_session, tmp_path) -> None:
+    """save_article_in_place must update the same article row (same ID, same slug)."""
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+
+    # Create an initial article via normal save.
+    compiler._last_provider_used = Provider.ANTHROPIC
+    result1 = _result(concepts=["alpha"])
+    original = await compiler.save_article(result1, source, db_session)
+    original_id = original.id
+    original_slug = original.slug
+
+    # Simulate a recompile where provider may differ: use save_article_in_place.
+    compiler2 = _compiler_for(tmp_path)
+    # _last_provider_used is None — this is the scenario that caused the orphan.
+    result2 = _result(concepts=["beta", "gamma"])
+    replaced = await compiler2.save_article_in_place(original, result2, source, db_session)
+
+    assert replaced.id == original_id
+    assert replaced.slug == original_slug
+
+    # Confirm only one article exists in the DB.
+    all_articles = (await db_session.execute(select(Article))).scalars().all()
+    assert len(all_articles) == 1
+
+
+async def test_save_article_in_place_preserves_user_id(db_session, tmp_path) -> None:
+    """user_id must not change after an in-place recompile."""
+    compiler = _compiler_for(tmp_path)
+    source = await _make_source(db_session)
+
+    compiler._last_provider_used = Provider.ANTHROPIC
+    original = await compiler.save_article(_result(), source, db_session)
+    assert original.user_id == TEST_USER_ID
+
+    compiler2 = _compiler_for(tmp_path)
+    replaced = await compiler2.save_article_in_place(original, _result(), source, db_session)
+    assert replaced.user_id == TEST_USER_ID
