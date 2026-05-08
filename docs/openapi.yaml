@@ -893,6 +893,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /query/conversations/{conversation_id}/crystallize:
+    post:
+      tags:
+      - Query
+      summary: Crystallize
+      description: Distill a conversation into a new wiki article with page_type synthesis.
+      operationId: crystallize_query_conversations__conversation_id__crystallize_post
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrystallizeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /query/conversations/{conversation_id}/fork:
     post:
       tags:
@@ -2437,6 +2464,28 @@ components:
       - budget_remaining_usd
       title: CostSummaryResponse
       description: Simple cost summary for current month.
+    CrystallizeResponse:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        article_slug:
+          type: string
+          title: Article Slug
+        title:
+          type: string
+          title: Title
+        turns_distilled:
+          type: integer
+          title: Turns Distilled
+      type: object
+      required:
+      - article_id
+      - article_slug
+      - title
+      - turns_distilled
+      title: CrystallizeResponse
+      description: Response after crystallizing a conversation into a wiki article.
     DefaultProviderRequest:
       properties:
         provider:
@@ -3152,6 +3201,7 @@ components:
       - answer
       - index
       - meta
+      - synthesis
       title: PageType
       description: Type of wiki page — determines compilation pipeline and validation
         rules.
