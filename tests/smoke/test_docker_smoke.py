@@ -272,7 +272,7 @@ class TestIngestEndpoint:
 
     def test_ingest_text_accepts_request(self, container_url: str):
         resp = httpx.post(
-            f"{container_url}/ingest/text",
+            f"{container_url}/api/ingest/text",
             json={
                 "content": "Smoke test content for WikiMind.",
                 "title": "Smoke Test",
@@ -288,7 +288,7 @@ class TestIngestEndpoint:
     def test_ingest_url_validates_input(self, container_url: str):
         """POST with missing required fields should return 422."""
         resp = httpx.post(
-            f"{container_url}/ingest/url",
+            f"{container_url}/api/ingest/url",
             json={},
             timeout=10,
         )
@@ -305,7 +305,7 @@ class TestAuthFlow:
 
     def test_auth_disabled_api_accessible(self, container_url: str):
         """With auth disabled, API endpoints require no token."""
-        resp = httpx.get(f"{container_url}/ingest/sources", timeout=10)
+        resp = httpx.get(f"{container_url}/api/ingest/sources", timeout=10)
         assert resp.status_code == 200
 
     def test_auth_me_returns_anonymous(self, container_url: str):
@@ -394,7 +394,7 @@ class TestAuthEnabled:
     def test_api_requires_auth(self, auth_container_url: str):
         """API endpoints should require a token when auth is enabled."""
         resp = httpx.get(
-            f"{auth_container_url}/ingest/sources",
+            f"{auth_container_url}/api/ingest/sources",
             headers={"Accept": "application/json"},
             timeout=10,
         )
@@ -403,7 +403,7 @@ class TestAuthEnabled:
     def test_api_rejects_invalid_token(self, auth_container_url: str):
         """API endpoints should reject invalid JWT tokens."""
         resp = httpx.get(
-            f"{auth_container_url}/ingest/sources",
+            f"{auth_container_url}/api/ingest/sources",
             headers={
                 "Authorization": "Bearer invalid-token",
                 "Accept": "application/json",

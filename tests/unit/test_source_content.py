@@ -66,7 +66,7 @@ async def test_content_endpoint_returns_text(tmp_path: Path, source_with_content
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/ingest/sources/src-abc/content")
+            resp = await client.get("/api/ingest/sources/src-abc/content")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)
@@ -91,7 +91,7 @@ async def test_content_endpoint_404_when_source_not_found() -> None:
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/ingest/sources/nonexistent/content")
+            resp = await client.get("/api/ingest/sources/nonexistent/content")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)
@@ -112,7 +112,7 @@ async def test_content_endpoint_404_when_wrong_user() -> None:
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/ingest/sources/src-abc/content")
+            resp = await client.get("/api/ingest/sources/src-abc/content")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)
@@ -139,7 +139,7 @@ async def test_content_endpoint_passes_user_id() -> None:
     try:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/ingest/sources/src-abc/content")
+            resp = await client.get("/api/ingest/sources/src-abc/content")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)

@@ -69,12 +69,12 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
         await session.commit()
 
     # Without filter: both edges visible.
-    full = await client.get("/wiki/graph")
+    full = await client.get("/api/wiki/graph")
     assert full.status_code == 200
     assert len(full.json()["edges"]) == 2
 
     # With contradicts filter: only X→Y survives.
-    filtered = await client.get("/wiki/graph", params={"relation_type": "contradicts"})
+    filtered = await client.get("/api/wiki/graph", params={"relation_type": "contradicts"})
     assert filtered.status_code == 200
     edges = filtered.json()["edges"]
     assert len(edges) == 1

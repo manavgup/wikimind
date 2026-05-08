@@ -145,7 +145,7 @@ async def test_ingest_route_text_auto_compile_false_skips_schedule(client) -> No
         schedule_compile = AsyncMock(return_value="job-r1")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
-            "/ingest/text",
+            "/api/ingest/text",
             json={"content": "hello", "title": "x", "auto_compile": False},
         )
     assert resp.status_code == 200
@@ -164,7 +164,7 @@ async def test_ingest_route_url_auto_compile_false_skips_schedule(client) -> Non
         schedule_compile = AsyncMock(return_value="job-r2")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
-            "/ingest/url",
+            "/api/ingest/url",
             json={"url": "http://x", "auto_compile": False},
         )
     assert resp.status_code == 200
@@ -183,7 +183,7 @@ async def test_ingest_route_pdf_auto_compile_false_skips_schedule(client) -> Non
         schedule_compile = AsyncMock(return_value="job-r3")
         gbc.return_value.schedule_compile = schedule_compile
         resp = await client.post(
-            "/ingest/pdf?auto_compile=false",
+            "/api/ingest/pdf?auto_compile=false",
             files={"file": ("doc.pdf", b"%PDF-1.4...", "application/pdf")},
         )
     assert resp.status_code == 200

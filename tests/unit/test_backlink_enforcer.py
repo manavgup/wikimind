@@ -255,7 +255,8 @@ async def test_resolve_contradiction_endpoint(client, async_engine):
         )
         await session.commit()
     response = await client.post(
-        "/wiki/backlinks/a1/a2/resolve", json={"resolution": "source_a_wins", "resolution_note": "More recent study"}
+        "/api/wiki/backlinks/a1/a2/resolve",
+        json={"resolution": "source_a_wins", "resolution_note": "More recent study"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -272,7 +273,7 @@ async def test_resolve_contradiction_endpoint(client, async_engine):
 
 @pytest.mark.asyncio
 async def test_resolve_contradiction_404(client):
-    response = await client.post("/wiki/backlinks/x/y/resolve", json={"resolution": "both_valid"})
+    response = await client.post("/api/wiki/backlinks/x/y/resolve", json={"resolution": "both_valid"})
     assert response.status_code == 404
 
 
@@ -292,7 +293,7 @@ async def test_resolve_contradiction_422_invalid(client, async_engine):
             )
         )
         await session.commit()
-    response = await client.post("/wiki/backlinks/a1/a2/resolve", json={"resolution": "invalid_value"})
+    response = await client.post("/api/wiki/backlinks/a1/a2/resolve", json={"resolution": "invalid_value"})
     assert response.status_code == 422
 
 
@@ -313,7 +314,7 @@ async def test_graph_api_includes_relation_type(client, async_engine):
             )
         )
         await session.commit()
-    response = await client.get("/wiki/graph")
+    response = await client.get("/api/wiki/graph")
     assert response.status_code == 200
     data = response.json()
     edges = data["edges"]

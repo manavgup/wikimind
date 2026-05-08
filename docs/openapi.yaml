@@ -4,13 +4,13 @@ info:
   description: Local LLM Knowledge OS — Personal API
   version: 0.1.0
 paths:
-  /ingest/url:
+  /api/ingest/url:
     post:
       tags:
       - Ingest
       summary: Ingest Url
       description: Ingest a web URL or YouTube video.
-      operationId: ingest_url_ingest_url_post
+      operationId: ingest_url_api_ingest_url_post
       requestBody:
         content:
           application/json:
@@ -30,7 +30,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/pdf:
+  /api/ingest/pdf:
     post:
       tags:
       - Ingest
@@ -41,7 +41,7 @@ paths:
         The ``auto_compile`` query parameter (default ``True``) controls whether the
 
         source is enqueued for background compilation immediately after upload.'
-      operationId: ingest_pdf_ingest_pdf_post
+      operationId: ingest_pdf_api_ingest_pdf_post
       parameters:
       - name: auto_compile
         in: query
@@ -55,7 +55,7 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Body_ingest_pdf_ingest_pdf_post'
+              $ref: '#/components/schemas/Body_ingest_pdf_api_ingest_pdf_post'
       responses:
         '200':
           description: Successful Response
@@ -69,13 +69,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/text:
+  /api/ingest/text:
     post:
       tags:
       - Ingest
       summary: Ingest Text
       description: Ingest raw text or a note.
-      operationId: ingest_text_ingest_text_post
+      operationId: ingest_text_api_ingest_text_post
       requestBody:
         content:
           application/json:
@@ -95,13 +95,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/sources:
+  /api/ingest/sources:
     get:
       tags:
       - Ingest
       summary: List Sources
       description: List all ingested sources.
-      operationId: list_sources_ingest_sources_get
+      operationId: list_sources_api_ingest_sources_get
       parameters:
       - name: status
         in: query
@@ -137,13 +137,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/sources/{source_id}:
+  /api/ingest/sources/{source_id}:
     get:
       tags:
       - Ingest
       summary: Get Source
       description: Get source by ID.
-      operationId: get_source_ingest_sources__source_id__get
+      operationId: get_source_api_ingest_sources__source_id__get
       parameters:
       - name: source_id
         in: path
@@ -169,7 +169,7 @@ paths:
       - Ingest
       summary: Delete Source
       description: Delete a source by ID.
-      operationId: delete_source_ingest_sources__source_id__delete
+      operationId: delete_source_api_ingest_sources__source_id__delete
       parameters:
       - name: source_id
         in: path
@@ -189,13 +189,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/sources/{source_id}/content:
+  /api/ingest/sources/{source_id}/content:
     get:
       tags:
       - Ingest
       summary: Get Source Content
       description: Return the raw text content of a source for side-by-side reading.
-      operationId: get_source_content_ingest_sources__source_id__content_get
+      operationId: get_source_content_api_ingest_sources__source_id__content_get
       parameters:
       - name: source_id
         in: path
@@ -218,7 +218,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /ingest/sources/{source_id}/original:
+  /api/ingest/sources/{source_id}/original:
     get:
       tags:
       - Ingest
@@ -229,7 +229,7 @@ paths:
         Returns the raw binary stored during ingest — not the extracted text.
 
         Sources that have no original (text, YouTube) return 404.'
-      operationId: get_source_original_ingest_sources__source_id__original_get
+      operationId: get_source_original_api_ingest_sources__source_id__original_get
       parameters:
       - name: source_id
         in: path
@@ -249,13 +249,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/contradiction-resolutions:
+  /api/wiki/contradiction-resolutions:
     get:
       tags:
       - Wiki
       summary: List Contradiction Resolutions
       description: Return the valid contradiction resolution options.
-      operationId: list_contradiction_resolutions_wiki_contradiction_resolutions_get
+      operationId: list_contradiction_resolutions_api_wiki_contradiction_resolutions_get
       responses:
         '200':
           description: Successful Response
@@ -265,15 +265,15 @@ paths:
                 items:
                   $ref: '#/components/schemas/ContradictionResolutionOption'
                 type: array
-                title: Response List Contradiction Resolutions Wiki Contradiction
+                title: Response List Contradiction Resolutions Api Wiki Contradiction
                   Resolutions Get
-  /wiki/contradictions:
+  /api/wiki/contradictions:
     get:
       tags:
       - Wiki
       summary: List Contradictions
       description: List all contradictions for the user, optionally filtered by status.
-      operationId: list_contradictions_wiki_contradictions_get
+      operationId: list_contradictions_api_wiki_contradictions_get
       parameters:
       - name: status
         in: query
@@ -308,20 +308,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ContradictionResponse'
-                title: Response List Contradictions Wiki Contradictions Get
+                title: Response List Contradictions Api Wiki Contradictions Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/contradictions/{contradiction_id}:
+  /api/wiki/contradictions/{contradiction_id}:
     get:
       tags:
       - Wiki
       summary: Get Contradiction
       description: Get a single contradiction with article details.
-      operationId: get_contradiction_wiki_contradictions__contradiction_id__get
+      operationId: get_contradiction_api_wiki_contradictions__contradiction_id__get
       parameters:
       - name: contradiction_id
         in: path
@@ -349,7 +349,7 @@ paths:
       - Wiki
       summary: Resolve Persisted Contradiction
       description: Resolve or dismiss a contradiction.
-      operationId: resolve_persisted_contradiction_wiki_contradictions__contradiction_id__patch
+      operationId: resolve_persisted_contradiction_api_wiki_contradictions__contradiction_id__patch
       parameters:
       - name: contradiction_id
         in: path
@@ -378,13 +378,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles:
+  /api/wiki/articles:
     get:
       tags:
       - Wiki
       summary: List Articles
       description: List wiki articles with optional filtering and source provenance.
-      operationId: list_articles_wiki_articles_get
+      operationId: list_articles_api_wiki_articles_get
       parameters:
       - name: concept
         in: query
@@ -433,20 +433,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ArticleSummaryResponse'
-                title: Response List Articles Wiki Articles Get
+                title: Response List Articles Api Wiki Articles Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/random:
+  /api/wiki/articles/random:
     get:
       tags:
       - Wiki
       summary: Get Random Article
       description: Return a random article belonging to the current user.
-      operationId: get_random_article_wiki_articles_random_get
+      operationId: get_random_article_api_wiki_articles_random_get
       responses:
         '200':
           description: Successful Response
@@ -456,14 +456,14 @@ paths:
                 $ref: '#/components/schemas/ArticleSummaryResponse'
         '404':
           description: No articles found
-  /wiki/articles/{id_or_slug}:
+  /api/wiki/articles/{id_or_slug}:
     get:
       tags:
       - Wiki
       summary: Get Article
       description: Get full article by ID or slug, with content, backlinks, and source
         provenance.
-      operationId: get_article_wiki_articles__id_or_slug__get
+      operationId: get_article_api_wiki_articles__id_or_slug__get
       parameters:
       - name: id_or_slug
         in: path
@@ -496,7 +496,7 @@ paths:
         Sets ``manually_edited=True`` so that recompilation respects user edits.
 
         Only the article owner can edit.'
-      operationId: edit_article_wiki_articles__id_or_slug__patch
+      operationId: edit_article_api_wiki_articles__id_or_slug__patch
       parameters:
       - name: id_or_slug
         in: path
@@ -525,7 +525,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/graph:
+  /api/wiki/graph:
     get:
       tags:
       - Wiki
@@ -544,7 +544,7 @@ paths:
 
 
         Filters compose with AND. Filtering is pushed down into SQL.'
-      operationId: get_graph_wiki_graph_get
+      operationId: get_graph_api_wiki_graph_get
       parameters:
       - name: relation_type
         in: query
@@ -583,14 +583,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{id_or_slug}/relationships:
+  /api/wiki/articles/{id_or_slug}/relationships:
     get:
       tags:
       - Wiki
       summary: Get Article Relationships
       description: Return typed relationships for an article, grouped by direction
         and type.
-      operationId: get_article_relationships_wiki_articles__id_or_slug__relationships_get
+      operationId: get_article_relationships_api_wiki_articles__id_or_slug__relationships_get
       parameters:
       - name: id_or_slug
         in: path
@@ -613,13 +613,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/search:
+  /api/wiki/search:
     get:
       tags:
       - Wiki
       summary: Search
       description: Full-text search across wiki articles using BM25 ranking.
-      operationId: search_wiki_search_get
+      operationId: search_api_wiki_search_get
       parameters:
       - name: q
         in: query
@@ -658,13 +658,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/concepts:
+  /api/wiki/concepts:
     get:
       tags:
       - Wiki
       summary: Get Concepts
       description: Concept taxonomy tree.
-      operationId: get_concepts_wiki_concepts_get
+      operationId: get_concepts_api_wiki_concepts_get
       parameters:
       - name: include_empty
         in: query
@@ -685,13 +685,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/concepts/rebuild:
+  /api/wiki/concepts/rebuild:
     post:
       tags:
       - Wiki
       summary: Rebuild Concepts
       description: Trigger LLM-powered taxonomy hierarchy rebuild.
-      operationId: rebuild_concepts_wiki_concepts_rebuild_post
+      operationId: rebuild_concepts_api_wiki_concepts_rebuild_post
       responses:
         '200':
           description: Successful Response
@@ -699,13 +699,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RebuildConceptsResponse'
-  /wiki/concepts/{name}:
+  /api/wiki/concepts/{name}:
     get:
       tags:
       - Wiki
       summary: Get Concept
       description: Concept detail with linked articles.
-      operationId: get_concept_wiki_concepts__name__get
+      operationId: get_concept_api_wiki_concepts__name__get
       parameters:
       - name: name
         in: path
@@ -727,13 +727,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/concepts/{name}/articles:
+  /api/wiki/concepts/{name}/articles:
     get:
       tags:
       - Wiki
       summary: Get Concept Articles
       description: Articles tagged with this concept.
-      operationId: get_concept_articles_wiki_concepts__name__articles_get
+      operationId: get_concept_articles_api_wiki_concepts__name__articles_get
       parameters:
       - name: name
         in: path
@@ -764,7 +764,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ArticleSummaryResponse'
-                title: Response Get Concept Articles Wiki Concepts  Name  Articles
+                title: Response Get Concept Articles Api Wiki Concepts  Name  Articles
                   Get
         '422':
           description: Validation Error
@@ -772,7 +772,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/health:
+  /api/wiki/health:
     get:
       tags:
       - Wiki
@@ -783,7 +783,7 @@ paths:
         DEPRECATED: Use GET /lint/reports/latest instead. This endpoint
 
         delegates to the new LinterService for backward compatibility.'
-      operationId: get_health_wiki_health_get
+      operationId: get_health_api_wiki_health_get
       responses:
         '200':
           description: Successful Response
@@ -791,7 +791,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthSummaryResponse'
-  /wiki/backlinks/{source_id}/{target_id}/resolve:
+  /api/wiki/backlinks/{source_id}/{target_id}/resolve:
     post:
       tags:
       - Wiki
@@ -804,7 +804,7 @@ paths:
         updates the Backlink for backward compatibility AND forwards the resolution
 
         to the Contradiction table (single source of truth).'
-      operationId: resolve_contradiction_wiki_backlinks__source_id___target_id__resolve_post
+      operationId: resolve_contradiction_api_wiki_backlinks__source_id___target_id__resolve_post
       deprecated: true
       parameters:
       - name: source_id
@@ -838,7 +838,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{id_or_slug}/refresh:
+  /api/wiki/articles/{id_or_slug}/refresh:
     post:
       tags:
       - Wiki
@@ -851,7 +851,7 @@ paths:
         staleness score. Use this when you have reviewed an article and
 
         confirmed its content is still accurate.'
-      operationId: refresh_article_wiki_articles__id_or_slug__refresh_post
+      operationId: refresh_article_api_wiki_articles__id_or_slug__refresh_post
       parameters:
       - name: id_or_slug
         in: path
@@ -874,7 +874,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{article_id}/recompile:
+  /api/wiki/articles/{article_id}/recompile:
     post:
       tags:
       - Wiki
@@ -887,7 +887,7 @@ paths:
         returns 409 Conflict unless ``force=true`` is passed. When forced,
 
         the manual edits flag is cleared before recompilation.'
-      operationId: recompile_article_wiki_articles__article_id__recompile_post
+      operationId: recompile_article_api_wiki_articles__article_id__recompile_post
       parameters:
       - name: article_id
         in: path
@@ -925,7 +925,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query:
+  /api/query:
     post:
       tags:
       - Query
@@ -938,7 +938,7 @@ paths:
         Otherwise the question is appended as a new turn in the existing
 
         conversation.'
-      operationId: ask_query_post
+      operationId: ask_api_query_post
       requestBody:
         content:
           application/json:
@@ -958,7 +958,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/stream:
+  /api/query/stream:
     post:
       tags:
       - Query
@@ -971,7 +971,7 @@ paths:
         or ``error``. The Query row is persisted only after the stream completes
 
         successfully. Client disconnect aborts without persisting.'
-      operationId: ask_stream_query_stream_post
+      operationId: ask_stream_api_query_stream_post
       requestBody:
         content:
           application/json:
@@ -990,13 +990,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/history:
+  /api/query/history:
     get:
       tags:
       - Query
       summary: Query History
       description: List past queries (legacy endpoint — UI uses /conversations instead).
-      operationId: query_history_query_history_get
+      operationId: query_history_api_query_history_get
       parameters:
       - name: limit
         in: query
@@ -1017,13 +1017,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations:
+  /api/query/conversations:
     get:
       tags:
       - Query
       summary: List Conversations
       description: List conversations ordered by most recently updated first.
-      operationId: list_conversations_query_conversations_get
+      operationId: list_conversations_api_query_conversations_get
       parameters:
       - name: limit
         in: query
@@ -1041,20 +1041,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ConversationSummary'
-                title: Response List Conversations Query Conversations Get
+                title: Response List Conversations Api Query Conversations Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/{conversation_id}:
+  /api/query/conversations/{conversation_id}:
     get:
       tags:
       - Query
       summary: Get Conversation
       description: Return a single conversation with all its turns.
-      operationId: get_conversation_query_conversations__conversation_id__get
+      operationId: get_conversation_api_query_conversations__conversation_id__get
       parameters:
       - name: conversation_id
         in: path
@@ -1075,14 +1075,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/{conversation_id}/export:
+  /api/query/conversations/{conversation_id}/export:
     get:
       tags:
       - Query
       summary: Export Conversation
       description: Export a conversation as standalone markdown. Pure read, no DB
         writes.
-      operationId: export_conversation_query_conversations__conversation_id__export_get
+      operationId: export_conversation_api_query_conversations__conversation_id__export_get
       parameters:
       - name: conversation_id
         in: path
@@ -1103,14 +1103,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/file-back:
+  /api/query/conversations/file-back:
     post:
       tags:
       - Query
       summary: File Back Selection
       description: File selected turns from one or more conversations back to the
         wiki as a single article.
-      operationId: file_back_selection_query_conversations_file_back_post
+      operationId: file_back_selection_api_query_conversations_file_back_post
       requestBody:
         content:
           application/json:
@@ -1129,13 +1129,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/{conversation_id}/file-back:
+  /api/query/conversations/{conversation_id}/file-back:
     post:
       tags:
       - Query
       summary: File Back Conversation
       description: File the entire conversation back to the wiki as a single article.
-      operationId: file_back_conversation_query_conversations__conversation_id__file_back_post
+      operationId: file_back_conversation_api_query_conversations__conversation_id__file_back_post
       parameters:
       - name: conversation_id
         in: path
@@ -1155,13 +1155,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/{conversation_id}/crystallize:
+  /api/query/conversations/{conversation_id}/crystallize:
     post:
       tags:
       - Query
       summary: Crystallize
       description: Distill a conversation into a new wiki article with page_type synthesis.
-      operationId: crystallize_query_conversations__conversation_id__crystallize_post
+      operationId: crystallize_api_query_conversations__conversation_id__crystallize_post
       parameters:
       - name: conversation_id
         in: path
@@ -1182,7 +1182,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /query/conversations/{conversation_id}/fork:
+  /api/query/conversations/{conversation_id}/fork:
     post:
       tags:
       - Query
@@ -1193,7 +1193,7 @@ paths:
         Creates a new conversation that shares turns 0..turn_index-1 with the
 
         parent by reference. The original branch is preserved immutably.'
-      operationId: fork_conversation_query_conversations__conversation_id__fork_post
+      operationId: fork_conversation_api_query_conversations__conversation_id__fork_post
       parameters:
       - name: conversation_id
         in: path
@@ -1220,13 +1220,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /jobs:
+  /api/jobs:
     get:
       tags:
       - Jobs
       summary: List Jobs
       description: List jobs with optional status filter.
-      operationId: list_jobs_jobs_get
+      operationId: list_jobs_api_jobs_get
       parameters:
       - name: status
         in: query
@@ -1252,20 +1252,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Job'
-                title: Response List Jobs Jobs Get
+                title: Response List Jobs Api Jobs Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /jobs/{job_id}:
+  /api/jobs/{job_id}:
     get:
       tags:
       - Jobs
       summary: Get Job
       description: Get job by ID.
-      operationId: get_job_jobs__job_id__get
+      operationId: get_job_api_jobs__job_id__get
       parameters:
       - name: job_id
         in: path
@@ -1282,20 +1282,20 @@ paths:
                 anyOf:
                 - $ref: '#/components/schemas/Job'
                 - type: 'null'
-                title: Response Get Job Jobs  Job Id  Get
+                title: Response Get Job Api Jobs  Job Id  Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /jobs/compile/{source_id}:
+  /api/jobs/compile/{source_id}:
     post:
       tags:
       - Jobs
       summary: Trigger Compile
       description: Trigger compilation for a source.
-      operationId: trigger_compile_jobs_compile__source_id__post
+      operationId: trigger_compile_api_jobs_compile__source_id__post
       parameters:
       - name: source_id
         in: path
@@ -1316,7 +1316,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /jobs/lint:
+  /api/jobs/lint:
     post:
       tags:
       - Jobs
@@ -1327,7 +1327,7 @@ paths:
         DEPRECATED: Use POST /lint/run instead. This endpoint delegates
 
         to the new LinterService for backward compatibility.'
-      operationId: trigger_lint_jobs_lint_post
+      operationId: trigger_lint_api_jobs_lint_post
       responses:
         '200':
           description: Successful Response
@@ -1335,13 +1335,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobTriggerResponse'
-  /jobs/reindex:
+  /api/jobs/reindex:
     post:
       tags:
       - Jobs
       summary: Trigger Reindex
       description: Trigger wiki reindexing.
-      operationId: trigger_reindex_jobs_reindex_post
+      operationId: trigger_reindex_api_jobs_reindex_post
       responses:
         '200':
           description: Successful Response
@@ -1349,13 +1349,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobTriggerResponse'
-  /lint/run:
+  /api/lint/run:
     post:
       tags:
       - Lint
       summary: Run Lint
       description: Trigger a new lint run. Returns immediately with status.
-      operationId: run_lint_lint_run_post
+      operationId: run_lint_api_lint_run_post
       responses:
         '200':
           description: Successful Response
@@ -1363,13 +1363,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LintRunResponse'
-  /lint/reports:
+  /api/lint/reports:
     get:
       tags:
       - Lint
       summary: List Reports
       description: List lint reports ordered by most recent first.
-      operationId: list_reports_lint_reports_get
+      operationId: list_reports_api_lint_reports_get
       parameters:
       - name: limit
         in: query
@@ -1389,20 +1389,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/LintReport'
-                title: Response List Reports Lint Reports Get
+                title: Response List Reports Api Lint Reports Get
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /lint/reports/latest:
+  /api/lint/reports/latest:
     get:
       tags:
       - Lint
       summary: Get Latest Report
       description: Get the most recent lint report with all non-dismissed findings.
-      operationId: get_latest_report_lint_reports_latest_get
+      operationId: get_latest_report_api_lint_reports_latest_get
       responses:
         '200':
           description: Successful Response
@@ -1410,13 +1410,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LintReportDetail'
-  /lint/reports/{report_id}:
+  /api/lint/reports/{report_id}:
     get:
       tags:
       - Lint
       summary: Get Report
       description: Get a specific lint report with findings.
-      operationId: get_report_lint_reports__report_id__get
+      operationId: get_report_api_lint_reports__report_id__get
       parameters:
       - name: report_id
         in: path
@@ -1444,14 +1444,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /lint/findings/{kind}/{finding_id}/dismiss:
+  /api/lint/findings/{kind}/{finding_id}/dismiss:
     post:
       tags:
       - Lint
       summary: Dismiss Finding
       description: Dismiss a finding. Persists across future lint runs via content
         hash.
-      operationId: dismiss_finding_lint_findings__kind___finding_id__dismiss_post
+      operationId: dismiss_finding_api_lint_findings__kind___finding_id__dismiss_post
       parameters:
       - name: kind
         in: path
@@ -1477,13 +1477,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /settings:
+  /api/settings:
     get:
       tags:
       - Settings
       summary: Get All Settings
       description: Return all application settings, with DB overrides applied.
-      operationId: get_all_settings_settings_get
+      operationId: get_all_settings_api_settings_get
       responses:
         '200':
           description: Successful Response
@@ -1496,7 +1496,7 @@ paths:
       - Settings
       summary: Update Settings
       description: Update runtime settings. Changes persist to DB across restarts.
-      operationId: update_settings_settings_patch
+      operationId: update_settings_api_settings_patch
       requestBody:
         content:
           application/json:
@@ -1516,13 +1516,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /settings/llm/default-provider:
+  /api/settings/llm/default-provider:
     post:
       tags:
       - Settings
       summary: Set Default Provider
       description: Set the default LLM provider. Persists to DB, survives restarts.
-      operationId: set_default_provider_settings_llm_default_provider_post
+      operationId: set_default_provider_api_settings_llm_default_provider_post
       requestBody:
         content:
           application/json:
@@ -1542,13 +1542,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /settings/llm/test:
+  /api/settings/llm/test:
     post:
       tags:
       - Settings
       summary: Test Llm Connection
       description: Test if a provider is configured and reachable.
-      operationId: test_llm_connection_settings_llm_test_post
+      operationId: test_llm_connection_api_settings_llm_test_post
       parameters:
       - name: provider
         in: query
@@ -1569,13 +1569,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /settings/llm/cost/breakdown:
+  /api/settings/llm/cost/breakdown:
     get:
       tags:
       - Settings
       summary: Get Llm Cost Breakdown
       description: Cost breakdown by provider and task type for current month.
-      operationId: get_llm_cost_breakdown_settings_llm_cost_breakdown_get
+      operationId: get_llm_cost_breakdown_api_settings_llm_cost_breakdown_get
       responses:
         '200':
           description: Successful Response
@@ -1583,13 +1583,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CostBreakdownResponse'
-  /settings/llm/cost:
+  /api/settings/llm/cost:
     get:
       tags:
       - Settings
       summary: Get Llm Cost
       description: Cost summary for current month.
-      operationId: get_llm_cost_settings_llm_cost_get
+      operationId: get_llm_cost_api_settings_llm_cost_get
       responses:
         '200':
           description: Successful Response
@@ -1597,7 +1597,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CostSummaryResponse'
-  /settings/onboarding-status:
+  /api/settings/onboarding-status:
     get:
       tags:
       - Settings
@@ -1610,7 +1610,7 @@ paths:
         articles in the wiki, treat onboarding as implicitly complete — they
 
         are clearly past the first-run stage.'
-      operationId: get_onboarding_status_settings_onboarding_status_get
+      operationId: get_onboarding_status_api_settings_onboarding_status_get
       responses:
         '200':
           description: Successful Response
@@ -1623,7 +1623,7 @@ paths:
       - Settings
       summary: Complete Onboarding
       description: Mark onboarding as complete for the current user.
-      operationId: complete_onboarding_settings_onboarding_status_post
+      operationId: complete_onboarding_api_settings_onboarding_status_post
       responses:
         '200':
           description: Successful Response
@@ -1704,6 +1704,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiKeyListResponse'
+  /api/admin/stats:
+    get:
+      tags:
+      - Admin
+      summary: Get Stats
+      description: Aggregate system statistics.
+      operationId: get_stats_api_admin_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/orphans:
+    get:
+      tags:
+      - Admin
+      summary: Get Orphans
+      description: Articles with missing wiki files.
+      operationId: get_orphans_api_admin_orphans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/concepts/eligible:
+    get:
+      tags:
+      - Admin
+      summary: Get Eligible Concepts
+      description: Concepts eligible for page generation.
+      operationId: get_eligible_concepts_api_admin_concepts_eligible_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/sweep:
+    post:
+      tags:
+      - Admin
+      summary: Trigger Sweep
+      description: Trigger wikilink sweep manually.
+      operationId: trigger_sweep_api_admin_sweep_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/reindex:
+    post:
+      tags:
+      - Admin
+      summary: Trigger Reindex
+      description: Rebuild search index.
+      operationId: trigger_reindex_api_admin_reindex_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/wiki/articles/{id_or_slug}/export:
+    post:
+      tags:
+      - Export
+      summary: Export Article
+      description: 'Export a wiki article in the requested format.
+
+
+        - **pdf**: Returns styled HTML (text/html) suitable for browser print-to-PDF.
+
+        - **linkedin**: Returns a LinkedIn post draft (JSON with content field).
+
+        - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content
+        field).'
+      operationId: export_article_api_wiki_articles__id_or_slug__export_post
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      - name: format
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/ExportFormat'
+          description: 'Export format: pdf, linkedin, or slides'
+        description: 'Export format: pdf, linkedin, or slides'
+      responses:
+        '200':
+          description: Export result (JSON for linkedin/slides, HTML for pdf)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+            text/html: {}
+        '404':
+          description: Article not found
+        '422':
+          description: Invalid export format
   /auth/login/{provider}:
     get:
       tags:
@@ -1933,112 +2039,6 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Delete Account Auth Account Delete
-  /admin/stats:
-    get:
-      tags:
-      - Admin
-      summary: Get Stats
-      description: Aggregate system statistics.
-      operationId: get_stats_admin_stats_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /admin/orphans:
-    get:
-      tags:
-      - Admin
-      summary: Get Orphans
-      description: Articles with missing wiki files.
-      operationId: get_orphans_admin_orphans_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /admin/concepts/eligible:
-    get:
-      tags:
-      - Admin
-      summary: Get Eligible Concepts
-      description: Concepts eligible for page generation.
-      operationId: get_eligible_concepts_admin_concepts_eligible_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /admin/sweep:
-    post:
-      tags:
-      - Admin
-      summary: Trigger Sweep
-      description: Trigger wikilink sweep manually.
-      operationId: trigger_sweep_admin_sweep_post
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /admin/reindex:
-    post:
-      tags:
-      - Admin
-      summary: Trigger Reindex
-      description: Rebuild search index.
-      operationId: trigger_reindex_admin_reindex_post
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /wiki/articles/{id_or_slug}/export:
-    post:
-      tags:
-      - Export
-      summary: Export Article
-      description: 'Export a wiki article in the requested format.
-
-
-        - **pdf**: Returns styled HTML (text/html) suitable for browser print-to-PDF.
-
-        - **linkedin**: Returns a LinkedIn post draft (JSON with content field).
-
-        - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content
-        field).'
-      operationId: export_article_wiki_articles__id_or_slug__export_post
-      parameters:
-      - name: id_or_slug
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Id Or Slug
-      - name: format
-        in: query
-        required: true
-        schema:
-          $ref: '#/components/schemas/ExportFormat'
-          description: 'Export format: pdf, linkedin, or slides'
-        description: 'Export format: pdf, linkedin, or slides'
-      responses:
-        '200':
-          description: Export result (JSON for linkedin/slides, HTML for pdf)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExportResponse'
-            text/html: {}
-        '404':
-          description: Article not found
-        '422':
-          description: Invalid export format
   /health:
     get:
       summary: Health
@@ -2454,7 +2454,7 @@ components:
       - slug
       title: BacklinkEntry
       description: A backlink entry with human-readable metadata for the frontend.
-    Body_ingest_pdf_ingest_pdf_post:
+    Body_ingest_pdf_api_ingest_pdf_post:
       properties:
         file:
           type: string
@@ -2463,7 +2463,7 @@ components:
       type: object
       required:
       - file
-      title: Body_ingest_pdf_ingest_pdf_post
+      title: Body_ingest_pdf_api_ingest_pdf_post
     CitationArticleRef:
       properties:
         slug:

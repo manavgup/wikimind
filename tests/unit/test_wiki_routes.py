@@ -58,7 +58,7 @@ async def test_graph_no_filters_returns_all_edges(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph")
+    response = await client.get("/api/wiki/graph")
     assert response.status_code == 200
     data = response.json()
     assert len(data["nodes"]) == 3
@@ -70,7 +70,7 @@ async def test_graph_filter_by_relation_type(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"relation_type": "contradicts"})
+    response = await client.get("/api/wiki/graph", params={"relation_type": "contradicts"})
     assert response.status_code == 200
     data = response.json()
     edges = data["edges"]
@@ -85,7 +85,7 @@ async def test_graph_filter_by_from_article_id(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"from_article": "a1"})
+    response = await client.get("/api/wiki/graph", params={"from_article": "a1"})
     assert response.status_code == 200
     data = response.json()
     edges = data["edges"]
@@ -98,7 +98,7 @@ async def test_graph_filter_by_from_article_slug(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"from_article": "art-a"})
+    response = await client.get("/api/wiki/graph", params={"from_article": "art-a"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["edges"]) == 2
@@ -109,7 +109,7 @@ async def test_graph_filter_by_to_article(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"to_article": "a3"})
+    response = await client.get("/api/wiki/graph", params={"to_article": "a3"})
     assert response.status_code == 200
     data = response.json()
     edges = data["edges"]
@@ -124,7 +124,7 @@ async def test_graph_filters_compose_with_and(client, async_engine) -> None:
 
     # from a1 AND relation_type contradicts → only a1->a3.
     response = await client.get(
-        "/wiki/graph",
+        "/api/wiki/graph",
         params={"from_article": "a1", "relation_type": "contradicts"},
     )
     assert response.status_code == 200
@@ -141,7 +141,7 @@ async def test_graph_unknown_from_article_returns_empty(client, async_engine) ->
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"from_article": "no-such-thing"})
+    response = await client.get("/api/wiki/graph", params={"from_article": "no-such-thing"})
     assert response.status_code == 200
     data = response.json()
     assert data["edges"] == []
@@ -153,7 +153,7 @@ async def test_graph_invalid_relation_type_is_422(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"relation_type": "bogus"})
+    response = await client.get("/api/wiki/graph", params={"relation_type": "bogus"})
     assert response.status_code == 422
 
 
@@ -162,7 +162,7 @@ async def test_relationships_endpoint_groups_by_direction_and_type(client, async
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/articles/a1/relationships")
+    response = await client.get("/api/wiki/articles/a1/relationships")
     assert response.status_code == 200
     data = response.json()
 
@@ -187,7 +187,7 @@ async def test_relationships_endpoint_resolves_slug(client, async_engine) -> Non
     await _seed_three_article_graph(factory)
 
     # a3 has two incoming (a1 contradicts, a2 supersedes) and no outgoing.
-    response = await client.get("/wiki/articles/art-c/relationships")
+    response = await client.get("/api/wiki/articles/art-c/relationships")
     assert response.status_code == 200
     data = response.json()
     assert data["outgoing"] == {}
@@ -198,7 +198,7 @@ async def test_relationships_endpoint_resolves_slug(client, async_engine) -> Non
 
 @pytest.mark.asyncio
 async def test_relationships_endpoint_404_when_missing(client) -> None:
-    response = await client.get("/wiki/articles/does-not-exist/relationships")
+    response = await client.get("/api/wiki/articles/does-not-exist/relationships")
     assert response.status_code == 404
 
 
@@ -207,7 +207,7 @@ async def test_graph_unknown_to_article_returns_empty(client, async_engine) -> N
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"to_article": "no-such-thing"})
+    response = await client.get("/api/wiki/graph", params={"to_article": "no-such-thing"})
     assert response.status_code == 200
     data = response.json()
     assert data["edges"] == []
@@ -219,7 +219,7 @@ async def test_graph_filter_by_to_article_slug(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_three_article_graph(factory)
 
-    response = await client.get("/wiki/graph", params={"to_article": "art-c"})
+    response = await client.get("/api/wiki/graph", params={"to_article": "art-c"})
     assert response.status_code == 200
     data = response.json()
     assert len(data["edges"]) == 2

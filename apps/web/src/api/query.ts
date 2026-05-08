@@ -90,40 +90,40 @@ export interface FileBackSelectionResponse {
 // ----- Functions -----
 
 export function askQuestion(req: AskRequest): Promise<AskResponse> {
-  return apiFetch<AskResponse>("/query", { method: "POST", body: req });
+  return apiFetch<AskResponse>("/api/query", { method: "POST", body: req });
 }
 
 export function queryHistory(limit = 50): Promise<QueryRecord[]> {
-  return apiFetch<QueryRecord[]>("/query/history", { query: { limit } });
+  return apiFetch<QueryRecord[]>("/api/query/history", { query: { limit } });
 }
 
 export function listConversations(limit = 50): Promise<ConversationSummary[]> {
-  return apiFetch<ConversationSummary[]>("/query/conversations", { query: { limit } });
+  return apiFetch<ConversationSummary[]>("/api/query/conversations", { query: { limit } });
 }
 
 export function getConversation(id: string): Promise<ConversationDetail> {
-  return apiFetch<ConversationDetail>(`/query/conversations/${id}`);
+  return apiFetch<ConversationDetail>(`/api/query/conversations/${id}`);
 }
 
 export function fileBackConversation(id: string): Promise<FileBackResponse> {
-  return apiFetch<FileBackResponse>(`/query/conversations/${id}/file-back`, { method: "POST" });
+  return apiFetch<FileBackResponse>(`/api/query/conversations/${id}/file-back`, { method: "POST" });
 }
 
 export function fileBackSelection(req: FileBackSelectionRequest): Promise<FileBackSelectionResponse> {
-  return apiFetch<FileBackSelectionResponse>("/query/conversations/file-back", {
+  return apiFetch<FileBackSelectionResponse>("/api/query/conversations/file-back", {
     method: "POST",
     body: req,
   });
 }
 
 export async function exportConversation(id: string): Promise<string> {
-  const res = await fetch(`${getBaseUrl()}/query/conversations/${id}/export`);
+  const res = await fetch(`${getBaseUrl()}/api/query/conversations/${id}/export`);
   if (!res.ok) throw new Error("Export failed");
   return res.text();
 }
 
 export function forkConversation(id: string, req: ForkRequest): Promise<AskResponse> {
-  return apiFetch<AskResponse>(`/query/conversations/${id}/fork`, {
+  return apiFetch<AskResponse>(`/api/query/conversations/${id}/fork`, {
     method: "POST",
     body: req,
   });
@@ -146,7 +146,7 @@ export async function* askQuestionStream(
   req: AskRequest,
   signal?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  const res = await fetch(`${getBaseUrl()}/query/stream`, {
+  const res = await fetch(`${getBaseUrl()}/api/query/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

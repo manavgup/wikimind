@@ -52,7 +52,7 @@ def _make_fake_session_factory(total: float, provider_rows: list, task_rows: lis
 async def test_empty_cost_log_returns_zeros(client) -> None:
     session_factory = _make_fake_session_factory(total=0.0, provider_rows=[], task_rows=[])
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/llm/cost/breakdown")
+        resp = await client.get("/api/settings/llm/cost/breakdown")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -72,7 +72,7 @@ async def test_seeded_entries_group_by_provider(client) -> None:
     ]
     session_factory = _make_fake_session_factory(total=12.50, provider_rows=provider_rows, task_rows=task_rows)
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/llm/cost/breakdown")
+        resp = await client.get("/api/settings/llm/cost/breakdown")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -91,7 +91,7 @@ async def test_seeded_entries_group_by_task_type(client) -> None:
     ]
     session_factory = _make_fake_session_factory(total=8.20, provider_rows=provider_rows, task_rows=task_rows)
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/llm/cost/breakdown")
+        resp = await client.get("/api/settings/llm/cost/breakdown")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -103,7 +103,7 @@ async def test_seeded_entries_group_by_task_type(client) -> None:
 async def test_budget_percentage_calculated_correctly(client) -> None:
     session_factory = _make_fake_session_factory(total=25.0, provider_rows=[], task_rows=[])
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/llm/cost/breakdown")
+        resp = await client.get("/api/settings/llm/cost/breakdown")
 
     assert resp.status_code == 200
     data = resp.json()

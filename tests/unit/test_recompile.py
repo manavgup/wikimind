@@ -36,7 +36,7 @@ async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSe
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
-        response = await client.post(f"/wiki/articles/{article.id}/recompile")
+        response = await client.post(f"/api/wiki/articles/{article.id}/recompile")
 
     assert response.status_code == 200
     data = response.json()
@@ -47,7 +47,7 @@ async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSe
 async def test_recompile_missing_article(client: AsyncClient) -> None:
     """POST recompile for a non-existent article returns 404."""
     fake_id = str(uuid.uuid4())
-    response = await client.post(f"/wiki/articles/{fake_id}/recompile")
+    response = await client.post(f"/api/wiki/articles/{fake_id}/recompile")
     assert response.status_code == 404
 
 
@@ -68,7 +68,7 @@ async def test_recompile_concept_article(client: AsyncClient, db_session: AsyncS
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
-        response = await client.post(f"/wiki/articles/{article.id}/recompile")
+        response = await client.post(f"/api/wiki/articles/{article.id}/recompile")
 
     assert response.status_code == 200
     data = response.json()
@@ -93,7 +93,7 @@ async def test_recompile_explicit_mode(client: AsyncClient, db_session: AsyncSes
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
-        response = await client.post(f"/wiki/articles/{article.id}/recompile?mode=source")
+        response = await client.post(f"/api/wiki/articles/{article.id}/recompile?mode=source")
 
     assert response.status_code == 200
     # Verify the background compiler was called with mode="source"
@@ -114,5 +114,5 @@ async def test_recompile_invalid_mode(client: AsyncClient, db_session: AsyncSess
     db_session.add(article)
     await db_session.commit()
 
-    response = await client.post(f"/wiki/articles/{article.id}/recompile?mode=invalid")
+    response = await client.post(f"/api/wiki/articles/{article.id}/recompile?mode=invalid")
     assert response.status_code == 422

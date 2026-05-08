@@ -537,7 +537,7 @@ async def test_lint_run_endpoint_returns_in_progress(client) -> None:
     """POST /lint/run returns status in_progress."""
     with patch("wikimind.services.linter.get_background_compiler") as mock_bg:
         mock_bg.return_value.schedule_lint = AsyncMock(return_value="job-1")
-        response = await client.post("/lint/run")
+        response = await client.post("/api/lint/run")
 
     assert response.status_code == 200
     data = response.json()
@@ -547,7 +547,7 @@ async def test_lint_run_endpoint_returns_in_progress(client) -> None:
 @pytest.mark.asyncio
 async def test_lint_reports_endpoint(client) -> None:
     """GET /lint/reports returns an empty list when no reports exist."""
-    response = await client.get("/lint/reports")
+    response = await client.get("/api/lint/reports")
     assert response.status_code == 200
     assert response.json() == []
 
@@ -555,7 +555,7 @@ async def test_lint_reports_endpoint(client) -> None:
 @pytest.mark.asyncio
 async def test_lint_latest_endpoint_returns_404_when_empty(client) -> None:
     """GET /lint/reports/latest returns 404 when no reports exist."""
-    response = await client.get("/lint/reports/latest")
+    response = await client.get("/api/lint/reports/latest")
     assert response.status_code == 404
 
 
@@ -585,12 +585,12 @@ async def test_get_report_rejects_other_user(db_session, _isolated_data_dir) -> 
 @pytest.mark.asyncio
 async def test_lint_report_by_id_endpoint(client) -> None:
     """GET /lint/reports/{report_id} returns 404 when report missing."""
-    response = await client.get("/lint/reports/nonexistent")
+    response = await client.get("/api/lint/reports/nonexistent")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_lint_dismiss_endpoint_returns_404_for_missing(client) -> None:
     """POST /lint/findings/{kind}/{id}/dismiss returns 404 for missing finding."""
-    response = await client.post("/lint/findings/contradiction/nonexistent/dismiss")
+    response = await client.post("/api/lint/findings/contradiction/nonexistent/dismiss")
     assert response.status_code == 404

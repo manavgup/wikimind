@@ -272,7 +272,7 @@ class TestProviderConfiguredStatus:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-env")
         get_settings.cache_clear()
         try:
-            resp = await client.get("/settings")
+            resp = await client.get("/api/settings")
             assert resp.status_code == 200
             providers = resp.json()["llm"]["providers"]
             assert providers["anthropic"]["configured"] is True
@@ -281,7 +281,7 @@ class TestProviderConfiguredStatus:
 
     async def test_provider_not_configured_by_default(self, client: AsyncClient):
         """Provider shows not configured when no key exists."""
-        resp = await client.get("/settings")
+        resp = await client.get("/api/settings")
         assert resp.status_code == 200
         providers = resp.json()["llm"]["providers"]
         # OpenAI has no env var set in test → not configured
@@ -311,7 +311,7 @@ class TestProviderEnabledStatus:
         )
         assert resp.status_code == 200
 
-        resp = await client.get("/settings")
+        resp = await client.get("/api/settings")
         assert resp.status_code == 200
         providers = resp.json()["llm"]["providers"]
         assert providers["openai"]["enabled"] is True
@@ -319,7 +319,7 @@ class TestProviderEnabledStatus:
 
     async def test_provider_without_key_stays_disabled(self, client: AsyncClient):
         """Provider without any key remains disabled."""
-        resp = await client.get("/settings")
+        resp = await client.get("/api/settings")
         assert resp.status_code == 200
         providers = resp.json()["llm"]["providers"]
         assert providers["openai"]["enabled"] is False
@@ -349,7 +349,7 @@ class TestSetDefaultProvider:
         assert resp.status_code == 200
 
         resp = await client.post(
-            "/settings/llm/default-provider",
+            "/api/settings/llm/default-provider",
             json={"provider": "openai"},
         )
         assert resp.status_code == 200
@@ -359,7 +359,7 @@ class TestSetDefaultProvider:
     async def test_set_default_rejects_no_key(self, client: AsyncClient):
         """Cannot set a provider with no key at all as default."""
         resp = await client.post(
-            "/settings/llm/default-provider",
+            "/api/settings/llm/default-provider",
             json={"provider": "google"},
         )
         assert resp.status_code == 400

@@ -61,7 +61,7 @@ async def test_edit_article_content(
     await storage.write(article.file_path, "# Test\n\nOriginal content.")
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={"content": "# Test\n\nUpdated content."},
     )
 
@@ -84,7 +84,7 @@ async def test_edit_article_title(
     await storage.write(article.file_path, "# Test\n\nOriginal content.")
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={"title": "New Title"},
     )
 
@@ -106,7 +106,7 @@ async def test_edit_article_both(
     await storage.write(article.file_path, "# Test\n\nOriginal.")
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={"content": "# Updated\n\nNew body.", "title": "Updated Title"},
     )
 
@@ -134,7 +134,7 @@ async def test_edit_article_empty_patch_no_side_effects(
     await storage.write(article.file_path, "# Test\n\nOriginal content.")
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={},
     )
 
@@ -153,7 +153,7 @@ async def test_edit_article_empty_string_content_rejected(
     article = await _create_article_with_file(db_session)
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={"content": ""},
     )
 
@@ -169,7 +169,7 @@ async def test_edit_article_empty_string_title_rejected(
     article = await _create_article_with_file(db_session)
 
     response = await client.patch(
-        f"/wiki/articles/{article.slug}",
+        f"/api/wiki/articles/{article.slug}",
         json={"title": ""},
     )
 
@@ -179,7 +179,7 @@ async def test_edit_article_empty_string_title_rejected(
 async def test_edit_article_not_found(client: AsyncClient) -> None:
     """PATCH for a non-existent article returns 404."""
     response = await client.patch(
-        "/wiki/articles/nonexistent-slug",
+        "/api/wiki/articles/nonexistent-slug",
         json={"content": "new content"},
     )
     assert response.status_code == 404
@@ -197,7 +197,7 @@ async def test_edit_article_by_id(
     await storage.write(article.file_path, "# Test\n\nOriginal.")
 
     response = await client.patch(
-        f"/wiki/articles/{article.id}",
+        f"/api/wiki/articles/{article.id}",
         json={"content": "# Test\n\nEdited by ID."},
     )
 
@@ -227,7 +227,7 @@ async def test_recompile_blocked_by_manual_edit(
     db_session.add(article)
     await db_session.commit()
 
-    response = await client.post(f"/wiki/articles/{article.id}/recompile")
+    response = await client.post(f"/api/wiki/articles/{article.id}/recompile")
 
     assert response.status_code == 409
     data = response.json()
@@ -259,7 +259,7 @@ async def test_recompile_force_overrides_manual_edit(
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
-        response = await client.post(f"/wiki/articles/{article.id}/recompile?force=true")
+        response = await client.post(f"/api/wiki/articles/{article.id}/recompile?force=true")
 
     assert response.status_code == 200
     data = response.json()
@@ -296,7 +296,7 @@ async def test_recompile_unedited_article_no_force_needed(
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
-        response = await client.post(f"/wiki/articles/{article.id}/recompile")
+        response = await client.post(f"/api/wiki/articles/{article.id}/recompile")
 
     assert response.status_code == 200
     data = response.json()
