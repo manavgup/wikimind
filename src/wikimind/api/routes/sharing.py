@@ -1,5 +1,7 @@
 """Endpoints for per-article share links and public article access."""
 
+import html
+
 import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
@@ -208,8 +210,8 @@ _PUBLIC_HTML_TEMPLATE = """\
 
 
 def _escape_html(text: str) -> str:
-    """Escape HTML special characters."""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    """Escape HTML special characters including quotes for safe attribute use."""
+    return html.escape(text, quote=True)
 
 
 @public_router.get(
