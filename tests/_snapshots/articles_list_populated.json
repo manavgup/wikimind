@@ -1,0 +1,25 @@
+[
+  {
+    "backlink_count": 0,
+    "concepts": [],
+    "confidence": null,
+    "confidence_score": 0.5,
+    "created_at": "<TIMESTAMP>",
+    "effective_confidence": 0.5,
+    "id": "snap-art-1",
+    "is_stub": false,
+    "linter_score": null,
+    "manually_edited": false,
+    "page_type": "source",
+    "slug": "snapshot-article",
+    "source_count": 0,
+    "source_ids": [],
+    "sources": [],
+    "staleness_score": 1.0,
+    "summary": "A test article for snapshot testing.",
+    "tags": [],
+    "title": "Snapshot Article",
+    "updated_at": "<TIMESTAMP>",
+    "user_id": "anonymous"
+  }
+]

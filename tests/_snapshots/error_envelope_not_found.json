@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "not_found",
+    "message": "Article not found",
+    "request_id": "<REQUEST_ID>"
+  }
+}

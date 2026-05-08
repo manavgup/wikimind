@@ -1,0 +1,17 @@
+{
+  "author": null,
+  "compiled_at": null,
+  "content_hash": null,
+  "error_message": null,
+  "file_path": null,
+  "has_original": false,
+  "id": "snap-src-1",
+  "ingested_at": "<TIMESTAMP>",
+  "published_date": null,
+  "source_type": "text",
+  "source_url": null,
+  "status": "pending",
+  "title": "Snapshot Note",
+  "token_count": null,
+  "user_id": "test-user"
+}
