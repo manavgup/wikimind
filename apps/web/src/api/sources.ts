@@ -1,7 +1,7 @@
 // Endpoints in src/wikimind/api/routes/ingest.py and jobs.py.
 
 import { apiFetch, getBaseUrl } from "./client";
-import type { IngestStatus, Source, TriggerCompileResponse } from "../types/api";
+import type { IngestStatus, Source, SourceContentResponse, TriggerCompileResponse } from "../types/api";
 
 export interface ListSourcesParams {
   status?: IngestStatus;
@@ -40,6 +40,12 @@ export function retryCompile(sourceId: string): Promise<TriggerCompileResponse> 
   return apiFetch<TriggerCompileResponse>(
     `/jobs/compile/${encodeURIComponent(sourceId)}`,
     { method: "POST" },
+  );
+}
+
+export function getSourceContent(sourceId: string): Promise<SourceContentResponse> {
+  return apiFetch<SourceContentResponse>(
+    `/ingest/sources/${encodeURIComponent(sourceId)}/content`,
   );
 }
 

@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.errors import IngestError, NotFoundError
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
-from wikimind.models import DeleteConfirmation, NormalizedDocument, Source
+from wikimind.models import DeleteConfirmation, NormalizedDocument, Source, SourceContentResponse
 from wikimind.services.activity_log import append_log_entry
 from wikimind.storage import get_raw_storage
 
@@ -228,6 +228,44 @@ class IngestService:
         if user_id and source.user_id != user_id:
             raise NotFoundError(msg)
         return source
+
+    async def get_source_content(
+        self,
+        source_id: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> SourceContentResponse:
+        """Read the raw text content of a source from storage.
+
+        Args:
+            source_id: The source UUID.
+            session: Async database session.
+            user_id: When provided, verify the source belongs to this user.
+
+        Returns:
+            SourceContentResponse with the raw text, source type, and title.
+
+        Raises:
+            NotFoundError: If the source is not found, belongs to another user,
+                or has no stored file.
+        """
+        source = await self.get_source(source_id, session, user_id=user_id)
+        if not source.file_path:
+            msg = "Source has no stored content"
+            raise NotFoundError(msg)
+
+        raw_storage = get_raw_storage(user_id)
+        try:
+            content = await raw_storage.read(source.file_path)
+        except OSError as exc:
+            msg = "Source content file not found"
+            raise NotFoundError(msg) from exc
+
+        return SourceContentResponse(
+            content=content,
+            source_type=source.source_type,
+            title=source.title,
+        )
 
     async def delete_source(
         self,

@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import IngestTextRequest, IngestURLRequest, Source
+from wikimind.models import IngestTextRequest, IngestURLRequest, Source, SourceContentResponse
 from wikimind.services.ingest import IngestService, get_ingest_service
 from wikimind.storage import find_original_sibling, get_raw_storage
 
@@ -84,6 +84,21 @@ async def get_source(
 ):
     """Get source by ID."""
     return await service.get_source(source_id, session, user_id=user_id)
+
+
+@router.get(
+    "/sources/{source_id}/content",
+    response_model=SourceContentResponse,
+    responses={404: {"description": "Source not found or has no content"}},
+)
+async def get_source_content(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return the raw text content of a source for side-by-side reading."""
+    return await service.get_source_content(source_id, session, user_id=user_id)
 
 
 @router.delete("/sources/{source_id}")
