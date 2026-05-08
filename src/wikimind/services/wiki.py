@@ -14,6 +14,7 @@ scoring. Otherwise the service falls back to keyword-only search.
 import asyncio
 import functools
 import json
+import random
 from pathlib import Path
 
 import structlog
@@ -470,6 +471,34 @@ class WikiService:
             slug_stmt = slug_stmt.where(Article.user_id == user_id)
         row = (await session.execute(slug_stmt)).first()
         return row[0] if row is not None else None
+
+    async def get_random_article(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> ArticleSummaryResponse:
+        """Return a random article belonging to the user.
+
+        Args:
+            session: Async database session.
+            user_id: User ID to scope the query.
+
+        Returns:
+            A randomly selected article summary.
+
+        Raises:
+            NotFoundError: If the user has no articles.
+        """
+        query = select(Article)
+        if user_id:
+            query = query.where(Article.user_id == user_id)
+        result = await session.execute(query)
+        articles = list(result.scalars().all())
+        if not articles:
+            msg = "No articles found"
+            raise NotFoundError(msg)
+        article = random.choice(articles)  # noqa: S311
+        return await _build_article_summary(article, session)
 
     async def get_graph(
         self,

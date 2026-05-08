@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
+import { Breadcrumbs } from "./Breadcrumbs";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
@@ -27,6 +28,29 @@ function escapeHtml(s: string): string {
 }
 
 const BROKEN_IMAGE_REGEX = /!\[[^\]]*\]\((?!\/|https?:\/\/)[^)]+\)\n*/g;
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+}
+
+function childrenToText(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) return children.map(childrenToText).join("");
+  if (
+    children &&
+    typeof children === "object" &&
+    "props" in children &&
+    children.props?.children
+  ) {
+    return childrenToText(children.props.children);
+  }
+  return "";
+}
 
 function preprocessMarkdown(content: string): string {
   return content
@@ -75,8 +99,11 @@ export function ArticleReader({ article }: ArticleReaderProps) {
     [article.content, isConcept],
   );
 
+  const primaryConcept = article.concepts.length > 0 ? article.concepts[0] : null;
+
   return (
     <article className="mx-auto max-w-3xl p-8">
+      <Breadcrumbs concept={primaryConcept} articleTitle={article.title} />
       <header className="mb-6 border-b border-slate-200 pb-5">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <PageTypeIndicator pageType={article.page_type} />
@@ -171,6 +198,14 @@ export function ArticleReader({ article }: ArticleReaderProps) {
                   )}
                 </figure>
               );
+            },
+            h2: ({ children }) => {
+              const text = childrenToText(children);
+              return <h2 id={slugify(text)}>{children}</h2>;
+            },
+            h3: ({ children }) => {
+              const text = childrenToText(children);
+              return <h3 id={slugify(text)}>{children}</h3>;
             },
             li: ({ children }) => (
               <li>{decorateConfidence(children)}</li>
