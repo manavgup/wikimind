@@ -206,6 +206,8 @@ class Article(SQLModel, table=True):
     # Timestamp of the most recent (re)compilation; used by ``apply_decay``
     # to compute ``effective_confidence`` at read time.
     last_reinforced_at: datetime | None = None
+    # Date of the most recent source used in this article (issue #425).
+    source_newest_at: datetime | None = None
     source_ids: str | None = None  # JSON array of source IDs
     # Which LLM provider compiled this article (issue #67). Recompiling the
     # same source with the same provider replaces this article in place;
@@ -247,6 +249,23 @@ class ArticleSource(SQLModel, table=True):
 
     article_id: str = Field(foreign_key="article.id", primary_key=True)
     source_id: str = Field(foreign_key="source.id", primary_key=True, index=True)
+
+
+class ReinforcementEvent(SQLModel, table=True):
+    """Records each event that reinforces an article's freshness (issue #425).
+
+    Events are created when an article is recompiled, gains a new source,
+    or is manually refreshed by the user. The ``compute_staleness`` function
+    uses ``Article.last_reinforced_at`` (the max of all events) for its
+    decay calculation.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    event_type: str  # "new_source", "recompile", "manual_refresh"
+    occurred_at: datetime = Field(default_factory=utcnow_naive)
+    source_id: str | None = None
+    user_id: str = Field(foreign_key="user.id", index=True)
 
 
 class ConceptKindDef(SQLModel, table=True):
@@ -891,6 +910,7 @@ class ArticleResponse(BaseModel):
     linter_score: float | None
     confidence_score: float = 0.5
     effective_confidence: float = 0.5
+    staleness_score: float | None = None
     concepts: list[str] = []
     backlinks_in: list[BacklinkEntry] = []
     backlinks_out: list[BacklinkEntry] = []
@@ -917,6 +937,7 @@ class ArticleSummaryResponse(BaseModel):
     linter_score: float | None
     confidence_score: float = 0.5
     effective_confidence: float = 0.5
+    staleness_score: float | None = None
     sources: list[ArticleSourceSummary] = []
     source_count: int = 0
     backlink_count: int = 0
@@ -973,6 +994,13 @@ class RecompileResponse(BaseModel):
 
     status: str
     job_id: str
+
+
+class RefreshArticleResponse(BaseModel):
+    """Response after marking an article as manually refreshed (issue #425)."""
+
+    status: str
+    staleness_score: float
 
 
 class RebuildConceptsResponse(BaseModel):

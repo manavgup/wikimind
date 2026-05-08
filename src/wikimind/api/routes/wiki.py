@@ -30,6 +30,7 @@ from wikimind.models import (
     PageType,
     RebuildConceptsResponse,
     RecompileResponse,
+    RefreshArticleResponse,
     RelationType,
     ResolveContradictionBody,
     ResolveContradictionRequest,
@@ -38,7 +39,7 @@ from wikimind.models import (
 from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.wiki import WikiService, _staleness_score, get_wiki_service
 
 log = structlog.get_logger()
 
@@ -351,6 +352,30 @@ async def resolve_contradiction(
         source_id=source_id,
         target_id=target_id,
         resolution=body.resolution,
+    )
+
+
+@router.post(
+    "/articles/{id_or_slug}/refresh",
+    response_model=RefreshArticleResponse,
+    responses={404: {"description": "Article not found"}},
+)
+async def refresh_article(
+    id_or_slug: str,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Mark an article as 'still current' without recompiling.
+
+    Creates a manual_refresh reinforcement event and resets the article's
+    staleness score. Use this when you have reviewed an article and
+    confirmed its content is still accurate.
+    """
+    article = await service.refresh_article(id_or_slug, session, user_id=user_id)
+    return RefreshArticleResponse(
+        status="refreshed",
+        staleness_score=_staleness_score(article),
     )
 
 

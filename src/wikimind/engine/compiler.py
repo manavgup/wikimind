@@ -37,6 +37,7 @@ from wikimind.models import (
     NormalizedDocument,
     PageType,
     Provider,
+    ReinforcementEvent,
     RelationType,
     Source,
     TaskType,
@@ -464,6 +465,9 @@ Compile this into a wiki article following the JSON schema exactly."""
         :class:`ArticleSource` join table) and counts incoming
         ``CONTRADICTS`` backlinks, then delegates to
         :func:`wikimind.engine.confidence.compute_confidence`.
+
+        Also sets ``source_newest_at`` and creates a ``ReinforcementEvent``
+        for staleness tracking (issue #425).
         """
         now = utcnow_naive()
         # Gather sources currently linked to the article.
@@ -477,6 +481,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         if sources:
             newest = max(s.ingested_at for s in sources)
             newest_age_days = max(0, (now - newest).days)
+            article.source_newest_at = newest
         else:
             newest_age_days = 0
 
@@ -496,6 +501,16 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
         article.last_reinforced_at = now
         session.add(article)
+
+        # Record the reinforcement event (issue #425)
+        event = ReinforcementEvent(
+            article_id=article.id,
+            event_type="recompile",
+            occurred_at=now,
+            user_id=self.user_id,
+        )
+        session.add(event)
+
         await session.commit()
 
     async def _clear_article_relations(

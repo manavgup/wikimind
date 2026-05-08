@@ -181,6 +181,13 @@ class CompilerConfig(BaseModel):
     concept_source_max_chars: int = 5000
 
 
+class StalenessConfig(BaseModel):
+    """Staleness detection configuration (issue #425)."""
+
+    decay_rate: float = 0.002  # ~50% staleness at 250 days
+    lint_threshold: float = 0.5  # articles above this are flagged
+
+
 class LinterConfig(BaseModel):
     """Wiki linter configuration."""
 
@@ -277,6 +284,7 @@ class Settings(BaseSettings):
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     compiler: CompilerConfig = Field(default_factory=CompilerConfig)
     linter: LinterConfig = Field(default_factory=LinterConfig)
+    staleness: StalenessConfig = Field(default_factory=StalenessConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
 

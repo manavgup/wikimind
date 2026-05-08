@@ -67,6 +67,7 @@ def _make_article(
         file_path=f"{slug}.md",
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
         user_id=TEST_USER_ID,
+        last_reinforced_at=utcnow_naive(),
     )
 
 
