@@ -17,6 +17,7 @@ from wikimind.models import (
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
+    Contradiction,
     ContradictionResolution,
     ContradictionResolutionOption,
     ContradictionResponse,
@@ -279,15 +280,21 @@ async def get_health(
 @router.post(
     "/backlinks/{source_id}/{target_id}/resolve",
     response_model=ResolveContradictionResponse,
+    deprecated=True,
 )
 async def resolve_contradiction(
     source_id: str,
     target_id: str,
     body: ResolveContradictionRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add backlink ownership check
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Resolve a contradiction between two articles."""
+    """Resolve a contradiction between two articles.
+
+    DEPRECATED: Use ``PATCH /wiki/contradictions/{id}`` instead. This endpoint
+    updates the Backlink for backward compatibility AND forwards the resolution
+    to the Contradiction table (single source of truth).
+    """
     valid = {r.value for r in ContradictionResolution}
     if body.resolution not in valid:
         raise HTTPException(
@@ -319,6 +326,23 @@ async def resolve_contradiction(
         bl.resolved_at = now
         bl.resolved_by = "user"
         session.add(bl)
+
+    # Forward resolution to the Contradiction table (single source of truth)
+    ids = sorted([source_id, target_id])
+    ctr_result = await session.execute(
+        select(Contradiction).where(
+            Contradiction.user_id == user_id,
+            Contradiction.status == ContradictionStatus.ACTIVE,
+            Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
+            Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
+        )
+    )
+    for ctr in ctr_result.scalars().all():
+        ctr.status = ContradictionStatus.RESOLVED
+        ctr.resolution = body.resolution
+        ctr.resolved_at = now
+        ctr.resolved_by = user_id
+        session.add(ctr)
 
     await session.commit()
 

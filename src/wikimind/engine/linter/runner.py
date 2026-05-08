@@ -206,10 +206,10 @@ async def run_lint(
         active_orphans = [o for o in orphans if not o.dismissed]
         active_structurals = [s for s in structurals if not s.dismissed]
 
-        # Persist active contradictions as navigable wiki content
+        # Persist active contradictions as navigable wiki content and link back
         contradiction_service = get_contradiction_service()
         for cf in active_contradictions:
-            await contradiction_service.create_from_finding(
+            contradiction = await contradiction_service.create_from_finding(
                 session,
                 claim_a=cf.article_a_claim,
                 claim_b=cf.article_b_claim,
@@ -218,6 +218,7 @@ async def run_lint(
                 source_finding_id=cf.id,
                 user_id=user_id,
             )
+            cf.contradiction_id = contradiction.id
         dismissed = (
             (len(contradictions) - len(active_contradictions))
             + (len(orphans) - len(active_orphans))

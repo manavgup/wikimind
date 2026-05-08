@@ -56,13 +56,16 @@ function ResolveDropdown({ finding, resolution }: { finding: LintContradictionFi
   const { data: options = [] } = useResolutionOptions();
 
   const resolve = useMutation({
-    mutationFn: (res: string) =>
-      resolveContradiction(
-        finding.article_a_id,
-        finding.article_b_id,
+    mutationFn: (res: string) => {
+      if (!finding.contradiction_id) {
+        return Promise.reject(new Error("No contradiction_id — re-run linter to link findings"));
+      }
+      return resolveContradiction(
+        finding.contradiction_id,
         res,
         note || undefined,
-      ),
+      );
+    },
     onSuccess: () => {
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["lint"] });

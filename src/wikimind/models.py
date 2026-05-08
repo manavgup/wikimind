@@ -432,6 +432,7 @@ class Contradiction(SQLModel, table=True):
     article_a_id: str = Field(foreign_key="article.id", index=True)
     article_b_id: str = Field(foreign_key="article.id", index=True)
     source_finding_id: str | None = None  # FK to ContradictionFinding that created this
+    claim_fingerprint: str = Field(default="", index=True)  # SHA-256 of sorted article+claim pair
     detected_at: datetime = Field(default_factory=utcnow_naive)
     status: ContradictionStatus = ContradictionStatus.ACTIVE
     resolution: str | None = None
@@ -721,6 +722,7 @@ class ContradictionFinding(_LintFindingBase, table=True):
     article_b_claim: str
     llm_confidence: str  # "high" | "medium" | "low"
     shared_concept_id: str | None = Field(default=None, foreign_key="concept.id", index=True)
+    contradiction_id: str | None = Field(default=None, index=True)  # FK to Contradiction
 
 
 class OrphanFinding(_LintFindingBase, table=True):

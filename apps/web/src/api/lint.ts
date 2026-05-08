@@ -43,6 +43,7 @@ export interface LintContradictionFinding extends LintFindingCommon {
   article_b_claim: string;
   llm_confidence: "high" | "medium" | "low";
   shared_concept_id: string | null;
+  contradiction_id: string | null;
 }
 
 export interface LintOrphanFinding extends LintFindingCommon {
@@ -126,16 +127,15 @@ export function getResolutionOptions(): Promise<ResolutionOption[]> {
 }
 
 export async function resolveContradiction(
-  sourceId: string,
-  targetId: string,
+  contradictionId: string,
   resolution: string,
-  note?: string,
-): Promise<{ resolved: boolean }> {
+  _note?: string,
+): Promise<{ status: string; resolution: string | null }> {
   return apiFetch(
-    `/wiki/backlinks/${sourceId}/${targetId}/resolve`,
+    `/wiki/contradictions/${encodeURIComponent(contradictionId)}`,
     {
-      method: "POST",
-      body: { resolution, resolution_note: note },
+      method: "PATCH",
+      body: { status: "resolved", resolution },
     },
   );
 }

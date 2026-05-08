@@ -7,6 +7,7 @@ content that users can browse, resolve, and dismiss.
 from __future__ import annotations
 
 import functools
+import hashlib
 from typing import TYPE_CHECKING
 
 from sqlmodel import select
@@ -126,6 +127,22 @@ class ContradictionService:
         await session.refresh(contradiction)
         return await self._to_response(session, contradiction)
 
+    @staticmethod
+    def _claim_fingerprint(
+        article_a_id: str,
+        article_b_id: str,
+        claim_a: str,
+        claim_b: str,
+    ) -> str:
+        """Compute a stable fingerprint for a specific contradiction between two claims.
+
+        Uses sorted article IDs + sorted claims so order doesn't matter.
+        """
+        ids = sorted([article_a_id, article_b_id])
+        claims = sorted([claim_a.strip().lower(), claim_b.strip().lower()])
+        raw = f"{ids[0]}|{ids[1]}|{claims[0]}|{claims[1]}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
     async def create_from_finding(
         self,
         session: AsyncSession,
@@ -139,8 +156,9 @@ class ContradictionService:
     ) -> Contradiction:
         """Create a Contradiction record from a linter finding (upsert).
 
-        Avoids duplicates by checking for an existing active contradiction
-        between the same article pair (order-independent).
+        Avoids duplicates by fingerprinting on article pair + claim pair
+        (order-independent) so multiple contradictions between the same
+        article pair are tracked separately.
 
         Args:
             session: Async database session.
@@ -154,13 +172,11 @@ class ContradictionService:
         Returns:
             The created or existing Contradiction record.
         """
-        # Check for existing active contradiction between the same pair
-        ids = sorted([article_a_id, article_b_id])
+        fingerprint = self._claim_fingerprint(article_a_id, article_b_id, claim_a, claim_b)
         existing_stmt = select(Contradiction).where(
             Contradiction.user_id == user_id,
             Contradiction.status == ContradictionStatus.ACTIVE,
-            Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
-            Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
+            Contradiction.claim_fingerprint == fingerprint,
         )
         result = await session.execute(existing_stmt)
         existing = result.scalars().first()
@@ -173,6 +189,7 @@ class ContradictionService:
             article_a_id=article_a_id,
             article_b_id=article_b_id,
             source_finding_id=source_finding_id,
+            claim_fingerprint=fingerprint,
             user_id=user_id,
         )
         session.add(contradiction)

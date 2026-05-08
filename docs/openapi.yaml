@@ -705,8 +705,16 @@ paths:
       tags:
       - Wiki
       summary: Resolve Contradiction
-      description: Resolve a contradiction between two articles.
+      description: 'Resolve a contradiction between two articles.
+
+
+        DEPRECATED: Use ``PATCH /wiki/contradictions/{id}`` instead. This endpoint
+
+        updates the Backlink for backward compatibility AND forwards the resolution
+
+        to the Contradiction table (single source of truth).'
       operationId: resolve_contradiction_wiki_backlinks__source_id___target_id__resolve_post
+      deprecated: true
       parameters:
       - name: source_id
         in: path
@@ -2376,6 +2384,11 @@ components:
           - type: string
           - type: 'null'
           title: Shared Concept Id
+        contradiction_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contradiction Id
       type: object
       required:
       - user_id

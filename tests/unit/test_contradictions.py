@@ -205,8 +205,8 @@ async def test_service_resolve_contradiction(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_service_create_from_finding_deduplicates(db_session) -> None:
-    """create_from_finding avoids creating duplicate active contradictions."""
+async def test_service_create_from_finding_deduplicates_same_claims(db_session) -> None:
+    """create_from_finding deduplicates on claim-pair level, not article-pair."""
     db_session.add(Article(id="a1", slug="a1", title="A1", file_path="a.md", user_id=TEST_USER_ID))
     db_session.add(Article(id="a2", slug="a2", title="A2", file_path="b.md", user_id=TEST_USER_ID))
     await db_session.commit()
@@ -220,7 +220,35 @@ async def test_service_create_from_finding_deduplicates(db_session) -> None:
         article_b_id="a2",
         user_id=TEST_USER_ID,
     )
-    # Second call with same pair should return existing
+    # Same claims, same pair — should return existing
+    second = await service.create_from_finding(
+        db_session,
+        claim_a="X",
+        claim_b="Y",
+        article_a_id="a1",
+        article_b_id="a2",
+        user_id=TEST_USER_ID,
+    )
+    assert first.id == second.id
+
+
+@pytest.mark.asyncio
+async def test_service_create_from_finding_different_claims_creates_separate(db_session) -> None:
+    """create_from_finding creates separate records for different claims between same articles."""
+    db_session.add(Article(id="a1", slug="a1", title="A1", file_path="a.md", user_id=TEST_USER_ID))
+    db_session.add(Article(id="a2", slug="a2", title="A2", file_path="b.md", user_id=TEST_USER_ID))
+    await db_session.commit()
+
+    service = ContradictionService()
+    first = await service.create_from_finding(
+        db_session,
+        claim_a="X",
+        claim_b="Y",
+        article_a_id="a1",
+        article_b_id="a2",
+        user_id=TEST_USER_ID,
+    )
+    # Different claims, same pair — should create a new record
     second = await service.create_from_finding(
         db_session,
         claim_a="X2",
@@ -229,7 +257,7 @@ async def test_service_create_from_finding_deduplicates(db_session) -> None:
         article_b_id="a2",
         user_id=TEST_USER_ID,
     )
-    assert first.id == second.id
+    assert first.id != second.id
 
 
 # ---------------------------------------------------------------------------
