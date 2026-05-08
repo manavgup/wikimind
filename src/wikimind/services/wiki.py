@@ -46,6 +46,7 @@ from wikimind.models import (
     SourceResponse,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
+from wikimind.services.tags import get_tag_service
 from wikimind.storage import get_wiki_storage, read_article_content
 
 log = structlog.get_logger()
@@ -227,6 +228,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     concepts = await _fetch_concept_names_from_join(session, article.id)
     sources = await _fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
+    tag_service = get_tag_service()
+    tags = await tag_service.get_tags_for_article(session, article.id)
     return ArticleSummaryResponse(
         id=article.id,
         slug=article.slug,
@@ -244,6 +247,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         effective_confidence=_effective_confidence(article),
         staleness_score=_staleness_score(article),
         concepts=concepts,
+        tags=tags,
         source_ids=source_ids,
         user_id=article.user_id,
         manually_edited=article.manually_edited,
@@ -302,6 +306,7 @@ class WikiService:
         page_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        article_ids: list[str] | None = None,
     ) -> list[ArticleSummaryResponse]:
         """List wiki articles with optional filtering by concept, confidence, or page_type.
 
@@ -319,14 +324,22 @@ class WikiService:
             limit: Maximum number of results.
             offset: Pagination offset.
             user_id: Optional user ID filter.
+            article_ids: Optional list of article IDs to restrict results to.
 
         Returns:
             List of :class:`ArticleSummaryResponse` records with sources
             populated.
         """
+        # Short-circuit: if article_ids filter is an empty list, return early
+        if article_ids is not None and len(article_ids) == 0:
+            return []
         query = select(Article).offset(offset).limit(limit)
         if user_id:
             query = query.where(Article.user_id == user_id)
+        if article_ids is not None:
+            query = query.where(
+                Article.id.in_(article_ids)  # type: ignore[attr-defined]
+            )
         if concept:
             query = query.where(
                 Article.id.in_(  # type: ignore[attr-defined]
@@ -409,6 +422,9 @@ class WikiService:
 
         concepts = await _fetch_concept_names_from_join(session, article.id)
 
+        tag_service = get_tag_service()
+        tags = await tag_service.get_tags_for_article(session, article.id)
+
         return ArticleResponse(
             id=article.id,
             slug=article.slug,
@@ -421,6 +437,7 @@ class WikiService:
             staleness_score=_staleness_score(article),
             page_type=article.page_type,
             concepts=concepts,
+            tags=tags,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
             content=await read_article_content(article.file_path, user_id=article.user_id),

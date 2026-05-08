@@ -58,6 +58,13 @@ export interface SourceContentResponse {
   title: string | null;
 }
 
+export interface TagRef {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -70,6 +77,7 @@ export interface Article {
   backlink_count: number;
   created_at: string;
   updated_at: string;
+  tags?: TagRef[];
 }
 
 export interface BacklinkEntry {
@@ -94,6 +102,7 @@ export interface ArticleResponse extends Article {
   backlinks_in: BacklinkEntry[];
   backlinks_out: BacklinkEntry[];
   concepts: string[];
+  tags: TagRef[];
   sources: ArticleSourceRef[];
   manually_edited: boolean;
   edited_at: string | null;

@@ -17,7 +17,20 @@ from starlette.responses import FileResponse, HTMLResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from wikimind.api.routes import admin, api_keys, auth, export, ingest, jobs, lint, query, wiki, ws
+from wikimind.api.routes import (
+    admin,
+    api_keys,
+    auth,
+    export,
+    ingest,
+    jobs,
+    lint,
+    query,
+    saved_searches,
+    tags,
+    wiki,
+    ws,
+)
 from wikimind.api.routes import settings as settings_router
 from wikimind.api.routes.settings import apply_runtime_llm_preferences
 from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
@@ -163,6 +176,8 @@ app = FastAPI(
         {"name": "Admin", "description": "System diagnostics and maintenance"},
         {"name": "Auth", "description": "OAuth2 authentication"},
         {"name": "Export", "description": "Export wiki articles as PDF, LinkedIn, or slides"},
+        {"name": "Tags", "description": "User-created organizational tags"},
+        {"name": "SavedSearches", "description": "Saved searches with tag and concept filters"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
@@ -214,6 +229,8 @@ api_router.include_router(settings_router.router, prefix="/settings", tags=["Set
 api_router.include_router(api_keys.router, prefix="/settings/api-keys", tags=["Settings"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
 api_router.include_router(export.router, prefix="/wiki", tags=["Export"])
+api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
+api_router.include_router(saved_searches.router, prefix="/saved-searches", tags=["SavedSearches"])
 app.include_router(api_router)
 
 # Auth and WebSocket remain at root — auth redirects require stable paths,
