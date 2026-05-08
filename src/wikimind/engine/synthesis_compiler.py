@@ -148,6 +148,8 @@ async def _build_synthesis_material(
                 fc = fc[:max_chars] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
         except (OSError, ValueError):
+            # File may not exist or be unreadable — skip content but keep the
+            # article header so the LLM still sees the title and summary.
             pass
         parts.append(section)
     return "\n---\n".join(parts)
