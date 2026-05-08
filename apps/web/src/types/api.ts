@@ -15,7 +15,7 @@ export type IngestStatus = "pending" | "processing" | "compiled" | "failed";
 
 export type ConfidenceLevel = "sourced" | "mixed" | "inferred" | "opinion";
 
-export type PageType = "source" | "concept" | "answer" | "index" | "meta";
+export type PageType = "source" | "concept" | "answer" | "index" | "meta" | "synthesis";
 
 export type RelationType =
   | "references"
@@ -78,6 +78,7 @@ export interface Article {
   created_at: string;
   updated_at: string;
   tags?: TagRef[];
+  is_stub?: boolean;
 }
 
 export interface BacklinkEntry {
@@ -106,6 +107,26 @@ export interface ArticleResponse extends Article {
   sources: ArticleSourceRef[];
   manually_edited: boolean;
   edited_at: string | null;
+  is_stub: boolean;
+}
+
+export interface CreateStubRequest {
+  title: string;
+  body_markdown?: string;
+}
+
+export interface CreateStubResponse {
+  id: string;
+  slug: string;
+  title: string;
+  is_stub: boolean;
+}
+
+export interface WikilinkMatch {
+  id: string;
+  slug: string;
+  title: string;
+  is_stub: boolean;
 }
 
 export interface Concept {

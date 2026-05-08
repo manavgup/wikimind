@@ -223,6 +223,10 @@ class Article(SQLModel, table=True):
     # parameter is required to overwrite user edits.
     manually_edited: bool = False
     edited_at: datetime | None = None
+    # Stub page support (issue #451). Stub articles are user-created
+    # placeholder pages for concepts that have no source coverage yet.
+    # They appear in article lists but are visually differentiated.
+    is_stub: bool = False
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
@@ -957,6 +961,31 @@ class BacklinkEntry(BaseModel):
     resolution: str | None = None
 
 
+class CreateStubRequest(BaseModel):
+    """Request to create a stub wiki article (issue #451)."""
+
+    title: str = Field(min_length=1)
+    body_markdown: str = ""
+
+
+class CreateStubResponse(BaseModel):
+    """Response after creating a stub article."""
+
+    id: str
+    slug: str
+    title: str
+    is_stub: bool = True
+
+
+class WikilinkMatch(BaseModel):
+    """A single article match for wikilink resolution autocomplete."""
+
+    id: str
+    slug: str
+    title: str
+    is_stub: bool = False
+
+
 class ArticleEditRequest(BaseModel):
     """Request to manually edit an article's content or title."""
 
@@ -987,6 +1016,7 @@ class ArticleResponse(BaseModel):
     page_type: PageType = PageType.SOURCE
     manually_edited: bool = False
     edited_at: datetime | None = None
+    is_stub: bool = False
 
 
 class ArticleSummaryResponse(BaseModel):
@@ -1017,6 +1047,7 @@ class ArticleSummaryResponse(BaseModel):
     source_ids: list[str] = []
     user_id: str | None = None
     manually_edited: bool = False
+    is_stub: bool = False
 
 
 class ContradictionResolutionOption(BaseModel):

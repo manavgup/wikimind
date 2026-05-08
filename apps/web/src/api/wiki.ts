@@ -6,7 +6,10 @@ import type {
   ArticleResponse,
   Concept,
   ConfidenceLevel,
+  CreateStubRequest,
+  CreateStubResponse,
   GraphResponse,
+  WikilinkMatch,
 } from "../types/api";
 
 export interface ListArticlesParams {
@@ -56,4 +59,22 @@ export function editArticle(
 
 export function getGraph(): Promise<GraphResponse> {
   return apiFetch<GraphResponse>("/api/wiki/graph");
+}
+
+export function createStubArticle(
+  body: CreateStubRequest,
+): Promise<CreateStubResponse> {
+  return apiFetch<CreateStubResponse>("/wiki/articles/stub", {
+    method: "POST",
+    body,
+  });
+}
+
+export function resolveWikilinks(
+  q: string,
+  limit = 10,
+): Promise<WikilinkMatch[]> {
+  return apiFetch<WikilinkMatch[]>("/wiki/wikilinks/resolve", {
+    query: { q, limit },
+  });
 }

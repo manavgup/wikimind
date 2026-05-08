@@ -3,13 +3,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { executeSavedSearch } from "../../api/tags";
 import { useArticle } from "../../hooks/useArticle";
-import { getRandomArticle } from "../../api/wiki";
+import { createStubArticle, getRandomArticle } from "../../api/wiki";
 import { Spinner } from "../shared/Spinner";
 import { ArticleCardGrid } from "./ArticleCardGrid";
 import { ArticleOutline } from "./ArticleOutline";
 import { ArticleReader } from "./ArticleReader";
 import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
+import { CreateStubModal } from "./CreateStubModal";
 import { FiguresPanel } from "./FiguresPanel";
 import { SavedSearches } from "./SavedSearches";
 import { SearchBar } from "./SearchBar";
@@ -30,6 +31,7 @@ export function WikiExplorerView() {
       setActiveConcept(null);
     },
   });
+  const [showStubModal, setShowStubModal] = useState(false);
 
   const hasSources =
     articleQuery.data?.sources && articleQuery.data.sources.length > 0;
@@ -41,6 +43,12 @@ export function WikiExplorerView() {
     } catch {
       // No articles available — silently ignore
     }
+  };
+
+  const handleCreateStub = async (title: string, body: string) => {
+    const stub = await createStubArticle({ title, body_markdown: body });
+    queryClient.invalidateQueries({ queryKey: ["articles"] });
+    navigate(`/wiki/${encodeURIComponent(stub.slug)}`);
   };
 
   const handleArticleUpdated = useCallback(() => {
@@ -75,6 +83,28 @@ export function WikiExplorerView() {
               />
             </svg>
             Random
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStubModal(true)}
+            className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+            title="Create a new stub page"
+            data-testid="new-page-btn"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            New Page
           </button>
           {slug && hasSources && (
             <button
@@ -193,6 +223,13 @@ export function WikiExplorerView() {
           </section>
         </div>
       )}
+
+      {showStubModal ? (
+        <CreateStubModal
+          onClose={() => setShowStubModal(false)}
+          onCreate={handleCreateStub}
+        />
+      ) : null}
     </div>
   );
 }

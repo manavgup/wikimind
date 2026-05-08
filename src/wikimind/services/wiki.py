@@ -13,8 +13,10 @@ scoring. Otherwise the service falls back to keyword-only search.
 
 import functools
 import json
+import re
 
 import structlog
+from slugify import slugify
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,6 +37,7 @@ from wikimind.models import (
     BacklinkEntry,
     Concept,
     ConceptDetailResponse,
+    CreateStubResponse,
     GraphEdge,
     GraphNode,
     GraphResponse,
@@ -45,6 +48,7 @@ from wikimind.models import (
     Source,
     SourceResponse,
     WikiHealthReport,
+    WikilinkMatch,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 from wikimind.services.tags import get_tag_service
@@ -252,6 +256,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         source_ids=source_ids,
         user_id=article.user_id,
         manually_edited=article.manually_edited,
+        is_stub=article.is_stub,
     )
 
 
@@ -447,6 +452,7 @@ class WikiService:
             updated_at=article.updated_at,
             manually_edited=article.manually_edited,
             edited_at=article.edited_at,
+            is_stub=article.is_stub,
         )
 
     async def edit_article(
@@ -1024,6 +1030,181 @@ class WikiService:
             total_sources=0,
             message="Run the linter to generate a health report",
         )
+
+    async def _generate_unique_slug(
+        self,
+        title: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> str:
+        """Generate a URL-safe slug from a title, avoiding collisions per user.
+
+        Tries the base slug first; if it already exists for this user,
+        appends ``-2``, ``-3``, etc. until a unique value is found.
+        """
+        base = slugify(title, max_length=80)
+        candidate = base
+        suffix = 2
+        while True:
+            existing = (
+                (
+                    await session.execute(
+                        select(Article).where(
+                            Article.slug == candidate,
+                            Article.user_id == user_id,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if existing is None:
+                return candidate
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+
+    async def create_stub_article(
+        self,
+        title: str,
+        body_markdown: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> CreateStubResponse:
+        """Create a stub wiki article.
+
+        A stub is a user-created placeholder page for a concept that has
+        no compiled source yet. The article is written to disk as a minimal
+        markdown file and stored in the database with ``is_stub=True``.
+
+        Args:
+            title: Article title.
+            body_markdown: Optional body markdown content.
+            session: Async database session.
+            user_id: Owner user ID.
+
+        Returns:
+            :class:`CreateStubResponse` with the new article's id, slug, and title.
+        """
+        slug = await self._generate_unique_slug(title, session, user_id)
+
+        # Write markdown file to disk
+        relative_path = f"stubs/{slug}.md"
+        storage = get_wiki_storage(user_id)
+        content = f'---\ntitle: "{title}"\nslug: {slug}\npage_type: source\nis_stub: true\n---\n\n'
+        if body_markdown:
+            content += body_markdown
+        await storage.write(relative_path, content)
+
+        # Create database record
+        article = Article(
+            slug=slug,
+            title=title,
+            file_path=relative_path,
+            page_type=PageType.SOURCE,
+            is_stub=True,
+            user_id=user_id,
+        )
+        session.add(article)
+        await session.commit()
+        await session.refresh(article)
+
+        return CreateStubResponse(
+            id=article.id,
+            slug=article.slug,
+            title=article.title,
+            is_stub=True,
+        )
+
+    async def resolve_wikilinks(
+        self,
+        query: str,
+        session: AsyncSession,
+        user_id: str,
+        limit: int = 10,
+    ) -> list[WikilinkMatch]:
+        """Search articles by partial title for wikilink autocomplete.
+
+        Case-insensitive partial match against article titles.
+
+        Args:
+            query: Partial title string to search for.
+            session: Async database session.
+            user_id: User scope.
+            limit: Maximum number of matches to return.
+
+        Returns:
+            List of matching :class:`WikilinkMatch` entries.
+        """
+        # Strip [[ ]] wrapper if present
+        q = query.strip().strip("[").strip("]").strip()
+        if not q:
+            return []
+
+        stmt = (
+            select(Article)
+            .where(Article.user_id == user_id)
+            .where(func.lower(Article.title).contains(q.lower()))
+            .order_by(Article.title)
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        articles = result.scalars().all()
+        return [
+            WikilinkMatch(
+                id=a.id,
+                slug=a.slug,
+                title=a.title,
+                is_stub=a.is_stub,
+            )
+            for a in articles
+        ]
+
+    async def process_wikilinks(
+        self,
+        markdown: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> str:
+        """Resolve ``[[article title]]`` patterns in markdown content.
+
+        Finds all ``[[...]]`` patterns and replaces them:
+        - If a matching article exists: ``[title](/wiki/articles/{slug})``
+        - If no match: leaves the ``[[title]]`` as-is (the frontend renders
+          these as red/stub links).
+
+        Args:
+            markdown: Raw markdown content.
+            session: Async database session.
+            user_id: User scope.
+
+        Returns:
+            Markdown with resolved wikilinks replaced by standard links.
+        """
+        pattern = re.compile(r"\[\[([^\]]+)\]\]")
+        matches = pattern.findall(markdown)
+        if not matches:
+            return markdown
+
+        # Load all articles for this user once
+        stmt = select(Article).where(Article.user_id == user_id)
+        result = await session.execute(stmt)
+        all_articles = list(result.scalars().all())
+
+        by_lower: dict[str, Article] = {}
+        for article in all_articles:
+            lower_key = article.title.lower()
+            if lower_key not in by_lower:
+                by_lower[lower_key] = article
+
+        def replace_wikilink(match: re.Match) -> str:
+            title = match.group(1).strip()
+            target = by_lower.get(title.lower())
+            if target is not None:
+                return f"[{title}](/wiki/articles/{target.slug})"
+            # Leave unresolved — frontend renders as red link
+            return match.group(0)
+
+        return pattern.sub(replace_wikilink, markdown)
 
 
 @functools.lru_cache(maxsize=1)
