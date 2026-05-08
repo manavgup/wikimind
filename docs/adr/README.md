@@ -29,6 +29,7 @@ considered, and the consequences.
 | [019](adr-019-runtime-user-preferences.md) | Runtime User Preferences via DB Override Table | Accepted |
 | [021](adr-021-postgres-compatibility.md) | PostgreSQL compatibility for production deployments | Accepted |
 | [022](adr-022-multi-user-authentication.md) | Multi-User Authentication via OAuth2 | Accepted (revised — BFF cookie auth, April 2026) |
+| [022](adr-022-pr-automation-workflows.md) | PR automation workflows with Claude-in-CI | Accepted |
 | [023](adr-023-production-container-architecture.md) | Production Container Architecture | Unknown |
 | [024](adr-024-gunicorn-autoscaling-horizontal-readiness.md) | Gunicorn Auto-Scaling and Horizontal Scaling Readiness | Unknown |
 | [025](adr-025-docling-serve-sidecar.md) | Docling-Serve Sidecar for PDF Extraction | Unknown |

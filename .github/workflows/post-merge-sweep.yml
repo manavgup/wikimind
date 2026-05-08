@@ -1,0 +1,95 @@
+# ===============================================================
+# 🧹  Post-Merge Sweep — clean up after PR merge
+# ===============================================================
+#
+#   - triggers when a PR is merged
+#   - deletes the head branch (since delete_branch_on_merge is off)
+#   - resolves any outstanding review threads
+# ---------------------------------------------------------------
+
+name: Post-Merge Sweep
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sweep:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete head branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          REPO="${{ github.repository }}"
+
+          # Don't delete main/master
+          if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+            echo "Skipping protected branch: $BRANCH"
+            exit 0
+          fi
+
+          # Delete the remote branch
+          if gh api "repos/${REPO}/git/refs/heads/${BRANCH}" --method DELETE 2>/dev/null; then
+            echo "Deleted branch: $BRANCH"
+          else
+            echo "Branch already deleted or not found: $BRANCH"
+          fi
+
+      - name: Resolve outstanding review threads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+
+          QUERY='
+          query($owner: String!, $repo: String!, $pr: Int!) {
+            repository(owner: $owner, name: $repo) {
+              pullRequest(number: $pr) {
+                reviewThreads(first: 100) {
+                  nodes {
+                    id
+                    isResolved
+                  }
+                }
+              }
+            }
+          }'
+
+          OWNER=$(echo "$REPO" | cut -d/ -f1)
+          REPO_NAME=$(echo "$REPO" | cut -d/ -f2)
+
+          THREADS=$(gh api graphql -f query="$QUERY" \
+            -f owner="$OWNER" -f repo="$REPO_NAME" -F pr="$PR_NUMBER" \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id' 2>/dev/null || true)
+
+          if [ -z "$THREADS" ]; then
+            echo "No unresolved threads"
+            exit 0
+          fi
+
+          RESOLVED=0
+          echo "$THREADS" | while read -r thread_id; do
+            MUTATION='
+            mutation($threadId: ID!) {
+              resolveReviewThread(input: {threadId: $threadId}) {
+                thread { isResolved }
+              }
+            }'
+
+            if gh api graphql -f query="$MUTATION" -f threadId="$thread_id" >/dev/null 2>&1; then
+              RESOLVED=$((RESOLVED + 1))
+            fi
+          done
+
+          echo "Resolved review thread(s)"
