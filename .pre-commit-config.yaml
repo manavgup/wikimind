@@ -59,9 +59,9 @@ repos:
         always_run: true
         files: ^(Makefile|README\.md)$
 
-      - id: export-openapi
-        name: OpenAPI schema — regenerate docs/openapi.yaml
-        entry: python scripts/export_openapi.py
+      - id: check-openapi
+        name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
+        entry: python scripts/export_openapi.py --check
         language: system
         pass_filenames: false
         files: ^(src/wikimind/api/|src/wikimind/models\.py)

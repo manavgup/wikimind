@@ -300,22 +300,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/random:
-    get:
-      tags:
-      - Wiki
-      summary: Get Random Article
-      description: Return a random article belonging to the current user.
-      operationId: get_random_article_wiki_articles_random_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArticleSummaryResponse'
-        '404':
-          description: No articles found
   /wiki/articles/{id_or_slug}:
     get:
       tags:
