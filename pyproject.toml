@@ -62,7 +62,11 @@ dependencies = [
     "toml>=0.10.2",
     "pyyaml>=6.0",
     "structlog>=24.4.0",
+    "click>=8.1.0",
 ]
+
+[project.scripts]
+wikimind = "wikimind.cli.main:cli"
 
 [project.optional-dependencies]
 pdf = [
