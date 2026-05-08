@@ -457,6 +457,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Wiki
+      summary: Edit Article
+      description: 'Manually edit an article''s content and/or title.
+
+
+        Sets ``manually_edited=True`` so that recompilation respects user edits.
+
+        Only the article owner can edit.'
+      operationId: edit_article_wiki_articles__id_or_slug__patch
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArticleEditRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/graph:
     get:
       tags:
@@ -811,7 +850,14 @@ paths:
       tags:
       - Wiki
       summary: Recompile Article
-      description: Schedule an async recompilation job for an article.
+      description: 'Schedule an async recompilation job for an article.
+
+
+        If the article has been manually edited (``manually_edited=True``),
+
+        returns 409 Conflict unless ``force=true`` is passed. When forced,
+
+        the manual edits flag is cleared before recompilation.'
       operationId: recompile_article_wiki_articles__article_id__recompile_post
       parameters:
       - name: article_id
@@ -828,6 +874,13 @@ paths:
           - type: string
           - type: 'null'
           title: Mode
+      - name: force
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Force
       responses:
         '200':
           description: Successful Response
@@ -835,6 +888,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RecompileResponse'
+        '409':
+          description: Article has manual edits
         '422':
           description: Validation Error
           content:
@@ -2056,6 +2111,23 @@ components:
       - status
       title: ApiKeySetResponse
       description: Response after setting an API key.
+    ArticleEditRequest:
+      properties:
+        content:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Content
+        title:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Title
+      type: object
+      title: ArticleEditRequest
+      description: Request to manually edit an article's content or title.
     ArticleRelationshipsResponse:
       properties:
         incoming:
@@ -2163,6 +2235,16 @@ components:
         page_type:
           $ref: '#/components/schemas/PageType'
           default: source
+        manually_edited:
+          type: boolean
+          title: Manually Edited
+          default: false
+        edited_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Edited At
       type: object
       required:
       - id
@@ -2280,6 +2362,10 @@ components:
           - type: string
           - type: 'null'
           title: User Id
+        manually_edited:
+          type: boolean
+          title: Manually Edited
+          default: false
       type: object
       required:
       - id

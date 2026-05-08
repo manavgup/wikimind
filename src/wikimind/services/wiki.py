@@ -265,6 +265,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         concepts=concepts,
         source_ids=source_ids,
         user_id=article.user_id,
+        manually_edited=article.manually_edited,
     )
 
 
@@ -445,7 +446,72 @@ class WikiService:
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
             updated_at=article.updated_at,
+            manually_edited=article.manually_edited,
+            edited_at=article.edited_at,
         )
+
+    async def edit_article(
+        self,
+        id_or_slug: str,
+        session: AsyncSession,
+        user_id: str,
+        content: str | None = None,
+        title: str | None = None,
+    ) -> ArticleResponse:
+        """Manually edit an article's content and/or title.
+
+        Writes the new content to the article's markdown file and updates
+        the database record. Sets ``manually_edited=True`` and records
+        ``edited_at`` so that recompilation can respect user edits.
+
+        Args:
+            id_or_slug: Article UUID or slug.
+            session: Async database session.
+            user_id: Authenticated user ID (must be the article owner).
+            content: New markdown content (optional).
+            title: New title (optional).
+
+        Returns:
+            Updated :class:`ArticleResponse`.
+
+        Raises:
+            NotFoundError: If the article does not exist for this user.
+        """
+        # No-op: nothing to change — return the article as-is without
+        # poisoning the manually_edited flag.
+        if content is None and title is None:
+            return await self.get_article(id_or_slug, session, user_id=user_id)
+
+        # Look up article by ID first, then slug
+        id_stmt = select(Article).where(Article.id == id_or_slug)
+        id_stmt = id_stmt.where(Article.user_id == user_id)
+        result = await session.execute(id_stmt)
+        article = result.scalar_one_or_none()
+        if article is None:
+            slug_stmt = select(Article).where(Article.slug == id_or_slug)
+            slug_stmt = slug_stmt.where(Article.user_id == user_id)
+            result = await session.execute(slug_stmt)
+            article = result.scalar_one_or_none()
+        if not article:
+            msg = "Article not found"
+            raise NotFoundError(msg)
+
+        now = utcnow_naive()
+
+        if content is not None:
+            storage = get_wiki_storage(user_id)
+            await storage.write(article.file_path, content)
+
+        if title is not None:
+            article.title = title
+
+        article.manually_edited = True
+        article.edited_at = now
+        article.updated_at = now
+        session.add(article)
+        await session.commit()
+
+        return await self.get_article(id_or_slug, session, user_id=user_id)
 
     async def _resolve_article_id(
         self,

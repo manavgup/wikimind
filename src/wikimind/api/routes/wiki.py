@@ -13,6 +13,7 @@ from wikimind.database import get_session
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Article,
+    ArticleEditRequest,
     ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSummaryResponse,
@@ -161,6 +162,32 @@ async def get_article(
 ):
     """Get full article by ID or slug, with content, backlinks, and source provenance."""
     return await service.get_article(id_or_slug, session, user_id=user_id)
+
+
+@router.patch(
+    "/articles/{id_or_slug}",
+    response_model=ArticleResponse,
+    responses={404: {"description": "Article not found"}},
+)
+async def edit_article(
+    id_or_slug: str,
+    body: ArticleEditRequest,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Manually edit an article's content and/or title.
+
+    Sets ``manually_edited=True`` so that recompilation respects user edits.
+    Only the article owner can edit.
+    """
+    return await service.edit_article(
+        id_or_slug,
+        session,
+        user_id=user_id,
+        content=body.content,
+        title=body.title,
+    )
 
 
 @router.get("/graph", response_model=GraphResponse)
@@ -422,14 +449,21 @@ _PAGE_TYPE_TO_MODE = {
 @router.post(
     "/articles/{article_id}/recompile",
     response_model=RecompileResponse,
+    responses={409: {"description": "Article has manual edits"}},
 )
 async def recompile_article(
     article_id: str,
     mode: str | None = Query(default=None),
+    force: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
 ):
-    """Schedule an async recompilation job for an article."""
+    """Schedule an async recompilation job for an article.
+
+    If the article has been manually edited (``manually_edited=True``),
+    returns 409 Conflict unless ``force=true`` is passed. When forced,
+    the manual edits flag is cleared before recompilation.
+    """
     if mode is not None and mode not in _VALID_RECOMPILE_MODES:
         raise HTTPException(
             status_code=422,
@@ -439,6 +473,19 @@ async def recompile_article(
     article = await session.get(Article, article_id)
     if article is None:
         raise HTTPException(status_code=404, detail="Article not found")
+
+    if article.manually_edited and not force:
+        raise HTTPException(
+            status_code=409,
+            detail="Article has manual edits. Use force=true to overwrite.",
+        )
+
+    # Clear manual edit flag when force-recompiling
+    if article.manually_edited and force:
+        article.manually_edited = False
+        article.edited_at = None
+        session.add(article)
+        await session.commit()
 
     effective_mode = mode or _PAGE_TYPE_TO_MODE.get(PageType(article.page_type), "source")
 
