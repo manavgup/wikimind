@@ -200,6 +200,7 @@ class LinterConfig(BaseModel):
     contradiction_batch_enabled: bool = True
     contradiction_batch_size: int = 10
     max_concept_concurrency: int = 5
+    auto_recompile_on_contradiction: bool = True
 
 
 class EmbeddingConfig(BaseModel):
