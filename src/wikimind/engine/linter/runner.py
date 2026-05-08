@@ -3,6 +3,11 @@
 The top-level ``run_lint`` function creates a ``LintReport``, dispatches
 each check, persists findings, updates the report, and emits a WebSocket
 event on completion.
+
+When new contradictions are detected, the runner can automatically queue
+recompile jobs for the affected articles so they incorporate the
+conflicting perspective. Controlled by
+``Settings.linter.auto_recompile_on_contradiction`` (default True).
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import emit_linter_alert
 from wikimind.config import get_settings
+from wikimind.database import get_session_factory
 from wikimind.engine.backlink_enforcer import enforce_backlinks
 from wikimind.engine.linter.contradictions import detect_contradictions
 from wikimind.engine.linter.orphans import detect_orphans
@@ -26,6 +32,9 @@ from wikimind.models import (
     Article,
     ContradictionFinding,
     DismissedFinding,
+    Job,
+    JobStatus,
+    JobType,
     LintFindingKind,
     LintReport,
     LintReportStatus,
@@ -132,6 +141,97 @@ async def _check_in_progress(
     return result.scalars().first()
 
 
+async def _snapshot_existing_contradiction_hashes(
+    session: AsyncSession,
+    user_id: str,
+) -> set[str]:
+    """Return content_hashes of all existing ContradictionFinding rows for the user.
+
+    Used before a lint run to distinguish genuinely new contradictions
+    (content_hash not in snapshot) from re-detected ones.
+    """
+    result = await session.execute(
+        select(ContradictionFinding.content_hash).where(
+            ContradictionFinding.user_id == user_id,
+        )
+    )
+    return {row[0] for row in result.all()}
+
+
+async def _queue_recompile_for_new_contradictions(
+    new_findings: list[ContradictionFinding],
+    existing_hashes: set[str],
+    user_id: str,
+) -> int:
+    """Queue recompile jobs for articles affected by genuinely new contradictions.
+
+    Only contradictions whose ``content_hash`` is NOT in ``existing_hashes``
+    trigger a recompile. This prevents recompile loops: a lint run after
+    recompilation will re-detect the same contradiction, but its hash will
+    already exist so no further recompile is queued.
+
+    Args:
+        new_findings: Active (non-dismissed) contradiction findings from
+            the current lint run.
+        existing_hashes: Content hashes from the pre-lint snapshot.
+        user_id: User ID for job scoping.
+
+    Returns:
+        Number of recompile jobs queued.
+    """
+    # Lazy import to break circular dependency:
+    # runner -> background -> worker -> runner
+    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415
+
+    # Collect unique article IDs that need recompilation
+    article_ids_to_recompile: set[str] = set()
+    for finding in new_findings:
+        if finding.content_hash not in existing_hashes:
+            article_ids_to_recompile.add(finding.article_a_id)
+            article_ids_to_recompile.add(finding.article_b_id)
+
+    if not article_ids_to_recompile:
+        return 0
+
+    bg = get_background_compiler()
+    queued = 0
+
+    async with get_session_factory()() as job_session:
+        for article_id in article_ids_to_recompile:
+            try:
+                job = Job(
+                    job_type=JobType.RECOMPILE_ARTICLE,
+                    status=JobStatus.QUEUED,
+                    source_id=article_id,
+                    user_id=user_id,
+                )
+                job_session.add(job)
+                await job_session.commit()
+                await job_session.refresh(job)
+
+                await bg.schedule_recompile(
+                    article_id=article_id,
+                    mode="source",
+                    job_id=job.id,
+                    user_id=user_id,
+                )
+                queued += 1
+                log.info(
+                    "Auto-recompile queued for contradiction",
+                    article_id=article_id,
+                    job_id=job.id,
+                    user_id=user_id,
+                )
+            except Exception:  # Intentional broad catch — scheduling must not crash lint
+                log.warning(
+                    "Failed to queue auto-recompile",
+                    article_id=article_id,
+                    exc_info=True,
+                )
+
+    return queued
+
+
 async def run_lint(
     session: AsyncSession,
     user_id: str,
@@ -154,6 +254,10 @@ async def run_lint(
     if in_progress:
         log.info("Lint run already in progress", report_id=in_progress.id)
         return in_progress
+
+    # Snapshot existing contradiction hashes BEFORE the run so we can
+    # distinguish genuinely new contradictions from re-detected ones.
+    existing_contradiction_hashes = await _snapshot_existing_contradiction_hashes(session, user_id)
 
     # Snapshot article count (scoped to user)
     count_stmt = select(func.count()).select_from(Article).where(Article.user_id == user_id)
@@ -253,6 +357,20 @@ async def run_lint(
             article_titles: list[str] = [c.description for c in contradictions if not c.dismissed]
             if article_titles:
                 await emit_linter_alert("contradiction", article_titles, user_id=user_id)
+
+        # Phase 4: Auto-recompile articles affected by NEW contradictions
+        if active_contradictions and settings.linter.auto_recompile_on_contradiction:
+            queued = await _queue_recompile_for_new_contradictions(
+                active_contradictions,
+                existing_contradiction_hashes,
+                user_id=user_id,
+            )
+            if queued:
+                log.info(
+                    "Auto-recompile jobs queued for new contradictions",
+                    queued=queued,
+                    user_id=user_id,
+                )
 
     except Exception as e:  # Intentional broad catch — job runner must not crash
         log.exception("Lint run failed", error=str(e))
