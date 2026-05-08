@@ -2329,6 +2329,11 @@ components:
           - type: string
           - type: 'null'
           title: Filed Article Id
+        crystallized_article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Crystallized Article Id
         parent_conversation_id:
           anyOf:
           - type: string
@@ -2372,6 +2377,11 @@ components:
           - type: string
           - type: 'null'
           title: Filed Article Id
+        crystallized_article_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Crystallized Article Id
         parent_conversation_id:
           anyOf:
           - type: string
