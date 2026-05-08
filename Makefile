@@ -219,10 +219,10 @@ security: bandit vulture ## Run security and dead-code checks
 
 .PHONY: update-secrets-baseline
 update-secrets-baseline: ## Update detect-secrets baseline (keeps line numbers in sync)
-	@detect-secrets scan --baseline .secrets.baseline >/dev/null 2>&1 || true
+	@$(PYTHON) scripts/update_secrets_baseline.py
 
 .PHONY: verify
-verify: lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify update-secrets-baseline ## Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync)
+verify: update-secrets-baseline export-openapi check-docs check-doc-sync lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension + doc-sync)
 
 .PHONY: coverage-ci
 coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outputs
