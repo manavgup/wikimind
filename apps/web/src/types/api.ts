@@ -52,6 +52,12 @@ export interface Source {
   has_original: boolean;
 }
 
+export interface SourceContentResponse {
+  content: string;
+  source_type: SourceType;
+  title: string | null;
+}
+
 export interface Article {
   id: string;
   slug: string;

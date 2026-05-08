@@ -883,6 +883,15 @@ class SourceResponse(BaseModel):
     ingested_at: datetime
 
 
+class SourceContentResponse(BaseModel):
+    """Raw text content of an ingested source for side-by-side reading."""
+
+    content: str
+    source_type: SourceType
+    title: str | None
+    truncated: bool = False
+
+
 class ArticleSourceSummary(BaseModel):
     """Minimal source descriptor returned with listing/search endpoints.
 

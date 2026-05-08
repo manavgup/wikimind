@@ -189,6 +189,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /ingest/sources/{source_id}/content:
+    get:
+      tags:
+      - Ingest
+      summary: Get Source Content
+      description: Return the raw text content of a source for side-by-side reading.
+      operationId: get_source_content_ingest_sources__source_id__content_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceContentResponse'
+        '404':
+          description: Source not found or has no content
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /ingest/sources/{source_id}/original:
     get:
       tags:
@@ -4020,6 +4049,29 @@ components:
       - has_original
       title: Source
       description: Raw ingested source — before compilation.
+    SourceContentResponse:
+      properties:
+        content:
+          type: string
+          title: Content
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        truncated:
+          type: boolean
+          title: Truncated
+          default: false
+      type: object
+      required:
+      - content
+      - source_type
+      - title
+      title: SourceContentResponse
+      description: Raw text content of an ingested source for side-by-side reading.
     SourceResponse:
       properties:
         id:

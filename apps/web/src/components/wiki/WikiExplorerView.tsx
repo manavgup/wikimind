@@ -11,6 +11,7 @@ import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
 import { FiguresPanel } from "./FiguresPanel";
 import { SearchBar } from "./SearchBar";
+import { SourcePanel } from "./SourcePanel";
 
 export function WikiExplorerView() {
   const params = useParams<{ slug?: string }>();
@@ -20,6 +21,10 @@ export function WikiExplorerView() {
   const [activeConcept, setActiveConcept] = useState<string | null>(null);
   const [figureCount, setFigureCount] = useState(0);
   const navigate = useNavigate();
+  const [showSources, setShowSources] = useState(false);
+
+  const hasSources =
+    articleQuery.data?.sources && articleQuery.data.sources.length > 0;
 
   const handleRandomArticle = async () => {
     try {
@@ -63,11 +68,43 @@ export function WikiExplorerView() {
             </svg>
             Random
           </button>
+          {slug && hasSources && (
+            <button
+              onClick={() => setShowSources((prev) => !prev)}
+              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                showSources
+                  ? "border-brand-300 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+              aria-label={showSources ? "Hide sources" : "Show sources"}
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+                />
+              </svg>
+              Sources
+            </button>
+          )}
         </div>
       </header>
 
       {slug ? (
-        <div className="grid flex-1 grid-cols-[15rem_1fr_15rem] overflow-hidden">
+        <div
+          className={`grid flex-1 overflow-hidden ${
+            showSources
+              ? "grid-cols-[15rem_1fr_22rem]"
+              : "grid-cols-[15rem_1fr_15rem]"
+          }`}
+        >
           <aside className="overflow-y-auto border-r border-slate-200 bg-white">
             <ConceptTree
               activeConcept={activeConcept}
@@ -101,7 +138,12 @@ export function WikiExplorerView() {
           </section>
 
           <aside className="overflow-y-auto border-l border-slate-200 bg-white">
-            {articleQuery.data ? (
+            {showSources && articleQuery.data?.sources ? (
+              <SourcePanel
+                sources={articleQuery.data.sources}
+                onClose={() => setShowSources(false)}
+              />
+            ) : articleQuery.data ? (
               <div className="flex h-full flex-col">
                 <div className="border-b border-slate-200 px-4">
                   <ArticleOutline content={articleQuery.data.content ?? ""} />
