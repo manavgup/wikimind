@@ -6,22 +6,26 @@ Exposes four tools to MCP clients (Claude Desktop, Cursor, etc.):
   - wiki_ask:          ask a question against the wiki (Q&A agent)
   - wiki_list_sources: list ingested sources
 
-The server runs in stdio mode for local use. A config snippet for
-Claude Desktop is printed on startup.
+The server supports stdio (default) and HTTP transports.
 
 Usage:
     wikimind mcp serve
+    wikimind mcp serve --transport http --port 9100
     python -m wikimind.mcp.server
 """
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
+import logging
+import sys
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from pydantic import Field
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import get_settings
@@ -33,6 +37,16 @@ from wikimind.services.wiki import WikiService
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+# ---------------------------------------------------------------------------
+# Logging — stderr so it does not interfere with stdio transport
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)],
+)
 
 log = structlog.get_logger()
 
@@ -96,16 +110,11 @@ async def _get_session():
         "articles on a topic before reading the full content."
     ),
 )
-async def wiki_search(query: str, limit: int = 10) -> str:
-    """Search wiki articles by keyword query.
-
-    Args:
-        query: Search query string (minimum 2 characters).
-        limit: Maximum number of results to return (default 10, max 50).
-
-    Returns:
-        JSON array of matching articles with id, slug, title, and summary.
-    """
+async def wiki_search(
+    query: str = Field(..., description="Search query string (minimum 2 characters)"),
+    limit: int = Field(10, description="Maximum results to return (max 50)"),
+) -> str:
+    """Search wiki articles by keyword query."""
     limit = min(max(1, limit), 50)
     if len(query.strip()) < 2:
         return json.dumps({"error": "Query must be at least 2 characters"})
@@ -148,15 +157,10 @@ async def wiki_search(query: str, limit: int = 10) -> str:
         "Use wiki_search first to find the article ID."
     ),
 )
-async def wiki_get_article(id_or_slug: str) -> str:
-    """Retrieve a full wiki article by ID or slug.
-
-    Args:
-        id_or_slug: Article UUID or URL slug.
-
-    Returns:
-        JSON object with article title, content (markdown), sources, and metadata.
-    """
+async def wiki_get_article(
+    id_or_slug: str = Field(..., description="Article UUID or URL slug"),
+) -> str:
+    """Retrieve a full wiki article by ID or slug."""
     wiki_service = WikiService()
     async with _get_session() as session:
         try:
@@ -207,15 +211,10 @@ async def wiki_get_article(id_or_slug: str) -> str:
         "that span multiple articles."
     ),
 )
-async def wiki_ask(question: str) -> str:
-    """Ask a question and get an answer from the wiki.
-
-    Args:
-        question: The question to ask against the wiki knowledge base.
-
-    Returns:
-        JSON object with the answer, confidence, and cited article titles.
-    """
+async def wiki_ask(
+    question: str = Field(..., description="The question to ask against the wiki knowledge base"),
+) -> str:
+    """Ask a question and get an answer from the wiki."""
     if not question.strip():
         return json.dumps({"error": "Question cannot be empty"})
 
@@ -264,18 +263,10 @@ async def wiki_ask(question: str) -> str:
     ),
 )
 async def wiki_list_sources(
-    status: str | None = None,
-    limit: int = 20,
+    status: str | None = Field(None, description="Optional status filter (e.g. 'compiled', 'pending')"),
+    limit: int = Field(20, description="Maximum number of results (default 20, max 100)"),
 ) -> str:
-    """List ingested sources with optional status filtering.
-
-    Args:
-        status: Optional status filter (e.g. 'compiled', 'pending').
-        limit: Maximum number of results (default 20, max 100).
-
-    Returns:
-        JSON array of sources with id, type, title, URL, and ingestion date.
-    """
+    """List ingested sources with optional status filtering."""
     limit = min(max(1, limit), 100)
     ingest_service = IngestService()
 
@@ -309,8 +300,20 @@ async def wiki_list_sources(
 
 
 def run_server() -> None:
-    """Run the WikiMind MCP server over stdio transport."""
-    mcp.run(transport="stdio")
+    """Run the WikiMind MCP server.
+
+    Supports stdio (default) and HTTP transports via --transport flag.
+    """
+    parser = argparse.ArgumentParser(description="WikiMind MCP Server")
+    parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=9100)
+    args = parser.parse_args()
+
+    if args.transport == "http":
+        mcp.run(transport="http", host=args.host, port=args.port)
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

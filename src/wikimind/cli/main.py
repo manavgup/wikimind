@@ -49,11 +49,19 @@ def mcp() -> None:
 
 
 @mcp.command()
-def serve() -> None:
-    r"""Start the WikiMind MCP server (stdio transport).
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "http"]),
+    default="stdio",
+    help="Transport protocol (default: stdio).",
+)
+@click.option("--host", default="127.0.0.1", help="Host for HTTP transport (default: 127.0.0.1).")
+@click.option("--port", type=int, default=9100, help="Port for HTTP transport (default: 9100).")
+def serve(transport: str, host: str, port: int) -> None:
+    r"""Start the WikiMind MCP server.
 
-    Runs the MCP server over stdin/stdout so MCP clients like
-    Claude Desktop or Cursor can connect to the wiki.
+    Runs the MCP server over stdin/stdout (default) or HTTP so MCP
+    clients like Claude Desktop or Cursor can connect to the wiki.
 
     Add this to your Claude Desktop config (claude_desktop_config.json):
 
@@ -69,6 +77,8 @@ def serve() -> None:
     """
     from wikimind.mcp.server import run_server  # noqa: PLC0415
 
+    # Build sys.argv so argparse in run_server() picks up the options.
+    sys.argv = ["wikimind-mcp", "--transport", transport, "--host", host, "--port", str(port)]
     run_server()
 
 

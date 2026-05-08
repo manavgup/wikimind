@@ -57,7 +57,7 @@ dependencies = [
     "gunicorn>=22.0.0",
 
     # MCP (Model Context Protocol)
-    "mcp>=1.0.0",
+    "fastmcp>=3.0.2",
 
     # Utilities
     "python-slugify>=8.0.4",

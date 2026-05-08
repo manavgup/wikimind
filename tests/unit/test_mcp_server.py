@@ -258,7 +258,9 @@ class TestMCPCli:
         runner = CliRunner()
         result = runner.invoke(cli, ["mcp", "serve", "--help"])
         assert result.exit_code == 0
+        assert "transport" in result.output
         assert "stdio" in result.output
+        assert "http" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -276,22 +278,22 @@ class TestMCPServerRegistration:
         assert mcp_server.instructions is not None
         assert "WikiMind" in mcp_server.instructions
 
-    def test_server_lists_tools(self):
-        tools = mcp_server._tool_manager.list_tools()
+    async def test_server_lists_tools(self):
+        tools = await mcp_server.list_tools()
         tool_names = {t.name for t in tools}
         assert "wiki_search" in tool_names
         assert "wiki_get_article" in tool_names
         assert "wiki_ask" in tool_names
         assert "wiki_list_sources" in tool_names
 
-    def test_tool_descriptions_present(self):
-        tools = mcp_server._tool_manager.list_tools()
+    async def test_tool_descriptions_present(self):
+        tools = await mcp_server.list_tools()
         for tool in tools:
             assert tool.description, f"Tool {tool.name} missing description"
             assert len(tool.description) > 20, f"Tool {tool.name} description too short"
 
-    def test_tool_schemas_have_parameters(self):
-        tools = mcp_server._tool_manager.list_tools()
+    async def test_tool_schemas_have_parameters(self):
+        tools = await mcp_server.list_tools()
         tools_by_name = {t.name: t for t in tools}
 
         # wiki_search should have query and limit params
@@ -305,3 +307,16 @@ class TestMCPServerRegistration:
         # wiki_ask should have question param
         ask_schema = tools_by_name["wiki_ask"].parameters
         assert "question" in ask_schema.get("properties", {})
+
+    async def test_tool_parameter_descriptions_present(self):
+        """Verify that Field-based parameter descriptions are exposed in schemas."""
+        tools = await mcp_server.list_tools()
+        tools_by_name = {t.name: t for t in tools}
+
+        # wiki_search query param should have a description from Field()
+        search_props = tools_by_name["wiki_search"].parameters.get("properties", {})
+        assert "description" in search_props.get("query", {}), "query param missing Field description"
+
+        # wiki_get_article id_or_slug param should have a description
+        article_props = tools_by_name["wiki_get_article"].parameters.get("properties", {})
+        assert "description" in article_props.get("id_or_slug", {}), "id_or_slug param missing Field description"
