@@ -4061,6 +4061,10 @@ components:
           - type: string
           - type: 'null'
           title: Title
+        truncated:
+          type: boolean
+          title: Truncated
+          default: false
       type: object
       required:
       - content
