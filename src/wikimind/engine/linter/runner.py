@@ -232,6 +232,84 @@ async def _queue_recompile_for_new_contradictions(
     return queued
 
 
+async def _persist_and_finalize(
+    session: AsyncSession,
+    report: LintReport,
+    contradictions: list,
+    orphans: list,
+    structurals: list,
+    existing_contradiction_hashes: set,
+    settings: object,
+    user_id: str,
+) -> None:
+    """Persist findings, update report counts, emit alerts, and trigger recompile."""
+    for cf in contradictions:
+        session.add(cf)
+    for of in orphans:
+        session.add(of)
+    for sf in structurals:
+        session.add(sf)
+
+    active_contradictions = [c for c in contradictions if not c.dismissed]
+    active_orphans = [o for o in orphans if not o.dismissed]
+    active_structurals = [s for s in structurals if not s.dismissed]
+
+    contradiction_service = get_contradiction_service()
+    for cf in active_contradictions:
+        contradiction = await contradiction_service.create_from_finding(
+            session,
+            claim_a=cf.article_a_claim,
+            claim_b=cf.article_b_claim,
+            article_a_id=cf.article_a_id,
+            article_b_id=cf.article_b_id,
+            source_finding_id=cf.id,
+            user_id=user_id,
+        )
+        cf.contradiction_id = contradiction.id
+
+    dismissed = (
+        (len(contradictions) - len(active_contradictions))
+        + (len(orphans) - len(active_orphans))
+        + (len(structurals) - len(active_structurals))
+    )
+
+    report.status = LintReportStatus.COMPLETE
+    report.completed_at = utcnow_naive()
+    report.contradictions_count = len(active_contradictions)
+    report.orphans_count = len(active_orphans)
+    report.structural_count = len(active_structurals)
+    report.total_findings = len(active_contradictions) + len(active_orphans) + len(active_structurals)
+    report.dismissed_count = dismissed
+    session.add(report)
+    await session.commit()
+
+    log.info(
+        "Lint run complete",
+        report_id=report.id,
+        contradictions=len(contradictions),
+        orphans=len(orphans),
+        structurals=len(structurals),
+    )
+
+    if contradictions:
+        article_titles: list[str] = [c.description for c in contradictions if not c.dismissed]
+        if article_titles:
+            await emit_linter_alert("contradiction", article_titles, user_id=user_id)
+
+    if active_contradictions and settings.linter.auto_recompile_on_contradiction:
+        queued = await _queue_recompile_for_new_contradictions(
+            active_contradictions,
+            existing_contradiction_hashes,
+            user_id=user_id,
+        )
+        if queued:
+            log.info(
+                "Auto-recompile jobs queued for new contradictions",
+                queued=queued,
+                user_id=user_id,
+            )
+
+
 async def run_lint(
     session: AsyncSession,
     user_id: str,
@@ -302,75 +380,10 @@ async def run_lint(
         # Apply dismiss suppression
         await _apply_dismiss_suppression(session, contradictions, orphans, structurals)
 
-        # Persist findings
-        for cf in contradictions:
-            session.add(cf)
-        for of in orphans:
-            session.add(of)
-        for sf in structurals:
-            session.add(sf)
-
-        # Update report — count only active (non-dismissed) findings
-        active_contradictions = [c for c in contradictions if not c.dismissed]
-        active_orphans = [o for o in orphans if not o.dismissed]
-        active_structurals = [s for s in structurals if not s.dismissed]
-
-        # Persist active contradictions as navigable wiki content and link back
-        contradiction_service = get_contradiction_service()
-        for cf in active_contradictions:
-            contradiction = await contradiction_service.create_from_finding(
-                session,
-                claim_a=cf.article_a_claim,
-                claim_b=cf.article_b_claim,
-                article_a_id=cf.article_a_id,
-                article_b_id=cf.article_b_id,
-                source_finding_id=cf.id,
-                user_id=user_id,
-            )
-            cf.contradiction_id = contradiction.id
-        dismissed = (
-            (len(contradictions) - len(active_contradictions))
-            + (len(orphans) - len(active_orphans))
-            + (len(structurals) - len(active_structurals))
+        await _persist_and_finalize(
+            session, report, contradictions, orphans, structurals,
+            existing_contradiction_hashes, settings, user_id,
         )
-
-        report.status = LintReportStatus.COMPLETE
-        report.completed_at = utcnow_naive()
-        report.contradictions_count = len(active_contradictions)
-        report.orphans_count = len(active_orphans)
-        report.structural_count = len(active_structurals)
-        report.total_findings = len(active_contradictions) + len(active_orphans) + len(active_structurals)
-        report.dismissed_count = dismissed
-        session.add(report)
-        await session.commit()
-
-        log.info(
-            "Lint run complete",
-            report_id=report.id,
-            contradictions=len(contradictions),
-            orphans=len(orphans),
-            structurals=len(structurals),
-        )
-
-        # Emit WebSocket alert
-        if contradictions:
-            article_titles: list[str] = [c.description for c in contradictions if not c.dismissed]
-            if article_titles:
-                await emit_linter_alert("contradiction", article_titles, user_id=user_id)
-
-        # Phase 4: Auto-recompile articles affected by NEW contradictions
-        if active_contradictions and settings.linter.auto_recompile_on_contradiction:
-            queued = await _queue_recompile_for_new_contradictions(
-                active_contradictions,
-                existing_contradiction_hashes,
-                user_id=user_id,
-            )
-            if queued:
-                log.info(
-                    "Auto-recompile jobs queued for new contradictions",
-                    queued=queued,
-                    user_id=user_id,
-                )
 
     except Exception as e:  # Intentional broad catch — job runner must not crash
         log.exception("Lint run failed", error=str(e))
