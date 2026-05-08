@@ -55,7 +55,7 @@ def main() -> int:
     # Use the relative filename so detect-secrets stores a portable path
     # in its filters_used entry (avoids absolute-path drift in worktrees).
     subprocess.run(
-        ["detect-secrets", "scan", "--baseline", BASELINE_NAME],
+        [*_detect_secrets_cmd(), "scan", "--baseline", BASELINE_NAME],
         cwd=REPO_ROOT,
         check=False,
     )
