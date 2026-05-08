@@ -115,8 +115,12 @@ class ContradictionService:
 
         contradiction.status = new_status
         contradiction.resolution = resolution
-        contradiction.resolved_at = utcnow_naive()
-        contradiction.resolved_by = user_id
+        if new_status != ContradictionStatus.ACTIVE:
+            contradiction.resolved_at = utcnow_naive()
+            contradiction.resolved_by = user_id
+        else:
+            contradiction.resolved_at = None
+            contradiction.resolved_by = None
         session.add(contradiction)
         await session.commit()
         await session.refresh(contradiction)

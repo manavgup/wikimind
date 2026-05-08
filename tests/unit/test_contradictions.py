@@ -317,3 +317,68 @@ async def test_api_resolve_nonexistent_contradiction(client) -> None:
         json={"status": "resolved", "resolution": "test"},
     )
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Cross-user isolation tests
+# ---------------------------------------------------------------------------
+
+OTHER_USER_ID = "other-user"
+
+
+async def _seed_other_user_contradiction(factory) -> None:
+    """Seed articles and a contradiction owned by OTHER_USER_ID."""
+    async with factory() as session:
+        session.add(
+            Article(
+                id="other-a1",
+                slug="other-art-a",
+                title="Other Article A",
+                file_path="/tmp/oa.md",
+                user_id=OTHER_USER_ID,
+            )
+        )
+        session.add(
+            Article(
+                id="other-a2",
+                slug="other-art-b",
+                title="Other Article B",
+                file_path="/tmp/ob.md",
+                user_id=OTHER_USER_ID,
+            )
+        )
+        session.add(
+            Contradiction(
+                id="other-ctr1",
+                claim_a="Claim X",
+                claim_b="Claim Y",
+                article_a_id="other-a1",
+                article_b_id="other-a2",
+                status=ContradictionStatus.ACTIVE,
+                user_id=OTHER_USER_ID,
+            )
+        )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_api_get_contradiction_cross_user_returns_404(client, async_engine) -> None:
+    """GET another user's contradiction returns 404 — not leaked."""
+    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    await _seed_other_user_contradiction(factory)
+
+    response = await client.get("/wiki/contradictions/other-ctr1")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_api_patch_contradiction_cross_user_returns_404(client, async_engine) -> None:
+    """PATCH another user's contradiction returns 404 — not modifiable."""
+    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    await _seed_other_user_contradiction(factory)
+
+    response = await client.patch(
+        "/wiki/contradictions/other-ctr1",
+        json={"status": "resolved", "resolution": "hijack attempt"},
+    )
+    assert response.status_code == 404
