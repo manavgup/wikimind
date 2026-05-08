@@ -19,7 +19,7 @@ from wikimind.api.routes.auth import (
     _generate_oauth_state,
 )
 from wikimind.config import get_settings
-from wikimind.models import User
+from wikimind.models import OAuthUserInfo, User
 from wikimind.services.user import UserService
 
 _service = UserService()
@@ -271,12 +271,12 @@ async def test_auth_me_returns_401_when_auth_enabled_no_token(client, monkeypatc
 @pytest.mark.asyncio
 async def test_upsert_user_creates_new_user(db_session: AsyncSession):
     """First login should create a new User record."""
-    user_info = {
-        "id": "google-id-1",
-        "email": "new@example.com",
-        "name": "New User",
-        "picture": "https://example.com/pic.jpg",
-    }
+    user_info = OAuthUserInfo(
+        id="google-id-1",
+        email="new@example.com",
+        name="New User",
+        picture="https://example.com/pic.jpg",
+    )
     user = await _service.upsert_oauth_user(db_session, "google", user_info)
     assert user.email == "new@example.com"
     assert user.auth_provider == "google"
@@ -286,17 +286,21 @@ async def test_upsert_user_creates_new_user(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_upsert_user_updates_existing_user(db_session: AsyncSession):
     """Re-login should update the existing User record."""
-    user_info = {
-        "id": "google-id-2",
-        "email": "existing@example.com",
-        "name": "Old Name",
-        "picture": None,
-    }
+    user_info = OAuthUserInfo(
+        id="google-id-2",
+        email="existing@example.com",
+        name="Old Name",
+        picture=None,
+    )
     user1 = await _service.upsert_oauth_user(db_session, "google", user_info)
 
-    user_info["name"] = "New Name"
-    user_info["picture"] = "https://example.com/new.jpg"
-    user2 = await _service.upsert_oauth_user(db_session, "google", user_info)
+    user_info_updated = OAuthUserInfo(
+        id="google-id-2",
+        email="existing@example.com",
+        name="New Name",
+        picture="https://example.com/new.jpg",
+    )
+    user2 = await _service.upsert_oauth_user(db_session, "google", user_info_updated)
 
     assert user1.id == user2.id
     assert user2.name == "New Name"

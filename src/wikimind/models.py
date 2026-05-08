@@ -8,7 +8,7 @@ Pydantic models carry data through the ingest → compile → query pipeline.
 import uuid
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, computed_field
 from sqlalchemy import Column, String, UniqueConstraint
@@ -1539,3 +1539,112 @@ class SavedSearchExecuteResponse(BaseModel):
 
     saved_search: SavedSearchResponse
     articles: list[ArticleSummaryResponse]
+
+
+# ---------------------------------------------------------------------------
+# Typed return models for public service/route functions (issue #394)
+# ---------------------------------------------------------------------------
+
+
+class OAuthTokenResponse(BaseModel):
+    """OAuth token exchange response from an external provider.
+
+    Contains at minimum an ``access_token`` field. Additional fields
+    vary by provider (e.g. ``token_type``, ``scope``, ``id_token``).
+    """
+
+    model_config = {"extra": "allow"}
+
+    access_token: str
+    token_type: str | None = None
+    scope: str | None = None
+
+
+class OAuthUserInfo(BaseModel):
+    """User profile from an OAuth provider (Google or GitHub).
+
+    Only ``id`` is guaranteed; other fields may be absent depending
+    on the provider and scopes.
+    """
+
+    model_config = {"extra": "allow"}
+
+    id: int | str
+    email: str | None = None
+    name: str | None = None
+    login: str | None = None
+    picture: str | None = None
+    avatar_url: str | None = None
+
+
+class UserProfileResponse(BaseModel):
+    """Public user profile returned by GET /auth/me."""
+
+    id: str
+    email: str | None = None
+    name: str | None = None
+    avatar_url: str | None = None
+
+
+class DeleteAccountResponse(BaseModel):
+    """Confirmation of account deletion."""
+
+    deleted: str
+
+
+class FTSResultItem(BaseModel):
+    """A single full-text search result from the FTS index (internal)."""
+
+    article_id: str
+    slug: str
+    title: str
+    snippet: str
+    rank: float
+
+
+class FTSResponse(NamedTuple):
+    """Result of a full-text search query: paginated results and total count."""
+
+    results: list[FTSResultItem]
+    total: int
+
+
+class WikiHealthReport(BaseModel):
+    """Health report returned by WikiService.get_health.
+
+    Uses ``extra="allow"`` because the on-disk ``health.json`` may contain
+    additional fields written by different linter versions.
+    """
+
+    model_config = {"extra": "allow"}
+
+    generated_at: datetime | None = None
+    total_articles: int = 0
+    total_sources: int = 0
+    total_findings: int | None = None
+    contradictions_count: int | None = None
+    orphans_count: int | None = None
+    status: str | None = None
+    message: str | None = None
+
+
+class QAResult(NamedTuple):
+    """Result of a Q&A answer call: query row, conversation, and optional score."""
+
+    query: "Query"
+    conversation: "Conversation"
+    wiki_worthiness_score: WikiWorthinessScore | None
+
+
+class FileBackArticlePair(NamedTuple):
+    """Result of filing a conversation back to the wiki."""
+
+    article: "Article"
+    is_update: bool
+
+
+class ResolvedBacklinks(NamedTuple):
+    """Result of resolving wikilink candidates against the article table."""
+
+    resolved: list[Any]  # list[ResolvedBacklink] — avoids circular import
+    unresolved: list[str]

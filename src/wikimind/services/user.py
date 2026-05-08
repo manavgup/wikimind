@@ -32,6 +32,8 @@ from wikimind.models import (
     CostLog,
     Job,
     LintReport,
+    OAuthTokenResponse,
+    OAuthUserInfo,
     OrphanFinding,
     Query,
     Source,
@@ -50,7 +52,7 @@ class UserService:
     # OAuth token exchange
     # ------------------------------------------------------------------
 
-    async def exchange_google_token(self, code: str, settings: Settings, redirect_uri: str) -> dict:
+    async def exchange_google_token(self, code: str, settings: Settings, redirect_uri: str) -> OAuthTokenResponse:
         """Exchange a Google authorization code for an access token."""
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -64,9 +66,9 @@ class UserService:
                 },
             )
             resp.raise_for_status()
-            return resp.json()
+            return OAuthTokenResponse(**resp.json())
 
-    async def exchange_github_token(self, code: str, settings: Settings) -> dict:
+    async def exchange_github_token(self, code: str, settings: Settings) -> OAuthTokenResponse:
         """Exchange a GitHub authorization code for an access token."""
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -79,13 +81,13 @@ class UserService:
                 headers={"Accept": "application/json"},
             )
             resp.raise_for_status()
-            return resp.json()
+            return OAuthTokenResponse(**resp.json())
 
     # ------------------------------------------------------------------
     # OAuth user info
     # ------------------------------------------------------------------
 
-    async def fetch_google_userinfo(self, access_token: str) -> dict:
+    async def fetch_google_userinfo(self, access_token: str) -> OAuthUserInfo:
         """Fetch the authenticated user's profile from Google."""
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -93,9 +95,9 @@ class UserService:
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             resp.raise_for_status()
-            return resp.json()
+            return OAuthUserInfo(**resp.json())
 
-    async def fetch_github_userinfo(self, access_token: str) -> dict:
+    async def fetch_github_userinfo(self, access_token: str) -> OAuthUserInfo:
         """Fetch the authenticated user's profile from GitHub.
 
         GitHub's ``/user`` endpoint may not include a public email, so we
@@ -108,23 +110,23 @@ class UserService:
         async with httpx.AsyncClient() as client:
             user_resp = await client.get("https://api.github.com/user", headers=headers)
             user_resp.raise_for_status()
-            user_data = user_resp.json()
+            user_data: dict[str, str | int | None] = user_resp.json()
 
             if not user_data.get("email"):
                 email_resp = await client.get("https://api.github.com/user/emails", headers=headers)
                 email_resp.raise_for_status()
-                emails = email_resp.json()
+                emails: list[dict[str, str | bool]] = email_resp.json()
                 primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
                 if primary:
                     user_data["email"] = primary["email"]
 
-            return user_data
+            return OAuthUserInfo(**user_data)
 
     # ------------------------------------------------------------------
     # User upsert + JWT creation
     # ------------------------------------------------------------------
 
-    async def upsert_oauth_user(self, session: AsyncSession, provider: str, user_info: dict) -> User:
+    async def upsert_oauth_user(self, session: AsyncSession, provider: str, user_info: OAuthUserInfo) -> User:
         """Find or create a user from OAuth provider info.
 
         Looks up by ``(auth_provider, auth_provider_id)`` first, then falls
@@ -135,21 +137,21 @@ class UserService:
         Args:
             session: Async database session.
             provider: OAuth provider name (``"google"`` or ``"github"``).
-            user_info: User profile dict from the provider API.
+            user_info: Typed user profile from the provider API.
 
         Returns:
             The existing or newly created User record.
         """
         if provider == "google":
-            provider_id = str(user_info["id"])
-            email = user_info["email"]
-            name = user_info.get("name")
-            avatar_url = user_info.get("picture")
+            provider_id = str(user_info.id)
+            email = user_info.email
+            name = user_info.name
+            avatar_url = user_info.picture
         else:
-            provider_id = str(user_info["id"])
-            email = user_info["email"]
-            name = user_info.get("name") or user_info.get("login")
-            avatar_url = user_info.get("avatar_url")
+            provider_id = str(user_info.id)
+            email = user_info.email
+            name = user_info.name or user_info.login
+            avatar_url = user_info.avatar_url
 
         result = await session.execute(
             select(User).where(User.auth_provider == provider, User.auth_provider_id == provider_id)

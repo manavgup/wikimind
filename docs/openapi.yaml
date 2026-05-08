@@ -2159,9 +2159,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
-                title: Response Me Auth Me Get
+                $ref: '#/components/schemas/UserProfileResponse'
   /auth/magic-link:
     post:
       tags:
@@ -2313,9 +2311,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
-                title: Response Delete Account Auth Account Delete
+                $ref: '#/components/schemas/DeleteAccountResponse'
   /health:
     get:
       summary: Health
@@ -3234,6 +3230,16 @@ components:
       - status
       title: DefaultProviderResponse
       description: Response after setting default provider.
+    DeleteAccountResponse:
+      properties:
+        deleted:
+          type: string
+          title: Deleted
+      type: object
+      required:
+      - deleted
+      title: DeleteAccountResponse
+      description: Confirmation of account deletion.
     DismissFindingResponse:
       properties:
         dismissed:
@@ -4661,6 +4667,31 @@ components:
       - turn_indices
       title: TurnSelection
       description: A selection of specific turns from a single conversation.
+    UserProfileResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        avatar_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Avatar Url
+      type: object
+      required:
+      - id
+      title: UserProfileResponse
+      description: Public user profile returned by GET /auth/me.
     ValidationError:
       properties:
         loc:

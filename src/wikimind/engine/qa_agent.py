@@ -24,7 +24,9 @@ from wikimind.models import (
     CompletionRequest,
     Conversation,
     CostLog,
+    FileBackArticlePair,
     PageType,
+    QAResult,
     Query,
     QueryRequest,
     QueryResult,
@@ -75,7 +77,7 @@ class _PreparedContext:
     conversation: Conversation
     next_turn_index: int
     prior_turns: list[Query]
-    wiki_context: list[dict]
+    wiki_context: list[dict[str, str | int]]
     completion_request: CompletionRequest | None  # None when wiki_context is empty
     no_context_result: QueryResult | None  # non-None when wiki_context is empty
 
@@ -338,7 +340,7 @@ class QAAgent:
     def _build_completion_request(
         self,
         question: str,
-        context: list[dict],
+        context: list[dict[str, str | int]],
         prior_turns: list[Query],
     ) -> CompletionRequest:
         """Build the CompletionRequest for the LLM call.
@@ -394,7 +396,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         ctx: _PreparedContext,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation, WikiWorthinessScore | None]:
+    ) -> QAResult:
         """Persist the Query row and handle file-back.
 
         Shared by ``answer()`` and the ``answer_stream()`` completion path.
@@ -407,9 +409,10 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation, optional
-            wiki-worthiness score). The score is non-None only when the
-            ``auto_file_back_enabled`` config flag is set.
+            QAResult NamedTuple of (the new Query row, the parent
+            Conversation, optional wiki-worthiness score). The score is
+            non-None only when the ``auto_file_back_enabled`` config flag
+            is set.
         """
         query_record = Query(
             question=request.question,
@@ -487,14 +490,18 @@ conversation context contradicts the wiki, prefer the wiki."""
         await session.refresh(query_record)
         await session.refresh(ctx.conversation)
 
-        return query_record, ctx.conversation, score
+        return QAResult(
+            query=query_record,
+            conversation=ctx.conversation,
+            wiki_worthiness_score=score,
+        )
 
     async def answer(
         self,
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Query, Conversation, WikiWorthinessScore | None]:
+    ) -> QAResult:
         """Answer a question against the wiki.
 
         Conversation-aware: if request.conversation_id is None a new
@@ -508,9 +515,10 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Returns:
-            Tuple of (the new Query row, the parent Conversation, optional
-            wiki-worthiness score). The score is non-None only when the
-            ``auto_file_back_enabled`` config flag is set.
+            QAResult NamedTuple of (the new Query row, the parent
+            Conversation, optional wiki-worthiness score). The score is
+            non-None only when the ``auto_file_back_enabled`` config
+            flag is set.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
@@ -532,16 +540,16 @@ conversation context contradicts the wiki, prefer the wiki."""
         request: QueryRequest,
         session: AsyncSession,
         user_id: str,
-    ) -> AsyncIterator[str | tuple[Query, Conversation, WikiWorthinessScore | None]]:
-        """Stream LLM tokens, then yield the persisted result tuple.
+    ) -> AsyncIterator[str | QAResult]:
+        """Stream LLM tokens, then yield the persisted QAResult.
 
         Yields text chunk strings during streaming. After all tokens have been
-        yielded, yields a single ``(Query, Conversation, WikiWorthinessScore | None)``
-        tuple as the final item. The caller (service layer) is responsible for
-        constructing SSE events from these values.
+        yielded, yields a single :class:`QAResult` NamedTuple as the final
+        item. The caller (service layer) is responsible for constructing SSE
+        events from these values.
 
         If wiki context is empty, yields the canned answer text as one chunk
-        followed by the persisted tuple.
+        followed by the persisted QAResult.
 
         Raises:
             RuntimeError: When all LLM providers fail.
@@ -552,18 +560,14 @@ conversation context contradicts the wiki, prefer the wiki."""
             user_id: User ID for data isolation.
 
         Yields:
-            ``str`` text chunks, then a final
-            ``tuple[Query, Conversation, WikiWorthinessScore | None]``.
+            ``str`` text chunks, then a final :class:`QAResult`.
         """
         ctx = await self._prepare_context(request, session, user_id=user_id)
 
         if ctx.no_context_result is not None:
             result = ctx.no_context_result
             yield result.answer
-            query_record, conversation, score = await self._persist_query(
-                request, result, ctx, session, user_id=user_id
-            )
-            yield (query_record, conversation, score)
+            yield await self._persist_query(request, result, ctx, session, user_id=user_id)
             return
 
         assert ctx.completion_request is not None
@@ -624,10 +628,9 @@ conversation context contradicts the wiki, prefer the wiki."""
                 related_articles=[],
             )
 
-        query_record, conversation, score = await self._persist_query(request, result, ctx, session, user_id=user_id)
-        yield (query_record, conversation, score)
+        yield await self._persist_query(request, result, ctx, session, user_id=user_id)
 
-    async def _retrieve_context(self, question: str, session: AsyncSession, user_id: str) -> list[dict]:
+    async def _retrieve_context(self, question: str, session: AsyncSession, user_id: str) -> list[dict[str, str | int]]:
         """Retrieve relevant wiki articles for the question."""
         # Extract key terms from question (simple approach for Phase 1)
         terms = [t for t in question.lower().split() if len(t) > 3]
@@ -662,7 +665,7 @@ conversation context contradicts the wiki, prefer the wiki."""
     async def _query_llm(
         self,
         question: str,
-        context: list[dict],
+        context: list[dict[str, str | int]],
         prior_turns: list[Query],
         session: AsyncSession,
         user_id: str,
@@ -689,7 +692,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         conversation_id: str,
         session: AsyncSession,
         user_id: str,
-    ) -> tuple[Article, bool]:
+    ) -> FileBackArticlePair:
         """File a whole conversation back to the wiki as a single article.
 
         STAGES changes but does NOT commit — the caller owns the
@@ -771,7 +774,7 @@ conversation context contradicts the wiki, prefer the wiki."""
                 conversation_id=conversation_id,
                 article_id=article.id,
             )
-            return article, False
+            return FileBackArticlePair(article=article, is_update=False)
 
         # Update path: overwrite the existing Article's file in place
         wiki_storage = get_wiki_storage(user_id)
@@ -789,4 +792,4 @@ conversation context contradicts the wiki, prefer the wiki."""
             conversation_id=conversation_id,
             article_id=existing_article.id,
         )
-        return existing_article, True
+        return FileBackArticlePair(article=existing_article, is_update=True)

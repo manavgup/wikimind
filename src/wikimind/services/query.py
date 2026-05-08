@@ -317,7 +317,7 @@ class QueryService:
                 if isinstance(item, str):
                     yield (f"event: chunk\ndata: {json.dumps({'text': item})}\n\n")
                 else:
-                    # Final tuple: (Query, Conversation, WikiWorthinessScore | None)
+                    # Final QAResult NamedTuple
                     query_record, conversation, wiki_worthiness = item
                     citations = await _build_citations(query_record, session, user_id=user_id)
                     done_payload = AskResponse(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 import yaml  # type: ignore[import-untyped]
 from pydantic import ValidationError
@@ -25,7 +27,7 @@ _FRONTMATTER_MODELS: dict[str, type] = {
 }
 
 
-def parse_frontmatter(content: str) -> dict | None:
+def parse_frontmatter(content: str) -> dict[str, Any] | None:
     """Extract YAML frontmatter from markdown content."""
     if not content.startswith("---"):
         return None
