@@ -25,7 +25,7 @@ from wikimind.models import (
     QueryRequest,
     QueryResult,
 )
-from wikimind.storage import get_wiki_storage
+from wikimind.storage import get_wiki_storage, read_article_content
 
 
 def _agent(tmp_path) -> QAAgent:
@@ -52,26 +52,27 @@ def _agent(tmp_path) -> QAAgent:
 
 
 async def test_read_article_content_missing(tmp_path) -> None:
-    a = _agent(tmp_path)
-    assert await a._read_article_content("/no/such/file.md", user_id=TEST_USER_ID) is None
+    with patch("wikimind.storage.get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))):
+        assert await read_article_content("/no/such/file.md", user_id=TEST_USER_ID) == ""
 
 
 async def test_read_article_content_ok(tmp_path) -> None:
-    a = _agent(tmp_path)
-    f = tmp_path / "wikimind" / "wiki" / TEST_USER_ID / "x.md"
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text("hello", encoding="utf-8")
-    assert await a._read_article_content("x.md", user_id=TEST_USER_ID) == "hello"
+    wiki_dir = tmp_path / "wiki" / TEST_USER_ID
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "x.md").write_text("hello", encoding="utf-8")
+    with patch("wikimind.storage.get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))):
+        assert await read_article_content("x.md", user_id=TEST_USER_ID) == "hello"
 
 
 async def test_retrieve_context_scores(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
-    f1 = tmp_path / "a.md"
-    f1.write_text("apple banana cherry", encoding="utf-8")
-    f2 = tmp_path / "b.md"
-    f2.write_text("nothing here", encoding="utf-8")
-    art1 = Article(slug="a", title="A", file_path=str(f1), user_id=TEST_USER_ID)
-    art2 = Article(slug="b", title="B", file_path=str(f2), user_id=TEST_USER_ID)
+    # Place files in the wiki storage directory used by read_article_content
+    wiki_dir = tmp_path / "wikimind" / "wiki" / TEST_USER_ID
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "a.md").write_text("apple banana cherry", encoding="utf-8")
+    (wiki_dir / "b.md").write_text("nothing here", encoding="utf-8")
+    art1 = Article(slug="a", title="A", file_path="a.md", user_id=TEST_USER_ID)
+    art2 = Article(slug="b", title="B", file_path="b.md", user_id=TEST_USER_ID)
     db_session.add_all([art1, art2])
     await db_session.commit()
     ctx = await a._retrieve_context("apple banana", db_session, user_id=TEST_USER_ID)
@@ -81,7 +82,7 @@ async def test_retrieve_context_scores(db_session, tmp_path) -> None:
 
 async def test_retrieve_context_skips_unreadable(db_session, tmp_path) -> None:
     a = _agent(tmp_path)
-    art = Article(slug="x", title="X", file_path="/no/such/file", user_id=TEST_USER_ID)
+    art = Article(slug="x", title="X", file_path="no/such/file", user_id=TEST_USER_ID)
     db_session.add(art)
     await db_session.commit()
     assert await a._retrieve_context("anything", db_session, user_id=TEST_USER_ID) == []

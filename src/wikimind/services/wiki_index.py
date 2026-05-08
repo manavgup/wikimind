@@ -7,19 +7,17 @@ file is rewritten in place on every call (NOT append-only).
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
 from collections import Counter, defaultdict
-from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 import structlog
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.config import get_settings
 from wikimind.models import Article, ArticleConcept, Backlink, Concept, PageType
+from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,12 +196,7 @@ async def regenerate_index_md(
     Returns:
         The wiki-relative path string of the written file.
     """
-    settings = get_settings()
-    wiki_dir = Path(settings.data_dir) / "wiki"
-    if user_id:
-        wiki_dir = wiki_dir / user_id
-    await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
-    index_path = wiki_dir / "index.md"
+    wiki_storage = get_wiki_storage(user_id)
 
     article_stmt = select(Article)
     if user_id:
@@ -214,7 +207,7 @@ async def regenerate_index_md(
     concept_articles, uncategorized = await _group_articles_by_concept(articles, session)
     lines = _build_index_lines(articles, concept_articles, uncategorized)
 
-    await asyncio.to_thread(index_path.write_text, "".join(lines), encoding="utf-8")
+    await wiki_storage.write("index.md", "".join(lines))
     log.info("index.md regenerated", article_count=len(articles))
     return "index.md"
 
@@ -268,13 +261,7 @@ async def generate_meta_health_page(
     Returns:
         The wiki-relative path string of the written meta page file.
     """
-    settings = get_settings()
-    meta_dir = Path(settings.data_dir) / "wiki"
-    if user_id:
-        meta_dir = meta_dir / user_id
-    meta_dir = meta_dir / "meta"
-    await asyncio.to_thread(meta_dir.mkdir, parents=True, exist_ok=True)
-    health_path = meta_dir / "wiki-health.md"
+    wiki_storage = get_wiki_storage(user_id)
 
     articles, backlinks = await _fetch_health_data(session, user_id=user_id)
 
@@ -327,6 +314,6 @@ async def generate_meta_health_page(
     lines.append("## Orphan Articles\n\n")
     lines.append(f"**{orphan_count}** articles with no inbound or outbound links.\n")
 
-    await asyncio.to_thread(health_path.write_text, "".join(lines), encoding="utf-8")
+    await wiki_storage.write("meta/wiki-health.md", "".join(lines))
     log.info("wiki-health.md generated", article_count=total, orphan_count=orphan_count)
     return "meta/wiki-health.md"

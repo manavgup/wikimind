@@ -50,6 +50,15 @@ class FileStorage(Protocol):
         """List all files under the given prefix (or root if empty)."""
         ...
 
+    def resolve_path(self, relative_path: str) -> Path:
+        """Resolve a relative path to an absolute filesystem path.
+
+        Needed by callers that must hand a real path to external tools
+        (e.g. PDF extractors, log messages). Prefer ``read`` / ``write``
+        for normal I/O.
+        """
+        ...
+
 
 class LocalFileStorage:
     """Local filesystem implementation of FileStorage."""
@@ -59,6 +68,15 @@ class LocalFileStorage:
 
     def _resolve(self, relative_path: str) -> Path:
         return self.root / relative_path
+
+    def resolve_path(self, relative_path: str) -> Path:
+        """Resolve a relative path to an absolute filesystem path.
+
+        Needed by callers that must hand a real path to external tools
+        (e.g. PDF extractors, log messages). Prefer ``read`` / ``write``
+        for normal I/O.
+        """
+        return self._resolve(relative_path)
 
     async def read(self, relative_path: str) -> str:
         """Read text content from a file."""
@@ -132,6 +150,28 @@ def get_raw_storage(user_id: str) -> LocalFileStorage:
     if user_id:
         root = root / user_id
     return LocalFileStorage(root=root)
+
+
+async def read_article_content(file_path: str, user_id: str) -> str:
+    """Read article markdown content from disk.
+
+    Canonical helper used by wiki service, Q&A agent, and export routes.
+    Returns an empty string when the file cannot be read (missing, permission
+    error, etc.) so callers never need their own OSError handling.
+
+    Args:
+        file_path: Relative path to the article markdown file within the
+            user's wiki storage directory.
+        user_id: User ID for storage namespacing.
+
+    Returns:
+        The file content, or an empty string if the file cannot be read.
+    """
+    try:
+        storage = get_wiki_storage(user_id)
+        return await storage.read(file_path)
+    except OSError:
+        return ""
 
 
 def find_original_sibling(txt_path: Path) -> Path | None:

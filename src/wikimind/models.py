@@ -178,7 +178,7 @@ class Source(SQLModel, table=True):
         from wikimind.storage import find_original_sibling, get_raw_storage  # noqa: PLC0415
 
         raw_storage = get_raw_storage(self.user_id)
-        txt_path = raw_storage.root / self.file_path
+        txt_path = raw_storage.resolve_path(self.file_path)
         return find_original_sibling(txt_path) is not None
 
 

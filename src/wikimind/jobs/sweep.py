@@ -66,7 +66,7 @@ async def _sweep_single_article(
         log.warning(
             "sweep: file not found, skipping",
             article_id=article.id,
-            path=str(wiki_storage.root / article.file_path),
+            path=str(wiki_storage.resolve_path(article.file_path)),
         )
         return False
 

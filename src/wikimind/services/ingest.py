@@ -258,8 +258,8 @@ class IngestService:
         raw_storage = get_raw_storage(user_id)
 
         # Defense-in-depth: ensure the resolved path stays under the storage root.
-        resolved = (raw_storage.root / source.file_path).resolve()
-        if not resolved.is_relative_to(raw_storage.root.resolve()):
+        resolved = raw_storage.resolve_path(source.file_path).resolve()
+        if not resolved.is_relative_to(raw_storage.resolve_path("").resolve()):
             msg = "Source content file not found"
             raise NotFoundError(msg)
 
@@ -332,12 +332,12 @@ class IngestService:
         """
         raw_storage = get_raw_storage(source.user_id)
         if source.file_path:
-            resolved = raw_storage.root / source.file_path
+            resolved = raw_storage.resolve_path(source.file_path)
             with suppress(OSError):
                 resolved.unlink(missing_ok=True)
 
         # Use the storage root to find sibling files
-        raw_dir = raw_storage.root
+        raw_dir = raw_storage.resolve_path("")
         if not raw_dir.is_dir():
             return
         for sibling in raw_dir.glob(f"{source.id}.*"):

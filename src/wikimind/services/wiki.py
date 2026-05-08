@@ -11,10 +11,8 @@ vector similarity and results are merged via configurable hybrid
 scoring. Otherwise the service falls back to keyword-only search.
 """
 
-import asyncio
 import functools
 import json
-from pathlib import Path
 
 import structlog
 from sqlalchemy import func
@@ -48,7 +46,7 @@ from wikimind.models import (
     SourceResponse,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
-from wikimind.storage import get_wiki_storage
+from wikimind.storage import get_wiki_storage, read_article_content
 
 log = structlog.get_logger()
 
@@ -95,23 +93,6 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
     """
     items = _parse_source_ids(concept_ids_json)
     return items[0] if items else None
-
-
-async def _read_article_content(file_path: str, user_id: str) -> str:
-    """Read article markdown content from disk.
-
-    Args:
-        file_path: Relative path to the article markdown file.
-        user_id: User ID for storage namespacing.
-
-    Returns:
-        The file content, or an empty string if the file cannot be read.
-    """
-    try:
-        storage = get_wiki_storage(user_id)
-        return await storage.read(file_path)
-    except OSError:
-        return ""
 
 
 def _parse_source_ids(raw: str | None) -> list[str]:
@@ -442,7 +423,7 @@ class WikiService:
             concepts=concepts,
             backlinks_in=backlinks_in,
             backlinks_out=backlinks_out,
-            content=await _read_article_content(article.file_path, user_id=article.user_id),
+            content=await read_article_content(article.file_path, user_id=article.user_id),
             sources=[_to_source_response(s) for s in sources],
             created_at=article.created_at,
             updated_at=article.updated_at,
@@ -882,7 +863,7 @@ class WikiService:
         q_lower = q.lower()
         raw_scores: dict[str, int] = {}
         for article in all_articles:
-            content = await _read_article_content(article.file_path, user_id=article.user_id)
+            content = await read_article_content(article.file_path, user_id=article.user_id)
             if q_lower in article.title.lower() or q_lower in content.lower():
                 score = 10 if q_lower in article.title.lower() else 0
                 score += content.lower().count(q_lower)
@@ -1006,14 +987,11 @@ class WikiService:
         Returns:
             Health report dict.
         """
-        settings = get_settings()
-        health_dir = Path(settings.data_dir) / "wiki"
-        if user_id:
-            health_dir = health_dir / user_id
-        health_path = health_dir / "_meta" / "health.json"
+        storage = get_wiki_storage(user_id)
+        health_relative = "_meta/health.json"
 
-        if await asyncio.to_thread(health_path.exists):
-            content = await asyncio.to_thread(health_path.read_text)
+        if await storage.exists(health_relative):
+            content = await storage.read(health_relative)
             return json.loads(content)
 
         article_stmt = select(Article)

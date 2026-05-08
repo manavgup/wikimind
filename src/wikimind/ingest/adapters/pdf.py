@@ -193,7 +193,7 @@ class PDFAdapter:
         raw_storage = get_raw_storage(user_id)
         await raw_storage.write_bytes(f"{source.id}.pdf", file_bytes)
         # Docling and fitz need a filesystem Path to open the PDF.
-        raw_pdf_path = raw_storage.root / f"{source.id}.pdf"
+        raw_pdf_path = raw_storage.resolve_path(f"{source.id}.pdf")
 
         # Extract text — prefer docling-serve for structured output (markdown
         # with heading hierarchy, table-aware), fall back to fitz plain text

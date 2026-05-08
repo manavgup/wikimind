@@ -10,20 +10,11 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import Article, ExportFormat, ExportResponse
 from wikimind.services.export import ExportService, get_export_service
-from wikimind.storage import get_wiki_storage
+from wikimind.storage import read_article_content
 
 log = structlog.get_logger()
 
 router = APIRouter()
-
-
-async def _read_article_content(file_path: str, user_id: str) -> str:
-    """Read article markdown content from disk."""
-    try:
-        storage = get_wiki_storage(user_id)
-        return await storage.read(file_path)
-    except OSError:
-        return ""
 
 
 async def _resolve_article(
@@ -77,7 +68,7 @@ async def export_article(
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
     article = await _resolve_article(id_or_slug, session, user_id)
-    content = await _read_article_content(article.file_path, user_id=user_id)
+    content = await read_article_content(article.file_path, user_id=user_id)
 
     if not content:
         raise HTTPException(status_code=404, detail="Article content not found on disk")

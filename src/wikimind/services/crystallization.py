@@ -5,10 +5,8 @@ to synthesize the key findings, and persists the result as a new Article
 with ``page_type: synthesis``.
 """
 
-import asyncio
 import json
 from datetime import datetime
-from pathlib import Path
 
 import structlog
 from slugify import slugify
@@ -28,6 +26,7 @@ from wikimind.models import (
     Query,
     TaskType,
 )
+from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -272,16 +271,9 @@ Distill this conversation into a structured wiki article following the JSON sche
     )
 
     # Write to disk
-    settings = get_settings()
-    wiki_dir = Path(settings.data_dir) / "wiki"
-    if user_id:
-        wiki_dir = wiki_dir / user_id
-    synthesis_dir = wiki_dir / "synthesis"
-    await asyncio.to_thread(synthesis_dir.mkdir, parents=True, exist_ok=True)
-
+    wiki_storage = get_wiki_storage(user_id)
     relative_path = f"synthesis/{slug}.md"
-    file_path = wiki_dir / relative_path
-    await asyncio.to_thread(file_path.write_text, content, encoding="utf-8")
+    await wiki_storage.write(relative_path, content)
 
     # Create Article row
     article = Article(
