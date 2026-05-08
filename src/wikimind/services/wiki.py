@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
-from wikimind.engine.confidence import apply_decay
+from wikimind.engine.confidence import apply_decay, compute_staleness
 from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
@@ -40,6 +40,7 @@ from wikimind.models import (
     GraphNode,
     GraphResponse,
     PageType,
+    ReinforcementEvent,
     RelationshipEdge,
     RelationType,
     Source,
@@ -61,6 +62,19 @@ def _effective_confidence(article: Article) -> float:
         return article.confidence_score
     days = max(0, (utcnow_naive() - article.last_reinforced_at).days)
     return apply_decay(article.confidence_score, days)
+
+
+def _staleness_score(article: Article) -> float | None:
+    """Compute the staleness score for an article.
+
+    Returns ``None`` when ``last_reinforced_at`` is unset (legacy articles)
+    and ``1.0`` as the maximum staleness.
+    """
+    if article.last_reinforced_at is None:
+        return 1.0
+    days = (utcnow_naive() - article.last_reinforced_at).total_seconds() / 86400
+    settings = get_settings()
+    return compute_staleness(days, decay_rate=settings.staleness.decay_rate)
 
 
 def _first_concept(concept_ids_json: str | None) -> str | None:
@@ -246,6 +260,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
         updated_at=article.updated_at,
         confidence_score=article.confidence_score,
         effective_confidence=_effective_confidence(article),
+        staleness_score=_staleness_score(article),
         concepts=concepts,
         source_ids=source_ids,
         user_id=article.user_id,
@@ -420,6 +435,7 @@ class WikiService:
             linter_score=article.linter_score,
             confidence_score=article.confidence_score,
             effective_confidence=_effective_confidence(article),
+            staleness_score=_staleness_score(article),
             page_type=article.page_type,
             concepts=concepts,
             backlinks_in=backlinks_in,
@@ -636,6 +652,54 @@ class WikiService:
             incoming.setdefault(rel, []).append(edge)
 
         return ArticleRelationshipsResponse(incoming=incoming, outgoing=outgoing)
+
+    async def refresh_article(
+        self,
+        id_or_slug: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> Article:
+        """Mark an article as "still current" via a manual refresh.
+
+        Creates a ``manual_refresh`` :class:`ReinforcementEvent`, updates
+        ``Article.last_reinforced_at``, and returns the updated article.
+
+        Args:
+            id_or_slug: Article UUID or slug.
+            session: Async database session.
+            user_id: User ID performing the refresh.
+
+        Returns:
+            The updated :class:`Article` instance.
+
+        Raises:
+            NotFoundError: If the article does not exist for this user.
+        """
+        article_id = await self._resolve_article_id(id_or_slug, session, user_id)
+        if article_id is None:
+            msg = "Article not found"
+            raise NotFoundError(msg)
+
+        article = await session.get(Article, article_id)
+        if article is None:
+            msg = "Article not found"
+            raise NotFoundError(msg)
+
+        now = utcnow_naive()
+        article.last_reinforced_at = now
+        session.add(article)
+
+        event = ReinforcementEvent(
+            article_id=article.id,
+            event_type="manual_refresh",
+            occurred_at=now,
+            user_id=user_id,
+        )
+        session.add(event)
+
+        await session.commit()
+        await session.refresh(article)
+        return article
 
     async def search(
         self,

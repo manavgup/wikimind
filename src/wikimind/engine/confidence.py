@@ -102,6 +102,30 @@ def compute_confidence(
     return _clamp01(score)
 
 
+def compute_staleness(
+    days_since_reinforced: float,
+    decay_rate: float = 0.002,
+) -> float:
+    """Compute a staleness score for an article.
+
+    The score is a linear function of days since the article was last
+    reinforced, clamped to ``[0.0, 1.0]``.  The ``decay_rate`` controls
+    how fast the score grows — the default ``0.002`` reaches 0.5 at
+    250 days.
+
+    Args:
+        days_since_reinforced: Fractional days since the last reinforcement
+            event.  Negative values are treated as zero (fresh).
+        decay_rate: Growth rate per day.  Configurable via
+            ``Settings.staleness.decay_rate``.
+
+    Returns:
+        A staleness score clamped to ``[0.0, 1.0]``.
+    """
+    days = max(0.0, days_since_reinforced)
+    return _clamp01(days * decay_rate)
+
+
 def apply_decay(base: float, days_since_reinforced: int) -> float:
     """Apply time-decay to a stored base confidence score.
 
