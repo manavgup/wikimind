@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getSourceContent } from "../../api/sources";
-import type { ArticleSourceRef, SourceContentResponse } from "../../types/api";
+import type { ArticleSourceRef } from "../../types/api";
 import { Spinner } from "../shared/Spinner";
 import { Badge } from "../shared/Badge";
 
