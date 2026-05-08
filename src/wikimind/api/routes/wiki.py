@@ -132,6 +132,20 @@ async def list_articles(
 
 
 @router.get(
+    "/articles/random",
+    response_model=ArticleSummaryResponse,
+    responses={404: {"description": "No articles found"}},
+)
+async def get_random_article(
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return a random article belonging to the current user."""
+    return await service.get_random_article(session, user_id=user_id)
+
+
+@router.get(
     "/articles/{id_or_slug}",
     response_model=ArticleResponse,
     responses={404: {"description": "Article not found"}},

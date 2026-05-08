@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 import structlog
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -470,6 +471,31 @@ class WikiService:
             slug_stmt = slug_stmt.where(Article.user_id == user_id)
         row = (await session.execute(slug_stmt)).first()
         return row[0] if row is not None else None
+
+    async def get_random_article(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> ArticleSummaryResponse:
+        """Return a random article belonging to the user.
+
+        Args:
+            session: Async database session.
+            user_id: User ID to scope the query.
+
+        Returns:
+            A randomly selected article summary.
+
+        Raises:
+            NotFoundError: If the user has no articles.
+        """
+        query = select(Article).where(Article.user_id == user_id).order_by(func.random()).limit(1)
+        result = await session.execute(query)
+        article = result.scalar_one_or_none()
+        if not article:
+            msg = "No articles found"
+            raise NotFoundError(msg)
+        return await _build_article_summary(article, session)
 
     async def get_graph(
         self,
