@@ -24,6 +24,8 @@ from wikimind.models import (
     ContradictionResolutionOption,
     ContradictionResponse,
     ContradictionStatus,
+    CreateStubRequest,
+    CreateStubResponse,
     GraphResponse,
     HealthSummaryResponse,
     Job,
@@ -41,6 +43,7 @@ from wikimind.models import (
     SearchResult,
     TagArticleRequest,
     TagResponse,
+    WikilinkMatch,
 )
 from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
@@ -137,6 +140,41 @@ async def list_articles(
         offset=offset,
         user_id=user_id,
     )
+
+
+@router.post(
+    "/articles/stub",
+    response_model=CreateStubResponse,
+    status_code=201,
+)
+async def create_stub_article(
+    body: CreateStubRequest,
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Create a stub wiki article — a placeholder page for a concept not yet compiled."""
+    return await service.create_stub_article(
+        title=body.title,
+        body_markdown=body.body_markdown,
+        session=session,
+        user_id=user_id,
+    )
+
+
+@router.get(
+    "/wikilinks/resolve",
+    response_model=list[WikilinkMatch],
+)
+async def resolve_wikilinks(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Search articles by partial title for wikilink autocomplete."""
+    return await service.resolve_wikilinks(q, session, user_id=user_id, limit=limit)
 
 
 @router.get(

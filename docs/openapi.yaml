@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: WikiMind Gateway
-  description: "Local LLM Knowledge OS \u2014 Personal API"
+  description: Local LLM Knowledge OS — Personal API
   version: 0.1.0
 paths:
   /api/ingest/url:
@@ -223,9 +223,12 @@ paths:
       tags:
       - Ingest
       summary: Get Source Original
-      description: "Stream the original source document (PDF, HTML, etc.).\n\nReturns\
-        \ the raw binary stored during ingest \u2014 not the extracted text.\nSources\
-        \ that have no original (text, YouTube) return 404."
+      description: 'Stream the original source document (PDF, HTML, etc.).
+
+
+        Returns the raw binary stored during ingest — not the extracted text.
+
+        Sources that have no original (text, YouTube) return 404.'
       operationId: get_source_original_api_ingest_sources__source_id__original_get
       parameters:
       - name: source_id
@@ -437,6 +440,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/stub:
+    post:
+      tags:
+      - Wiki
+      summary: Create Stub Article
+      description: Create a stub wiki article — a placeholder page for a concept not
+        yet compiled.
+      operationId: create_stub_article_api_wiki_articles_stub_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStubRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStubResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/wikilinks/resolve:
+    get:
+      tags:
+      - Wiki
+      summary: Resolve Wikilinks
+      description: Search articles by partial title for wikilink autocomplete.
+      operationId: resolve_wikilinks_api_wiki_wikilinks_resolve_get
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 10
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WikilinkMatch'
+                title: Response Resolve Wikilinks Api Wiki Wikilinks Resolve Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/articles/random:
     get:
       tags:
@@ -527,11 +597,20 @@ paths:
       tags:
       - Wiki
       summary: Get Graph
-      description: "Full knowledge graph -- nodes and edges.\n\nOptional query parameters\
-        \ filter the returned edge set:\n\n* ``relation_type`` \u2014 keep only edges\
-        \ of one semantic relation type.\n* ``from_article`` \u2014 id or slug of\
-        \ the source article.\n* ``to_article`` \u2014 id or slug of the target article.\n\
-        \nFilters compose with AND. Filtering is pushed down into SQL."
+      description: 'Full knowledge graph -- nodes and edges.
+
+
+        Optional query parameters filter the returned edge set:
+
+
+        * ``relation_type`` — keep only edges of one semantic relation type.
+
+        * ``from_article`` — id or slug of the source article.
+
+        * ``to_article`` — id or slug of the target article.
+
+
+        Filters compose with AND. Filtering is pushed down into SQL.'
       operationId: get_graph_api_wiki_graph_get
       parameters:
       - name: relation_type
@@ -1081,8 +1160,7 @@ paths:
       tags:
       - Query
       summary: Query History
-      description: "List past queries (legacy endpoint \u2014 UI uses /conversations\
-        \ instead)."
+      description: List past queries (legacy endpoint — UI uses /conversations instead).
       operationId: query_history_api_query_history_get
       parameters:
       - name: limit
@@ -1689,10 +1767,14 @@ paths:
       tags:
       - Settings
       summary: Get Onboarding Status
-      description: "Return onboarding wizard progress for the current user.\n\nIf\
-        \ the user has never explicitly completed onboarding but already has\narticles\
-        \ in the wiki, treat onboarding as implicitly complete \u2014 they\nare clearly\
-        \ past the first-run stage."
+      description: 'Return onboarding wizard progress for the current user.
+
+
+        If the user has never explicitly completed onboarding but already has
+
+        articles in the wiki, treat onboarding as implicitly complete — they
+
+        are clearly past the first-run stage.'
       operationId: get_onboarding_status_api_settings_onboarding_status_get
       responses:
         '200':
@@ -2118,8 +2200,8 @@ paths:
       tags:
       - Auth
       summary: Auth Callback
-      description: "Handle OAuth2 callback \u2014 exchange code for token, upsert\
-        \ user, set cookie."
+      description: Handle OAuth2 callback — exchange code for token, upsert user,
+        set cookie.
       operationId: auth_callback_auth_callback_get
       parameters:
       - name: code
@@ -2315,7 +2397,7 @@ paths:
   /health:
     get:
       summary: Health
-      description: "Health check \u2014 used by Electron to confirm daemon is ready."
+      description: Health check — used by Electron to confirm daemon is ready.
       operationId: health_health_get
       responses:
         '200':
@@ -2553,6 +2635,10 @@ components:
             format: date-time
           - type: 'null'
           title: Edited At
+        is_stub:
+          type: boolean
+          title: Is Stub
+          default: false
       type: object
       required:
       - id
@@ -2584,9 +2670,12 @@ components:
       - source_type
       - title
       title: ArticleSourceSummary
-      description: "Minimal source descriptor returned with listing/search endpoints.\n\
-        \nA lightweight summary used when the full :class:`SourceResponse` is\noverkill\
-        \ \u2014 e.g. article list and search result payloads."
+      description: 'Minimal source descriptor returned with listing/search endpoints.
+
+
+        A lightweight summary used when the full :class:`SourceResponse` is
+
+        overkill — e.g. article list and search result payloads.'
     ArticleSummaryResponse:
       properties:
         id:
@@ -2677,6 +2766,10 @@ components:
           type: boolean
           title: Manually Edited
           default: false
+        is_stub:
+          type: boolean
+          title: Is Stub
+          default: false
       type: object
       required:
       - id
@@ -2721,8 +2814,8 @@ components:
       - query
       - conversation
       title: AskResponse
-      description: "Response shape for POST /query \u2014 wraps both the new query\
-        \ and its parent conversation."
+      description: Response shape for POST /query — wraps both the new query and its
+        parent conversation.
     BacklinkEntry:
       properties:
         id:
@@ -3080,8 +3173,7 @@ components:
       - updated_at
       - turn_count
       title: ConversationSummary
-      description: "Conversation summary for the history sidebar \u2014 adds turn\
-        \ count."
+      description: Conversation summary for the history sidebar — adds turn count.
     CostBreakdownEntry:
       properties:
         cost_usd:
@@ -3168,6 +3260,43 @@ components:
       - name
       title: CreateSavedSearchRequest
       description: Request to create a saved search.
+    CreateStubRequest:
+      properties:
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        body_markdown:
+          type: string
+          title: Body Markdown
+          default: ''
+      type: object
+      required:
+      - title
+      title: CreateStubRequest
+      description: 'Request to create a stub wiki article (issue #451).'
+    CreateStubResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        is_stub:
+          type: boolean
+          title: Is Stub
+          default: true
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      title: CreateStubResponse
+      description: Response after creating a stub article.
     CreateTagRequest:
       properties:
         name:
@@ -3654,10 +3783,13 @@ components:
       - orphan
       - structural
       title: LintFindingKind
-      description: "Kind of lint finding \u2014 maps 1:1 to a detection function AND\
-        \ a table.\n\nUsed as the content_hash prefix (so dismiss state is keyed by\
-        \ kind + content)\nand as the discriminator field in the frontend API response\
-        \ union."
+      description: 'Kind of lint finding — maps 1:1 to a detection function AND a
+        table.
+
+
+        Used as the content_hash prefix (so dismiss state is keyed by kind + content)
+
+        and as the discriminator field in the frontend API response union.'
     LintReport:
       properties:
         id:
@@ -3930,8 +4062,8 @@ components:
       - meta
       - synthesis
       title: PageType
-      description: "Type of wiki page \u2014 determines compilation pipeline and validation\
-        \ rules."
+      description: Type of wiki page — determines compilation pipeline and validation
+        rules.
     ProviderDetail:
       properties:
         enabled:
@@ -4043,10 +4175,15 @@ components:
       - filed_article_id
       - created_at
       title: QueryResponse
-      description: "Q&A response enriched with a full Answer \u2192 Article \u2192\
-        \ Source citation chain.\n\nMirrors the persisted :class:`Query` record fields\
-        \ while adding a\nresolved ``citations`` list so clients can see which articles\
-        \ were\nused and which original sources those articles came from."
+      description: 'Q&A response enriched with a full Answer → Article → Source citation
+        chain.
+
+
+        Mirrors the persisted :class:`Query` record fields while adding a
+
+        resolved ``citations`` list so clients can see which articles were
+
+        used and which original sources those articles came from.'
     RebuildConceptsResponse:
       properties:
         status:
@@ -4425,7 +4562,7 @@ components:
       - source_type
       - has_original
       title: Source
-      description: "Raw ingested source \u2014 before compilation."
+      description: Raw ingested source — before compilation.
     SourceContentResponse:
       properties:
         content:
@@ -4756,6 +4893,28 @@ components:
         overall verdict; ``auto_filed`` records whether a wiki article was
 
         actually created as a result of this score.'
+    WikilinkMatch:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        is_stub:
+          type: boolean
+          title: Is Stub
+          default: false
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      title: WikilinkMatch
+      description: A single article match for wikilink resolution autocomplete.
 tags:
 - name: Wiki
   description: Browse wiki articles, knowledge graph, and search

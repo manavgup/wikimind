@@ -25,8 +25,8 @@ body {
 }
 
 .wikilink-unresolved {
-  color: rgb(148 163 184); /* slate-400 */
-  text-decoration: underline dotted rgb(148 163 184);
+  color: rgb(225 29 72); /* rose-600 — classic wiki red link */
+  text-decoration: underline dashed rgb(225 29 72 / 0.5);
   text-underline-offset: 2px;
   cursor: help;
 }

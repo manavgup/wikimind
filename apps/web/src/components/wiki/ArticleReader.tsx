@@ -145,6 +145,9 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           {isConcept && conceptKind ? (
             <Badge tone="neutral">{conceptKind}</Badge>
           ) : null}
+          {article.is_stub ? (
+            <Badge tone="warning">Stub</Badge>
+          ) : null}
           {article.manually_edited ? (
             <Badge tone="neutral">Edited</Badge>
           ) : null}

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useArticles } from "../../hooks/useArticles";
 import type { Article, ConfidenceLevel } from "../../types/api";
+import { Badge } from "../shared/Badge";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Spinner } from "../shared/Spinner";
@@ -71,10 +72,17 @@ function ArticleCard({ article }: { article: Article }) {
   return (
     <Link
       to={`/wiki/${encodeURIComponent(article.slug)}`}
-      className="group block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-300 hover:shadow-md"
+      className={`group block rounded-lg border p-4 shadow-sm transition hover:shadow-md ${
+        article.is_stub
+          ? "border-dashed border-amber-300 bg-amber-50/30 hover:border-amber-400"
+          : "border-slate-200 bg-white hover:border-brand-300"
+      }`}
     >
       <div className="mb-2 flex items-center gap-2">
         <PageTypeIndicator pageType={article.page_type} />
+        {article.is_stub ? (
+          <Badge tone="warning">Stub</Badge>
+        ) : null}
         {article.confidence ? (
           <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
         ) : null}

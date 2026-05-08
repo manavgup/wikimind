@@ -10,6 +10,7 @@ const PAGE_TYPE_CONFIG: Record<
   answer: { label: "Answer", tone: "success" },
   index: { label: "Index", tone: "neutral" },
   meta: { label: "Meta", tone: "neutral" },
+  synthesis: { label: "Synthesis", tone: "brand" },
 };
 
 interface PageTypeIndicatorProps {
