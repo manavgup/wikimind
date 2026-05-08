@@ -179,6 +179,69 @@ async def test_service_get_source_content_reads_file(tmp_path: Path) -> None:
     assert result.content == raw_text
     assert result.source_type == SourceType.URL
     assert result.title == "My Source"
+    assert result.truncated is False
+
+
+async def test_service_get_source_content_truncates_large_content(tmp_path: Path) -> None:
+    """IngestService.get_source_content truncates content exceeding max chars."""
+    large_text = "x" * 100_000
+    (tmp_path / "src-big.txt").write_text(large_text)
+
+    source = Source(
+        id="src-big",
+        source_type=SourceType.PDF,
+        file_path="src-big.txt",
+        title="Big Source",
+        user_id=TEST_USER_ID,
+    )
+
+    service = IngestService()
+
+    mock_session = AsyncMock()
+    mock_session.get = AsyncMock(return_value=source)
+
+    with patch(
+        "wikimind.services.ingest.get_raw_storage",
+        return_value=LocalFileStorage(root=tmp_path),
+    ):
+        result = await service.get_source_content("src-big", mock_session, user_id=TEST_USER_ID)
+
+    # Default source_text_max_chars is 60000
+    assert len(result.content) == 60_000
+    assert result.truncated is True
+
+
+async def test_service_get_source_content_path_traversal(tmp_path: Path) -> None:
+    """IngestService.get_source_content rejects path traversal attempts."""
+    # Create a file outside the storage root
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("secret")
+
+    storage_root = tmp_path / "raw"
+    storage_root.mkdir()
+
+    source = Source(
+        id="src-evil",
+        source_type=SourceType.URL,
+        file_path="../outside/secret.txt",
+        title="Evil",
+        user_id=TEST_USER_ID,
+    )
+
+    service = IngestService()
+
+    mock_session = AsyncMock()
+    mock_session.get = AsyncMock(return_value=source)
+
+    with (
+        patch(
+            "wikimind.services.ingest.get_raw_storage",
+            return_value=LocalFileStorage(root=storage_root),
+        ),
+        pytest.raises(NotFoundError, match="content file not found"),
+    ):
+        await service.get_source_content("src-evil", mock_session, user_id=TEST_USER_ID)
 
 
 async def test_service_get_source_content_no_file_path() -> None:

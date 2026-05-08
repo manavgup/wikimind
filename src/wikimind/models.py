@@ -889,6 +889,7 @@ class SourceContentResponse(BaseModel):
     content: str
     source_type: SourceType
     title: str | None
+    truncated: bool = False
 
 
 class ArticleSourceSummary(BaseModel):

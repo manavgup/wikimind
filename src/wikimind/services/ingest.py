@@ -16,6 +16,7 @@ import structlog
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind.config import get_settings
 from wikimind.errors import IngestError, NotFoundError
 from wikimind.ingest.service import IngestService as IngestAdapter
 from wikimind.jobs.background import get_background_compiler
@@ -255,16 +256,30 @@ class IngestService:
             raise NotFoundError(msg)
 
         raw_storage = get_raw_storage(user_id)
+
+        # Defense-in-depth: ensure the resolved path stays under the storage root.
+        resolved = (raw_storage.root / source.file_path).resolve()
+        if not resolved.is_relative_to(raw_storage.root.resolve()):
+            msg = "Source content file not found"
+            raise NotFoundError(msg)
+
         try:
             content = await raw_storage.read(source.file_path)
         except OSError as exc:
             msg = "Source content file not found"
             raise NotFoundError(msg) from exc
 
+        truncated = False
+        max_chars = get_settings().compiler.source_text_max_chars
+        if len(content) > max_chars:
+            content = content[:max_chars]
+            truncated = True
+
         return SourceContentResponse(
             content=content,
             source_type=source.source_type,
             title=source.title,
+            truncated=truncated,
         )
 
     async def delete_source(
