@@ -11,7 +11,7 @@ export type SourceType =
   | "email"
   | "obsidian";
 
-export type IngestStatus = "pending" | "processing" | "compiled" | "failed";
+export type IngestStatus = "pending" | "processing" | "review_pending" | "compiled" | "failed";
 
 export type ConfidenceLevel = "sourced" | "mixed" | "inferred" | "opinion";
 
@@ -108,6 +108,29 @@ export interface ArticleResponse extends Article {
   manually_edited: boolean;
   edited_at: string | null;
   is_stub: boolean;
+}
+
+export interface CompilationDraft {
+  id: string;
+  source_id: string;
+  title: string;
+  summary: string;
+  key_takeaways: string[];
+  draft_body: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  reviewed_at: string | null;
+}
+
+export interface ApproveDraftResponse {
+  status: string;
+  article_slug: string;
+  article_title: string;
+}
+
+export interface RejectDraftResponse {
+  status: string;
+  source_id: string;
 }
 
 export interface CreateStubRequest {
@@ -238,4 +261,5 @@ export type WSEvent =
   | { event: "linter.alert"; type: string; articles: string[] }
   | { event: "article.recompiled"; article_id: string; page_type: string; status: string }
   | { event: "budget.warning"; spend_usd: number; budget_usd: number; pct: number }
-  | { event: "budget.exceeded"; spend_usd: number; budget_usd: number };
+  | { event: "budget.exceeded"; spend_usd: number; budget_usd: number }
+  | { event: "draft.ready"; source_id: string; draft_id: string; title: string };

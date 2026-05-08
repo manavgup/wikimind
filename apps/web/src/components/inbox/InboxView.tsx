@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  useDraft,
   useDeleteSource,
   useIngestPdf,
   useIngestUrl,
@@ -8,6 +9,7 @@ import {
 } from "../../hooks/useSources";
 import { ApiError } from "../../api/client";
 import { useWebSocketStore } from "../../store/websocket";
+import { DraftReviewPanel } from "./DraftReviewPanel";
 import { QuickAddBar } from "./QuickAddBar";
 import { SourceList } from "./SourceList";
 
@@ -18,6 +20,9 @@ export function InboxView() {
   const retryMutation = useRetryCompile();
   const deleteMutation = useDeleteSource();
   const [error, setError] = useState<string | null>(null);
+  const [reviewSourceId, setReviewSourceId] = useState<string | null>(null);
+
+  const draftQuery = useDraft(reviewSourceId);
 
   const handleSubmitUrl = async (url: string) => {
     setError(null);
@@ -59,6 +64,15 @@ export function InboxView() {
     }
   };
 
+  const handleReview = (sourceId: string) => {
+    setReviewSourceId(sourceId);
+  };
+
+  const handleReviewDone = () => {
+    setReviewSourceId(null);
+    sourcesQuery.refetch();
+  };
+
   const wsState = useWebSocketStore((s) => s.state);
   const sources = sourcesQuery.data ?? [];
 
@@ -93,6 +107,13 @@ export function InboxView() {
           </div>
         ) : null}
 
+        {reviewSourceId && draftQuery.data ? (
+          <DraftReviewPanel
+            draft={draftQuery.data}
+            onDone={handleReviewDone}
+          />
+        ) : null}
+
         <SourceList
           sources={sources}
           isLoading={sourcesQuery.isLoading}
@@ -109,6 +130,7 @@ export function InboxView() {
               ? deleteMutation.variables
               : null
           }
+          onReview={handleReview}
         />
       </div>
     </div>

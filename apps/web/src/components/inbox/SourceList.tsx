@@ -10,6 +10,7 @@ interface SourceListProps {
   retryingId: string | null;
   onDelete: (sourceId: string) => void;
   deletingId: string | null;
+  onReview?: (sourceId: string) => void;
 }
 
 export function SourceList({
@@ -20,6 +21,7 @@ export function SourceList({
   retryingId,
   onDelete,
   deletingId,
+  onReview,
 }: SourceListProps) {
   if (isLoading) {
     return (
@@ -55,6 +57,7 @@ export function SourceList({
           retrying={retryingId === source.id}
           onDelete={onDelete}
           deleting={deletingId === source.id}
+          onReview={onReview}
         />
       ))}
     </div>

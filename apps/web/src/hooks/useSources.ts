@@ -5,10 +5,13 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import {
+  approveDraft,
   deleteSource,
+  getDraft,
   ingestPdf,
   ingestUrl,
   listSources,
+  rejectDraft,
   retryCompile,
   type ListSourcesParams,
 } from "../api/sources";
@@ -66,6 +69,44 @@ export function useDeleteSource() {
     mutationFn: (sourceId: string) => deleteSource(sourceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SOURCES_KEY });
+    },
+  });
+}
+
+const DRAFT_KEY = ["draft"] as const;
+
+export function useDraft(sourceId: string | null) {
+  return useQuery({
+    queryKey: [...DRAFT_KEY, sourceId],
+    queryFn: () => getDraft(sourceId!),
+    enabled: !!sourceId,
+  });
+}
+
+export function useApproveDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      sourceId,
+      guidance,
+    }: {
+      sourceId: string;
+      guidance?: string;
+    }) => approveDraft(sourceId, guidance),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SOURCES_KEY });
+      qc.invalidateQueries({ queryKey: DRAFT_KEY });
+    },
+  });
+}
+
+export function useRejectDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceId: string) => rejectDraft(sourceId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SOURCES_KEY });
+      qc.invalidateQueries({ queryKey: DRAFT_KEY });
     },
   });
 }

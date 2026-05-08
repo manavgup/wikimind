@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PR #418 Evidence: Human-in-the-Loop Discussion Before Compilation</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 0 auto; padding: 2rem; background: #f8fafc; color: #1e293b; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .subtitle { color: #64748b; margin-bottom: 2rem; }
+    .section { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .section h2 { font-size: 1.25rem; margin-top: 0; color: #334155; }
+    .section p { color: #475569; line-height: 1.6; }
+    .screenshot { border: 1px solid #e2e8f0; border-radius: 8px; max-width: 100%; margin: 1rem 0; }
+    .feature-list { padding-left: 1.5rem; }
+    .feature-list li { margin-bottom: 0.5rem; color: #475569; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.875rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>PR #418: Human-in-the-Loop Discussion Before Compilation</h1>
+  <p class="subtitle">Evidence report for issue #418 -- interactive compilation review workflow</p>
+
+  <div class="section">
+    <h2>What was built</h2>
+    <p>An optional "discuss before compile" mode that lets users review key takeaways, provide focus guidance, and approve or reject compilation drafts before articles are saved to the wiki.</p>
+    <ul class="feature-list">
+      <li><strong>New <code>REVIEW_PENDING</code> ingest status</strong> -- sources pause in this state until the user reviews</li>
+      <li><strong>CompilationDraft model</strong> -- persists the LLM's draft output, extracted takeaways, and user guidance</li>
+      <li><strong>Takeaway extraction</strong> -- a separate LLM call extracts 3-10 key findings before full compilation</li>
+      <li><strong>Guided recompilation</strong> -- when the user provides focus guidance, the source is re-compiled with their direction</li>
+      <li><strong>Draft API endpoints</strong> -- GET/POST for reviewing, approving, and rejecting drafts</li>
+      <li><strong>DraftReviewPanel UI</strong> -- inline review widget with takeaway list, draft preview, and guidance input</li>
+      <li><strong>WebSocket event</strong> -- <code>draft.ready</code> notifies the frontend when a draft is ready for review</li>
+      <li><strong>Opt-in via config</strong> -- <code>WIKIMIND_COMPILER__INTERACTIVE=true</code> (default: false)</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>1. Inbox View with Review-Pending Sources</h2>
+    <p>Sources in <code>review_pending</code> state show an amber <span class="badge badge-amber">Review</span> badge and a "Review draft" button.</p>
+    <img class="screenshot" src="01-inbox-review-pending.png" alt="Inbox view showing review_pending sources with Review badge and Review draft button">
+  </div>
+
+  <div class="section">
+    <h2>2. Draft Review Panel</h2>
+    <p>Clicking "Review draft" opens the DraftReviewPanel inline. It shows the title, summary, 5 numbered key takeaways extracted by the LLM, and action buttons.</p>
+    <img class="screenshot" src="02-draft-review-panel.png" alt="Draft review panel showing key takeaways, guidance input, and approve/reject buttons">
+  </div>
+
+  <div class="section">
+    <h2>3. Draft Article Body Preview</h2>
+    <p>Users can expand the full draft article body to review what the LLM generated before approving.</p>
+    <img class="screenshot" src="03-draft-body-expanded.png" alt="Draft review panel with article body expanded showing markdown content">
+  </div>
+
+  <div class="section">
+    <h2>4. Guided Compilation</h2>
+    <p>When the user types focus guidance, the "Approve as-is" button changes to "Approve with guidance". The source will be re-compiled with the user's direction weighted into the prompt.</p>
+    <img class="screenshot" src="04-guidance-input.png" alt="Draft review panel with user guidance typed and Approve with guidance button">
+  </div>
+
+  <div class="section">
+    <h2>Test Results</h2>
+    <p>11 new tests covering the draft service, model, and API endpoints. All pass.</p>
+    <ul class="feature-list">
+      <li><code>test_create_draft</code> -- draft creation and source status update</li>
+      <li><code>test_get_draft_for_source</code> -- retrieval of pending drafts</li>
+      <li><code>test_get_draft_not_found</code> -- 404 for missing drafts</li>
+      <li><code>test_to_response</code> -- API response serialization</li>
+      <li><code>test_reject_draft</code> -- rejection resets source to pending</li>
+      <li><code>test_approve_draft_without_guidance</code> -- approval saves the article</li>
+      <li><code>test_ingest_status_review_pending</code> -- enum validation</li>
+      <li><code>test_compilation_draft_model</code> -- model defaults</li>
+      <li><code>test_get_draft_endpoint_404</code> -- API 404 handling</li>
+      <li><code>test_reject_draft_endpoint_404</code> -- API 404 handling</li>
+      <li><code>test_approve_draft_endpoint_404</code> -- API 404 handling</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>API Endpoints Added</h2>
+    <div class="grid">
+      <div>
+        <p><code>GET /api/ingest/sources/{id}/draft</code></p>
+        <p>Returns the pending compilation draft with key takeaways and draft article body.</p>
+      </div>
+      <div>
+        <p><code>POST /api/ingest/sources/{id}/draft/approve</code></p>
+        <p>Approves the draft, optionally with guidance for re-compilation.</p>
+      </div>
+      <div>
+        <p><code>POST /api/ingest/sources/{id}/draft/reject</code></p>
+        <p>Rejects the draft and resets the source to pending.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
