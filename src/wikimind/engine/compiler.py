@@ -304,6 +304,20 @@ Compile this into a wiki article following the JSON schema exactly."""
             return await self._replace_article_in_place(existing, result, source, session)
         return await self._create_article(result, source, session, provider)
 
+    async def save_article_in_place(
+        self,
+        existing: Article,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+    ) -> Article:
+        """Replace an existing article in place, bypassing provider lookup.
+
+        Use this when the caller already holds the article row that should be
+        updated (e.g. the force-recompile path).
+        """
+        return await self._replace_article_in_place(existing, result, source, session)
+
     async def _find_article_for_source_and_provider(
         self,
         session: AsyncSession,

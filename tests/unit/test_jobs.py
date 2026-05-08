@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tests.conftest import TEST_USER_ID
 from wikimind.jobs import background as bg_mod
 from wikimind.jobs import worker as worker_mod
 from wikimind.jobs.background import BackgroundCompiler, get_background_compiler
-from wikimind.jobs.worker import compile_source, get_redis_settings, lint_wiki
-from wikimind.models import IngestStatus, LintReport, LintReportStatus, Source, SourceType
+from wikimind.jobs.worker import _recompile_from_source, compile_source, get_redis_settings, lint_wiki
+from wikimind.models import Article, IngestStatus, LintReport, LintReportStatus, PageType, Source, SourceType
 
 
 async def test_background_compiler_dev_mode_compile() -> None:
@@ -313,3 +314,53 @@ async def test_lint_wiki_failure(db_session, tmp_path) -> None:
         patch("wikimind.jobs.worker.run_lint", AsyncMock(side_effect=RuntimeError("boom"))),
     ):
         await lint_wiki({}, user_id=TEST_USER_ID)
+
+
+# ---------------------------------------------------------------------------
+# _recompile_from_source — must update in place, not create orphan (#492)
+# ---------------------------------------------------------------------------
+
+
+async def test_recompile_from_source_calls_save_article_in_place(db_session, tmp_path) -> None:
+    """_recompile_from_source must call save_article_in_place with the existing article."""
+    text_file = tmp_path / "src.txt"
+    text_file.write_text("hello world", encoding="utf-8")
+    src = Source(
+        source_type=SourceType.TEXT,
+        title="t",
+        file_path=str(text_file),
+        status=IngestStatus.COMPILED,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(src)
+    await db_session.commit()
+    await db_session.refresh(src)
+
+    article = Article(
+        slug="test-article",
+        title="Test",
+        file_path="test-article/test-article.md",
+        page_type=PageType.SOURCE,
+        source_ids=json.dumps([src.id]),
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(article)
+    await db_session.commit()
+    await db_session.refresh(article)
+
+    fake_result = MagicMock()
+    fake_compiler = MagicMock()
+    fake_compiler.compile = AsyncMock(return_value=fake_result)
+    fake_compiler.save_article_in_place = AsyncMock(return_value=article)
+
+    with patch.object(worker_mod, "Compiler", return_value=fake_compiler):
+        await _recompile_from_source(article, db_session, TEST_USER_ID)
+
+    # Must call save_article_in_place, not save_article.
+    fake_compiler.save_article_in_place.assert_awaited_once_with(
+        article,
+        fake_result,
+        src,
+        db_session,
+    )
+    fake_compiler.save_article.assert_not_called()

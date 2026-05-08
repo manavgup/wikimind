@@ -315,7 +315,7 @@ async def _recompile_from_source(article: Article, session, user_id: str) -> Non
         msg = "Compiler returned no result"
         raise ValueError(msg)
 
-    await compiler.save_article(result, source, session)
+    await compiler.save_article_in_place(article, result, source, session)
 
 
 async def _recompile_from_concept(article: Article, session, user_id: str) -> None:
