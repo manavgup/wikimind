@@ -52,6 +52,7 @@ from wikimind.models import (
     SourceResponse,
     WikiWorthinessScore,
 )
+from wikimind.services.search import index_article as fts_index_article
 
 log = structlog.get_logger()
 
@@ -662,6 +663,10 @@ class QueryService:
 
         await session.commit()
         await session.refresh(article)
+
+        # Index for full-text search
+        await fts_index_article(session, article.id, article.title, markdown)
+        await session.commit()
 
         return FileBackResult(
             article=FileBackArticleRef(id=article.id, slug=article.slug, title=article.title),

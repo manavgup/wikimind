@@ -34,6 +34,7 @@ from wikimind.models import (
     WikiWorthinessScore,
 )
 from wikimind.services.activity_log import append_log_entry
+from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
@@ -779,6 +780,9 @@ conversation context contradicts the wiki, prefer the wiki."""
             conversation.updated_at = now
             session.add(conversation)
 
+            # Index for full-text search (committed with the caller's session)
+            await fts_index_article(session, article.id, article.title, markdown)
+
             log.info(
                 "Conversation filed back to wiki (created, pending commit)",
                 conversation_id=conversation_id,
@@ -793,6 +797,9 @@ conversation context contradicts the wiki, prefer the wiki."""
         conversation.updated_at = now
         session.add(existing_article)
         session.add(conversation)
+
+        # Update full-text search index
+        await fts_index_article(session, existing_article.id, existing_article.title, markdown)
 
         log.info(
             "Conversation filed back to wiki (updated, pending commit)",

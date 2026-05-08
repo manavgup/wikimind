@@ -27,6 +27,7 @@ from wikimind.models import (
     RelationType,
     TaskType,
 )
+from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
@@ -293,6 +294,16 @@ class ConceptCompiler:
         for sid in source_ids:
             session.add(ArticleSource(article_id=article.id, source_id=sid))
         await session.commit()
+
+        # Update full-text search index
+        wiki_storage = get_wiki_storage(self.user_id)
+        try:
+            article_content = await wiki_storage.read(relative_path)
+        except OSError:
+            article_content = ""
+        await fts_index_article(session, article.id, article.title, article_content)
+        await session.commit()
+
         await self._create_synthesizes_links(article.id, source_ids, session, user_id=self.user_id)
         await self._create_related_to_links(article, compilation.related_concepts, session, user_id=self.user_id)
         return article

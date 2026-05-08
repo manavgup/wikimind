@@ -44,6 +44,7 @@ from wikimind.models import (
     TypedBacklinkSuggestion,
 )
 from wikimind.services.activity_log import append_log_entry
+from wikimind.services.search import index_article as fts_index_article
 from wikimind.services.taxonomy import (
     maybe_trigger_concept_pages,
     maybe_trigger_taxonomy_rebuild,
@@ -431,6 +432,15 @@ Compile this into a wiki article following the JSON schema exactly."""
         session.add(ArticleSource(article_id=article.id, source_id=source.id))
         for concept_name in result.concepts:
             session.add(ArticleConcept(article_id=article.id, concept_name=concept_name))
+        await session.commit()
+
+        # Update full-text search index
+        wiki_storage = get_wiki_storage(self.user_id)
+        try:
+            article_content = await wiki_storage.read(relative_path)
+        except OSError:
+            article_content = ""
+        await fts_index_article(session, article.id, article.title, article_content)
         await session.commit()
 
         await self._persist_resolved_backlinks(
