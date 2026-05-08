@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { executeSavedSearch } from "../../api/tags";
 import { useArticle } from "../../hooks/useArticle";
 import { getRandomArticle } from "../../api/wiki";
 import { Spinner } from "../shared/Spinner";
@@ -10,6 +11,7 @@ import { ArticleReader } from "./ArticleReader";
 import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
 import { FiguresPanel } from "./FiguresPanel";
+import { SavedSearches } from "./SavedSearches";
 import { SearchBar } from "./SearchBar";
 import { SourcePanel } from "./SourcePanel";
 
@@ -22,6 +24,12 @@ export function WikiExplorerView() {
   const [figureCount, setFigureCount] = useState(0);
   const navigate = useNavigate();
   const [showSources, setShowSources] = useState(false);
+  const executeSavedSearchMutation = useMutation({
+    mutationFn: (searchId: string) => executeSavedSearch(searchId),
+    onSuccess: () => {
+      setActiveConcept(null);
+    },
+  });
 
   const hasSources =
     articleQuery.data?.sources && articleQuery.data.sources.length > 0;
@@ -110,6 +118,9 @@ export function WikiExplorerView() {
               activeConcept={activeConcept}
               onSelectConcept={setActiveConcept}
             />
+            <SavedSearches
+              onExecute={(id) => executeSavedSearchMutation.mutate(id)}
+            />
           </aside>
 
           <section className="overflow-y-auto bg-slate-50">
@@ -171,6 +182,9 @@ export function WikiExplorerView() {
             <ConceptTree
               activeConcept={activeConcept}
               onSelectConcept={setActiveConcept}
+            />
+            <SavedSearches
+              onExecute={(id) => executeSavedSearchMutation.mutate(id)}
             />
           </aside>
 

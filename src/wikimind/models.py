@@ -466,6 +466,49 @@ class Contradiction(SQLModel, table=True):
     user_id: str = Field(foreign_key="user.id", index=True)
 
 
+class Tag(SQLModel, table=True):
+    """User-created organizational tag (separate from LLM-derived concepts).
+
+    Tags like ``read-later``, ``favorite``, ``to-revisit`` give users their own
+    retrieval layer. Each tag has a display color for pill-badge rendering.
+    """
+
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_tag_user_name"),)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    name: str
+    color: str = "#6366f1"  # Default indigo
+    created_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class ArticleTag(SQLModel, table=True):
+    """Join table linking articles to user-created tags."""
+
+    __table_args__ = (UniqueConstraint("article_id", "tag_id", name="uq_articletag_article_tag"),)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    tag_id: str = Field(foreign_key="tag.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class SavedSearch(SQLModel, table=True):
+    """User-saved search with optional tag and concept filters.
+
+    Stores a search query string plus a JSON blob of filters so users can
+    one-click re-execute common searches like "Q2 Research" or "read-later
+    items about prompt caching".
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    name: str
+    query: str
+    filters_json: str = "{}"  # JSON: {"tags": ["read-later"], "concepts": [...]}
+    created_at: datetime = Field(default_factory=utcnow_naive)
+
+
 # ---------------------------------------------------------------------------
 # Pydantic Models (not persisted — used for processing pipeline)
 # ---------------------------------------------------------------------------
@@ -934,6 +977,7 @@ class ArticleResponse(BaseModel):
     effective_confidence: float = 0.5
     staleness_score: float | None = None
     concepts: list[str] = []
+    tags: list["TagResponse"] = []
     backlinks_in: list[BacklinkEntry] = []
     backlinks_out: list[BacklinkEntry] = []
     content: str  # Full .md content
@@ -969,6 +1013,7 @@ class ArticleSummaryResponse(BaseModel):
     updated_at: datetime
     page_type: PageType = PageType.SOURCE
     concepts: list[str] = []
+    tags: list["TagResponse"] = []
     source_ids: list[str] = []
     user_id: str | None = None
     manually_edited: bool = False
@@ -1435,3 +1480,62 @@ class TokenCreateResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: str
     name: str
+
+
+# ---------------------------------------------------------------------------
+# Tag + Saved Search request/response models
+# ---------------------------------------------------------------------------
+
+
+class TagResponse(BaseModel):
+    """API response for a user tag."""
+
+    id: str
+    name: str
+    color: str
+    created_at: datetime
+
+
+class CreateTagRequest(BaseModel):
+    """Request to create a new tag."""
+
+    name: str = Field(min_length=1, max_length=100)
+    color: str = "#6366f1"
+
+
+class TagArticleRequest(BaseModel):
+    """Request to tag an article."""
+
+    tag_id: str
+
+
+class ArticleTagResponse(BaseModel):
+    """Confirmation that a tag was applied to an article."""
+
+    article_id: str
+    tag_id: str
+
+
+class SavedSearchResponse(BaseModel):
+    """API response for a saved search."""
+
+    id: str
+    name: str
+    query: str
+    filters_json: str
+    created_at: datetime
+
+
+class CreateSavedSearchRequest(BaseModel):
+    """Request to create a saved search."""
+
+    name: str = Field(min_length=1, max_length=200)
+    query: str = ""
+    filters_json: str = "{}"
+
+
+class SavedSearchExecuteResponse(BaseModel):
+    """Response when executing a saved search."""
+
+    saved_search: SavedSearchResponse
+    articles: list[ArticleSummaryResponse]

@@ -17,6 +17,7 @@ from wikimind.models import (
     ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSummaryResponse,
+    ArticleTagResponse,
     Backlink,
     Contradiction,
     ContradictionResolution,
@@ -38,10 +39,13 @@ from wikimind.models import (
     ResolveContradictionResponse,
     SearchResponse,
     SearchResult,
+    TagArticleRequest,
+    TagResponse,
 )
 from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.search import SearchService, get_search_service
+from wikimind.services.tags import TagService, get_tag_service
 from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, _staleness_score, get_wiki_service
 
@@ -503,3 +507,67 @@ async def recompile_article(
     await compiler.schedule_recompile(article_id, effective_mode, job.id, user_id=user_id)
 
     return RecompileResponse(status="scheduled", job_id=job.id)
+
+
+# ---------------------------------------------------------------------------
+# Article tagging endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/articles/{article_id}/tags",
+    response_model=ArticleTagResponse,
+    status_code=201,
+    responses={404: {"description": "Article or tag not found"}},
+)
+async def tag_article(
+    article_id: str,
+    body: TagArticleRequest,
+    session: AsyncSession = Depends(get_session),
+    tag_service: TagService = Depends(get_tag_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Apply a tag to an article."""
+    await tag_service.tag_article(
+        session,
+        article_id=article_id,
+        tag_id=body.tag_id,
+        user_id=user_id,
+    )
+    return ArticleTagResponse(article_id=article_id, tag_id=body.tag_id)
+
+
+@router.delete(
+    "/articles/{article_id}/tags/{tag_id}",
+    status_code=204,
+    responses={404: {"description": "Tag association not found"}},
+)
+async def untag_article(
+    article_id: str,
+    tag_id: str,
+    session: AsyncSession = Depends(get_session),
+    tag_service: TagService = Depends(get_tag_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Remove a tag from an article."""
+    await tag_service.untag_article(
+        session,
+        article_id=article_id,
+        tag_id=tag_id,
+        user_id=user_id,
+    )
+
+
+@router.get(
+    "/articles/{article_id}/tags",
+    response_model=list[TagResponse],
+    responses={404: {"description": "Article not found"}},
+)
+async def get_article_tags(
+    article_id: str,
+    session: AsyncSession = Depends(get_session),
+    tag_service: TagService = Depends(get_tag_service),
+    _user_id: str = Depends(get_current_user_id),
+):
+    """Get all tags applied to an article."""
+    return await tag_service.get_tags_for_article(session, article_id=article_id)

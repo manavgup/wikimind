@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: WikiMind Gateway
-  description: Local LLM Knowledge OS — Personal API
+  description: "Local LLM Knowledge OS \u2014 Personal API"
   version: 0.1.0
 paths:
   /api/ingest/url:
@@ -223,12 +223,9 @@ paths:
       tags:
       - Ingest
       summary: Get Source Original
-      description: 'Stream the original source document (PDF, HTML, etc.).
-
-
-        Returns the raw binary stored during ingest — not the extracted text.
-
-        Sources that have no original (text, YouTube) return 404.'
+      description: "Stream the original source document (PDF, HTML, etc.).\n\nReturns\
+        \ the raw binary stored during ingest \u2014 not the extracted text.\nSources\
+        \ that have no original (text, YouTube) return 404."
       operationId: get_source_original_api_ingest_sources__source_id__original_get
       parameters:
       - name: source_id
@@ -530,20 +527,11 @@ paths:
       tags:
       - Wiki
       summary: Get Graph
-      description: 'Full knowledge graph -- nodes and edges.
-
-
-        Optional query parameters filter the returned edge set:
-
-
-        * ``relation_type`` — keep only edges of one semantic relation type.
-
-        * ``from_article`` — id or slug of the source article.
-
-        * ``to_article`` — id or slug of the target article.
-
-
-        Filters compose with AND. Filtering is pushed down into SQL.'
+      description: "Full knowledge graph -- nodes and edges.\n\nOptional query parameters\
+        \ filter the returned edge set:\n\n* ``relation_type`` \u2014 keep only edges\
+        \ of one semantic relation type.\n* ``from_article`` \u2014 id or slug of\
+        \ the source article.\n* ``to_article`` \u2014 id or slug of the target article.\n\
+        \nFilters compose with AND. Filtering is pushed down into SQL."
       operationId: get_graph_api_wiki_graph_get
       parameters:
       - name: relation_type
@@ -925,6 +913,104 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{article_id}/tags:
+    post:
+      tags:
+      - Wiki
+      summary: Tag Article
+      description: Apply a tag to an article.
+      operationId: tag_article_api_wiki_articles__article_id__tags_post
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagArticleRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleTagResponse'
+        '404':
+          description: Article or tag not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Wiki
+      summary: Get Article Tags
+      description: Get all tags applied to an article.
+      operationId: get_article_tags_api_wiki_articles__article_id__tags_get
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TagResponse'
+                title: Response Get Article Tags Api Wiki Articles  Article Id  Tags
+                  Get
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{article_id}/tags/{tag_id}:
+    delete:
+      tags:
+      - Wiki
+      summary: Untag Article
+      description: Remove a tag from an article.
+      operationId: untag_article_api_wiki_articles__article_id__tags__tag_id__delete
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      - name: tag_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tag Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Tag association not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/query:
     post:
       tags:
@@ -995,7 +1081,8 @@ paths:
       tags:
       - Query
       summary: Query History
-      description: List past queries (legacy endpoint — UI uses /conversations instead).
+      description: "List past queries (legacy endpoint \u2014 UI uses /conversations\
+        \ instead)."
       operationId: query_history_api_query_history_get
       parameters:
       - name: limit
@@ -1602,14 +1689,10 @@ paths:
       tags:
       - Settings
       summary: Get Onboarding Status
-      description: 'Return onboarding wizard progress for the current user.
-
-
-        If the user has never explicitly completed onboarding but already has
-
-        articles in the wiki, treat onboarding as implicitly complete — they
-
-        are clearly past the first-run stage.'
+      description: "Return onboarding wizard progress for the current user.\n\nIf\
+        \ the user has never explicitly completed onboarding but already has\narticles\
+        \ in the wiki, treat onboarding as implicitly complete \u2014 they\nare clearly\
+        \ past the first-run stage."
       operationId: get_onboarding_status_api_settings_onboarding_status_get
       responses:
         '200':
@@ -1810,6 +1893,200 @@ paths:
           description: Article not found
         '422':
           description: Invalid export format
+  /api/tags:
+    get:
+      tags:
+      - Tags
+      summary: List Tags
+      description: List all tags for the current user.
+      operationId: list_tags_api_tags_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TagResponse'
+                type: array
+                title: Response List Tags Api Tags Get
+    post:
+      tags:
+      - Tags
+      summary: Create Tag
+      description: Create a new user tag.
+      operationId: create_tag_api_tags_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTagRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tags/{tag_id}:
+    delete:
+      tags:
+      - Tags
+      summary: Delete Tag
+      description: Delete a tag and all its article associations.
+      operationId: delete_tag_api_tags__tag_id__delete
+      parameters:
+      - name: tag_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tag Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Tag not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/tags/{tag_id}/articles:
+    get:
+      tags:
+      - Tags
+      summary: Get Articles By Tag
+      description: Get articles tagged with a specific tag.
+      operationId: get_articles_by_tag_api_tags__tag_id__articles_get
+      parameters:
+      - name: tag_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tag Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+                title: Response Get Articles By Tag Api Tags  Tag Id  Articles Get
+        '404':
+          description: Tag not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/saved-searches:
+    get:
+      tags:
+      - SavedSearches
+      summary: List Saved Searches
+      description: List all saved searches for the current user.
+      operationId: list_saved_searches_api_saved_searches_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SavedSearchResponse'
+                type: array
+                title: Response List Saved Searches Api Saved Searches Get
+    post:
+      tags:
+      - SavedSearches
+      summary: Create Saved Search
+      description: Create a new saved search.
+      operationId: create_saved_search_api_saved_searches_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSavedSearchRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/saved-searches/{search_id}:
+    delete:
+      tags:
+      - SavedSearches
+      summary: Delete Saved Search
+      description: Delete a saved search.
+      operationId: delete_saved_search_api_saved_searches__search_id__delete
+      parameters:
+      - name: search_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Search Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Saved search not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/saved-searches/{search_id}/execute:
+    post:
+      tags:
+      - SavedSearches
+      summary: Execute Saved Search
+      description: Execute a saved search and return matching articles.
+      operationId: execute_saved_search_api_saved_searches__search_id__execute_post
+      parameters:
+      - name: search_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Search Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedSearchExecuteResponse'
+        '404':
+          description: Saved search not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/login/{provider}:
     get:
       tags:
@@ -1841,8 +2118,8 @@ paths:
       tags:
       - Auth
       summary: Auth Callback
-      description: Handle OAuth2 callback — exchange code for token, upsert user,
-        set cookie.
+      description: "Handle OAuth2 callback \u2014 exchange code for token, upsert\
+        \ user, set cookie."
       operationId: auth_callback_auth_callback_get
       parameters:
       - name: code
@@ -2042,7 +2319,7 @@ paths:
   /health:
     get:
       summary: Health
-      description: Health check — used by Electron to confirm daemon is ready.
+      description: "Health check \u2014 used by Electron to confirm daemon is ready."
       operationId: health_health_get
       responses:
         '200':
@@ -2232,6 +2509,12 @@ components:
           type: array
           title: Concepts
           default: []
+        tags:
+          items:
+            $ref: '#/components/schemas/TagResponse'
+          type: array
+          title: Tags
+          default: []
         backlinks_in:
           items:
             $ref: '#/components/schemas/BacklinkEntry'
@@ -2305,12 +2588,9 @@ components:
       - source_type
       - title
       title: ArticleSourceSummary
-      description: 'Minimal source descriptor returned with listing/search endpoints.
-
-
-        A lightweight summary used when the full :class:`SourceResponse` is
-
-        overkill — e.g. article list and search result payloads.'
+      description: "Minimal source descriptor returned with listing/search endpoints.\n\
+        \nA lightweight summary used when the full :class:`SourceResponse` is\noverkill\
+        \ \u2014 e.g. article list and search result payloads."
     ArticleSummaryResponse:
       properties:
         id:
@@ -2380,6 +2660,12 @@ components:
           type: array
           title: Concepts
           default: []
+        tags:
+          items:
+            $ref: '#/components/schemas/TagResponse'
+          type: array
+          title: Tags
+          default: []
         source_ids:
           items:
             type: string
@@ -2414,6 +2700,20 @@ components:
         provenance directly in search/listing views without fetching the full
 
         article content.'
+    ArticleTagResponse:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        tag_id:
+          type: string
+          title: Tag Id
+      type: object
+      required:
+      - article_id
+      - tag_id
+      title: ArticleTagResponse
+      description: Confirmation that a tag was applied to an article.
     AskResponse:
       properties:
         query:
@@ -2425,8 +2725,8 @@ components:
       - query
       - conversation
       title: AskResponse
-      description: Response shape for POST /query — wraps both the new query and its
-        parent conversation.
+      description: "Response shape for POST /query \u2014 wraps both the new query\
+        \ and its parent conversation."
     BacklinkEntry:
       properties:
         id:
@@ -2784,7 +3084,8 @@ components:
       - updated_at
       - turn_count
       title: ConversationSummary
-      description: Conversation summary for the history sidebar — adds turn count.
+      description: "Conversation summary for the history sidebar \u2014 adds turn\
+        \ count."
     CostBreakdownEntry:
       properties:
         cost_usd:
@@ -2851,6 +3152,42 @@ components:
       - budget_remaining_usd
       title: CostSummaryResponse
       description: Simple cost summary for current month.
+    CreateSavedSearchRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        query:
+          type: string
+          title: Query
+          default: ''
+        filters_json:
+          type: string
+          title: Filters Json
+          default: '{}'
+      type: object
+      required:
+      - name
+      title: CreateSavedSearchRequest
+      description: Request to create a saved search.
+    CreateTagRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+        color:
+          type: string
+          title: Color
+          default: '#6366f1'
+      type: object
+      required:
+      - name
+      title: CreateTagRequest
+      description: Request to create a new tag.
     CrystallizeResponse:
       properties:
         article_id:
@@ -3311,13 +3648,10 @@ components:
       - orphan
       - structural
       title: LintFindingKind
-      description: 'Kind of lint finding — maps 1:1 to a detection function AND a
-        table.
-
-
-        Used as the content_hash prefix (so dismiss state is keyed by kind + content)
-
-        and as the discriminator field in the frontend API response union.'
+      description: "Kind of lint finding \u2014 maps 1:1 to a detection function AND\
+        \ a table.\n\nUsed as the content_hash prefix (so dismiss state is keyed by\
+        \ kind + content)\nand as the discriminator field in the frontend API response\
+        \ union."
     LintReport:
       properties:
         id:
@@ -3590,8 +3924,8 @@ components:
       - meta
       - synthesis
       title: PageType
-      description: Type of wiki page — determines compilation pipeline and validation
-        rules.
+      description: "Type of wiki page \u2014 determines compilation pipeline and validation\
+        \ rules."
     ProviderDetail:
       properties:
         enabled:
@@ -3703,15 +4037,10 @@ components:
       - filed_article_id
       - created_at
       title: QueryResponse
-      description: 'Q&A response enriched with a full Answer → Article → Source citation
-        chain.
-
-
-        Mirrors the persisted :class:`Query` record fields while adding a
-
-        resolved ``citations`` list so clients can see which articles were
-
-        used and which original sources those articles came from.'
+      description: "Q&A response enriched with a full Answer \u2192 Article \u2192\
+        \ Source citation chain.\n\nMirrors the persisted :class:`Query` record fields\
+        \ while adding a\nresolved ``citations`` list so clients can see which articles\
+        \ were\nused and which original sources those articles came from."
     RebuildConceptsResponse:
       properties:
         status:
@@ -3851,6 +4180,48 @@ components:
       - resolution
       title: ResolveContradictionResponse
       description: Response after resolving a contradiction.
+    SavedSearchExecuteResponse:
+      properties:
+        saved_search:
+          $ref: '#/components/schemas/SavedSearchResponse'
+        articles:
+          items:
+            $ref: '#/components/schemas/ArticleSummaryResponse'
+          type: array
+          title: Articles
+      type: object
+      required:
+      - saved_search
+      - articles
+      title: SavedSearchExecuteResponse
+      description: Response when executing a saved search.
+    SavedSearchResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        query:
+          type: string
+          title: Query
+        filters_json:
+          type: string
+          title: Filters Json
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - query
+      - filters_json
+      - created_at
+      title: SavedSearchResponse
+      description: API response for a saved search.
     SearchResponse:
       properties:
         results:
@@ -4048,7 +4419,7 @@ components:
       - source_type
       - has_original
       title: Source
-      description: Raw ingested source — before compilation.
+      description: "Raw ingested source \u2014 before compilation."
     SourceContentResponse:
       properties:
         content:
@@ -4203,6 +4574,39 @@ components:
       - bucket
       title: SyncSettingsResponse
       description: Cloud sync configuration section.
+    TagArticleRequest:
+      properties:
+        tag_id:
+          type: string
+          title: Tag Id
+      type: object
+      required:
+      - tag_id
+      title: TagArticleRequest
+      description: Request to tag an article.
+    TagResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        color:
+          type: string
+          title: Color
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - color
+      - created_at
+      title: TagResponse
+      description: API response for a user tag.
     TokenCreateRequest:
       properties:
         name:
@@ -4340,5 +4744,9 @@ tags:
   description: OAuth2 authentication
 - name: Export
   description: Export wiki articles as PDF, LinkedIn, or slides
+- name: Tags
+  description: User-created organizational tags
+- name: SavedSearches
+  description: Saved searches with tag and concept filters
 - name: WebSocket
   description: Real-time progress streams

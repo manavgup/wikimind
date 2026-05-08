@@ -11,6 +11,7 @@ import { editArticle } from "../../api/wiki";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
+import { TagSelector } from "./TagSelector";
 
 interface ArticleReaderProps {
   article: ArticleResponse;
@@ -152,6 +153,13 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
               {concept}
             </Badge>
           ))}
+        </div>
+        <div className="mt-2">
+          <TagSelector
+            articleId={article.id}
+            currentTags={article.tags ?? []}
+            onTagsChanged={onArticleUpdated ? () => onArticleUpdated(article) : undefined}
+          />
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
