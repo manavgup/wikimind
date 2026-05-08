@@ -29,6 +29,7 @@ class PageType(StrEnum):
     ANSWER = "answer"
     INDEX = "index"
     META = "meta"
+    SYNTHESIS = "synthesis"
 
 
 class RelationType(StrEnum):
@@ -1034,6 +1035,15 @@ class FileBackResult(BaseModel):
 
     article: FileBackArticleRef
     was_update: bool = False
+
+
+class CrystallizeResponse(BaseModel):
+    """Response after crystallizing a conversation into a wiki article."""
+
+    article_id: str
+    article_slug: str
+    title: str
+    turns_distilled: int
 
 
 class DeleteConfirmation(BaseModel):

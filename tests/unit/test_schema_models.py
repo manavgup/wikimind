@@ -43,9 +43,10 @@ class TestPageTypeEnum:
         assert PageType.ANSWER == "answer"
         assert PageType.INDEX == "index"
         assert PageType.META == "meta"
+        assert PageType.SYNTHESIS == "synthesis"
 
     def test_member_count(self):
-        assert len(PageType) == 5
+        assert len(PageType) == 6
 
 
 class TestRelationTypeEnum:
