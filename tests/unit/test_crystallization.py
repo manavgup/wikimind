@@ -198,6 +198,43 @@ class TestCrystallizeConversation:
             await crystallize_conversation("conv-empty", db_session, user_id=TEST_USER_ID)
         assert exc_info.value.status_code == 400
 
+    async def test_crystallize_sets_crystallized_article_id(self, db_session):
+        """Crystallization sets conversation.crystallized_article_id for idempotency."""
+        await _seed_conversation(db_session)
+
+        mock_router = MagicMock()
+        mock_router.complete = AsyncMock(return_value=_mock_completion_response())
+        mock_router.parse_json_response.return_value = json.loads(_MOCK_CRYSTALLIZE_RESPONSE)
+
+        with patch(
+            "wikimind.services.crystallization.get_llm_router",
+            return_value=mock_router,
+        ):
+            result = await crystallize_conversation("conv-crystal-1", db_session, user_id=TEST_USER_ID)
+
+        conv = await db_session.get(Conversation, "conv-crystal-1")
+        assert conv.crystallized_article_id == result.article_id
+
+    async def test_crystallize_idempotent(self, db_session):
+        """Calling crystallize twice returns the same article without a second LLM call."""
+        await _seed_conversation(db_session)
+
+        mock_router = MagicMock()
+        mock_router.complete = AsyncMock(return_value=_mock_completion_response())
+        mock_router.parse_json_response.return_value = json.loads(_MOCK_CRYSTALLIZE_RESPONSE)
+
+        with patch(
+            "wikimind.services.crystallization.get_llm_router",
+            return_value=mock_router,
+        ):
+            result1 = await crystallize_conversation("conv-crystal-1", db_session, user_id=TEST_USER_ID)
+            result2 = await crystallize_conversation("conv-crystal-1", db_session, user_id=TEST_USER_ID)
+
+        assert result1.article_id == result2.article_id
+        assert result1.article_slug == result2.article_slug
+        # LLM should only be called once — the second call is a no-op
+        assert mock_router.complete.await_count == 1
+
     async def test_crystallize_llm_failure(self, db_session):
         """Raises QueryError when LLM returns unparseable response."""
         await _seed_conversation(db_session)

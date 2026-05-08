@@ -7,6 +7,7 @@ with ``page_type: synthesis``.
 
 import asyncio
 import json
+from datetime import datetime
 from pathlib import Path
 
 import structlog
@@ -65,17 +66,112 @@ def _format_conversation(queries: list[Query]) -> str:
     return "\n".join(lines)
 
 
-async def _generate_unique_slug(title: str, session: AsyncSession) -> str:
-    """Generate a URL-safe slug, appending a suffix to avoid collisions."""
+async def _generate_unique_slug(title: str, user_id: str, session: AsyncSession) -> str:
+    """Generate a URL-safe slug, appending a suffix to avoid collisions.
+
+    Slugs are unique per-user, so the collision check filters by ``user_id``.
+    """
     base = slugify(title, max_length=80)
     candidate = base
     suffix = 2
     while True:
-        existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
+        existing = (
+            (
+                await session.execute(
+                    select(Article).where(
+                        Article.slug == candidate,
+                        Article.user_id == user_id,
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
         if existing is None:
             return candidate
         candidate = f"{base}-{suffix}"
         suffix += 1
+
+
+def _build_markdown(
+    title: str,
+    slug: str,
+    conversation_id: str,
+    turn_count: int,
+    now: datetime,
+    research_question: str,
+    key_findings: list[str],
+    explored_inconclusive: list[str],
+    sources_consulted: list[str],
+    article_body: str,
+) -> str:
+    """Build the YAML-frontmatter markdown content for the synthesis article."""
+    findings_md = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(key_findings))
+    inconclusive_md = "\n".join(f"- {item}" for item in explored_inconclusive)
+    sources_md = "\n".join(f"- {s}" for s in sources_consulted)
+
+    safe_title = title.replace('"', '\\"')
+    return f"""---
+title: "{safe_title}"
+slug: {slug}
+page_type: synthesis
+crystallized_from: {conversation_id}
+turns_distilled: {turn_count}
+crystallized_at: {now.isoformat()}
+---
+
+## Research Question
+
+{research_question}
+
+## Key Findings
+
+{findings_md}
+
+## Analysis
+
+{article_body}
+
+## Explored but Inconclusive
+
+{inconclusive_md}
+
+## Sources Consulted
+
+{sources_md}
+"""
+
+
+async def _check_already_crystallized(
+    conversation: Conversation,
+    session: AsyncSession,
+) -> CrystallizeResponse | None:
+    """Return an existing response if the conversation was already crystallized.
+
+    If ``crystallized_article_id`` points at a missing Article, clears the
+    dangling reference and returns ``None`` so the caller re-crystallizes.
+    """
+    if conversation.crystallized_article_id is None:
+        return None
+
+    existing = await session.get(Article, conversation.crystallized_article_id)
+    if existing is None:
+        conversation.crystallized_article_id = None
+        return None
+
+    log.info(
+        "Conversation already crystallized — returning existing article",
+        conversation_id=conversation.id,
+        article_id=existing.id,
+    )
+    turn_result = await session.execute(select(Query).where(Query.conversation_id == conversation.id))
+    turn_count = len(list(turn_result.scalars().all()))
+    return CrystallizeResponse(
+        article_id=existing.id,
+        article_slug=existing.slug,
+        title=existing.title,
+        turns_distilled=turn_count,
+    )
 
 
 async def crystallize_conversation(
@@ -107,6 +203,11 @@ async def crystallize_conversation(
         raise NotFoundError(msg)
     if user_id and conversation.user_id != user_id:
         raise NotFoundError(msg)
+
+    # Idempotency: return existing article if already crystallized
+    existing_response = await _check_already_crystallized(conversation, session)
+    if existing_response is not None:
+        return existing_response
 
     # Load all turns
     result = await session.execute(
@@ -155,43 +256,20 @@ Distill this conversation into a structured wiki article following the JSON sche
     sources_consulted = data.get("sources_consulted", [])
     article_body = data.get("article_body", "")
 
-    # Build markdown content
     now = utcnow_naive()
-    slug = await _generate_unique_slug(title, session)
-
-    findings_md = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(key_findings))
-    inconclusive_md = "\n".join(f"- {item}" for item in explored_inconclusive)
-    sources_md = "\n".join(f"- {s}" for s in sources_consulted)
-
-    content = f"""---
-title: "{title}"
-slug: {slug}
-page_type: synthesis
-crystallized_from: {conversation_id}
-turns_distilled: {len(queries)}
-crystallized_at: {now.isoformat()}
----
-
-## Research Question
-
-{research_question}
-
-## Key Findings
-
-{findings_md}
-
-## Analysis
-
-{article_body}
-
-## Explored but Inconclusive
-
-{inconclusive_md}
-
-## Sources Consulted
-
-{sources_md}
-"""
+    slug = await _generate_unique_slug(title, user_id, session)
+    content = _build_markdown(
+        title,
+        slug,
+        conversation_id,
+        len(queries),
+        now,
+        research_question,
+        key_findings,
+        explored_inconclusive,
+        sources_consulted,
+        article_body,
+    )
 
     # Write to disk
     settings = get_settings()
@@ -218,8 +296,11 @@ crystallized_at: {now.isoformat()}
         user_id=user_id,
     )
     session.add(article)
-    await session.commit()
-    await session.refresh(article)
+    await session.flush()
+
+    conversation.crystallized_article_id = article.id
+    conversation.updated_at = now
+    session.add(conversation)
 
     log.info(
         "Conversation crystallized",
