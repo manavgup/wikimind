@@ -29,6 +29,7 @@ class PageType(StrEnum):
     ANSWER = "answer"
     INDEX = "index"
     META = "meta"
+    SYNTHESIS = "synthesis"
 
 
 class RelationType(StrEnum):
@@ -306,6 +307,7 @@ class Conversation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
     filed_article_id: str | None = Field(default=None, foreign_key="article.id")
+    crystallized_article_id: str | None = Field(default=None, foreign_key="article.id")
     parent_conversation_id: str | None = Field(default=None, foreign_key="conversation.id", index=True)
     forked_at_turn_index: int | None = None
 
@@ -1036,6 +1038,15 @@ class FileBackResult(BaseModel):
     was_update: bool = False
 
 
+class CrystallizeResponse(BaseModel):
+    """Response after crystallizing a conversation into a wiki article."""
+
+    article_id: str
+    article_slug: str
+    title: str
+    turns_distilled: int
+
+
 class DeleteConfirmation(BaseModel):
     """Confirmation of a resource deletion."""
 
@@ -1095,6 +1106,7 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     filed_article_id: str | None = None
+    crystallized_article_id: str | None = None
     parent_conversation_id: str | None = None
     forked_at_turn_index: int | None = None
     fork_count: int = 0

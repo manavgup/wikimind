@@ -15,10 +15,12 @@ from wikimind.models import (
     AskResponse,
     ConversationDetail,
     ConversationSummary,
+    CrystallizeResponse,
     FileBackSelectionRequest,
     ForkRequest,
     QueryRequest,
 )
+from wikimind.services.crystallization import crystallize_conversation
 from wikimind.services.query import QueryService, get_query_service
 
 log = structlog.get_logger()
@@ -147,6 +149,19 @@ async def file_back_conversation(
 ):
     """File the entire conversation back to the wiki as a single article."""
     return await service.file_back_conversation(conversation_id, session, user_id=user_id)
+
+
+@router.post(
+    "/conversations/{conversation_id}/crystallize",
+    response_model=CrystallizeResponse,
+)
+async def crystallize(
+    conversation_id: str,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Distill a conversation into a new wiki article with page_type synthesis."""
+    return await crystallize_conversation(conversation_id, session, user_id=user_id)
 
 
 @router.post("/conversations/{conversation_id}/fork", response_model=AskResponse)
