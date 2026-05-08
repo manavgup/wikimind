@@ -140,13 +140,15 @@ class TestArticleIdToRowid:
 class TestFtsSearch:
     @pytest.mark.asyncio
     async def test_empty_query_returns_empty(self, fts_session: AsyncSession):
-        results = await search_articles(fts_session, "", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "", TEST_USER_ID)
         assert results == []
+        assert total == 0
 
     @pytest.mark.asyncio
     async def test_no_articles_returns_empty(self, fts_session: AsyncSession):
-        results = await search_articles(fts_session, "python", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "python", TEST_USER_ID)
         assert results == []
+        assert total == 0
 
     @pytest.mark.asyncio
     async def test_search_finds_matching_article(self, fts_session: AsyncSession):
@@ -157,8 +159,9 @@ class TestFtsSearch:
             content="Python is a versatile programming language used for web development.",
         )
 
-        results = await search_articles(fts_session, "python", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "python", TEST_USER_ID)
         assert len(results) == 1
+        assert total == 1
         assert results[0]["title"] == "Python Programming Guide"
         assert results[0]["slug"] == "python-programming-guide"
         assert "snippet" in results[0]
@@ -173,8 +176,9 @@ class TestFtsSearch:
             content="Python is a versatile programming language.",
         )
 
-        results = await search_articles(fts_session, "javascript", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "javascript", TEST_USER_ID)
         assert results == []
+        assert total == 0
 
     @pytest.mark.asyncio
     async def test_search_multiple_results(self, fts_session: AsyncSession):
@@ -191,8 +195,9 @@ class TestFtsSearch:
             content="Deep learning uses neural networks for machine learning tasks.",
         )
 
-        results = await search_articles(fts_session, "machine learning", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "machine learning", TEST_USER_ID)
         assert len(results) == 2
+        assert total == 2
 
     @pytest.mark.asyncio
     async def test_search_user_scoping(self, fts_session: AsyncSession):
@@ -212,13 +217,15 @@ class TestFtsSearch:
             user_id="user-b",
         )
 
-        results_a = await search_articles(fts_session, "quantum", "user-a")
-        results_b = await search_articles(fts_session, "quantum", "user-b")
+        results_a, total_a = await search_articles(fts_session, "quantum", "user-a")
+        results_b, total_b = await search_articles(fts_session, "quantum", "user-b")
 
         assert len(results_a) == 1
+        assert total_a == 1
         assert results_a[0]["title"] == "User A Secret"
 
         assert len(results_b) == 1
+        assert total_b == 1
         assert results_b[0]["title"] == "User B Public"
 
     @pytest.mark.asyncio
@@ -231,7 +238,7 @@ class TestFtsSearch:
             content="The article discusses transformer architectures in detail.",
         )
 
-        results = await search_articles(fts_session, "transformer", TEST_USER_ID)
+        results, _total = await search_articles(fts_session, "transformer", TEST_USER_ID)
         assert len(results) == 1
         assert results[0]["title"] == "Generic Title"
 
@@ -245,7 +252,7 @@ class TestFtsSearch:
             content="Some content without the title keywords.",
         )
 
-        results = await search_articles(fts_session, "kubernetes", TEST_USER_ID)
+        results, _total = await search_articles(fts_session, "kubernetes", TEST_USER_ID)
         assert len(results) == 1
 
     @pytest.mark.asyncio
@@ -259,7 +266,7 @@ class TestFtsSearch:
         )
 
         # Verify it's searchable
-        results = await search_articles(fts_session, "ephemeral", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "ephemeral", TEST_USER_ID)
         assert len(results) == 1
 
         # Remove from FTS
@@ -267,8 +274,9 @@ class TestFtsSearch:
         await fts_session.commit()
 
         # Verify it's gone
-        results = await search_articles(fts_session, "ephemeral", TEST_USER_ID)
+        results, total = await search_articles(fts_session, "ephemeral", TEST_USER_ID)
         assert results == []
+        assert total == 0
 
     @pytest.mark.asyncio
     async def test_update_article_in_index(self, fts_session: AsyncSession):
@@ -290,11 +298,11 @@ class TestFtsSearch:
         await fts_session.commit()
 
         # Old content should not match
-        results = await search_articles(fts_session, "databases", TEST_USER_ID)
+        results, _total = await search_articles(fts_session, "databases", TEST_USER_ID)
         assert results == []
 
         # New content should match
-        results = await search_articles(fts_session, "microservices", TEST_USER_ID)
+        results, _total = await search_articles(fts_session, "microservices", TEST_USER_ID)
         assert len(results) == 1
         assert results[0]["title"] == "Original Title"
 
@@ -309,14 +317,17 @@ class TestFtsSearch:
                 content=f"This is testing article number {i} about software testing.",
             )
 
-        all_results = await search_articles(fts_session, "testing", TEST_USER_ID, limit=10)
+        all_results, total = await search_articles(fts_session, "testing", TEST_USER_ID, limit=10)
         assert len(all_results) == 5
+        assert total == 5
 
-        limited = await search_articles(fts_session, "testing", TEST_USER_ID, limit=2)
+        limited, total = await search_articles(fts_session, "testing", TEST_USER_ID, limit=2)
         assert len(limited) == 2
+        assert total == 5
 
-        offset_results = await search_articles(fts_session, "testing", TEST_USER_ID, limit=2, offset=2)
+        offset_results, total = await search_articles(fts_session, "testing", TEST_USER_ID, limit=2, offset=2)
         assert len(offset_results) == 2
+        assert total == 5
 
     @pytest.mark.asyncio
     async def test_prefix_matching(self, fts_session: AsyncSession):
@@ -328,7 +339,7 @@ class TestFtsSearch:
             content="Discussion of various programming paradigms.",
         )
 
-        results = await search_articles(fts_session, "program", TEST_USER_ID)
+        results, _total = await search_articles(fts_session, "program", TEST_USER_ID)
         assert len(results) == 1
 
 

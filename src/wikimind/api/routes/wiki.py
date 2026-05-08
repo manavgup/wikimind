@@ -209,14 +209,14 @@ async def get_article_relationships(
 @router.get("/search", response_model=SearchResponse)
 async def search(
     q: str = Query(..., min_length=2),
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
     search_service: SearchService = Depends(get_search_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Full-text search across wiki articles using BM25 ranking."""
-    raw_results = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
+    raw_results, total = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
     results = [
         SearchResult(
             article_id=r["article_id"],
@@ -227,7 +227,7 @@ async def search(
         )
         for r in raw_results
     ]
-    return SearchResponse(results=results, total=len(results), query=q)
+    return SearchResponse(results=results, total=total, query=q)
 
 
 @router.get("/concepts")

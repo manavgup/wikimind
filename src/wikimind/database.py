@@ -216,9 +216,27 @@ async def init_db():
     await _ensure_anonymous_user(engine)
 
     # Create FTS virtual table for full-text search (idempotent).
-    from wikimind.services.search import create_fts_table  # noqa: PLC0415
+    from wikimind.services.search import create_fts_table, rebuild_fts_index  # noqa: PLC0415
 
     await create_fts_table(engine)
+
+    # Rebuild the FTS index if the table is empty but articles exist.
+    # This ensures existing articles are searchable after first deploy
+    # or if the FTS table was recreated.
+    if not is_postgres(get_settings().database_url):
+        async with get_session_factory()() as fts_session:
+            fts_count = await fts_session.execute(sa_text("SELECT count(*) FROM article_fts"))
+            fts_rows = fts_count.scalar() or 0
+
+            article_count = await fts_session.execute(sa_text("SELECT count(*) FROM article"))
+            article_rows = article_count.scalar() or 0
+
+            if fts_rows == 0 and article_rows > 0:
+                log.info(
+                    "FTS index empty but articles exist, rebuilding",
+                    article_count=article_rows,
+                )
+                await rebuild_fts_index(fts_session)
 
     # Versioned data migrations — each runs at most once
     _versioned_migrations: list[tuple[str, object]] = [

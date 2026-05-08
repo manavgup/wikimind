@@ -11,6 +11,7 @@ top via the existing ``EmbeddingService``.
 from __future__ import annotations
 
 import functools
+import hashlib
 from typing import TYPE_CHECKING
 
 import structlog
@@ -193,10 +194,12 @@ async def search_articles(
     user_id: str,
     limit: int = 20,
     offset: int = 0,
-) -> list[dict]:
-    """Execute a full-text search and return ranked results.
+) -> tuple[list[dict], int]:
+    """Execute a full-text search and return ranked results with total count.
 
-    Returns a list of dicts with keys: article_id, title, slug, snippet, rank.
+    Returns a tuple of (results, total) where results is a list of dicts
+    with keys: article_id, title, slug, snippet, rank; and total is the
+    count of all matches before pagination.
 
     Args:
         session: Active database session.
@@ -206,10 +209,10 @@ async def search_articles(
         offset: Pagination offset.
 
     Returns:
-        List of search result dicts ordered by relevance.
+        Tuple of (result dicts ordered by relevance, total match count).
     """
     if not _fts_ready:
-        return []
+        return [], 0
 
     url = get_settings().database_url
 
@@ -224,62 +227,85 @@ async def _search_sqlite(
     user_id: str,
     limit: int,
     offset: int,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """FTS5 search with BM25 ranking and snippet extraction.
 
     Uses a two-step approach: query the FTS5 table first for rowids and
-    snippets, then join against the article table in Python for user scoping.
-    This avoids needing a custom SQL function in SQLite.
+    snippets, then join against the article table for user scoping.
+    Returns (results, total_count) where total_count is the number of
+    user-scoped matches before pagination.
     """
     fts_query = _sanitize_fts5_query(query)
     if not fts_query:
-        return []
+        return [], 0
 
+    # Fetch all FTS matches (no LIMIT) so we can compute accurate total
+    # after user-scoping.  The FTS5 query itself is fast; the bottleneck
+    # was loading all user Article ORM objects, which is fixed below.
     fts_sql = sa_text(
         "SELECT rowid, "
         "snippet(article_fts, 1, '<mark>', '</mark>', '...', 40) AS snippet, "
         "bm25(article_fts, 5.0, 1.0) AS rank "
         "FROM article_fts "
         "WHERE article_fts MATCH :query "
-        "ORDER BY rank "
-        "LIMIT :limit_padded"
+        "ORDER BY rank"
     )
 
-    # Fetch more than needed since we'll filter by user_id in Python
-    limit_padded = limit + offset + 50
-    fts_result = await session.execute(fts_sql, {"query": fts_query, "limit_padded": limit_padded})
+    fts_result = await session.execute(fts_sql, {"query": fts_query})
     fts_rows = fts_result.all()
 
     if not fts_rows:
-        return []
+        return [], 0
 
     # Build rowid -> (snippet, rank) map
     rowid_map: dict[int, tuple[str, float]] = {}
     for row in fts_rows:
         rowid_map[row[0]] = (row[1], row[2])
 
-    # Fetch user's articles and match by rowid hash
-    article_result = await session.execute(select(Article).where(Article.user_id == user_id))
-    all_user_articles = list(article_result.scalars().all())
+    # Map FTS rowids back to article IDs: fetch only the user's article IDs
+    # (lightweight — no ORM hydration), compute their rowid hashes, and
+    # select only the ones that matched the FTS query.
+    id_result = await session.execute(select(Article.id).where(Article.user_id == user_id))
+    user_article_ids = [row[0] for row in id_result.all()]
+
+    matched_ids: list[str] = []
+    id_to_rowid: dict[str, int] = {}
+    for aid in user_article_ids:
+        rowid = _article_id_to_rowid(aid)
+        if rowid in rowid_map:
+            matched_ids.append(aid)
+            id_to_rowid[aid] = rowid
+
+    if not matched_ids:
+        return [], 0
+
+    # Load only the matched articles from the database
+    article_result = await session.execute(
+        select(Article).where(
+            Article.id.in_(matched_ids),
+            Article.user_id == user_id,
+        )
+    )
+    matched_articles = list(article_result.scalars().all())
 
     results: list[dict] = []
-    for article in all_user_articles:
-        rowid = _article_id_to_rowid(article.id)
-        if rowid in rowid_map:
-            snippet, rank = rowid_map[rowid]
-            results.append(
-                {
-                    "article_id": article.id,
-                    "slug": article.slug,
-                    "title": article.title,
-                    "snippet": snippet,
-                    "rank": rank,
-                }
-            )
+    for article in matched_articles:
+        rowid = id_to_rowid[article.id]
+        snippet, rank = rowid_map[rowid]
+        results.append(
+            {
+                "article_id": article.id,
+                "slug": article.slug,
+                "title": article.title,
+                "snippet": snippet,
+                "rank": rank,
+            }
+        )
 
     # Sort by BM25 rank (lower is better in FTS5)
     results.sort(key=lambda r: r["rank"])
-    return results[offset : offset + limit]
+    total = len(results)
+    return results[offset : offset + limit], total
 
 
 async def _search_postgres(
@@ -288,11 +314,23 @@ async def _search_postgres(
     user_id: str,
     limit: int,
     offset: int,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """Postgres full-text search with ts_rank and ts_headline."""
     tsquery = _sanitize_postgres_query(query)
     if not tsquery:
-        return []
+        return [], 0
+
+    # Count total matches before pagination
+    count_sql = sa_text(
+        "SELECT count(*) "
+        "FROM article "
+        "WHERE to_tsvector('english', coalesce(title, '') "
+        "  || ' ' || coalesce(summary, '')) "
+        "  @@ to_tsquery('english', :query) "
+        "AND user_id = :user_id"
+    )
+    count_result = await session.execute(count_sql, {"query": tsquery, "user_id": user_id})
+    total = count_result.scalar() or 0
 
     sql = sa_text(
         "SELECT id, slug, title, "
@@ -322,7 +360,7 @@ async def _search_postgres(
         },
     )
 
-    return [
+    results = [
         {
             "article_id": row[0],
             "slug": row[1],
@@ -332,6 +370,7 @@ async def _search_postgres(
         }
         for row in result.all()
     ]
+    return results, total
 
 
 # ---------------------------------------------------------------------------
@@ -340,12 +379,16 @@ async def _search_postgres(
 
 
 def _article_id_to_rowid(article_id: str) -> int:
-    """Convert a UUID string to a positive 64-bit integer for FTS5 rowid.
+    """Deterministic 63-bit positive integer from article ID.
 
-    FTS5 requires integer rowids. We hash the UUID and mask to 63 bits
-    to stay within SQLite's signed 64-bit integer range.
+    FTS5 requires integer rowids. We use MD5 (not security-sensitive) and
+    mask to 63 bits to stay within SQLite's signed 64-bit integer range.
+
+    Unlike Python's built-in ``hash()``, this is deterministic across
+    process restarts regardless of PYTHONHASHSEED.
     """
-    return hash(article_id) & 0x7FFFFFFFFFFFFFFF
+    digest = hashlib.md5(article_id.encode(), usedforsecurity=False).digest()
+    return int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF
 
 
 def _sanitize_fts5_query(query: str) -> str:
@@ -357,8 +400,13 @@ def _sanitize_fts5_query(query: str) -> str:
     words = query.strip().split()
     if not words:
         return ""
-    # Quote each word and add prefix wildcard for partial matching
-    parts = [f'"{w}"*' for w in words if w]
+    # Strip double-quotes to avoid malformed FTS5 expressions, then
+    # quote each word and add prefix wildcard for partial matching.
+    parts = []
+    for w in words:
+        cleaned = w.replace('"', "")
+        if cleaned:
+            parts.append(f'"{cleaned}"*')
     return " ".join(parts)
 
 
@@ -404,8 +452,8 @@ class SearchService:
         user_id: str,
         limit: int = 20,
         offset: int = 0,
-    ) -> list[dict]:
-        """Execute full-text search, returning ranked result dicts."""
+    ) -> tuple[list[dict], int]:
+        """Execute full-text search, returning (ranked result dicts, total)."""
         return await search_articles(session, query, user_id, limit, offset)
 
 

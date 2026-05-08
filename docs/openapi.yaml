@@ -534,7 +534,7 @@ paths:
       tags:
       - Wiki
       summary: Search
-      description: Full-text search across wiki articles with source provenance.
+      description: Full-text search across wiki articles using BM25 ranking.
       operationId: search_wiki_search_get
       parameters:
       - name: q
@@ -549,18 +549,25 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 100
+          minimum: 1
           default: 20
           title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ArticleSummaryResponse'
-                title: Response Search Wiki Search Get
+                $ref: '#/components/schemas/SearchResponse'
         '422':
           description: Validation Error
           content:
@@ -3652,6 +3659,52 @@ components:
       - resolution
       title: ResolveContradictionResponse
       description: Response after resolving a contradiction.
+    SearchResponse:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/SearchResult'
+          type: array
+          title: Results
+        total:
+          type: integer
+          title: Total
+        query:
+          type: string
+          title: Query
+      type: object
+      required:
+      - results
+      - total
+      - query
+      title: SearchResponse
+      description: Paginated full-text search response.
+    SearchResult:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        snippet:
+          type: string
+          title: Snippet
+        rank:
+          type: number
+          title: Rank
+      type: object
+      required:
+      - article_id
+      - slug
+      - title
+      - snippet
+      - rank
+      title: SearchResult
+      description: A single full-text search result with snippet and relevance score.
     SetApiKeyRequest:
       properties:
         api_key:
