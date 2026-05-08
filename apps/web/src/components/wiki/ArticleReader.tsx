@@ -2,7 +2,12 @@ import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
+import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
+import "katex/dist/katex.min.css";
+import "highlight.js/styles/github.css";
 import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
 import { slugify } from "../../utils/slugify";
@@ -235,8 +240,8 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
       ) : (
         <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-brand-700">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
             components={{
               a: ({ node: _node, href, children }) => {
                 if (href && href.startsWith("/wiki/")) {
@@ -264,24 +269,76 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
                 const resolvedSrc =
                   src && src.startsWith("/images/")
                     ? `${getBaseUrl()}${src}`
-                    : src;
+                    : src && src.startsWith("/api/")
+                      ? `${getBaseUrl()}${src}`
+                      : src;
                 return (
-                  <figure className="my-4">
+                  <figure className="my-6">
                     <img
                       src={resolvedSrc}
                       alt={alt || ""}
-                      className="mx-auto max-w-full rounded border border-slate-200"
+                      className="mx-auto max-w-full rounded-lg border border-slate-200 shadow-sm"
                       loading="lazy"
                       {...props}
                     />
                     {alt && alt !== "Figure" && (
-                      <figcaption className="mt-1 text-center text-sm text-slate-500">
+                      <figcaption className="mt-2 text-center text-sm italic text-slate-500">
                         {alt}
                       </figcaption>
                     )}
                   </figure>
                 );
               },
+              pre: ({ children }) => (
+                <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed">
+                  {children}
+                </pre>
+              ),
+              code: ({ node: _node, className, children, ...props }) => {
+                const isInline = !className;
+                if (isInline) {
+                  return (
+                    <code
+                      className="rounded bg-slate-100 px-1.5 py-0.5 text-sm font-medium text-slate-800"
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                }
+                return (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              table: ({ children }) => (
+                <div className="my-6 overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    {children}
+                  </table>
+                </div>
+              ),
+              thead: ({ children }) => (
+                <thead className="bg-slate-50">
+                  {children}
+                </thead>
+              ),
+              th: ({ children }) => (
+                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  {children}
+                </th>
+              ),
+              td: ({ children }) => (
+                <td className="px-4 py-2.5 text-slate-700">
+                  {children}
+                </td>
+              ),
+              tr: ({ children }) => (
+                <tr className="border-b border-slate-100 last:border-b-0">
+                  {children}
+                </tr>
+              ),
               h2: ({ children }) => {
                 const text = childrenToText(children);
                 return <h2 id={slugify(text)}>{children}</h2>;
