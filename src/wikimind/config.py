@@ -167,6 +167,15 @@ class TaxonomyConfig(BaseModel):
     concept_page_min_sources: int = 2
 
 
+class CaptureConfig(BaseModel):
+    """Ambient capture configuration (issue #442)."""
+
+    rss_poll_interval_minutes: int = 60
+    rss_max_entries_per_poll: int = 50
+    auto_discard_min_chars: int = 200
+    rss_http_timeout_seconds: int = 30
+
+
 class IngestConfig(BaseModel):
     """Ingestion configuration."""
 
@@ -282,6 +291,7 @@ class Settings(BaseSettings):
     server: ServerConfig = Field(default_factory=ServerConfig)
     qa: QAConfig = Field(default_factory=QAConfig)
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
+    capture: CaptureConfig = Field(default_factory=CaptureConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     compiler: CompilerConfig = Field(default_factory=CompilerConfig)
     linter: LinterConfig = Field(default_factory=LinterConfig)

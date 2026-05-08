@@ -325,6 +325,274 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/{kind}:
+    post:
+      tags:
+      - Capture
+      summary: Create Capture
+      description: Push a raw capture from an ambient adapter.
+      operationId: create_capture_api_capture__kind__post
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CaptureKind'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture:
+    get:
+      tags:
+      - Capture
+      summary: List Captures
+      description: List captures (the capture inbox).
+      operationId: list_captures_api_capture_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/CaptureStatus'
+          - type: 'null'
+          title: Status
+      - name: kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/CaptureKind'
+          - type: 'null'
+          title: Kind
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/{capture_id}/ingest:
+    post:
+      tags:
+      - Capture
+      summary: Ingest Capture
+      description: Promote a capture to a full source for compilation.
+      operationId: ingest_capture_api_capture__capture_id__ingest_post
+      parameters:
+      - name: capture_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Capture Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/{capture_id}/discard:
+    post:
+      tags:
+      - Capture
+      summary: Discard Capture
+      description: Mark a capture as not-worth-keeping.
+      operationId: discard_capture_api_capture__capture_id__discard_post
+      parameters:
+      - name: capture_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Capture Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/DiscardCaptureRequest'
+              - type: 'null'
+              title: Request
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/rss/feeds:
+    get:
+      tags:
+      - Capture
+      summary: List Rss Feeds
+      description: List all RSS feed subscriptions.
+      operationId: list_rss_feeds_api_capture_rss_feeds_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RssFeedListResponse'
+    post:
+      tags:
+      - Capture
+      summary: Subscribe Rss Feed
+      description: Subscribe to an RSS/Atom feed.
+      operationId: subscribe_rss_feed_api_capture_rss_feeds_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RssFeedRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RssFeedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/rss/feeds/{feed_id}:
+    patch:
+      tags:
+      - Capture
+      summary: Toggle Rss Feed
+      description: Enable or disable an RSS feed.
+      operationId: toggle_rss_feed_api_capture_rss_feeds__feed_id__patch
+      parameters:
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Feed Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RssFeedToggleRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RssFeedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Capture
+      summary: Delete Rss Feed
+      description: Delete an RSS feed subscription.
+      operationId: delete_rss_feed_api_capture_rss_feeds__feed_id__delete
+      parameters:
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Feed Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteConfirmation'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/rss/feeds/{feed_id}/poll:
+    post:
+      tags:
+      - Capture
+      summary: Poll Rss Feed
+      description: Manually trigger a poll for a single RSS feed.
+      operationId: poll_rss_feed_api_capture_rss_feeds__feed_id__poll_post
+      parameters:
+      - name: feed_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Feed Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RssPollResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/contradiction-resolutions:
     get:
       tags:
@@ -2929,6 +3197,135 @@ components:
       required:
       - file
       title: Body_ingest_pdf_api_ingest_pdf_post
+    CaptureKind:
+      type: string
+      enum:
+      - share_target
+      - rss
+      - email
+      - clipboard
+      - voice
+      - screenshot
+      - slack
+      - discord
+      title: CaptureKind
+      description: Kind of ambient capture adapter that produced a CaptureSource.
+    CaptureListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/CaptureResponse'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: CaptureListResponse
+      description: Paginated list of captures.
+    CaptureRequest:
+      properties:
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        content:
+          type: string
+          title: Content
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        external_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: External Id
+      type: object
+      required:
+      - content
+      title: CaptureRequest
+      description: Request to capture content from an ambient adapter.
+    CaptureResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        kind:
+          $ref: '#/components/schemas/CaptureKind'
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        status:
+          $ref: '#/components/schemas/CaptureStatus'
+        external_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: External Id
+        received_at:
+          type: string
+          format: date-time
+          title: Received At
+        triaged_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Triaged At
+        ingested_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Ingested At
+        discarded_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Discarded At
+        discard_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Discard Reason
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+      type: object
+      required:
+      - id
+      - kind
+      - title
+      - source_url
+      - status
+      - received_at
+      title: CaptureResponse
+      description: API response for a captured item.
+    CaptureStatus:
+      type: string
+      enum:
+      - captured
+      - triaged
+      - ingested
+      - discarded
+      title: CaptureStatus
+      description: Lifecycle status of a captured item.
     CitationArticleRef:
       properties:
         slug:
@@ -3445,6 +3842,26 @@ components:
       - deleted
       title: DeleteAccountResponse
       description: Confirmation of account deletion.
+    DeleteConfirmation:
+      properties:
+        deleted:
+          type: string
+          title: Deleted
+      type: object
+      required:
+      - deleted
+      title: DeleteConfirmation
+      description: Confirmation of a resource deletion.
+    DiscardCaptureRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      type: object
+      title: DiscardCaptureRequest
+      description: Optional request body when discarding a capture.
     DismissFindingResponse:
       properties:
         dismissed:
@@ -3802,6 +4219,7 @@ components:
       - recompile_article
       - sync_push
       - sync_pull
+      - poll_rss_feeds
       title: JobType
       description: Type of async job.
     LLMSettingsResponse:
@@ -4399,6 +4817,101 @@ components:
       - resolution
       title: ResolveContradictionResponse
       description: Response after resolving a contradiction.
+    RssFeedListResponse:
+      properties:
+        feeds:
+          items:
+            $ref: '#/components/schemas/RssFeedResponse'
+          type: array
+          title: Feeds
+      type: object
+      required:
+      - feeds
+      title: RssFeedListResponse
+      description: List of RSS feed subscriptions.
+    RssFeedRequest:
+      properties:
+        feed_url:
+          type: string
+          title: Feed Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+      type: object
+      required:
+      - feed_url
+      title: RssFeedRequest
+      description: Request to subscribe to an RSS feed.
+    RssFeedResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        feed_url:
+          type: string
+          title: Feed Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        enabled:
+          type: boolean
+          title: Enabled
+        last_polled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Polled At
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - feed_url
+      - title
+      - enabled
+      - created_at
+      title: RssFeedResponse
+      description: API response for an RSS feed subscription.
+    RssFeedToggleRequest:
+      properties:
+        enabled:
+          type: boolean
+          title: Enabled
+      type: object
+      required:
+      - enabled
+      title: RssFeedToggleRequest
+      description: Request to enable or disable an RSS feed.
+    RssPollResponse:
+      properties:
+        feed_id:
+          type: string
+          title: Feed Id
+        new_captures:
+          type: integer
+          title: New Captures
+        status:
+          type: string
+          title: Status
+          default: polled
+      type: object
+      required:
+      - feed_id
+      - new_captures
+      title: RssPollResponse
+      description: Response after triggering an RSS poll.
     SavedSearchExecuteResponse:
       properties:
         saved_search:
@@ -4996,6 +5509,8 @@ tags:
   description: Browse wiki articles, knowledge graph, and search
 - name: Ingest
   description: Ingest sources (URLs, PDFs, text, YouTube)
+- name: Capture
+  description: Ambient capture inbox and RSS feeds
 - name: Query
   description: Ask questions against the wiki
 - name: Jobs
