@@ -2580,6 +2580,12 @@ components:
           - type: string
           - type: 'null'
           title: Concept Cluster
+        concepts:
+          items:
+            type: string
+          type: array
+          title: Concepts
+          default: []
         connection_count:
           type: integer
           title: Connection Count

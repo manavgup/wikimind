@@ -1126,6 +1126,7 @@ class GraphNode(BaseModel):
     id: str
     label: str
     concept_cluster: str | None
+    concepts: list[str] = []
     connection_count: int
     confidence: ConfidenceLevel | None
     confidence_score: float = 0.5
