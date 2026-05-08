@@ -122,6 +122,60 @@ async def test_edit_article_both(
 # ---------------------------------------------------------------------------
 
 
+async def test_edit_article_empty_patch_no_side_effects(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    _isolated_data_dir,
+) -> None:
+    """PATCH with both content and title omitted must NOT set manually_edited."""
+    article = await _create_article_with_file(db_session)
+
+    storage = get_wiki_storage(_CLIENT_USER_ID)
+    await storage.write(article.file_path, "# Test\n\nOriginal content.")
+
+    response = await client.patch(
+        f"/wiki/articles/{article.slug}",
+        json={},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["manually_edited"] is False
+    assert data["edited_at"] is None
+
+
+async def test_edit_article_empty_string_content_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    _isolated_data_dir,
+) -> None:
+    """PATCH with empty-string content returns 422 validation error."""
+    article = await _create_article_with_file(db_session)
+
+    response = await client.patch(
+        f"/wiki/articles/{article.slug}",
+        json={"content": ""},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_edit_article_empty_string_title_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    _isolated_data_dir,
+) -> None:
+    """PATCH with empty-string title returns 422 validation error."""
+    article = await _create_article_with_file(db_session)
+
+    response = await client.patch(
+        f"/wiki/articles/{article.slug}",
+        json={"title": ""},
+    )
+
+    assert response.status_code == 422
+
+
 async def test_edit_article_not_found(client: AsyncClient) -> None:
     """PATCH for a non-existent article returns 404."""
     response = await client.patch(

@@ -477,6 +477,11 @@ class WikiService:
         Raises:
             NotFoundError: If the article does not exist for this user.
         """
+        # No-op: nothing to change — return the article as-is without
+        # poisoning the manually_edited flag.
+        if content is None and title is None:
+            return await self.get_article(id_or_slug, session, user_id=user_id)
+
         # Look up article by ID first, then slug
         id_stmt = select(Article).where(Article.id == id_or_slug)
         id_stmt = id_stmt.where(Article.user_id == user_id)

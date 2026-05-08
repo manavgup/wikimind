@@ -908,8 +908,8 @@ class BacklinkEntry(BaseModel):
 class ArticleEditRequest(BaseModel):
     """Request to manually edit an article's content or title."""
 
-    content: str | None = None
-    title: str | None = None
+    content: str | None = Field(default=None, min_length=1)
+    title: str | None = Field(default=None, min_length=1)
 
 
 class ArticleResponse(BaseModel):
