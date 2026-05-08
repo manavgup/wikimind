@@ -29,6 +29,7 @@ from wikimind.api.routes import (
     lint,
     query,
     saved_searches,
+    sharing,
     synthesis,
     tags,
     wiki,
@@ -60,6 +61,7 @@ _API_ONLY_PREFIXES = (
     "/assets/",
     "/auth/",
     "/docs",
+    "/public/",
     "/redoc",
     "/openapi.json",
     "/ws",
@@ -181,6 +183,7 @@ app = FastAPI(
         {"name": "Export", "description": "Export wiki articles as PDF, LinkedIn, or slides"},
         {"name": "Tags", "description": "User-created organizational tags"},
         {"name": "SavedSearches", "description": "Saved searches with tag and concept filters"},
+        {"name": "Sharing", "description": "Per-article share links and public access"},
         {"name": "Synthesis", "description": "Cross-cutting synthesis pages across multiple sources"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
@@ -232,8 +235,13 @@ api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
 api_router.include_router(export.router, prefix="/wiki", tags=["Export"])
 api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
 api_router.include_router(saved_searches.router, prefix="/saved-searches", tags=["SavedSearches"])
+api_router.include_router(sharing.router, prefix="/wiki", tags=["Sharing"])
 api_router.include_router(synthesis.router, prefix="/wiki", tags=["Synthesis"])
 app.include_router(api_router)
+
+# Public share links — no auth required. Mounted at root level so the
+# auth middleware EXEMPT_PREFIXES can skip these paths.
+app.include_router(sharing.public_router, tags=["Sharing"])
 
 # Auth and WebSocket remain at root — auth redirects require stable paths,
 # and WebSocket connections are not prefixed.

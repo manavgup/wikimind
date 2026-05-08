@@ -16,6 +16,7 @@ import { editArticle } from "../../api/wiki";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
+import { ShareButton } from "./ShareButton";
 import { TagSelector } from "./TagSelector";
 
 interface ArticleReaderProps {
@@ -173,14 +174,17 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
             {article.title}
           </h1>
-          {!isEditing ? (
-            <button
-              onClick={handleEdit}
-              className="ml-4 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Edit
-            </button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            <ShareButton articleId={article.id} />
+            {!isEditing ? (
+              <button
+                onClick={handleEdit}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Edit
+              </button>
+            ) : null}
+          </div>
         </div>
         {article.summary ? (
           <p className="mt-2 text-base text-slate-600">{article.summary}</p>

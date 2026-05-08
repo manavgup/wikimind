@@ -26,6 +26,7 @@ EXEMPT_PREFIXES = (
     "/auth/logout",
     "/auth/magic-link",
     "/assets/",
+    "/public/",
 )
 # Static frontend files that must load without auth so users can see the login page.
 _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
