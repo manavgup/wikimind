@@ -312,7 +312,7 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
 | `make security` | Run security and dead-code checks |
 | `make update-secrets-baseline` | Update detect-secrets baseline (keeps line numbers in sync) |
-| `make verify` | Run the required full-verify suite (Python + desktop + extension; excludes frontend/doc-sync) |
+| `make verify` | Run the required full-verify suite (Python + desktop + extension + doc-sync) |
 | `make coverage-ci` | Run backend CI tests with terminal, HTML, and XML coverage outputs |
 | `make coverage-check` | Run non-E2E tests with coverage (policy is configured in pyproject.toml) |
 | `make security-check` | Run the scheduled CI security scan set |

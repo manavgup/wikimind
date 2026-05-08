@@ -33,16 +33,16 @@ repos:
       - id: ruff-format
         args: ["--config=pyproject.toml"]
 
-  # ── Secret detection ─────────────────────────────────────────────────────
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
-    hooks:
-      - id: detect-secrets
-        args: ["--baseline", ".secrets.baseline"]
-
-  # ── Doc sync (local hooks) ────────────────────────────────────────────────
+  # ── Auto-fix local hooks (run before validation) ──────────────────────────
   - repo: local
     hooks:
+      - id: update-secrets-baseline
+        name: Update detect-secrets baseline
+        entry: python scripts/update_secrets_baseline.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: regenerate-adr-index
         name: ADR index — regenerate docs/adr/README.md
         entry: python scripts/regenerate_adr_index.py
@@ -59,14 +59,23 @@ repos:
         always_run: true
         files: ^(Makefile|README\.md)$
 
-      - id: check-openapi
-        name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
-        entry: python scripts/export_openapi.py --check
+      - id: export-openapi
+        name: OpenAPI schema — regenerate docs/openapi.yaml
+        entry: python scripts/export_openapi.py
         language: system
         pass_filenames: false
-        always_run: true
-        files: ^(src/wikimind/api/|docs/openapi\.yaml)
+        files: ^(src/wikimind/api/|src/wikimind/models\.py)
 
+  # ── Secret detection (validate, after baseline is updated) ───────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+
+  # ── Doc sync validation (runs after OpenAPI is regenerated) ──────────────
+  - repo: local
+    hooks:
       - id: check-doc-sync
         name: Doc sync — verify docs are updated alongside code
         entry: python scripts/check_doc_sync.py
