@@ -39,6 +39,21 @@ export function getRandomArticle(): Promise<Article> {
   return apiFetch<Article>("/wiki/articles/random");
 }
 
+export interface ArticleEditRequest {
+  content?: string;
+  title?: string;
+}
+
+export function editArticle(
+  slug: string,
+  body: ArticleEditRequest,
+): Promise<ArticleResponse> {
+  return apiFetch<ArticleResponse>(
+    `/wiki/articles/${encodeURIComponent(slug)}`,
+    { method: "PATCH", body },
+  );
+}
+
 export function getGraph(): Promise<GraphResponse> {
   return apiFetch<GraphResponse>("/wiki/graph");
 }

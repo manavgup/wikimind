@@ -89,6 +89,8 @@ export interface ArticleResponse extends Article {
   backlinks_out: BacklinkEntry[];
   concepts: string[];
   sources: ArticleSourceRef[];
+  manually_edited: boolean;
+  edited_at: string | null;
 }
 
 export interface Concept {

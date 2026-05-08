@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -7,12 +7,14 @@ import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
 import { slugify } from "../../utils/slugify";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { editArticle } from "../../api/wiki";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
 
 interface ArticleReaderProps {
   article: ArticleResponse;
+  onArticleUpdated?: (article: ArticleResponse) => void;
 }
 
 const CONFIDENCE_TAG_REGEX = /\[(sourced|mixed|inferred|opinion)\]/gi;
@@ -75,7 +77,12 @@ function extractConceptKind(content: string): string | null {
   return kindMatch ? kindMatch[1].trim() : null;
 }
 
-export function ArticleReader({ article }: ArticleReaderProps) {
+export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const processed = useMemo(
     () => preprocessMarkdown(article.content ?? ""),
     [article.content],
@@ -92,6 +99,33 @@ export function ArticleReader({ article }: ArticleReaderProps) {
   );
 
   const primaryConcept = article.concepts.length > 0 ? article.concepts[0] : null;
+
+  const handleEdit = useCallback(() => {
+    setEditContent(article.content ?? "");
+    setSaveError(null);
+    setIsEditing(true);
+  }, [article.content]);
+
+  const handleCancel = useCallback(() => {
+    setIsEditing(false);
+    setSaveError(null);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const updated = await editArticle(article.slug, { content: editContent });
+      setIsEditing(false);
+      onArticleUpdated?.(updated);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save changes.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [article.slug, editContent, onArticleUpdated]);
 
   return (
     <article className="mx-auto max-w-3xl p-8">
@@ -110,13 +144,28 @@ export function ArticleReader({ article }: ArticleReaderProps) {
           {isConcept && conceptKind ? (
             <Badge tone="neutral">{conceptKind}</Badge>
           ) : null}
+          {article.manually_edited ? (
+            <Badge tone="neutral">Edited</Badge>
+          ) : null}
           {article.concepts.slice(0, 3).map((concept) => (
             <Badge key={concept} tone="brand">
               {concept}
             </Badge>
           ))}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{article.title}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            {article.title}
+          </h1>
+          {!isEditing ? (
+            <button
+              onClick={handleEdit}
+              className="ml-4 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
         {article.summary ? (
           <p className="mt-2 text-base text-slate-600">{article.summary}</p>
         ) : null}
@@ -142,72 +191,104 @@ export function ArticleReader({ article }: ArticleReaderProps) {
         ) : null}
       </header>
 
-      <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-brand-700">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]}
-          components={{
-            a: ({ node: _node, href, children }) => {
-              if (href && href.startsWith("/wiki/")) {
+      {isEditing ? (
+        <div className="space-y-4">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="w-full min-h-[400px] rounded-md border border-slate-300 bg-white p-4 font-mono text-sm text-slate-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            disabled={isSaving}
+          />
+          {saveError ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              {saveError}
+            </div>
+          ) : null}
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-brand-700">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              a: ({ node: _node, href, children }) => {
+                if (href && href.startsWith("/wiki/")) {
+                  return (
+                    <Link
+                      to={href}
+                      className="text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-900"
+                    >
+                      {children}
+                    </Link>
+                  );
+                }
                 return (
-                  <Link
-                    to={href}
-                    className="text-brand-700 underline decoration-dotted underline-offset-2 hover:text-brand-900"
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand-700 underline"
                   >
                     {children}
-                  </Link>
+                  </a>
                 );
-              }
-              return (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-brand-700 underline"
-                >
-                  {children}
-                </a>
-              );
-            },
-            img: ({ node: _node, src, alt, ...props }) => {
-              const resolvedSrc =
-                src && src.startsWith("/images/")
-                  ? `${getBaseUrl()}${src}`
-                  : src;
-              return (
-                <figure className="my-4">
-                  <img
-                    src={resolvedSrc}
-                    alt={alt || ""}
-                    className="mx-auto max-w-full rounded border border-slate-200"
-                    loading="lazy"
-                    {...props}
-                  />
-                  {alt && alt !== "Figure" && (
-                    <figcaption className="mt-1 text-center text-sm text-slate-500">
-                      {alt}
-                    </figcaption>
-                  )}
-                </figure>
-              );
-            },
-            h2: ({ children }) => {
-              const text = childrenToText(children);
-              return <h2 id={slugify(text)}>{children}</h2>;
-            },
-            h3: ({ children }) => {
-              const text = childrenToText(children);
-              return <h3 id={slugify(text)}>{children}</h3>;
-            },
-            li: ({ children }) => (
-              <li>{decorateConfidence(children)}</li>
-            ),
-            p: ({ children }) => <p>{decorateConfidence(children)}</p>,
-          }}
-        >
-          {processed}
-        </ReactMarkdown>
-      </div>
+              },
+              img: ({ node: _node, src, alt, ...props }) => {
+                const resolvedSrc =
+                  src && src.startsWith("/images/")
+                    ? `${getBaseUrl()}${src}`
+                    : src;
+                return (
+                  <figure className="my-4">
+                    <img
+                      src={resolvedSrc}
+                      alt={alt || ""}
+                      className="mx-auto max-w-full rounded border border-slate-200"
+                      loading="lazy"
+                      {...props}
+                    />
+                    {alt && alt !== "Figure" && (
+                      <figcaption className="mt-1 text-center text-sm text-slate-500">
+                        {alt}
+                      </figcaption>
+                    )}
+                  </figure>
+                );
+              },
+              h2: ({ children }) => {
+                const text = childrenToText(children);
+                return <h2 id={slugify(text)}>{children}</h2>;
+              },
+              h3: ({ children }) => {
+                const text = childrenToText(children);
+                return <h3 id={slugify(text)}>{children}</h3>;
+              },
+              li: ({ children }) => (
+                <li>{decorateConfidence(children)}</li>
+              ),
+              p: ({ children }) => <p>{decorateConfidence(children)}</p>,
+            }}
+          >
+            {processed}
+          </ReactMarkdown>
+        </div>
+      )}
     </article>
   );
 }

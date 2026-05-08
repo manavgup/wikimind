@@ -217,6 +217,12 @@ class Article(SQLModel, table=True):
         default=PageType.SOURCE,
         sa_column=Column(String, default=PageType.SOURCE),
     )
+    # Manual editing support (issue #449). When a user edits an article's
+    # content directly, ``manually_edited`` is set to True and ``edited_at``
+    # records the timestamp. Recompilation respects this flag: a force
+    # parameter is required to overwrite user edits.
+    manually_edited: bool = False
+    edited_at: datetime | None = None
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(
@@ -899,6 +905,13 @@ class BacklinkEntry(BaseModel):
     resolution: str | None = None
 
 
+class ArticleEditRequest(BaseModel):
+    """Request to manually edit an article's content or title."""
+
+    content: str | None = None
+    title: str | None = None
+
+
 class ArticleResponse(BaseModel):
     """Full article response with content, backlinks, and source provenance."""
 
@@ -919,6 +932,8 @@ class ArticleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     page_type: PageType = PageType.SOURCE
+    manually_edited: bool = False
+    edited_at: datetime | None = None
 
 
 class ArticleSummaryResponse(BaseModel):
@@ -947,6 +962,7 @@ class ArticleSummaryResponse(BaseModel):
     concepts: list[str] = []
     source_ids: list[str] = []
     user_id: str | None = None
+    manually_edited: bool = False
 
 
 class ContradictionResolutionOption(BaseModel):

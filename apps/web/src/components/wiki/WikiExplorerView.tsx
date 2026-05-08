@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useArticle } from "../../hooks/useArticle";
 import { getRandomArticle } from "../../api/wiki";
 import { Spinner } from "../shared/Spinner";
@@ -15,6 +16,7 @@ export function WikiExplorerView() {
   const params = useParams<{ slug?: string }>();
   const slug = params.slug;
   const articleQuery = useArticle(slug);
+  const queryClient = useQueryClient();
   const [activeConcept, setActiveConcept] = useState<string | null>(null);
   const [figureCount, setFigureCount] = useState(0);
   const navigate = useNavigate();
@@ -27,6 +29,10 @@ export function WikiExplorerView() {
       // No articles available — silently ignore
     }
   };
+
+  const handleArticleUpdated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["article", slug] });
+  }, [queryClient, slug]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -80,7 +86,10 @@ export function WikiExplorerView() {
               </div>
             ) : articleQuery.data ? (
               <>
-                <ArticleReader article={articleQuery.data} />
+                <ArticleReader
+                  article={articleQuery.data}
+                  onArticleUpdated={handleArticleUpdated}
+                />
                 {articleQuery.data.sources && (
                   <FiguresPanel
                     sources={articleQuery.data.sources}
