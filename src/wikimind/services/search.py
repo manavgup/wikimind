@@ -12,18 +12,35 @@ from __future__ import annotations
 
 import functools
 import hashlib
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import structlog
 from sqlalchemy import text as sa_text
 from sqlmodel import select
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres
-from wikimind.models import Article, FTSResponse, FTSResultItem
+from wikimind.engine.confidence import compute_staleness
+from wikimind.models import (
+    Article,
+    ArticleConcept,
+    ArticleSource,
+    ArticleTag,
+    FacetBucket,
+    FacetGroup,
+    FacetResponse,
+    FTSResponse,
+    FTSResultItem,
+    Source,
+    Tag,
+)
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
@@ -451,9 +468,390 @@ class SearchService:
         user_id: str,
         limit: int = 20,
         offset: int = 0,
+        source_kind: str | None = None,
+        page_type: str | None = None,
+        concept: str | None = None,
+        tag: str | None = None,
+        date_range: str | None = None,
+        staleness: str | None = None,
+        sort: str | None = None,
     ) -> FTSResponse:
-        """Execute full-text search, returning FTSResponse with typed results."""
-        return await search_articles(session, query, user_id, limit, offset)
+        """Execute full-text search with optional facet filters.
+
+        Args:
+            query: Search query string.
+            session: Database session.
+            user_id: Current user.
+            limit: Max results per page.
+            offset: Pagination offset.
+            source_kind: Filter by source type (pdf, url, text, etc.).
+            page_type: Filter by article page type.
+            concept: Filter by concept name.
+            tag: Filter by tag ID.
+            date_range: Filter by date range (7d, 30d, 365d).
+            staleness: Filter by staleness bucket (low, medium, high).
+            sort: Sort order (relevance, recency).
+        """
+        fts_response = await search_articles(
+            session,
+            query,
+            user_id,
+            limit=1000,
+            offset=0,
+        )
+        if not fts_response.results:
+            return FTSResponse(results=[], total=0)
+
+        article_ids = [r.article_id for r in fts_response.results]
+
+        # Apply facet filters to narrow the matched set
+        filtered_ids = await _apply_facet_filters(
+            session,
+            article_ids=article_ids,
+            user_id=user_id,
+            source_kind=source_kind,
+            page_type=page_type,
+            concept=concept,
+            tag=tag,
+            date_range=date_range,
+            staleness=staleness,
+        )
+
+        filtered_results = [r for r in fts_response.results if r.article_id in filtered_ids]
+
+        # Apply sort
+        if sort == "recency":
+            article_dates = await _get_article_dates(session, filtered_ids)
+            filtered_results.sort(
+                key=lambda r: article_dates.get(r.article_id, utcnow_naive()),
+                reverse=True,
+            )
+        # Default is relevance (already sorted by rank from FTS)
+
+        total = len(filtered_results)
+        return FTSResponse(
+            results=filtered_results[offset : offset + limit],
+            total=total,
+        )
+
+    async def get_facets(
+        self,
+        query: str,
+        session: AsyncSession,
+        user_id: str,
+    ) -> FacetResponse:
+        """Compute facet counts for the current query.
+
+        Returns counts for: source_kind, page_type, concept, tag,
+        date_range, and staleness.
+
+        Args:
+            query: Search query string.
+            session: Database session.
+            user_id: Current user.
+        """
+        fts_response = await search_articles(
+            session,
+            query,
+            user_id,
+            limit=1000,
+            offset=0,
+        )
+        if not fts_response.results:
+            return FacetResponse(facets=[], total=0, query=query)
+
+        article_ids = [r.article_id for r in fts_response.results]
+
+        facets = await _compute_facets(session, article_ids, user_id)
+        return FacetResponse(facets=facets, total=len(article_ids), query=query)
+
+
+async def _apply_facet_filters(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+    source_kind: str | None = None,
+    page_type: str | None = None,
+    concept: str | None = None,
+    tag: str | None = None,
+    date_range: str | None = None,
+    staleness: str | None = None,
+) -> set[str]:
+    """Narrow a set of article IDs by facet filter criteria."""
+    remaining = set(article_ids)
+
+    if page_type:
+        result = await session.execute(
+            select(Article.id).where(
+                Article.id.in_(article_ids),  # type: ignore[attr-defined]
+                Article.user_id == user_id,
+                Article.page_type == page_type,
+            )
+        )
+        remaining &= {r[0] for r in result.all()}
+
+    if source_kind:
+        # Filter articles whose sources include the given type
+        result = await session.execute(
+            select(ArticleSource.article_id).where(
+                ArticleSource.article_id.in_(article_ids),  # type: ignore[attr-defined]
+                ArticleSource.source_id.in_(  # type: ignore[attr-defined]
+                    select(Source.id).where(
+                        Source.user_id == user_id,
+                        Source.source_type == source_kind,
+                    )
+                ),
+            )
+        )
+        remaining &= {r[0] for r in result.all()}
+
+    if concept:
+        result = await session.execute(
+            select(ArticleConcept.article_id).where(
+                ArticleConcept.article_id.in_(  # type: ignore[attr-defined]
+                    article_ids,
+                ),
+                ArticleConcept.concept_name == concept,
+            )
+        )
+        remaining &= {r[0] for r in result.all()}
+
+    if tag:
+        result = await session.execute(
+            select(ArticleTag.article_id).where(
+                ArticleTag.article_id.in_(article_ids),  # type: ignore[attr-defined]
+                ArticleTag.tag_id == tag,
+            )
+        )
+        remaining &= {r[0] for r in result.all()}
+
+    if date_range:
+        now = utcnow_naive()
+        days = {"7d": 7, "30d": 30, "365d": 365}.get(date_range)
+        if days is not None:
+            from datetime import timedelta  # noqa: PLC0415
+
+            cutoff = now - timedelta(days=days)
+            result = await session.execute(
+                select(Article.id).where(
+                    Article.id.in_(article_ids),  # type: ignore[attr-defined]
+                    Article.user_id == user_id,
+                    Article.updated_at >= cutoff,
+                )
+            )
+            remaining &= {r[0] for r in result.all()}
+
+    if staleness:
+        # Load articles and compute staleness
+        staleness_stmt = select(Article).where(
+            Article.id.in_(list(remaining)),  # type: ignore[attr-defined]
+            Article.user_id == user_id,
+        )
+        staleness_result = await session.execute(staleness_stmt)
+        articles = list(staleness_result.scalars().all())
+        settings = get_settings()
+        staleness_ids: set[str] = set()
+        for a in articles:
+            score = _compute_article_staleness(a, settings.staleness.decay_rate)
+            if _matches_staleness_bucket(staleness, score):
+                staleness_ids.add(a.id)
+        remaining &= staleness_ids
+
+    return remaining
+
+
+async def _get_article_dates(
+    session: AsyncSession,
+    article_ids: set[str],
+) -> dict[str, datetime]:
+    """Fetch updated_at dates for articles."""
+    if not article_ids:
+        return {}
+    result = await session.execute(
+        select(Article.id, Article.updated_at).where(
+            Article.id.in_(list(article_ids)),  # type: ignore[attr-defined]
+        )
+    )
+    return {r[0]: r[1] for r in result.all()}
+
+
+def _compute_article_staleness(article: Article, decay_rate: float) -> float:
+    """Compute staleness score for an article."""
+    if article.last_reinforced_at is None:
+        return 1.0
+    days = (utcnow_naive() - article.last_reinforced_at).total_seconds() / 86400
+    return compute_staleness(days, decay_rate=decay_rate)
+
+
+def _matches_staleness_bucket(bucket: str, score: float) -> bool:
+    """Check whether a staleness score falls in the named bucket."""
+    if bucket == "low":
+        return score < 0.3
+    if bucket == "medium":
+        return 0.3 <= score <= 0.7
+    if bucket == "high":
+        return score > 0.7
+    return False
+
+
+async def _compute_facets(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    """Compute all facet groups for a set of matched article IDs."""
+    facets: list[FacetGroup] = []
+
+    facets += await _facet_page_type(session, article_ids, user_id)
+    facets += await _facet_source_kind(session, article_ids, user_id)
+    facets += await _facet_concept(session, article_ids)
+    facets += await _facet_tag(session, article_ids, user_id)
+    facets += await _facet_date(session, article_ids, user_id)
+    facets += await _facet_staleness(session, article_ids, user_id)
+
+    return facets
+
+
+def _counter_to_group(name: str, counts: Counter[str]) -> list[FacetGroup]:
+    """Build a FacetGroup from a Counter, returning empty list if no counts."""
+    if not counts:
+        return []
+    return [
+        FacetGroup(
+            name=name,
+            buckets=[FacetBucket(value=k, count=v) for k, v in sorted(counts.items(), key=lambda x: -x[1])],
+        )
+    ]
+
+
+async def _facet_page_type(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    result = await session.execute(
+        select(Article.page_type).where(
+            Article.id.in_(article_ids),  # type: ignore[attr-defined]
+            Article.user_id == user_id,
+        )
+    )
+    counts: Counter[str] = Counter(row[0] for row in result.all())
+    return _counter_to_group("page_type", counts)
+
+
+async def _facet_source_kind(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    result = await session.execute(
+        select(Source.source_type).where(
+            Source.id.in_(  # type: ignore[attr-defined]
+                select(ArticleSource.source_id).where(
+                    ArticleSource.article_id.in_(  # type: ignore[attr-defined]
+                        article_ids,
+                    )
+                )
+            ),
+            Source.user_id == user_id,
+        )
+    )
+    counts: Counter[str] = Counter(row[0] for row in result.all())
+    return _counter_to_group("source_kind", counts)
+
+
+async def _facet_concept(
+    session: AsyncSession,
+    article_ids: list[str],
+) -> list[FacetGroup]:
+    result = await session.execute(
+        select(ArticleConcept.concept_name).where(
+            ArticleConcept.article_id.in_(article_ids),  # type: ignore[attr-defined]
+        )
+    )
+    counts: Counter[str] = Counter(row[0] for row in result.all())
+    return _counter_to_group("concept", counts)
+
+
+async def _facet_tag(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    tag_stmt = (
+        select(Tag.name, Tag.id)
+        .join(
+            ArticleTag,
+            ArticleTag.tag_id == Tag.id,  # type: ignore[arg-type]
+        )
+        .where(
+            ArticleTag.article_id.in_(article_ids),  # type: ignore[attr-defined]
+            Tag.user_id == user_id,
+        )
+    )
+    result = await session.execute(tag_stmt)
+    counts: Counter[str] = Counter(row[0] for row in result.all())
+    return _counter_to_group("tag", counts)
+
+
+async def _facet_date(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    from datetime import timedelta  # noqa: PLC0415
+
+    now = utcnow_naive()
+    result = await session.execute(
+        select(Article.updated_at).where(
+            Article.id.in_(article_ids),  # type: ignore[attr-defined]
+            Article.user_id == user_id,
+        )
+    )
+    buckets: dict[str, int] = {"7d": 0, "30d": 0, "365d": 0}
+    for row in result.all():
+        updated = row[0]
+        if updated >= now - timedelta(days=7):
+            buckets["7d"] += 1
+        if updated >= now - timedelta(days=30):
+            buckets["30d"] += 1
+        if updated >= now - timedelta(days=365):
+            buckets["365d"] += 1
+    return [
+        FacetGroup(
+            name="date",
+            buckets=[FacetBucket(value=k, count=v) for k, v in buckets.items() if v > 0],
+        )
+    ]
+
+
+async def _facet_staleness(
+    session: AsyncSession,
+    article_ids: list[str],
+    user_id: str,
+) -> list[FacetGroup]:
+    result = await session.execute(
+        select(Article).where(
+            Article.id.in_(article_ids),  # type: ignore[attr-defined]
+            Article.user_id == user_id,
+        )
+    )
+    buckets: dict[str, int] = {"low": 0, "medium": 0, "high": 0}
+    settings = get_settings()
+    for a in result.scalars().all():
+        score = _compute_article_staleness(a, settings.staleness.decay_rate)
+        if score < 0.3:
+            buckets["low"] += 1
+        elif score <= 0.7:
+            buckets["medium"] += 1
+        else:
+            buckets["high"] += 1
+    return [
+        FacetGroup(
+            name="staleness",
+            buckets=[FacetBucket(value=k, count=v) for k, v in buckets.items() if v > 0],
+        )
+    ]
 
 
 @functools.lru_cache(maxsize=1)

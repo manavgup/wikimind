@@ -8,7 +8,9 @@ import type {
   ConfidenceLevel,
   CreateStubRequest,
   CreateStubResponse,
+  FacetResponse,
   GraphResponse,
+  SearchResponse,
   WikilinkMatch,
 } from "../types/api";
 
@@ -36,6 +38,31 @@ export function listConcepts(): Promise<Concept[]> {
 
 export function searchWiki(q: string, limit = 20): Promise<Article[]> {
   return apiFetch<Article[]>("/api/wiki/search", { query: { q, limit } });
+}
+
+export interface FacetedSearchParams {
+  q: string;
+  limit?: number;
+  offset?: number;
+  source_kind?: string;
+  page_type?: string;
+  concept?: string;
+  tag?: string;
+  date_range?: string;
+  staleness?: string;
+  sort?: string;
+}
+
+export function facetedSearch(
+  params: FacetedSearchParams,
+): Promise<SearchResponse> {
+  return apiFetch<SearchResponse>("/api/wiki/search", {
+    query: { ...params } as Record<string, string | number>,
+  });
+}
+
+export function searchFacets(q: string): Promise<FacetResponse> {
+  return apiFetch<FacetResponse>("/api/wiki/search/facets", { query: { q } });
 }
 
 export function getRandomArticle(): Promise<Article> {

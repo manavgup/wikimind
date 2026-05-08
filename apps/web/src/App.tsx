@@ -6,6 +6,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { LandingPage } from "./components/landing/LandingPage";
 import { Layout } from "./components/shared/Layout";
 import { InboxView } from "./components/inbox/InboxView";
+import { FacetedSearchView } from "./components/wiki/FacetedSearchView";
 import { WikiExplorerView } from "./components/wiki/WikiExplorerView";
 import { AskView } from "./components/ask/AskView";
 import { GraphView } from "./components/graph/GraphView";
@@ -37,6 +38,7 @@ function AuthenticatedApp() {
           <Route path="/ask" element={<AskView />} />
           <Route path="/ask/:conversationId" element={<AskView />} />
           <Route path="/wiki" element={<WikiExplorerView />} />
+          <Route path="/wiki/search" element={<FacetedSearchView />} />
           <Route path="/wiki/:slug" element={<WikiExplorerView />} />
           <Route path="/graph" element={<GraphView />} />
           <Route path="/health" element={<HealthView />} />

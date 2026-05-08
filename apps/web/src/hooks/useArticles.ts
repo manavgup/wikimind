@@ -1,6 +1,21 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { getGraph, listArticles, listConcepts, searchWiki } from "../api/wiki";
-import type { Article, Concept, ConfidenceLevel, GraphResponse } from "../types/api";
+import {
+  facetedSearch,
+  type FacetedSearchParams,
+  getGraph,
+  listArticles,
+  listConcepts,
+  searchFacets,
+  searchWiki,
+} from "../api/wiki";
+import type {
+  Article,
+  Concept,
+  ConfidenceLevel,
+  FacetResponse,
+  GraphResponse,
+  SearchResponse,
+} from "../types/api";
 
 export interface UseArticlesParams {
   concept?: string;
@@ -38,5 +53,25 @@ export function useGraph(): UseQueryResult<GraphResponse> {
     queryKey: ["wiki-graph"],
     queryFn: () => getGraph(),
     staleTime: 60_000,
+  });
+}
+
+export function useFacetedSearch(
+  params: FacetedSearchParams | null,
+): UseQueryResult<SearchResponse> {
+  return useQuery({
+    queryKey: ["faceted-search", params],
+    queryFn: () => facetedSearch(params!),
+    enabled: params !== null && params.q.trim().length >= 2,
+    staleTime: 30_000,
+  });
+}
+
+export function useSearchFacets(query: string): UseQueryResult<FacetResponse> {
+  return useQuery({
+    queryKey: ["search-facets", query],
+    queryFn: () => searchFacets(query),
+    enabled: query.trim().length >= 2,
+    staleTime: 30_000,
   });
 }
