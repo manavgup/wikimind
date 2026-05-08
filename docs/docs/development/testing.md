@@ -17,7 +17,7 @@ make test-integration
 # Tests with coverage report
 make coverage
 
-# Tests with coverage, failing under 80%
+# Tests with coverage, failing under 60%
 make coverage-check
 ```
 
@@ -106,7 +106,7 @@ Results are documented in `docs/test-matrix-results.md`.
 
 ## Coverage
 
-The coverage threshold is 80%. Run with:
+The coverage threshold is 60%. Run with:
 
 ```bash
 make coverage-check

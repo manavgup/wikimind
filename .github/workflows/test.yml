@@ -4,7 +4,7 @@
 # ===============================================================
 #
 #   - runs the backend test suite on the pinned CI Python version
-#   - measures branch + line coverage (fails < 80%)
+#   - measures branch + line coverage (fails < 60%)
 #   - uploads the HTML coverage report as a build artifact
 #   - uploads coverage to Codecov on pushes and PRs so patch coverage is reported
 #   - executes on every push / PR to `main` when backend test inputs change
@@ -91,7 +91,7 @@ jobs:
         run: uv sync --frozen --extra dev
 
       # -----------------------------------------------------------
-      # 3️⃣  Run the tests with coverage (fail under 80%)
+      # 3️⃣  Run the tests with coverage (fail under 60%)
       # -----------------------------------------------------------
       - name: 🧪  Run pytest
         run: make coverage-ci
