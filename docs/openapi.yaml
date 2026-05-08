@@ -2116,11 +2116,13 @@ components:
         content:
           anyOf:
           - type: string
+            minLength: 1
           - type: 'null'
           title: Content
         title:
           anyOf:
           - type: string
+            minLength: 1
           - type: 'null'
           title: Title
       type: object
