@@ -262,9 +262,9 @@ async def _seed_articles(factory) -> None:
 
 @pytest.mark.asyncio
 async def test_post_stub_endpoint(client: AsyncClient, _isolated_data_dir) -> None:
-    """POST /wiki/articles/stub creates a stub article and returns 201."""
+    """POST /api/wiki/articles/stub creates a stub article and returns 201."""
     response = await client.post(
-        "/wiki/articles/stub",
+        "/api/wiki/articles/stub",
         json={"title": "Quantum Computing", "body_markdown": ""},
     )
     assert response.status_code == 201
@@ -276,9 +276,9 @@ async def test_post_stub_endpoint(client: AsyncClient, _isolated_data_dir) -> No
 
 @pytest.mark.asyncio
 async def test_post_stub_with_body(client: AsyncClient, _isolated_data_dir) -> None:
-    """POST /wiki/articles/stub with body_markdown creates file on disk."""
+    """POST /api/wiki/articles/stub with body_markdown creates file on disk."""
     response = await client.post(
-        "/wiki/articles/stub",
+        "/api/wiki/articles/stub",
         json={"title": "Neural Nets", "body_markdown": "Notes about NNs."},
     )
     assert response.status_code == 201
@@ -288,9 +288,9 @@ async def test_post_stub_with_body(client: AsyncClient, _isolated_data_dir) -> N
 
 @pytest.mark.asyncio
 async def test_post_stub_empty_title_rejected(client: AsyncClient) -> None:
-    """POST /wiki/articles/stub with empty title returns 422."""
+    """POST /api/wiki/articles/stub with empty title returns 422."""
     response = await client.post(
-        "/wiki/articles/stub",
+        "/api/wiki/articles/stub",
         json={"title": ""},
     )
     assert response.status_code == 422
@@ -298,11 +298,11 @@ async def test_post_stub_empty_title_rejected(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_wikilink_resolve_endpoint(client: AsyncClient, async_engine: AsyncEngine) -> None:
-    """GET /wiki/wikilinks/resolve returns matching articles."""
+    """GET /api/wiki/wikilinks/resolve returns matching articles."""
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles(factory)
 
-    response = await client.get("/wiki/wikilinks/resolve", params={"q": "learning"})
+    response = await client.get("/api/wiki/wikilinks/resolve", params={"q": "learning"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -317,7 +317,7 @@ async def test_wikilink_resolve_shows_stub_flag(client: AsyncClient, async_engin
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles(factory)
 
-    response = await client.get("/wiki/wikilinks/resolve", params={"q": "Deep"})
+    response = await client.get("/api/wiki/wikilinks/resolve", params={"q": "Deep"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -326,18 +326,18 @@ async def test_wikilink_resolve_shows_stub_flag(client: AsyncClient, async_engin
 
 @pytest.mark.asyncio
 async def test_wikilink_resolve_empty_query_rejected(client: AsyncClient) -> None:
-    """GET /wiki/wikilinks/resolve with empty q returns 422."""
-    response = await client.get("/wiki/wikilinks/resolve", params={"q": ""})
+    """GET /api/wiki/wikilinks/resolve with empty q returns 422."""
+    response = await client.get("/api/wiki/wikilinks/resolve", params={"q": ""})
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_article_list_includes_stub_flag(client: AsyncClient, async_engine: AsyncEngine) -> None:
-    """GET /wiki/articles returns is_stub in the response for each article."""
+    """GET /api/wiki/articles returns is_stub in the response for each article."""
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles(factory)
 
-    response = await client.get("/wiki/articles")
+    response = await client.get("/api/wiki/articles")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2

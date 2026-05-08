@@ -19,7 +19,7 @@ from wikimind.models import Article
 
 @pytest.mark.asyncio
 async def test_create_tag(client, async_engine) -> None:
-    resp = await client.post("/tags", json={"name": "read-later", "color": "#ef4444"})
+    resp = await client.post("/api/tags", json={"name": "read-later", "color": "#ef4444"})
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "read-later"
@@ -29,16 +29,16 @@ async def test_create_tag(client, async_engine) -> None:
 
 @pytest.mark.asyncio
 async def test_list_tags_empty(client) -> None:
-    resp = await client.get("/tags")
+    resp = await client.get("/api/tags")
     assert resp.status_code == 200
     assert resp.json() == []
 
 
 @pytest.mark.asyncio
 async def test_list_tags_after_create(client) -> None:
-    await client.post("/tags", json={"name": "favorite"})
-    await client.post("/tags", json={"name": "to-revisit"})
-    resp = await client.get("/tags")
+    await client.post("/api/tags", json={"name": "favorite"})
+    await client.post("/api/tags", json={"name": "to-revisit"})
+    resp = await client.get("/api/tags")
     assert resp.status_code == 200
     tags = resp.json()
     assert len(tags) == 2
@@ -48,18 +48,18 @@ async def test_list_tags_after_create(client) -> None:
 
 @pytest.mark.asyncio
 async def test_delete_tag(client) -> None:
-    create_resp = await client.post("/tags", json={"name": "temp"})
+    create_resp = await client.post("/api/tags", json={"name": "temp"})
     tag_id = create_resp.json()["id"]
-    delete_resp = await client.delete(f"/tags/{tag_id}")
+    delete_resp = await client.delete(f"/api/tags/{tag_id}")
     assert delete_resp.status_code == 204
     # Verify it's gone
-    list_resp = await client.get("/tags")
+    list_resp = await client.get("/api/tags")
     assert list_resp.json() == []
 
 
 @pytest.mark.asyncio
 async def test_delete_nonexistent_tag_returns_404(client) -> None:
-    resp = await client.delete("/tags/nonexistent-id")
+    resp = await client.delete("/api/tags/nonexistent-id")
     assert resp.status_code == 404
 
 
@@ -88,11 +88,11 @@ async def test_tag_article(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "important"})
+    tag_resp = await client.post("/api/tags", json={"name": "important"})
     tag_id = tag_resp.json()["id"]
 
     resp = await client.post(
-        "/wiki/articles/art-1/tags",
+        "/api/wiki/articles/art-1/tags",
         json={"tag_id": tag_id},
     )
     assert resp.status_code == 201
@@ -107,13 +107,13 @@ async def test_tag_article_idempotent(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "star"})
+    tag_resp = await client.post("/api/tags", json={"name": "star"})
     tag_id = tag_resp.json()["id"]
 
-    resp1 = await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    resp1 = await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
     assert resp1.status_code == 201
 
-    resp2 = await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    resp2 = await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
     assert resp2.status_code == 201
 
 
@@ -122,11 +122,11 @@ async def test_untag_article(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "remove-me"})
+    tag_resp = await client.post("/api/tags", json={"name": "remove-me"})
     tag_id = tag_resp.json()["id"]
 
-    await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
-    resp = await client.delete(f"/wiki/articles/art-1/tags/{tag_id}")
+    await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    resp = await client.delete(f"/api/wiki/articles/art-1/tags/{tag_id}")
     assert resp.status_code == 204
 
 
@@ -135,10 +135,10 @@ async def test_untag_nonexistent_returns_404(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "nope"})
+    tag_resp = await client.post("/api/tags", json={"name": "nope"})
     tag_id = tag_resp.json()["id"]
 
-    resp = await client.delete(f"/wiki/articles/art-1/tags/{tag_id}")
+    resp = await client.delete(f"/api/wiki/articles/art-1/tags/{tag_id}")
     assert resp.status_code == 404
 
 
@@ -147,11 +147,11 @@ async def test_get_article_tags(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "alpha", "color": "#22c55e"})
+    tag_resp = await client.post("/api/tags", json={"name": "alpha", "color": "#22c55e"})
     tag_id = tag_resp.json()["id"]
-    await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
 
-    resp = await client.get("/wiki/articles/art-1/tags")
+    resp = await client.get("/api/wiki/articles/art-1/tags")
     assert resp.status_code == 200
     tags = resp.json()
     assert len(tags) == 1
@@ -164,11 +164,11 @@ async def test_get_articles_by_tag(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "special"})
+    tag_resp = await client.post("/api/tags", json={"name": "special"})
     tag_id = tag_resp.json()["id"]
-    await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
 
-    resp = await client.get(f"/tags/{tag_id}/articles")
+    resp = await client.get(f"/api/tags/{tag_id}/articles")
     assert resp.status_code == 200
     articles = resp.json()
     assert len(articles) == 1
@@ -198,11 +198,11 @@ async def test_article_response_includes_tags(client, async_engine) -> None:
         session.add(article)
         await session.commit()
 
-    tag_resp = await client.post("/tags", json={"name": "tagged"})
+    tag_resp = await client.post("/api/tags", json={"name": "tagged"})
     tag_id = tag_resp.json()["id"]
-    await client.post("/wiki/articles/art-tagged/tags", json={"tag_id": tag_id})
+    await client.post("/api/wiki/articles/art-tagged/tags", json={"tag_id": tag_id})
 
-    resp = await client.get("/wiki/articles/tagged-article")
+    resp = await client.get("/api/wiki/articles/tagged-article")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["tags"]) == 1
@@ -215,14 +215,14 @@ async def test_delete_tag_cascades_to_associations(client, async_engine) -> None
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_article(factory)
 
-    tag_resp = await client.post("/tags", json={"name": "cascade-test"})
+    tag_resp = await client.post("/api/tags", json={"name": "cascade-test"})
     tag_id = tag_resp.json()["id"]
-    await client.post("/wiki/articles/art-1/tags", json={"tag_id": tag_id})
+    await client.post("/api/wiki/articles/art-1/tags", json={"tag_id": tag_id})
 
-    await client.delete(f"/tags/{tag_id}")
+    await client.delete(f"/api/tags/{tag_id}")
 
     # Verify article no longer has the tag
-    resp = await client.get("/wiki/articles/art-1/tags")
+    resp = await client.get("/api/wiki/articles/art-1/tags")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -235,7 +235,7 @@ async def test_delete_tag_cascades_to_associations(client, async_engine) -> None
 @pytest.mark.asyncio
 async def test_create_saved_search(client) -> None:
     resp = await client.post(
-        "/saved-searches",
+        "/api/saved-searches",
         json={
             "name": "Q2 Research",
             "query": "machine learning",
@@ -250,9 +250,9 @@ async def test_create_saved_search(client) -> None:
 
 @pytest.mark.asyncio
 async def test_list_saved_searches(client) -> None:
-    await client.post("/saved-searches", json={"name": "Search 1", "query": "test"})
-    await client.post("/saved-searches", json={"name": "Search 2", "query": "demo"})
-    resp = await client.get("/saved-searches")
+    await client.post("/api/saved-searches", json={"name": "Search 1", "query": "test"})
+    await client.post("/api/saved-searches", json={"name": "Search 2", "query": "demo"})
+    resp = await client.get("/api/saved-searches")
     assert resp.status_code == 200
     searches = resp.json()
     assert len(searches) == 2
@@ -261,14 +261,14 @@ async def test_list_saved_searches(client) -> None:
 @pytest.mark.asyncio
 async def test_delete_saved_search(client) -> None:
     create_resp = await client.post(
-        "/saved-searches",
+        "/api/saved-searches",
         json={"name": "Temp", "query": "temporary"},
     )
     search_id = create_resp.json()["id"]
-    del_resp = await client.delete(f"/saved-searches/{search_id}")
+    del_resp = await client.delete(f"/api/saved-searches/{search_id}")
     assert del_resp.status_code == 204
 
-    list_resp = await client.get("/saved-searches")
+    list_resp = await client.get("/api/saved-searches")
     assert list_resp.json() == []
 
 
@@ -276,12 +276,12 @@ async def test_delete_saved_search(client) -> None:
 async def test_execute_saved_search_empty(client) -> None:
     """Executing a search with no matching articles returns empty list."""
     create_resp = await client.post(
-        "/saved-searches",
+        "/api/saved-searches",
         json={"name": "Empty", "query": "nonexistent-title"},
     )
     search_id = create_resp.json()["id"]
 
-    resp = await client.post(f"/saved-searches/{search_id}/execute")
+    resp = await client.post(f"/api/saved-searches/{search_id}/execute")
     assert resp.status_code == 200
     data = resp.json()
     assert data["articles"] == []
@@ -315,13 +315,13 @@ async def test_execute_saved_search_with_tag_filter(client, async_engine) -> Non
         await session.commit()
 
     # Create tag and apply to art-a only
-    tag_resp = await client.post("/tags", json={"name": "research"})
+    tag_resp = await client.post("/api/tags", json={"name": "research"})
     tag_id = tag_resp.json()["id"]
-    await client.post("/wiki/articles/art-a/tags", json={"tag_id": tag_id})
+    await client.post("/api/wiki/articles/art-a/tags", json={"tag_id": tag_id})
 
     # Create saved search that filters by tag
     create_resp = await client.post(
-        "/saved-searches",
+        "/api/saved-searches",
         json={
             "name": "Research",
             "query": "",
@@ -330,7 +330,7 @@ async def test_execute_saved_search_with_tag_filter(client, async_engine) -> Non
     )
     search_id = create_resp.json()["id"]
 
-    resp = await client.post(f"/saved-searches/{search_id}/execute")
+    resp = await client.post(f"/api/saved-searches/{search_id}/execute")
     assert resp.status_code == 200
     articles = resp.json()["articles"]
     assert len(articles) == 1

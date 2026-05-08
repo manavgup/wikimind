@@ -249,6 +249,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/images:
+    get:
+      tags:
+      - Ingest
+      summary: List Source Images
+      description: 'List extracted images for a PDF source.
+
+
+        Returns a list of image entries with filename, kind (figure/table),
+
+        and label. The actual image bytes are served by the
+
+        ``/sources/{source_id}/images/{filename}`` endpoint.'
+      operationId: list_source_images_api_ingest_sources__source_id__images_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Source not found or no images available
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/images/{filename}:
+    get:
+      tags:
+      - Ingest
+      summary: Get Source Image
+      description: 'Serve an extracted image file for a PDF source.
+
+
+        Verifies the source belongs to the authenticated user before serving
+
+        the image. Path traversal is prevented by resolving the path and
+
+        checking it stays within the expected directory.'
+      operationId: get_source_image_api_ingest_sources__source_id__images__filename__get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      - name: filename
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Filename
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: Image not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/contradiction-resolutions:
     get:
       tags:

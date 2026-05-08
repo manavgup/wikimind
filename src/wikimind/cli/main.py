@@ -19,7 +19,7 @@ from wikimind.cli.wiki import wiki
 @click.group()
 @click.version_option(version="0.1.0", prog_name="wikimind")
 def cli() -> None:
-    """WikiMind -- personal LLM-powered knowledge OS.
+    """Run the WikiMind personal LLM-powered knowledge OS.
 
     Terminal interface for ingesting sources, browsing articles,
     and asking questions against your wiki.

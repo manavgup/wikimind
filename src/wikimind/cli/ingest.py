@@ -39,7 +39,7 @@ def url(url: str) -> None:
 @ingest.command()
 @click.argument("path", type=click.Path(exists=True))
 def file(path: str) -> None:
-    """Ingest a local file (PDF)."""
+    """Ingest a local PDF document into the wiki."""
     file_path = Path(path)
     if file_path.suffix.lower() != ".pdf":
         click.echo("Error: Only PDF files are currently supported.", err=True)
