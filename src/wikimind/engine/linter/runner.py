@@ -32,6 +32,7 @@ from wikimind.models import (
     OrphanFinding,
     StructuralFinding,
 )
+from wikimind.services.contradiction import get_contradiction_service
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -204,6 +205,19 @@ async def run_lint(
         active_contradictions = [c for c in contradictions if not c.dismissed]
         active_orphans = [o for o in orphans if not o.dismissed]
         active_structurals = [s for s in structurals if not s.dismissed]
+
+        # Persist active contradictions as navigable wiki content
+        contradiction_service = get_contradiction_service()
+        for cf in active_contradictions:
+            await contradiction_service.create_from_finding(
+                session,
+                claim_a=cf.article_a_claim,
+                claim_b=cf.article_b_claim,
+                article_a_id=cf.article_a_id,
+                article_b_id=cf.article_b_id,
+                source_finding_id=cf.id,
+                user_id=user_id,
+            )
         dismissed = (
             (len(contradictions) - len(active_contradictions))
             + (len(orphans) - len(active_orphans))
