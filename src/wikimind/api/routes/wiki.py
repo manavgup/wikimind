@@ -39,7 +39,7 @@ from wikimind.models import (
 from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.wiki import WikiService, _staleness_score, get_wiki_service
 
 log = structlog.get_logger()
 
@@ -372,12 +372,10 @@ async def refresh_article(
     staleness score. Use this when you have reviewed an article and
     confirmed its content is still accurate.
     """
-    from wikimind.services.wiki import _staleness_score  # noqa: PLC0415
-
     article = await service.refresh_article(id_or_slug, session, user_id=user_id)
     return RefreshArticleResponse(
         status="refreshed",
-        staleness_score=_staleness_score(article) or 0.0,
+        staleness_score=_staleness_score(article),
     )
 
 

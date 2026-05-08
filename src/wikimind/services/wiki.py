@@ -64,11 +64,11 @@ def _effective_confidence(article: Article) -> float:
     return apply_decay(article.confidence_score, days)
 
 
-def _staleness_score(article: Article) -> float | None:
+def _staleness_score(article: Article) -> float:
     """Compute the staleness score for an article.
 
-    Returns ``None`` when ``last_reinforced_at`` is unset (legacy articles)
-    and ``1.0`` as the maximum staleness.
+    Returns ``1.0`` when ``last_reinforced_at`` is unset (legacy articles
+    treated as maximally stale).
     """
     if article.last_reinforced_at is None:
         return 1.0
