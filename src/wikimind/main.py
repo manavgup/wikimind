@@ -55,7 +55,6 @@ log = structlog.get_logger()
 _API_ONLY_PREFIXES = (
     "/api/",
     "/assets/",
-    "/images/",
     "/auth/",
     "/docs",
     "/redoc",
@@ -211,11 +210,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Serve extracted PDF images (issue #142)
-_images_dir = Path(get_settings().data_dir) / "images"
-_images_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/images", StaticFiles(directory=str(_images_dir)), name="images")
 
 # Mount routers — all API routes live under /api for clean SPA separation.
 # Health, docs, and auth remain at root level.

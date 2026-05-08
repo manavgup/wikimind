@@ -13,20 +13,11 @@ interface ImageEntry {
   label: string;
 }
 
-// Probe for images by trying known filename patterns.
-// TODO(#142): Replace with GET /wiki/articles/{slug}/images API.
-const PATTERNS = [
-  ...Array.from({ length: 15 }, (_, i) => ({
-    filename: `test-picture-${i + 1}.png`,
-    kind: "figure" as const,
-    label: `Figure ${i + 1}`,
-  })),
-  ...Array.from({ length: 15 }, (_, i) => ({
-    filename: `test-table-${i + 1}.png`,
-    kind: "table" as const,
-    label: `Table ${i + 1}`,
-  })),
-];
+interface ImageListItem {
+  filename: string;
+  kind: "figure" | "table";
+  label: string;
+}
 
 export function FiguresPanel({ sources, onImageCount }: Props) {
   const [images, setImages] = useState<ImageEntry[]>([]);
@@ -43,16 +34,22 @@ export function FiguresPanel({ sources, onImageCount }: Props) {
     async function discover() {
       const found: ImageEntry[] = [];
       for (const src of pdfSources) {
-        for (const p of PATTERNS) {
-          const url = `${baseUrl}/images/${src.id}/${p.filename}`;
-          try {
-            const resp = await fetch(url, { method: "HEAD" });
-            if (resp.ok && !cancelled) {
-              found.push({ url, kind: p.kind, label: p.label });
-            }
-          } catch {
-            // skip
+        try {
+          const resp = await fetch(
+            `${baseUrl}/api/ingest/sources/${src.id}/images`,
+            { credentials: "include" },
+          );
+          if (!resp.ok || cancelled) continue;
+          const items: ImageListItem[] = await resp.json();
+          for (const item of items) {
+            found.push({
+              url: `${baseUrl}/api/ingest/sources/${src.id}/images/${item.filename}`,
+              kind: item.kind,
+              label: item.label,
+            });
           }
+        } catch {
+          // skip
         }
       }
       if (!cancelled) {

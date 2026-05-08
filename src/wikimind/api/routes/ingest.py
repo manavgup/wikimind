@@ -3,11 +3,12 @@
 import mimetypes
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
+from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import IngestTextRequest, IngestURLRequest, Source, SourceContentResponse
 from wikimind.services.ingest import IngestService, get_ingest_service
 from wikimind.storage import find_original_sibling, get_raw_storage
@@ -147,4 +148,83 @@ async def get_source_original(
         iter_file(),
         media_type=content_type,
         headers={"Content-Disposition": "inline"},
+    )
+
+
+@router.get(
+    "/sources/{source_id}/images",
+    responses={404: {"description": "Source not found or no images available"}},
+)
+async def list_source_images(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """List extracted images for a PDF source.
+
+    Returns a list of image entries with filename, kind (figure/table),
+    and label. The actual image bytes are served by the
+    ``/sources/{source_id}/images/{filename}`` endpoint.
+    """
+    # Verify source exists and belongs to user
+    await service.get_source(source_id, session, user_id=user_id)
+
+    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
+    if not image_dir.is_dir():
+        return []
+
+    entries = []
+    for path in sorted(image_dir.iterdir()):
+        if not path.is_file():
+            continue
+        stem = path.stem
+        kind = "table" if stem.startswith("table-") else "figure"
+        # Extract the number from e.g. "picture-3" or "table-1"
+        parts = stem.rsplit("-", 1)
+        num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
+        label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
+        entries.append({"filename": path.name, "kind": kind, "label": label})
+
+    return entries
+
+
+@router.get(
+    "/sources/{source_id}/images/{filename}",
+    responses={404: {"description": "Image not found"}},
+)
+async def get_source_image(
+    source_id: str,
+    filename: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Serve an extracted image file for a PDF source.
+
+    Verifies the source belongs to the authenticated user before serving
+    the image. Path traversal is prevented by resolving the path and
+    checking it stays within the expected directory.
+    """
+    # Verify source exists and belongs to user
+    await service.get_source(source_id, session, user_id=user_id)
+
+    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
+    image_path = (image_dir / filename).resolve()
+
+    # Prevent path traversal
+    if not image_path.is_relative_to(image_dir.resolve()):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    content_type, _ = mimetypes.guess_type(image_path.name)
+    if content_type is None:
+        content_type = "application/octet-stream"
+
+    return FileResponse(
+        path=str(image_path),
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
     )

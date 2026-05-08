@@ -8,6 +8,10 @@ Both branches honour the dual-file lineage convention from issue #59: the raw
 ``.pdf`` bytes are written to ``~/.wikimind/raw/{source_id}.pdf`` and the cleaned
 extraction to ``~/.wikimind/raw/{source_id}.txt``, with ``Source.file_path``
 pointing at the latter.
+
+Image extraction (issue #378): embedded images are extracted from each page
+via fitz and saved to ``{data_dir}/images/{user_id}/{source_id}/``. The
+images are served by an authenticated API endpoint, not a static mount.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import base64
 import re
 from datetime import date
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import fitz
@@ -34,8 +39,6 @@ from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType
 from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
@@ -158,6 +161,7 @@ class PDFAdapter:
             :class:`NormalizedDocument` ready for compilation.
         """
         log.info("Ingesting PDF", filename=filename)
+        settings = get_settings()
 
         # Dedup: hash the raw PDF bytes and short-circuit if we've already
         # ingested this exact file (issue #67). The hash is computed before
@@ -223,6 +227,28 @@ class PDFAdapter:
         await raw_storage.write(f"{source.id}.txt", clean_text)
         source.file_path = f"{source.id}.txt"
 
+        # Image extraction (issue #378): extract embedded images from the
+        # PDF and save them to a user-scoped directory. This runs after text
+        # extraction so failures don't block the rest of the pipeline.
+        if settings.image_extraction_enabled:
+            try:
+                image_count = self._extract_images(
+                    file_bytes,
+                    source.id,
+                    user_id,
+                    max_images=settings.image_max_per_pdf,
+                )
+                log.info(
+                    "PDF images extracted",
+                    source_id=source.id,
+                    image_count=image_count,
+                )
+            except Exception:
+                log.warning(
+                    "PDF image extraction failed — continuing without images",
+                    source_id=source.id,
+                )
+
         token_count = estimate_tokens(clean_text)
         source.token_count = token_count
         session.add(source)
@@ -262,6 +288,100 @@ class PDFAdapter:
         pages_text: list[str] = [str(page.get_text()) for page in doc]
         doc.close()
         return "\n\n".join(pages_text), len(pages_text)
+
+    # -----------------------------------------------------------------------
+    # Image extraction (issue #378)
+    #
+    # Extract embedded images from the PDF using fitz and save them to a
+    # user-scoped directory: {data_dir}/images/{user_id}/{source_id}/
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def get_image_dir(user_id: str, source_id: str) -> Path:
+        """Return the user-scoped image directory for a source.
+
+        Args:
+            user_id: User ID for path scoping.
+            source_id: Source ID for the subdirectory.
+
+        Returns:
+            Path to ``{data_dir}/images/{user_id}/{source_id}/``.
+        """
+        settings = get_settings()
+        return Path(settings.data_dir) / "images" / user_id / source_id
+
+    @staticmethod
+    def _extract_images(
+        file_bytes: bytes,
+        source_id: str,
+        user_id: str,
+        max_images: int = 30,
+    ) -> int:
+        """Extract embedded images from a PDF and save as PNGs.
+
+        Iterates over every page, extracting images via
+        ``page.get_images()`` and saving them to the user-scoped image
+        directory. Images smaller than 5KB are skipped (icons, bullets).
+
+        Args:
+            file_bytes: Raw PDF binary contents.
+            source_id: Source ID for the image subdirectory.
+            user_id: User ID for path scoping.
+            max_images: Maximum number of images to extract.
+
+        Returns:
+            The number of images saved.
+        """
+        out_dir = PDFAdapter.get_image_dir(user_id, source_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        count = 0
+        pic_idx = 0
+        tbl_idx = 0
+        seen_xrefs: set[int] = set()
+
+        for page_num in range(doc.page_count):
+            if count >= max_images:
+                break
+            page = doc[page_num]
+            image_list = page.get_images(full=True)
+
+            for img_info in image_list:
+                if count >= max_images:
+                    break
+                xref = img_info[0]
+                # Skip duplicate xrefs (same image referenced on multiple pages)
+                if xref in seen_xrefs:
+                    continue
+                seen_xrefs.add(xref)
+
+                base_image = doc.extract_image(xref)
+                if not base_image or not base_image.get("image"):
+                    continue
+
+                image_bytes = base_image["image"]
+                # Skip tiny images (icons, bullets, decorations)
+                if len(image_bytes) < 5000:
+                    continue
+
+                ext = base_image.get("ext", "png")
+                # Determine whether this looks like a table or picture
+                # based on aspect ratio: wide+short images are likely tables.
+                width = base_image.get("width", 0)
+                height = base_image.get("height", 0)
+                if width > 0 and height > 0 and width / height > 2.5:
+                    tbl_idx += 1
+                    filename = f"table-{tbl_idx}.{ext}"
+                else:
+                    pic_idx += 1
+                    filename = f"picture-{pic_idx}.{ext}"
+
+                (out_dir / filename).write_bytes(image_bytes)
+                count += 1
+
+        doc.close()
+        return count
 
     async def _extract_via_docling(self, raw_pdf_path: Path, source_id: str, user_id: str) -> tuple[str, int]:
         """Extract PDF text via docling-serve HTTP API.
