@@ -282,7 +282,7 @@ async def _search_sqlite(
     # Load only the matched articles from the database
     article_result = await session.execute(
         select(Article).where(
-            Article.id.in_(matched_ids),
+            Article.id.in_(matched_ids),  # type: ignore[attr-defined]
             Article.user_id == user_id,
         )
     )
