@@ -14,10 +14,10 @@ scoring. Otherwise the service falls back to keyword-only search.
 import asyncio
 import functools
 import json
-import random
 from pathlib import Path
 
 import structlog
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -489,15 +489,12 @@ class WikiService:
         Raises:
             NotFoundError: If the user has no articles.
         """
-        query = select(Article)
-        if user_id:
-            query = query.where(Article.user_id == user_id)
+        query = select(Article).where(Article.user_id == user_id).order_by(func.random()).limit(1)
         result = await session.execute(query)
-        articles = list(result.scalars().all())
-        if not articles:
+        article = result.scalar_one_or_none()
+        if not article:
             msg = "No articles found"
             raise NotFoundError(msg)
-        article = random.choice(articles)  # noqa: S311
         return await _build_article_summary(article, session)
 
     async def get_graph(

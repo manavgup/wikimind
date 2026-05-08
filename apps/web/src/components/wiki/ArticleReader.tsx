@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import type { ArticleResponse, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
+import { slugify } from "../../utils/slugify";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
@@ -28,15 +29,6 @@ function escapeHtml(s: string): string {
 }
 
 const BROKEN_IMAGE_REGEX = /!\[[^\]]*\]\((?!\/|https?:\/\/)[^)]+\)\n*/g;
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
-}
 
 function childrenToText(children: React.ReactNode): string {
   if (typeof children === "string") return children;

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { slugify } from "../../utils/slugify";
 
 interface HeadingItem {
   id: string;
@@ -8,15 +9,6 @@ interface HeadingItem {
 
 interface ArticleOutlineProps {
   content: string;
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
 }
 
 const HEADING_REGEX = /^(#{2,3})\s+(.+)$/gm;
