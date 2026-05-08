@@ -637,6 +637,39 @@ class ConceptFrontmatter(BaseModel):
     provider: Provider | None = None
 
 
+class SynthesisCompilationResult(BaseModel):
+    """Compilation result for synthesis pages — cross-cutting analysis across sources."""
+
+    title: str
+    query: str  # The user's synthesis question/topic
+    summary: str
+    themes: list[str]
+    comparisons: str  # Comparative analysis section
+    contradictions: str  # Where sources disagree
+    timeline: str  # Chronological evolution
+    gaps: list[str]  # Knowledge gaps identified
+    open_questions: list[str]
+    article_body: str  # Full markdown
+    source_article_ids: list[str] = []  # IDs of articles analyzed
+    concepts: list[str] = []
+    page_type: PageType = PageType.SYNTHESIS
+
+
+class SynthesisFrontmatter(BaseModel):
+    """Validates frontmatter for synthesis-type wiki pages."""
+
+    page_type: PageType = PageType.SYNTHESIS
+    title: str
+    slug: str
+    query: str
+    source_article_ids: list[str] = []
+    source_count: int = 0
+    synthesized_at: datetime | None = None
+    concepts: list[str] = []
+    confidence: ConfidenceLevel | None = None
+    provider: Provider | None = None
+
+
 class AnswerFrontmatter(BaseModel):
     """Validates frontmatter for answer-type wiki pages."""
 
@@ -1088,6 +1121,28 @@ class ResolveContradictionBody(BaseModel):
 
     status: ContradictionStatus
     resolution: str | None = None
+
+
+class CreateSynthesisRequest(BaseModel):
+    """Request to create a synthesis page from a topic/question."""
+
+    query: str = Field(min_length=3)
+    article_ids: list[str] | None = None  # Optional specific article IDs; None = auto-select
+
+
+class SynthesisResponse(BaseModel):
+    """Response after creating a synthesis page."""
+
+    id: str
+    slug: str
+    title: str
+    query: str
+    summary: str
+    themes: list[str]
+    source_count: int
+    source_article_ids: list[str]
+    created_at: datetime
+    page_type: PageType = PageType.SYNTHESIS
 
 
 class RecompileResponse(BaseModel):

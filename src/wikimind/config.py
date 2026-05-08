@@ -179,6 +179,7 @@ class CompilerConfig(BaseModel):
     max_tokens: int = 8192
     source_text_max_chars: int = 60000
     concept_source_max_chars: int = 5000
+    synthesis_max_sources: int = 15
 
 
 class StalenessConfig(BaseModel):
