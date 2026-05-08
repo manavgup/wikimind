@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING
 
+import defusedxml.ElementTree as DefusedET
 import httpx
 import structlog
 
@@ -38,11 +39,11 @@ def _parse_feed_entries(xml_text: str) -> list[dict[str, str]]:
     Each dict contains keys: guid, title, link, summary.
     Returns entries in document order (newest first for well-formed feeds).
     """
-    import xml.etree.ElementTree as ET  # noqa: PLC0415
+    from xml.etree.ElementTree import ParseError  # noqa: PLC0415
 
     try:
-        root = ET.fromstring(xml_text)  # noqa: S314
-    except ET.ParseError:
+        root = DefusedET.fromstring(xml_text)
+    except ParseError:
         log.warning("failed to parse feed XML")
         return []
 
