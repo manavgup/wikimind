@@ -411,6 +411,36 @@ class UserPreference(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow_naive)
 
 
+class ContradictionStatus(StrEnum):
+    """Lifecycle status of a persisted contradiction."""
+
+    ACTIVE = "active"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+
+class Contradiction(SQLModel, table=True):
+    """A persisted contradiction between claims in two wiki articles.
+
+    Created by the linter when it detects contradictory claims across articles.
+    Users can browse, resolve, or dismiss contradictions as first-class wiki content.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    claim_a: str
+    claim_b: str
+    article_a_id: str = Field(foreign_key="article.id", index=True)
+    article_b_id: str = Field(foreign_key="article.id", index=True)
+    source_finding_id: str | None = None  # FK to ContradictionFinding that created this
+    claim_fingerprint: str = Field(default="", index=True)  # SHA-256 of sorted article+claim pair
+    detected_at: datetime = Field(default_factory=utcnow_naive)
+    status: ContradictionStatus = ContradictionStatus.ACTIVE
+    resolution: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
+    user_id: str = Field(foreign_key="user.id", index=True)
+
+
 # ---------------------------------------------------------------------------
 # Pydantic Models (not persisted — used for processing pipeline)
 # ---------------------------------------------------------------------------
@@ -692,6 +722,7 @@ class ContradictionFinding(_LintFindingBase, table=True):
     article_b_claim: str
     llm_confidence: str  # "high" | "medium" | "low"
     shared_concept_id: str | None = Field(default=None, foreign_key="concept.id", index=True)
+    contradiction_id: str | None = Field(default=None, index=True)  # FK to Contradiction
 
 
 class OrphanFinding(_LintFindingBase, table=True):
@@ -911,6 +942,30 @@ class ResolveContradictionResponse(BaseModel):
     source_id: str
     target_id: str
     resolution: str
+
+
+class ContradictionResponse(BaseModel):
+    """API response for a single persisted contradiction."""
+
+    id: str
+    claim_a: str
+    claim_b: str
+    article_a_id: str
+    article_b_id: str
+    article_a_title: str | None = None
+    article_b_title: str | None = None
+    detected_at: datetime
+    status: str
+    resolution: str | None = None
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
+
+
+class ResolveContradictionBody(BaseModel):
+    """Request body for resolving or dismissing a persisted contradiction."""
+
+    status: ContradictionStatus
+    resolution: str | None = None
 
 
 class RecompileResponse(BaseModel):

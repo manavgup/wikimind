@@ -17,8 +17,11 @@ from wikimind.models import (
     ArticleResponse,
     ArticleSummaryResponse,
     Backlink,
+    Contradiction,
     ContradictionResolution,
     ContradictionResolutionOption,
+    ContradictionResponse,
+    ContradictionStatus,
     GraphResponse,
     HealthSummaryResponse,
     Job,
@@ -28,9 +31,11 @@ from wikimind.models import (
     RebuildConceptsResponse,
     RecompileResponse,
     RelationType,
+    ResolveContradictionBody,
     ResolveContradictionRequest,
     ResolveContradictionResponse,
 )
+from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
 from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, get_wiki_service
@@ -50,6 +55,56 @@ async def list_contradiction_resolutions():
         ContradictionResolutionOption(value=r.value, label=r.value.replace("_", " ").title())
         for r in ContradictionResolution
     ]
+
+
+@router.get("/contradictions", response_model=list[ContradictionResponse])
+async def list_contradictions(
+    status: ContradictionStatus | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = 0,
+    session: AsyncSession = Depends(get_session),
+    service: ContradictionService = Depends(get_contradiction_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """List all contradictions for the user, optionally filtered by status."""
+    return await service.list_contradictions(session, user_id=user_id, status=status, limit=limit, offset=offset)
+
+
+@router.get(
+    "/contradictions/{contradiction_id}",
+    response_model=ContradictionResponse,
+    responses={404: {"description": "Contradiction not found"}},
+)
+async def get_contradiction(
+    contradiction_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: ContradictionService = Depends(get_contradiction_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Get a single contradiction with article details."""
+    return await service.get_contradiction(session, contradiction_id, user_id=user_id)
+
+
+@router.patch(
+    "/contradictions/{contradiction_id}",
+    response_model=ContradictionResponse,
+    responses={404: {"description": "Contradiction not found"}},
+)
+async def resolve_persisted_contradiction(
+    contradiction_id: str,
+    body: ResolveContradictionBody,
+    session: AsyncSession = Depends(get_session),
+    service: ContradictionService = Depends(get_contradiction_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Resolve or dismiss a contradiction."""
+    return await service.resolve_contradiction(
+        session,
+        contradiction_id,
+        user_id=user_id,
+        new_status=body.status,
+        resolution=body.resolution,
+    )
 
 
 @router.get("/articles", response_model=list[ArticleSummaryResponse])
@@ -225,15 +280,21 @@ async def get_health(
 @router.post(
     "/backlinks/{source_id}/{target_id}/resolve",
     response_model=ResolveContradictionResponse,
+    deprecated=True,
 )
 async def resolve_contradiction(
     source_id: str,
     target_id: str,
     body: ResolveContradictionRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add backlink ownership check
+    user_id: str = Depends(get_current_user_id),
 ):
-    """Resolve a contradiction between two articles."""
+    """Resolve a contradiction between two articles.
+
+    DEPRECATED: Use ``PATCH /wiki/contradictions/{id}`` instead. This endpoint
+    updates the Backlink for backward compatibility AND forwards the resolution
+    to the Contradiction table (single source of truth).
+    """
     valid = {r.value for r in ContradictionResolution}
     if body.resolution not in valid:
         raise HTTPException(
@@ -265,6 +326,23 @@ async def resolve_contradiction(
         bl.resolved_at = now
         bl.resolved_by = "user"
         session.add(bl)
+
+    # Forward resolution to the Contradiction table (single source of truth)
+    ids = sorted([source_id, target_id])
+    ctr_result = await session.execute(
+        select(Contradiction).where(
+            Contradiction.user_id == user_id,
+            Contradiction.status == ContradictionStatus.ACTIVE,
+            Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
+            Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
+        )
+    )
+    for ctr in ctr_result.scalars().all():
+        ctr.status = ContradictionStatus.RESOLVED
+        ctr.resolution = body.resolution
+        ctr.resolved_at = now
+        ctr.resolved_by = user_id
+        session.add(ctr)
 
     await session.commit()
 

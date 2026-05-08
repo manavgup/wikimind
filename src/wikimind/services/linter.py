@@ -16,8 +16,9 @@ from wikimind._datetime import utcnow_naive
 from wikimind.errors import NotFoundError, WikiMindError
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
-    Backlink,
+    Contradiction,
     ContradictionFinding,
+    ContradictionStatus,
     DismissedFinding,
     DismissFindingResponse,
     LintFindingKind,
@@ -25,7 +26,6 @@ from wikimind.models import (
     LintReportDetail,
     LintRunResponse,
     OrphanFinding,
-    RelationType,
     StructuralFinding,
 )
 
@@ -131,25 +131,33 @@ class LinterService:
         session: AsyncSession,
         contradictions: list[ContradictionFinding],
     ) -> dict[str, str]:
-        """Look up contradiction resolutions from the Backlink table.
+        """Look up contradiction resolutions from the Contradiction table.
 
         Returns a dict keyed by "article_a_id|article_b_id" → resolution string.
         """
         resolutions: dict[str, str] = {}
         for finding in contradictions:
+            if finding.contradiction_id:
+                ctr = await session.get(Contradiction, finding.contradiction_id)
+                if ctr and ctr.status != ContradictionStatus.ACTIVE and ctr.resolution:
+                    key = f"{finding.article_a_id}|{finding.article_b_id}"
+                    resolutions[key] = ctr.resolution
+                    continue
+
+            # Fallback: look up by article pair (for findings created before
+            # contradiction_id was stored)
             a_id, b_id = finding.article_a_id, finding.article_b_id
-            for src, tgt in [(a_id, b_id), (b_id, a_id)]:
-                result = await session.execute(
-                    select(Backlink).where(
-                        Backlink.source_article_id == src,
-                        Backlink.target_article_id == tgt,
-                        Backlink.relation_type == RelationType.CONTRADICTS,
-                    )
+            ids = sorted([a_id, b_id])
+            result = await session.execute(
+                select(Contradiction).where(
+                    Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
+                    Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
+                    Contradiction.status != ContradictionStatus.ACTIVE,
                 )
-                bl = result.scalars().first()
-                if bl and bl.resolution:
-                    resolutions[f"{a_id}|{b_id}"] = bl.resolution
-                    break
+            )
+            ctr = result.scalars().first()
+            if ctr and ctr.resolution:
+                resolutions[f"{a_id}|{b_id}"] = ctr.resolution
         return resolutions
 
     async def get_latest(self, session: AsyncSession, user_id: str) -> LintReportDetail:
