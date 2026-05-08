@@ -6,10 +6,8 @@ Every answer can be filed back to make the wiki smarter.
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -35,7 +33,7 @@ from wikimind.models import (
 )
 from wikimind.services.activity_log import append_log_entry
 from wikimind.services.search import index_article as fts_index_article
-from wikimind.storage import get_wiki_storage
+from wikimind.storage import get_wiki_storage, read_article_content
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -642,7 +640,7 @@ conversation context contradicts the wiki, prefer the wiki."""
 
         relevant = []
         for article in all_articles:
-            content = await self._read_article_content(article.file_path, user_id=user_id)
+            content = await read_article_content(article.file_path, user_id=user_id)
             if not content:
                 continue
 
@@ -660,13 +658,6 @@ conversation context contradicts the wiki, prefer the wiki."""
         # Sort by relevance, take top 5
         relevant.sort(key=lambda x: x["score"], reverse=True)
         return relevant[:5]
-
-    async def _read_article_content(self, file_path: str, user_id: str) -> str | None:
-        try:
-            storage = get_wiki_storage(user_id)
-            return await storage.read(file_path)
-        except OSError:
-            return None
 
     async def _query_llm(
         self,
@@ -749,19 +740,11 @@ conversation context contradicts the wiki, prefer the wiki."""
                 conversation.filed_article_id = None
 
         if existing_article is None:
-            # Create path
-            wiki_dir = Path(self.settings.data_dir) / "wiki"
-            if user_id:
-                wiki_dir = wiki_dir / user_id
-            wiki_dir = wiki_dir / "qa-answers"
-            await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
+            wiki_storage = get_wiki_storage(user_id)
 
             slug = conversation.id  # UUID — guaranteed unique, no collision possible
-            file_path = wiki_dir / f"{slug}.md"
-            await asyncio.to_thread(file_path.write_text, markdown, encoding="utf-8")
-
-            # Store wiki-relative path in the DB
             relative_path = f"qa-answers/{slug}.md"
+            await wiki_storage.write(relative_path, markdown)
             article = Article(
                 slug=slug,
                 title=conversation.title,

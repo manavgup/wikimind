@@ -7,13 +7,11 @@ chains so callers can trace every answer back to the raw source it came
 from.
 """
 
-import asyncio
 import functools
 import json
 import re
 import uuid
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 import structlog
 from fastapi.responses import Response
@@ -21,7 +19,6 @@ from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
-from wikimind.config import get_settings
 from wikimind.engine.confidence import apply_decay
 from wikimind.engine.conversation_serializer import (
     SelectedTurn,
@@ -53,6 +50,7 @@ from wikimind.models import (
     WikiWorthinessScore,
 )
 from wikimind.services.search import index_article as fts_index_article
+from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
 
@@ -628,24 +626,19 @@ class QueryService:
 
         markdown = serialize_selected_turns_to_markdown(selected_turns, title=request.title)
 
-        settings = get_settings()
-        wiki_dir = Path(settings.data_dir) / "wiki"
-        if user_id:
-            wiki_dir = wiki_dir / user_id
-        wiki_dir = wiki_dir / "qa-answers"
-        await asyncio.to_thread(wiki_dir.mkdir, parents=True, exist_ok=True)
+        wiki_storage = get_wiki_storage(user_id)
 
         now = utcnow_naive()
         effective_title = request.title or selected_turns[0].conversation.title
 
         slug = str(uuid.uuid4())
-        file_path = wiki_dir / f"{slug}.md"
-        await asyncio.to_thread(file_path.write_text, markdown, encoding="utf-8")
+        relative_path = f"qa-answers/{slug}.md"
+        await wiki_storage.write(relative_path, markdown)
 
         article = Article(
             slug=slug,
             title=effective_title,
-            file_path=f"qa-answers/{slug}.md",
+            file_path=relative_path,
             summary=(selected_turns[0].query.answer[:200] if selected_turns else None),
             confidence=None,
             page_type=PageType.ANSWER,

@@ -14,6 +14,7 @@ from wikimind.storage import (
     find_original_sibling,
     get_raw_storage,
     get_wiki_storage,
+    read_article_content,
 )
 
 
@@ -153,40 +154,63 @@ def test_get_raw_storage_with_user_id(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_wiki_storage_root_relative(tmp_path, monkeypatch):
+def test_wiki_storage_resolve_path(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
     storage = get_wiki_storage(TEST_USER_ID)
-    result = storage.root / "concept/article.md"
+    result = storage.resolve_path("concept/article.md")
     assert result == tmp_path / "wiki" / TEST_USER_ID / "concept" / "article.md"
     get_settings.cache_clear()
 
 
-def test_wiki_storage_root_with_user_id(tmp_path, monkeypatch):
+def test_wiki_storage_resolve_path_with_user_id(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
     storage = get_wiki_storage("user-abc")
-    result = storage.root / "concept/article.md"
+    result = storage.resolve_path("concept/article.md")
     assert result == tmp_path / "wiki" / "user-abc" / "concept" / "article.md"
     get_settings.cache_clear()
 
 
-def test_raw_storage_root_relative(tmp_path, monkeypatch):
+def test_raw_storage_resolve_path(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
     storage = get_raw_storage(TEST_USER_ID)
-    result = storage.root / "source-id.txt"
+    result = storage.resolve_path("source-id.txt")
     assert result == tmp_path / "raw" / TEST_USER_ID / "source-id.txt"
     get_settings.cache_clear()
 
 
-def test_raw_storage_root_with_user_id(tmp_path, monkeypatch):
+def test_raw_storage_resolve_path_with_user_id(tmp_path, monkeypatch):
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()
     storage = get_raw_storage("user-xyz")
-    result = storage.root / "source-id.txt"
+    result = storage.resolve_path("source-id.txt")
     assert result == tmp_path / "raw" / "user-xyz" / "source-id.txt"
     get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# read_article_content tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_read_article_content_ok(tmp_path):
+    """read_article_content returns file contents via wiki storage."""
+    # _isolated_data_dir fixture sets WIKIMIND_DATA_DIR to tmp_path / "wikimind"
+    wiki_dir = tmp_path / "wikimind" / "wiki" / TEST_USER_ID
+    wiki_dir.mkdir(parents=True)
+    (wiki_dir / "test.md").write_text("hello world", encoding="utf-8")
+    result = await read_article_content("test.md", user_id=TEST_USER_ID)
+    assert result == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_read_article_content_missing_returns_empty(tmp_path):
+    """read_article_content returns empty string for missing files."""
+    result = await read_article_content("nonexistent.md", user_id=TEST_USER_ID)
+    assert result == ""
 
 
 # ---------------------------------------------------------------------------

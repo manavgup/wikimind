@@ -632,7 +632,7 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
             "startup: removed orphaned concept page (file missing)",
             article_id=article.id,
             slug=article.slug,
-            path=str(wiki_storage.root / article.file_path),
+            path=str(wiki_storage.resolve_path(article.file_path)),
         )
 
     if cleaned:
