@@ -11,7 +11,6 @@ Uses a standalone HTML page that mirrors the ArticleReader rendering pipeline.
 
 import asyncio
 import http.server
-import os
 import threading
 from pathlib import Path
 
@@ -246,7 +245,7 @@ async def main() -> None:
 
         # Code section
         code_el = page.locator("#code-section")
-        await code_el.screenshot(path=str(EVIDENCE_DIR / 'code-highlighting.png'))
+        await code_el.screenshot(path=str(EVIDENCE_DIR / "code-highlighting.png"))
         print(f"Saved: {EVIDENCE_DIR / 'code-highlighting.png'}")
 
         # Image section
