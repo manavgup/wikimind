@@ -238,6 +238,117 @@ paths:
                 type: array
                 title: Response List Contradiction Resolutions Wiki Contradiction
                   Resolutions Get
+  /wiki/contradictions:
+    get:
+      tags:
+      - Wiki
+      summary: List Contradictions
+      description: List all contradictions for the user, optionally filtered by status.
+      operationId: list_contradictions_wiki_contradictions_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/ContradictionStatus'
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContradictionResponse'
+                title: Response List Contradictions Wiki Contradictions Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /wiki/contradictions/{contradiction_id}:
+    get:
+      tags:
+      - Wiki
+      summary: Get Contradiction
+      description: Get a single contradiction with article details.
+      operationId: get_contradiction_wiki_contradictions__contradiction_id__get
+      parameters:
+      - name: contradiction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Contradiction Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContradictionResponse'
+        '404':
+          description: Contradiction not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - Wiki
+      summary: Resolve Persisted Contradiction
+      description: Resolve or dismiss a contradiction.
+      operationId: resolve_persisted_contradiction_wiki_contradictions__contradiction_id__patch
+      parameters:
+      - name: contradiction_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Contradiction Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveContradictionBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContradictionResponse'
+        '404':
+          description: Contradiction not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/articles:
     get:
       tags:
@@ -2293,6 +2404,75 @@ components:
       - label
       title: ContradictionResolutionOption
       description: A valid resolution option for contradictions.
+    ContradictionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        claim_a:
+          type: string
+          title: Claim A
+        claim_b:
+          type: string
+          title: Claim B
+        article_a_id:
+          type: string
+          title: Article A Id
+        article_b_id:
+          type: string
+          title: Article B Id
+        article_a_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Article A Title
+        article_b_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Article B Title
+        detected_at:
+          type: string
+          format: date-time
+          title: Detected At
+        status:
+          type: string
+          title: Status
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
+        resolved_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Resolved At
+        resolved_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved By
+      type: object
+      required:
+      - id
+      - claim_a
+      - claim_b
+      - article_a_id
+      - article_b_id
+      - detected_at
+      - status
+      title: ContradictionResponse
+      description: API response for a single persisted contradiction.
+    ContradictionStatus:
+      type: string
+      enum:
+      - active
+      - resolved
+      - dismissed
+      title: ContradictionStatus
+      description: Lifecycle status of a persisted contradiction.
     ConversationDetail:
       properties:
         conversation:
@@ -3408,6 +3588,20 @@ components:
         the article on the *other* side of a backlink, plus any context or
 
         resolution metadata recorded on the edge.'
+    ResolveContradictionBody:
+      properties:
+        status:
+          $ref: '#/components/schemas/ContradictionStatus'
+        resolution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution
+      type: object
+      required:
+      - status
+      title: ResolveContradictionBody
+      description: Request body for resolving or dismissing a persisted contradiction.
     ResolveContradictionRequest:
       properties:
         resolution:
