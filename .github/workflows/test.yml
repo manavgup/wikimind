@@ -8,6 +8,8 @@
 #   - uploads the HTML coverage report as a build artifact
 #   - uploads coverage to Codecov on pushes and PRs so patch coverage is reported
 #   - executes on every push / PR to `main` when backend test inputs change
+#   - runs nightly at 6 AM UTC (schedule) to catch dependency drift
+#   - supports manual trigger via workflow_dispatch
 # ---------------------------------------------------------------
 
 name: Tests & Coverage
@@ -34,6 +36,9 @@ on:
       - "Makefile"
       - "codecov.yml"
       - ".github/workflows/test.yml"
+  schedule:
+    - cron: "0 6 * * *" # 6 AM UTC daily — catches dependency drift
+  workflow_dispatch: # allow manual trigger
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
