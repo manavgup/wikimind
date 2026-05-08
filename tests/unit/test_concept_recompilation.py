@@ -3,7 +3,7 @@
 Verifies that:
 1. Concept pages are NOT recompiled when the source set is unchanged.
 2. Concept pages ARE recompiled when a new source article is added.
-3. ``_replace_article_in_place`` triggers concept page compilation.
+3. ``_upsert_article`` triggers concept page compilation when replacing.
 """
 
 from __future__ import annotations
@@ -219,10 +219,10 @@ class TestSourceSetChangedTriggersRecompilation:
 
 @pytest.mark.asyncio
 class TestReplaceArticleTriggersConceptPages:
-    """``_replace_article_in_place`` must trigger concept page compilation."""
+    """``_upsert_article`` must trigger concept page compilation when replacing."""
 
     async def test_replace_calls_maybe_trigger(self, db_session, tmp_path):
-        """Verify that _replace_article_in_place invokes maybe_trigger_concept_pages."""
+        """Verify that _upsert_article invokes maybe_trigger_concept_pages when replacing."""
         # Create a source.
         source = Source(
             title="Test Source",
@@ -295,7 +295,7 @@ class TestReplaceArticleTriggersConceptPages:
             patch("wikimind.engine.compiler.append_log_entry"),
             patch("wikimind.engine.compiler.validate_frontmatter"),
         ):
-            await compiler._replace_article_in_place(existing, result, source, db_session)
+            await compiler._upsert_article(result, source, db_session, existing.provider, existing=existing)
 
         # The key assertion: maybe_trigger_concept_pages was called.
         mock_trigger.assert_called_once_with(mock_concept_session, user_id=source.user_id)

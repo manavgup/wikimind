@@ -302,9 +302,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         """Persist a compiled article, replacing any prior same-provider build."""
         provider = self._last_provider_used
         existing = await self._find_article_for_source_and_provider(session, source.id, provider)
-        if existing is not None:
-            return await self._replace_article_in_place(existing, result, source, session)
-        return await self._create_article(result, source, session, provider)
+        return await self._upsert_article(result, source, session, provider, existing=existing)
 
     async def save_article_in_place(
         self,
@@ -318,7 +316,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         Use this when the caller already holds the article row that should be
         updated (e.g. the force-recompile path).
         """
-        return await self._replace_article_in_place(existing, result, source, session)
+        return await self._upsert_article(result, source, session, existing.provider, existing=existing)
 
     async def _find_article_for_source_and_provider(
         self,
@@ -338,26 +336,6 @@ Compile this into a wiki article following the JSON schema exactly."""
             if article.provider == provider:
                 return article
         return None
-
-    async def _create_article(
-        self,
-        result: CompilationResult,
-        source: Source,
-        session: AsyncSession,
-        provider: Provider | None,
-    ) -> Article:
-        """Create a brand-new article (no existing same-provider article)."""
-        return await self._upsert_article(result, source, session, provider, existing=None)
-
-    async def _replace_article_in_place(
-        self,
-        existing: Article,
-        result: CompilationResult,
-        source: Source,
-        session: AsyncSession,
-    ) -> Article:
-        """Replace an existing same-source same-provider article in place."""
-        return await self._upsert_article(result, source, session, existing.provider, existing=existing)
 
     async def _upsert_article(
         self,
