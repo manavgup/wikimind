@@ -203,7 +203,7 @@ class TestExportRoute:
     async def test_export_pdf_returns_html(self, client, db_session, tmp_path):
         article = await _seed_article(db_session, tmp_path)
         resp = await client.post(
-            f"/wiki/articles/{article.slug}/export?format=pdf",
+            f"/api/wiki/articles/{article.slug}/export?format=pdf",
         )
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
@@ -213,7 +213,7 @@ class TestExportRoute:
     async def test_export_pdf_by_id(self, client, db_session, tmp_path):
         article = await _seed_article(db_session, tmp_path)
         resp = await client.post(
-            f"/wiki/articles/{article.id}/export?format=pdf",
+            f"/api/wiki/articles/{article.id}/export?format=pdf",
         )
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
@@ -227,7 +227,7 @@ class TestExportRoute:
             return_value="Great hook!\n\nInsight paragraph.\n\nWhat are your thoughts?",
         ):
             resp = await client.post(
-                f"/wiki/articles/{article.slug}/export?format=linkedin",
+                f"/api/wiki/articles/{article.slug}/export?format=linkedin",
             )
         assert resp.status_code == 200
         data = resp.json()
@@ -244,7 +244,7 @@ class TestExportRoute:
             return_value="---\nmarp: true\n---\n# Slides",
         ):
             resp = await client.post(
-                f"/wiki/articles/{article.slug}/export?format=slides",
+                f"/api/wiki/articles/{article.slug}/export?format=slides",
             )
         assert resp.status_code == 200
         data = resp.json()
@@ -253,13 +253,13 @@ class TestExportRoute:
 
     async def test_export_article_not_found(self, client):
         resp = await client.post(
-            "/wiki/articles/nonexistent-slug/export?format=pdf",
+            "/api/wiki/articles/nonexistent-slug/export?format=pdf",
         )
         assert resp.status_code == 404
 
     async def test_export_invalid_format(self, client, db_session, tmp_path):
         article = await _seed_article(db_session, tmp_path)
         resp = await client.post(
-            f"/wiki/articles/{article.slug}/export?format=docx",
+            f"/api/wiki/articles/{article.slug}/export?format=docx",
         )
         assert resp.status_code == 422

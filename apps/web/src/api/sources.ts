@@ -10,15 +10,15 @@ export interface ListSourcesParams {
 }
 
 export function listSources(params: ListSourcesParams = {}): Promise<Source[]> {
-  return apiFetch<Source[]>("/ingest/sources", { query: { ...params } });
+  return apiFetch<Source[]>("/api/ingest/sources", { query: { ...params } });
 }
 
 export function getSource(sourceId: string): Promise<Source> {
-  return apiFetch<Source>(`/ingest/sources/${encodeURIComponent(sourceId)}`);
+  return apiFetch<Source>(`/api/ingest/sources/${encodeURIComponent(sourceId)}`);
 }
 
 export function ingestUrl(url: string, autoCompile = true): Promise<Source> {
-  return apiFetch<Source>("/ingest/url", {
+  return apiFetch<Source>("/api/ingest/url", {
     method: "POST",
     body: { url, auto_compile: autoCompile },
   });
@@ -27,18 +27,18 @@ export function ingestUrl(url: string, autoCompile = true): Promise<Source> {
 export function ingestPdf(file: File): Promise<Source> {
   const form = new FormData();
   form.append("file", file);
-  return apiFetch<Source>("/ingest/pdf", { method: "POST", body: form });
+  return apiFetch<Source>("/api/ingest/pdf", { method: "POST", body: form });
 }
 
 export function deleteSource(sourceId: string): Promise<{ deleted: string }> {
-  return apiFetch(`/ingest/sources/${encodeURIComponent(sourceId)}`, {
+  return apiFetch(`/api/ingest/sources/${encodeURIComponent(sourceId)}`, {
     method: "DELETE",
   });
 }
 
 export function retryCompile(sourceId: string): Promise<TriggerCompileResponse> {
   return apiFetch<TriggerCompileResponse>(
-    `/jobs/compile/${encodeURIComponent(sourceId)}`,
+    `/api/jobs/compile/${encodeURIComponent(sourceId)}`,
     { method: "POST" },
   );
 }
@@ -50,5 +50,5 @@ export function getSourceContent(sourceId: string): Promise<SourceContentRespons
 }
 
 export function getOriginalUrl(sourceId: string): string {
-  return `${getBaseUrl()}/ingest/sources/${encodeURIComponent(sourceId)}/original`;
+  return `${getBaseUrl()}/api/ingest/sources/${encodeURIComponent(sourceId)}/original`;
 }

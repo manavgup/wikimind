@@ -20,23 +20,23 @@ export interface ListArticlesParams {
 export function listArticles(
   params: ListArticlesParams = {},
 ): Promise<Article[]> {
-  return apiFetch<Article[]>("/wiki/articles", { query: { ...params } });
+  return apiFetch<Article[]>("/api/wiki/articles", { query: { ...params } });
 }
 
 export function getArticle(slug: string): Promise<ArticleResponse> {
-  return apiFetch<ArticleResponse>(`/wiki/articles/${encodeURIComponent(slug)}`);
+  return apiFetch<ArticleResponse>(`/api/wiki/articles/${encodeURIComponent(slug)}`);
 }
 
 export function listConcepts(): Promise<Concept[]> {
-  return apiFetch<Concept[]>("/wiki/concepts");
+  return apiFetch<Concept[]>("/api/wiki/concepts");
 }
 
 export function searchWiki(q: string, limit = 20): Promise<Article[]> {
-  return apiFetch<Article[]>("/wiki/search", { query: { q, limit } });
+  return apiFetch<Article[]>("/api/wiki/search", { query: { q, limit } });
 }
 
 export function getRandomArticle(): Promise<Article> {
-  return apiFetch<Article>("/wiki/articles/random");
+  return apiFetch<Article>("/api/wiki/articles/random");
 }
 
 export interface ArticleEditRequest {
@@ -49,11 +49,11 @@ export function editArticle(
   body: ArticleEditRequest,
 ): Promise<ArticleResponse> {
   return apiFetch<ArticleResponse>(
-    `/wiki/articles/${encodeURIComponent(slug)}`,
+    `/api/wiki/articles/${encodeURIComponent(slug)}`,
     { method: "PATCH", body },
   );
 }
 
 export function getGraph(): Promise<GraphResponse> {
-  return apiFetch<GraphResponse>("/wiki/graph");
+  return apiFetch<GraphResponse>("/api/wiki/graph");
 }

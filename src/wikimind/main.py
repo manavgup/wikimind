@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -202,18 +202,24 @@ _images_dir = Path(get_settings().data_dir) / "images"
 _images_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(_images_dir)), name="images")
 
-# Mount routers
-app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
-app.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
-app.include_router(query.router, prefix="/query", tags=["Query"])
-app.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
-app.include_router(lint.router, prefix="/lint", tags=["Lint"])
-app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
-app.include_router(api_keys.router, prefix="/api/settings/api-keys", tags=["Settings"])
+# Mount routers — all API routes live under /api for clean SPA separation.
+# Health, docs, and auth remain at root level.
+api_router = APIRouter(prefix="/api")
+api_router.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
+api_router.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
+api_router.include_router(query.router, prefix="/query", tags=["Query"])
+api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
+api_router.include_router(lint.router, prefix="/lint", tags=["Lint"])
+api_router.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
+api_router.include_router(api_keys.router, prefix="/settings/api-keys", tags=["Settings"])
+api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
+api_router.include_router(export.router, prefix="/wiki", tags=["Export"])
+app.include_router(api_router)
+
+# Auth and WebSocket remain at root — auth redirects require stable paths,
+# and WebSocket connections are not prefixed.
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-app.include_router(admin.router, prefix="/admin", tags=["Admin"])
-app.include_router(export.router, prefix="/wiki", tags=["Export"])
 
 # ---------------------------------------------------------------------------
 # Exception handlers — catch domain errors raised inside route handlers

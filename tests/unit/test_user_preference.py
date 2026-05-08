@@ -93,7 +93,7 @@ async def test_set_default_provider_valid(client) -> None:
             patch.object(settings_mod, "get_session_factory", return_value=session_factory),
             patch.object(settings_mod, "get_api_key", return_value="sk-fake"),
         ):
-            resp = await client.post("/settings/llm/default-provider", json={"provider": "anthropic"})
+            resp = await client.post("/api/settings/llm/default-provider", json={"provider": "anthropic"})
     finally:
         settings.llm.anthropic.enabled = original_enabled
 
@@ -105,7 +105,7 @@ async def test_set_default_provider_valid(client) -> None:
 
 async def test_set_default_provider_invalid(client) -> None:
     """Sending an unknown provider name returns 400."""
-    resp = await client.post("/settings/llm/default-provider", json={"provider": "nonexistent"})
+    resp = await client.post("/api/settings/llm/default-provider", json={"provider": "nonexistent"})
     assert resp.status_code == 400
     assert "Unknown provider" in resp.json()["detail"]
 
@@ -113,7 +113,7 @@ async def test_set_default_provider_invalid(client) -> None:
 async def test_set_default_provider_not_enabled(client) -> None:
     """Requesting a known but disabled provider returns 400."""
     # mock provider is disabled by default (enabled=False in MockConfig)
-    resp = await client.post("/settings/llm/default-provider", json={"provider": "mock"})
+    resp = await client.post("/api/settings/llm/default-provider", json={"provider": "mock"})
     assert resp.status_code == 400
     assert "not enabled" in resp.json()["detail"]
 
@@ -128,7 +128,7 @@ async def test_patch_budget(client) -> None:
     session_factory, _ = _make_session_with_pref(None)
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.patch("/settings", json={"monthly_budget_usd": 99.5})
+        resp = await client.patch("/api/settings", json={"monthly_budget_usd": 99.5})
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
@@ -136,7 +136,7 @@ async def test_patch_budget(client) -> None:
 
 async def test_patch_budget_invalid(client) -> None:
     """A non-positive budget value returns 400."""
-    resp = await client.patch("/settings", json={"monthly_budget_usd": -1.0})
+    resp = await client.patch("/api/settings", json={"monthly_budget_usd": -1.0})
     assert resp.status_code == 400
     assert "positive" in resp.json()["detail"]
 
@@ -146,7 +146,7 @@ async def test_patch_fallback(client) -> None:
     session_factory, _ = _make_session_with_pref(None)
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.patch("/settings", json={"fallback_enabled": False})
+        resp = await client.patch("/api/settings", json={"fallback_enabled": False})
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
@@ -163,7 +163,7 @@ async def test_patch_openai_compatible_runtime_config(client) -> None:
     try:
         with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
             resp = await client.patch(
-                "/settings",
+                "/api/settings",
                 json={
                     "openai_compatible_base_url": "https://openrouter.ai/api/v1/",
                     "openai_compatible_model": "openai/gpt-4o-mini",
@@ -186,7 +186,7 @@ async def test_patch_openai_compatible_runtime_config(client) -> None:
 
 async def test_patch_openai_compatible_rejects_invalid_base_url(client) -> None:
     """OpenAI-compatible base URLs must be absolute HTTP(S) URLs."""
-    resp = await client.patch("/settings", json={"openai_compatible_base_url": "openrouter.ai/api/v1"})
+    resp = await client.patch("/api/settings", json={"openai_compatible_base_url": "openrouter.ai/api/v1"})
     assert resp.status_code == 400
     assert "base URL" in resp.json()["detail"]
 
@@ -224,7 +224,7 @@ async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled
     )
 
     resp = await client.patch(
-        "/settings",
+        "/api/settings",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -235,7 +235,7 @@ async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled
 
 async def test_patch_openai_compatible_rejects_invalid_reasoning_format(client) -> None:
     """OpenAI-compatible reasoning format must be one of the supported payload styles."""
-    resp = await client.patch("/settings", json={"openai_compatible_reasoning_format": "custom"})
+    resp = await client.patch("/api/settings", json={"openai_compatible_reasoning_format": "custom"})
     assert resp.status_code == 400
     assert "reasoning format" in resp.json()["detail"]
 
@@ -255,7 +255,7 @@ async def test_get_settings_reflects_overrides(client) -> None:
     session_factory = _make_multi_call_session_factory([provider_pref, budget_pref, fallback_pref])
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings")
+        resp = await client.get("/api/settings")
 
     assert resp.status_code == 200
     data = resp.json()

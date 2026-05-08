@@ -62,7 +62,7 @@ async def test_original_endpoint_streams_pdf(tmp_path: Path, source_with_pdf: So
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.get("/ingest/sources/src-pdf/original")
+                resp = await client.get("/api/ingest/sources/src-pdf/original")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)
@@ -89,7 +89,7 @@ async def test_original_endpoint_404_for_text_source(tmp_path: Path, source_text
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.get("/ingest/sources/src-text/original")
+                resp = await client.get("/api/ingest/sources/src-text/original")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)
@@ -117,7 +117,7 @@ async def test_original_endpoint_passes_user_id(tmp_path: Path, source_with_pdf:
         ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.get("/ingest/sources/src-pdf/original")
+                resp = await client.get("/api/ingest/sources/src-pdf/original")
     finally:
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_ingest_service, None)

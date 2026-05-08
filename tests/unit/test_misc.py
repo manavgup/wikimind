@@ -97,14 +97,14 @@ async def test_emit_helpers() -> None:
 
 
 async def test_settings_get_all(client) -> None:
-    resp = await client.get("/settings")
+    resp = await client.get("/api/settings")
     assert resp.status_code == 200
     assert "llm" in resp.json()
 
 
 async def test_settings_test_llm_error(client) -> None:
     # No API key configured -> raises -> caught -> error status
-    resp = await client.post("/settings/llm/test", params={"provider": "anthropic"})
+    resp = await client.post("/api/settings/llm/test", params={"provider": "anthropic"})
     assert resp.status_code == 200
     assert resp.json()["status"] in ("ok", "error")
 
@@ -130,7 +130,7 @@ async def test_settings_test_llm_uses_provider_safe_token_budget(client) -> None
             )
 
     with patch("wikimind.api.routes.settings.get_llm_router", return_value=_Router()):
-        resp = await client.post("/settings/llm/test", params={"provider": "openai_compatible"})
+        resp = await client.post("/api/settings/llm/test", params={"provider": "openai_compatible"})
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
@@ -140,7 +140,7 @@ async def test_settings_test_llm_uses_provider_safe_token_budget(client) -> None
 async def test_settings_get_cost(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     with patch("wikimind.api.routes.settings.get_session_factory", return_value=factory):
-        resp = await client.get("/settings/llm/cost")
+        resp = await client.get("/api/settings/llm/cost")
     assert resp.status_code == 200
     assert "cost_this_month_usd" in resp.json()
 

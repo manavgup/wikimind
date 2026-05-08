@@ -97,7 +97,7 @@ async def test_wikilink_resolution_end_to_end(
     assert "[[Nonexistent Topic]]" in content
 
     # 5. ID-first lookup via the HTTP route
-    response = await client.get(f"/wiki/articles/{article.id}")
+    response = await client.get(f"/api/wiki/articles/{article.id}")
     assert response.status_code == 200
     payload = response.json()
     assert payload["id"] == article.id
@@ -105,6 +105,6 @@ async def test_wikilink_resolution_end_to_end(
     assert f"[Existing Target](/wiki/{target.id})" in payload["content"]
 
     # Slug-based lookup still works (backward compat)
-    response_by_slug = await client.get(f"/wiki/articles/{article.slug}")
+    response_by_slug = await client.get(f"/api/wiki/articles/{article.slug}")
     assert response_by_slug.status_code == 200
     assert response_by_slug.json()["id"] == article.id

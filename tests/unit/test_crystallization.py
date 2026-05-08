@@ -276,7 +276,7 @@ class TestCrystallizeEndpoint:
             "wikimind.services.crystallization.get_llm_router",
             return_value=mock_router,
         ):
-            resp = await client.post("/query/conversations/conv-ep-1/crystallize")
+            resp = await client.post("/api/query/conversations/conv-ep-1/crystallize")
 
         assert resp.status_code == 200
         data = resp.json()
@@ -287,5 +287,5 @@ class TestCrystallizeEndpoint:
 
     async def test_crystallize_endpoint_404_nonexistent(self, client):
         """POST /query/conversations/{id}/crystallize returns 404 for missing conversation."""
-        resp = await client.post("/query/conversations/nonexistent/crystallize")
+        resp = await client.post("/api/query/conversations/nonexistent/crystallize")
         assert resp.status_code == 404

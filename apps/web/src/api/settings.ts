@@ -45,29 +45,29 @@ export interface TestResult {
 }
 
 export function getSettings(): Promise<SettingsResponse> {
-  return apiFetch<SettingsResponse>("/settings");
+  return apiFetch<SettingsResponse>("/api/settings");
 }
 
 export function getCostBreakdown(): Promise<CostBreakdown> {
-  return apiFetch<CostBreakdown>("/settings/llm/cost/breakdown");
+  return apiFetch<CostBreakdown>("/api/settings/llm/cost/breakdown");
 }
 
 export function setApiKey(provider: string, apiKey: string): Promise<void> {
-  return apiFetch<void>(`/api/settings/api-keys/${provider}`, {
+  return apiFetch<void>(`/api/settings/api-keys/${encodeURIComponent(provider)}`, {
     method: "PUT",
     body: { api_key: apiKey },
   });
 }
 
 export function testProvider(provider: string): Promise<TestResult> {
-  return apiFetch<TestResult>("/settings/llm/test", {
+  return apiFetch<TestResult>("/api/settings/llm/test", {
     method: "POST",
     query: { provider },
   });
 }
 
 export function setDefaultProvider(provider: string): Promise<{ provider: string; status: string }> {
-  return apiFetch("/settings/llm/default-provider", {
+  return apiFetch("/api/settings/llm/default-provider", {
     method: "POST",
     body: { provider },
   });
@@ -84,7 +84,7 @@ export function updateSettings(updates: {
   openai_compatible_max_tokens_field?: "max_tokens" | "max_completion_tokens";
   openai_compatible_reasoning_format?: "none" | "openai" | "openrouter";
 }): Promise<{ status: string }> {
-  return apiFetch("/settings", {
+  return apiFetch("/api/settings", {
     method: "PATCH",
     body: updates,
   });
@@ -96,11 +96,11 @@ export interface OnboardingStatus {
 }
 
 export function getOnboardingStatus(): Promise<OnboardingStatus> {
-  return apiFetch<OnboardingStatus>("/settings/onboarding-status");
+  return apiFetch<OnboardingStatus>("/api/settings/onboarding-status");
 }
 
 export function completeOnboarding(): Promise<OnboardingStatus> {
-  return apiFetch<OnboardingStatus>("/settings/onboarding-status", {
+  return apiFetch<OnboardingStatus>("/api/settings/onboarding-status", {
     method: "POST",
   });
 }

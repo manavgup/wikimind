@@ -152,7 +152,7 @@ async def test_refresh_endpoint(client, async_engine):
         )
         await session.commit()
 
-    response = await client.post("/wiki/articles/api-refresh-test/refresh")
+    response = await client.post("/api/wiki/articles/api-refresh-test/refresh")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "refreshed"
@@ -163,7 +163,7 @@ async def test_refresh_endpoint(client, async_engine):
 @pytest.mark.asyncio
 async def test_refresh_endpoint_not_found(client):
     """POST /wiki/articles/{slug}/refresh for missing article returns 404."""
-    response = await client.post("/wiki/articles/does-not-exist/refresh")
+    response = await client.post("/api/wiki/articles/does-not-exist/refresh")
     assert response.status_code == 404
 
 
@@ -189,7 +189,7 @@ async def test_list_articles_includes_staleness(client, async_engine):
         )
         await session.commit()
 
-    response = await client.get("/wiki/articles")
+    response = await client.get("/api/wiki/articles")
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 1

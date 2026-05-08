@@ -78,22 +78,22 @@ export interface LintReportDetail {
 // --- API functions ---
 
 export function runLint(): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>("/lint/run", { method: "POST" });
+  return apiFetch<{ status: string }>("/api/lint/run", { method: "POST" });
 }
 
 export function listReports(limit = 20): Promise<LintReport[]> {
-  return apiFetch<LintReport[]>("/lint/reports", { query: { limit } });
+  return apiFetch<LintReport[]>("/api/lint/reports", { query: { limit } });
 }
 
 export function getLatestReport(): Promise<LintReportDetail> {
-  return apiFetch<LintReportDetail>("/lint/reports/latest");
+  return apiFetch<LintReportDetail>("/api/lint/reports/latest");
 }
 
 export function getReport(
   id: string,
   includeDismissed = false,
 ): Promise<LintReportDetail> {
-  return apiFetch<LintReportDetail>(`/lint/reports/${encodeURIComponent(id)}`, {
+  return apiFetch<LintReportDetail>(`/api/lint/reports/${encodeURIComponent(id)}`, {
     query: { include_dismissed: includeDismissed },
   });
 }
@@ -102,7 +102,7 @@ export function dismissFinding(
   kind: LintFindingKind,
   id: string,
 ): Promise<{ dismissed: boolean; kind: string; finding_id: string }> {
-  return apiFetch(`/lint/findings/${kind}/${encodeURIComponent(id)}/dismiss`, {
+  return apiFetch(`/api/lint/findings/${kind}/${encodeURIComponent(id)}/dismiss`, {
     method: "POST",
   });
 }
@@ -112,7 +112,7 @@ export async function recompileArticle(
   mode?: "source" | "concept",
 ): Promise<{ status: string; job_id: string }> {
   const params = mode ? `?mode=${mode}` : "";
-  return apiFetch(`/wiki/articles/${articleId}/recompile${params}`, {
+  return apiFetch(`/api/wiki/articles/${articleId}/recompile${params}`, {
     method: "POST",
   });
 }
@@ -123,7 +123,7 @@ export interface ResolutionOption {
 }
 
 export function getResolutionOptions(): Promise<ResolutionOption[]> {
-  return apiFetch<ResolutionOption[]>("/wiki/contradiction-resolutions");
+  return apiFetch<ResolutionOption[]>("/api/wiki/contradiction-resolutions");
 }
 
 export async function resolveContradiction(
@@ -132,7 +132,7 @@ export async function resolveContradiction(
   _note?: string,
 ): Promise<{ status: string; resolution: string | null }> {
   return apiFetch(
-    `/wiki/contradictions/${encodeURIComponent(contradictionId)}`,
+    `/api/wiki/contradictions/${encodeURIComponent(contradictionId)}`,
     {
       method: "PATCH",
       body: { status: "resolved", resolution },

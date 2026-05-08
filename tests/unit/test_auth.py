@@ -108,7 +108,7 @@ async def test_middleware_returns_401_when_no_token(client, monkeypatch):
     monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
 
-    response = await client.get("/wiki/articles")
+    response = await client.get("/api/wiki/articles")
     assert response.status_code == 401
     body = response.json()
     assert body["error"]["code"] == "UNAUTHORIZED"
@@ -130,7 +130,7 @@ async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
     expired_token = jwt.encode(expired_payload, "test-secret", algorithm="HS256")
 
     response = await client.get(
-        "/wiki/articles",
+        "/api/wiki/articles",
         headers={"Authorization": f"Bearer {expired_token}"},
     )
     assert response.status_code == 401
@@ -152,7 +152,7 @@ async def test_middleware_returns_401_when_token_invalid(client, monkeypatch):
     )
 
     response = await client.get(
-        "/wiki/articles",
+        "/api/wiki/articles",
         headers={"Authorization": f"Bearer {bad_token}"},
     )
     assert response.status_code == 401

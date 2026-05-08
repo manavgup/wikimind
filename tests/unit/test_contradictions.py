@@ -270,7 +270,7 @@ async def test_api_list_contradictions(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles_and_contradictions(factory)
 
-    response = await client.get("/wiki/contradictions")
+    response = await client.get("/api/wiki/contradictions")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -281,7 +281,7 @@ async def test_api_list_contradictions_filter_active(client, async_engine) -> No
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles_and_contradictions(factory)
 
-    response = await client.get("/wiki/contradictions", params={"status": "active"})
+    response = await client.get("/api/wiki/contradictions", params={"status": "active"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -293,7 +293,7 @@ async def test_api_get_single_contradiction(client, async_engine) -> None:
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_articles_and_contradictions(factory)
 
-    response = await client.get("/wiki/contradictions/ctr1")
+    response = await client.get("/api/wiki/contradictions/ctr1")
     assert response.status_code == 200
     data = response.json()
     assert data["claim_a"] == "The sky is blue"
@@ -304,7 +304,7 @@ async def test_api_get_single_contradiction(client, async_engine) -> None:
 
 @pytest.mark.asyncio
 async def test_api_get_contradiction_not_found(client) -> None:
-    response = await client.get("/wiki/contradictions/nonexistent")
+    response = await client.get("/api/wiki/contradictions/nonexistent")
     assert response.status_code == 404
 
 
@@ -314,7 +314,7 @@ async def test_api_resolve_contradiction(client, async_engine) -> None:
     await _seed_articles_and_contradictions(factory)
 
     response = await client.patch(
-        "/wiki/contradictions/ctr1",
+        "/api/wiki/contradictions/ctr1",
         json={"status": "resolved", "resolution": "Claim A is correct"},
     )
     assert response.status_code == 200
@@ -330,7 +330,7 @@ async def test_api_dismiss_contradiction(client, async_engine) -> None:
     await _seed_articles_and_contradictions(factory)
 
     response = await client.patch(
-        "/wiki/contradictions/ctr1",
+        "/api/wiki/contradictions/ctr1",
         json={"status": "dismissed"},
     )
     assert response.status_code == 200
@@ -341,7 +341,7 @@ async def test_api_dismiss_contradiction(client, async_engine) -> None:
 @pytest.mark.asyncio
 async def test_api_resolve_nonexistent_contradiction(client) -> None:
     response = await client.patch(
-        "/wiki/contradictions/nonexistent",
+        "/api/wiki/contradictions/nonexistent",
         json={"status": "resolved", "resolution": "test"},
     )
     assert response.status_code == 404
@@ -395,7 +395,7 @@ async def test_api_get_contradiction_cross_user_returns_404(client, async_engine
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     await _seed_other_user_contradiction(factory)
 
-    response = await client.get("/wiki/contradictions/other-ctr1")
+    response = await client.get("/api/wiki/contradictions/other-ctr1")
     assert response.status_code == 404
 
 
@@ -406,7 +406,7 @@ async def test_api_patch_contradiction_cross_user_returns_404(client, async_engi
     await _seed_other_user_contradiction(factory)
 
     response = await client.patch(
-        "/wiki/contradictions/other-ctr1",
+        "/api/wiki/contradictions/other-ctr1",
         json={"status": "resolved", "resolution": "hijack attempt"},
     )
     assert response.status_code == 404

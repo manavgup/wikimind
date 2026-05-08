@@ -61,7 +61,7 @@ async def test_onboarding_status_default(client) -> None:
     session_factory = _make_multi_call_session_factory([None, None])
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/onboarding-status")
+        resp = await client.get("/api/settings/onboarding-status")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -76,7 +76,7 @@ async def test_onboarding_status_completed(client) -> None:
     session_factory = _make_multi_call_session_factory([completed_pref, step_pref])
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.get("/settings/onboarding-status")
+        resp = await client.get("/api/settings/onboarding-status")
 
     assert resp.status_code == 200
     data = resp.json()
@@ -94,7 +94,7 @@ async def test_complete_onboarding(client) -> None:
     session_factory, _session = _make_session_with_pref(None)
 
     with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-        resp = await client.post("/settings/onboarding-status")
+        resp = await client.post("/api/settings/onboarding-status")
 
     assert resp.status_code == 200
     data = resp.json()
