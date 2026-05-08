@@ -162,10 +162,10 @@ class TestFtsSearch:
         results, total = await search_articles(fts_session, "python", TEST_USER_ID)
         assert len(results) == 1
         assert total == 1
-        assert results[0]["title"] == "Python Programming Guide"
-        assert results[0]["slug"] == "python-programming-guide"
-        assert "snippet" in results[0]
-        assert "rank" in results[0]
+        assert results[0].title == "Python Programming Guide"
+        assert results[0].slug == "python-programming-guide"
+        assert results[0].snippet is not None
+        assert results[0].rank is not None
 
     @pytest.mark.asyncio
     async def test_search_does_not_find_unrelated(self, fts_session: AsyncSession):
@@ -222,11 +222,11 @@ class TestFtsSearch:
 
         assert len(results_a) == 1
         assert total_a == 1
-        assert results_a[0]["title"] == "User A Secret"
+        assert results_a[0].title == "User A Secret"
 
         assert len(results_b) == 1
         assert total_b == 1
-        assert results_b[0]["title"] == "User B Public"
+        assert results_b[0].title == "User B Public"
 
     @pytest.mark.asyncio
     async def test_search_content_match(self, fts_session: AsyncSession):
@@ -240,7 +240,7 @@ class TestFtsSearch:
 
         results, _total = await search_articles(fts_session, "transformer", TEST_USER_ID)
         assert len(results) == 1
-        assert results[0]["title"] == "Generic Title"
+        assert results[0].title == "Generic Title"
 
     @pytest.mark.asyncio
     async def test_search_title_match(self, fts_session: AsyncSession):
@@ -304,7 +304,7 @@ class TestFtsSearch:
         # New content should match
         results, _total = await search_articles(fts_session, "microservices", TEST_USER_ID)
         assert len(results) == 1
-        assert results[0]["title"] == "Original Title"
+        assert results[0].title == "Original Title"
 
     @pytest.mark.asyncio
     async def test_search_pagination(self, fts_session: AsyncSession):

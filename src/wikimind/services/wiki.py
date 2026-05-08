@@ -44,6 +44,7 @@ from wikimind.models import (
     RelationType,
     Source,
     SourceResponse,
+    WikiHealthReport,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 from wikimind.services.tags import get_tag_service
@@ -991,7 +992,7 @@ class WikiService:
         self,
         session: AsyncSession,
         user_id: str,
-    ) -> dict:
+    ) -> WikiHealthReport:
         """Return the latest wiki health report from the linter.
 
         If no linter run has been performed yet, returns a stub report
@@ -1002,14 +1003,14 @@ class WikiService:
             user_id: Optional user ID for path scoping.
 
         Returns:
-            Health report dict.
+            Typed WikiHealthReport.
         """
         storage = get_wiki_storage(user_id)
         health_relative = "_meta/health.json"
 
         if await storage.exists(health_relative):
             content = await storage.read(health_relative)
-            return json.loads(content)
+            return WikiHealthReport(**json.loads(content))
 
         article_stmt = select(Article)
         if user_id:
@@ -1017,12 +1018,12 @@ class WikiService:
         articles_result = await session.execute(article_stmt)
         articles = articles_result.scalars().all()
 
-        return {
-            "generated_at": None,
-            "total_articles": len(articles),
-            "total_sources": 0,
-            "message": "Run the linter to generate a health report",
-        }
+        return WikiHealthReport(
+            generated_at=None,
+            total_articles=len(articles),
+            total_sources=0,
+            message="Run the linter to generate a health report",
+        )
 
 
 @functools.lru_cache(maxsize=1)

@@ -30,12 +30,14 @@ from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import (
+    DeleteAccountResponse,
     MagicLinkRequest,
     MagicLinkResponse,
     MagicLinkVerifyRequest,
     MagicLinkVerifyResponse,
     TokenCreateRequest,
     TokenCreateResponse,
+    UserProfileResponse,
 )
 from wikimind.services.user import UserService, get_user_service
 
@@ -182,10 +184,10 @@ async def callback(
 
     if provider == "google":
         token_resp = await service.exchange_google_token(code, settings, callback_url)
-        user_info = await service.fetch_google_userinfo(token_resp["access_token"])
+        user_info = await service.fetch_google_userinfo(token_resp.access_token)
     elif provider == "github":
         token_resp = await service.exchange_github_token(code, settings)
-        user_info = await service.fetch_github_userinfo(token_resp["access_token"])
+        user_info = await service.fetch_github_userinfo(token_resp.access_token)
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
@@ -218,23 +220,23 @@ async def me(
     request: Request,
     session: AsyncSession = Depends(get_session),
     service: UserService = Depends(get_user_service),
-) -> dict:
+) -> UserProfileResponse:
     """Return current user profile, auto-provisioning if needed."""
     settings = get_settings()
     if not request.state.user_id:
         if not settings.auth.enabled:
-            return {"id": ANONYMOUS_USER_ID, "email": "", "name": "Anonymous", "avatar_url": None}
+            return UserProfileResponse(id=ANONYMOUS_USER_ID, email="", name="Anonymous", avatar_url=None)
         raise HTTPException(status_code=401)
 
     email = getattr(request.state, "user_email", None)
     user = await service.get_or_create(session, request.state.user_id, email=email)
 
-    return {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "avatar_url": user.avatar_url,
-    }
+    return UserProfileResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+    )
 
 
 @router.post("/magic-link")
@@ -551,7 +553,7 @@ async def delete_account(
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(require_user_id),
     service: UserService = Depends(get_user_service),
-) -> dict:
+) -> DeleteAccountResponse:
     """Delete the current user's account and all owned data."""
     await service.delete_account(session, user_id)
-    return {"deleted": user_id}
+    return DeleteAccountResponse(deleted=user_id)

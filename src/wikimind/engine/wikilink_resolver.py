@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 from sqlmodel import select
 
 from wikimind.engine.title_normalizer import normalize_title
-from wikimind.models import Article
+from wikimind.models import Article, ResolvedBacklinks
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +56,7 @@ async def resolve_backlink_candidates(
     user_id: str,
     exclude_article_id: str | None = None,
     relation_types: dict[str, str] | None = None,
-) -> tuple[list[ResolvedBacklink], list[str]]:
+) -> ResolvedBacklinks:
     """Resolve wikilink candidates against the Article table.
 
     Args:
@@ -75,18 +75,16 @@ async def resolve_backlink_candidates(
             considered for resolution. Prevents cross-user link leakage.
 
     Returns:
-        A tuple ``(resolved, unresolved)``. Resolved contains one
-        :class:`ResolvedBacklink` per unique target article (so two
-        candidates pointing at the same article produce one row).
-        Unresolved is the list of candidate strings that matched no
-        article, in input order.
+        A :class:`ResolvedBacklinks` NamedTuple with ``resolved``
+        (:class:`ResolvedBacklink` per unique target article) and
+        ``unresolved`` (candidate strings that matched no article).
     """
     rel_map = relation_types or {}
 
     # Drop empty / whitespace-only candidates up front.
     cleaned = [c.strip() for c in candidates if c and c.strip()]
     if not cleaned:
-        return [], []
+        return ResolvedBacklinks(resolved=[], unresolved=[])
 
     # Load articles for resolution. When user_id is provided, only that
     # user's articles are considered — prevents cross-user link leakage.
@@ -127,4 +125,7 @@ async def resolve_backlink_candidates(
                 relation_type=rel_map.get(candidate.lower(), "references"),
             )
 
-    return list(resolved_by_target.values()), unresolved
+    return ResolvedBacklinks(
+        resolved=list(resolved_by_target.values()),
+        unresolved=unresolved,
+    )

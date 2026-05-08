@@ -247,18 +247,18 @@ async def search(
     user_id: str = Depends(get_current_user_id),
 ):
     """Full-text search across wiki articles using BM25 ranking."""
-    raw_results, total = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
+    fts_response = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
     results = [
         SearchResult(
-            article_id=r["article_id"],
-            slug=r["slug"],
-            title=r["title"],
-            snippet=r["snippet"],
-            rank=r["rank"],
+            article_id=r.article_id,
+            slug=r.slug,
+            title=r.title,
+            snippet=r.snippet,
+            rank=r.rank,
         )
-        for r in raw_results
+        for r in fts_response.results
     ]
-    return SearchResponse(results=results, total=total, query=q)
+    return SearchResponse(results=results, total=fts_response.total, query=q)
 
 
 @router.get("/concepts")

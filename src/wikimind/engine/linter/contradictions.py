@@ -14,7 +14,7 @@ import hashlib
 import itertools
 import json
 import random
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import structlog
 from sqlalchemy import delete
@@ -234,13 +234,13 @@ def _build_batch_prompt(
     return BatchPrompt(CONTRADICTION_BATCH_SYSTEM, user_msg)
 
 
-def _parse_batch_response(response_data: list[dict], expected_count: int) -> dict[int, list[dict]]:
+def _parse_batch_response(response_data: list[dict[str, Any]], expected_count: int) -> dict[int, list[dict[str, Any]]]:
     """Map LLM batch response back to individual pairs by pair_index.
 
     Returns a dict from pair_index to list of contradiction dicts.
     Missing indices get an empty list.
     """
-    result: dict[int, list[dict]] = {i: [] for i in range(expected_count)}
+    result: dict[int, list[dict[str, Any]]] = {i: [] for i in range(expected_count)}
     for item in response_data:
         idx = item.get("pair_index")
         if idx is not None and 0 <= idx < expected_count:

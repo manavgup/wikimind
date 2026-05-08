@@ -20,7 +20,7 @@ from sqlmodel import select
 
 from wikimind.config import get_settings
 from wikimind.db_compat import is_postgres
-from wikimind.models import Article
+from wikimind.models import Article, FTSResponse, FTSResultItem
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
@@ -194,12 +194,12 @@ async def search_articles(
     user_id: str,
     limit: int = 20,
     offset: int = 0,
-) -> tuple[list[dict], int]:
+) -> FTSResponse:
     """Execute a full-text search and return ranked results with total count.
 
-    Returns a tuple of (results, total) where results is a list of dicts
-    with keys: article_id, title, slug, snippet, rank; and total is the
-    count of all matches before pagination.
+    Returns an :class:`FTSResponse` NamedTuple of (results, total) where
+    results is a list of :class:`FTSResultItem` and total is the count of
+    all matches before pagination.
 
     Args:
         session: Active database session.
@@ -209,10 +209,10 @@ async def search_articles(
         offset: Pagination offset.
 
     Returns:
-        Tuple of (result dicts ordered by relevance, total match count).
+        FTSResponse with typed result items ordered by relevance and total count.
     """
     if not _fts_ready:
-        return [], 0
+        return FTSResponse(results=[], total=0)
 
     url = get_settings().database_url
 
@@ -227,17 +227,16 @@ async def _search_sqlite(
     user_id: str,
     limit: int,
     offset: int,
-) -> tuple[list[dict], int]:
+) -> FTSResponse:
     """FTS5 search with BM25 ranking and snippet extraction.
 
     Uses a two-step approach: query the FTS5 table first for rowids and
     snippets, then join against the article table for user scoping.
-    Returns (results, total_count) where total_count is the number of
-    user-scoped matches before pagination.
+    Returns an FTSResponse with typed results and total count.
     """
     fts_query = _sanitize_fts5_query(query)
     if not fts_query:
-        return [], 0
+        return FTSResponse(results=[], total=0)
 
     # Fetch all FTS matches (no LIMIT) so we can compute accurate total
     # after user-scoping.  The FTS5 query itself is fast; the bottleneck
@@ -255,7 +254,7 @@ async def _search_sqlite(
     fts_rows = fts_result.all()
 
     if not fts_rows:
-        return [], 0
+        return FTSResponse(results=[], total=0)
 
     # Build rowid -> (snippet, rank) map
     rowid_map: dict[int, tuple[str, float]] = {}
@@ -277,7 +276,7 @@ async def _search_sqlite(
             id_to_rowid[aid] = rowid
 
     if not matched_ids:
-        return [], 0
+        return FTSResponse(results=[], total=0)
 
     # Load only the matched articles from the database
     article_result = await session.execute(
@@ -288,24 +287,24 @@ async def _search_sqlite(
     )
     matched_articles = list(article_result.scalars().all())
 
-    results: list[dict] = []
+    results: list[FTSResultItem] = []
     for article in matched_articles:
         rowid = id_to_rowid[article.id]
         snippet, rank = rowid_map[rowid]
         results.append(
-            {
-                "article_id": article.id,
-                "slug": article.slug,
-                "title": article.title,
-                "snippet": snippet,
-                "rank": rank,
-            }
+            FTSResultItem(
+                article_id=article.id,
+                slug=article.slug,
+                title=article.title,
+                snippet=snippet,
+                rank=rank,
+            )
         )
 
     # Sort by BM25 rank (lower is better in FTS5)
-    results.sort(key=lambda r: r["rank"])
+    results.sort(key=lambda r: r.rank)
     total = len(results)
-    return results[offset : offset + limit], total
+    return FTSResponse(results=results[offset : offset + limit], total=total)
 
 
 async def _search_postgres(
@@ -314,11 +313,11 @@ async def _search_postgres(
     user_id: str,
     limit: int,
     offset: int,
-) -> tuple[list[dict], int]:
+) -> FTSResponse:
     """Postgres full-text search with ts_rank and ts_headline."""
     tsquery = _sanitize_postgres_query(query)
     if not tsquery:
-        return [], 0
+        return FTSResponse(results=[], total=0)
 
     # Count total matches before pagination
     count_sql = sa_text(
@@ -361,16 +360,16 @@ async def _search_postgres(
     )
 
     results = [
-        {
-            "article_id": row[0],
-            "slug": row[1],
-            "title": row[2],
-            "snippet": row[3],
-            "rank": row[4],
-        }
+        FTSResultItem(
+            article_id=row[0],
+            slug=row[1],
+            title=row[2],
+            snippet=row[3],
+            rank=row[4],
+        )
         for row in result.all()
     ]
-    return results, total
+    return FTSResponse(results=results, total=total)
 
 
 # ---------------------------------------------------------------------------
@@ -452,8 +451,8 @@ class SearchService:
         user_id: str,
         limit: int = 20,
         offset: int = 0,
-    ) -> tuple[list[dict], int]:
-        """Execute full-text search, returning (ranked result dicts, total)."""
+    ) -> FTSResponse:
+        """Execute full-text search, returning FTSResponse with typed results."""
         return await search_articles(session, query, user_id, limit, offset)
 
 

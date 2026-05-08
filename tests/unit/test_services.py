@@ -567,7 +567,7 @@ async def test_wiki_get_concepts(db_session) -> None:
 async def test_wiki_get_health_default(db_session) -> None:
     svc = WikiService()
     h = await svc.get_health(db_session, user_id=TEST_USER_ID)
-    assert "total_articles" in h
+    assert h.total_articles is not None
 
 
 async def test_wiki_get_health_from_file(db_session, tmp_path, monkeypatch) -> None:
@@ -576,9 +576,10 @@ async def test_wiki_get_health_from_file(db_session, tmp_path, monkeypatch) -> N
     get_settings.cache_clear()
     meta = tmp_path / "wiki" / TEST_USER_ID / "_meta"
     meta.mkdir(parents=True)
-    (meta / "health.json").write_text(json.dumps({"foo": "bar"}))
+    (meta / "health.json").write_text(json.dumps({"total_articles": 42, "message": "test"}))
     h = await svc.get_health(db_session, user_id=TEST_USER_ID)
-    assert h["foo"] == "bar"
+    assert h.total_articles == 42
+    assert h.message == "test"
 
 
 def test_wiki_service_singleton() -> None:
