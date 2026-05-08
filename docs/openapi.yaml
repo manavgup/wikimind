@@ -747,42 +747,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /wiki/articles/{id_or_slug}/refresh:
-    post:
-      tags:
-      - Wiki
-      summary: Refresh Article
-      description: 'Mark an article as ''still current'' without recompiling.
-
-
-        Creates a manual_refresh reinforcement event and resets the article''s
-
-        staleness score. Use this when you have reviewed an article and
-
-        confirmed its content is still accurate.'
-      operationId: refresh_article_wiki_articles__id_or_slug__refresh_post
-      parameters:
-      - name: id_or_slug
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Id Or Slug
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RefreshArticleResponse'
-        '404':
-          description: Article not found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /wiki/articles/{article_id}/recompile:
     post:
       tags:
@@ -2097,11 +2061,6 @@ components:
           type: number
           title: Effective Confidence
           default: 0.5
-        staleness_score:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Staleness Score
         concepts:
           items:
             type: string
@@ -2210,11 +2169,6 @@ components:
           type: number
           title: Effective Confidence
           default: 0.5
-        staleness_score:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Staleness Score
         sources:
           items:
             $ref: '#/components/schemas/ArticleSourceSummary'
@@ -3598,21 +3552,6 @@ components:
       - job_id
       title: RecompileResponse
       description: Response after scheduling an article recompile.
-    RefreshArticleResponse:
-      properties:
-        status:
-          type: string
-          title: Status
-        staleness_score:
-          type: number
-          title: Staleness Score
-      type: object
-      required:
-      - status
-      - staleness_score
-      title: RefreshArticleResponse
-      description: 'Response after marking an article as manually refreshed (issue
-        #425).'
     RelationType:
       type: string
       enum:
