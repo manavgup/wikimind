@@ -12,7 +12,9 @@ Used as a pre-commit hook entry point.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,12 +22,23 @@ BASELINE_NAME = ".secrets.baseline"
 BASELINE = REPO_ROOT / BASELINE_NAME
 
 
+def _detect_secrets_cmd() -> list[str]:
+    """Return the command to invoke detect-secrets, preferring the venv copy."""
+    venv_bin = REPO_ROOT / ".venv" / "bin" / "detect-secrets"
+    if venv_bin.exists():
+        return [str(venv_bin)]
+    if shutil.which("detect-secrets"):
+        return ["detect-secrets"]
+    # Last resort: run as a Python module
+    return [sys.executable, "-m", "detect_secrets"]
+
+
 def main() -> int:
     """Re-scan and update baseline only if content changed."""
     if not BASELINE.exists():
         # No baseline yet — create one from scratch.
         subprocess.run(
-            ["detect-secrets", "scan", "--baseline", BASELINE_NAME],
+            [*_detect_secrets_cmd(), "scan", "--baseline", BASELINE_NAME],
             cwd=REPO_ROOT,
             check=False,
         )
