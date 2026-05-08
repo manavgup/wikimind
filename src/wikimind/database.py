@@ -215,6 +215,11 @@ async def init_db():
     # when auth is disabled (get_current_user_id returns "anonymous").
     await _ensure_anonymous_user(engine)
 
+    # Create FTS virtual table for full-text search (idempotent).
+    from wikimind.services.search import create_fts_table  # noqa: PLC0415
+
+    await create_fts_table(engine)
+
     # Versioned data migrations — each runs at most once
     _versioned_migrations: list[tuple[str, object]] = [
         ("0001_backfill_conversations", _backfill_conversation_for_legacy_queries),
@@ -600,6 +605,10 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
             )
         )
         await session.execute(sa_delete(Article).where(Article.id == article.id))
+
+        from wikimind.services.search import remove_article as fts_remove_article  # noqa: PLC0415
+
+        await fts_remove_article(session, article.id)
         cleaned += 1
         log.warning(
             "startup: removed orphaned concept page (file missing)",

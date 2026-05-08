@@ -35,9 +35,12 @@ from wikimind.models import (
     ResolveContradictionBody,
     ResolveContradictionRequest,
     ResolveContradictionResponse,
+    SearchResponse,
+    SearchResult,
 )
 from wikimind.services.contradiction import ContradictionService, get_contradiction_service
 from wikimind.services.linter import LinterService, get_linter_service
+from wikimind.services.search import SearchService, get_search_service
 from wikimind.services.taxonomy import rebuild_taxonomy
 from wikimind.services.wiki import WikiService, _staleness_score, get_wiki_service
 
@@ -203,16 +206,28 @@ async def get_article_relationships(
     return await service.get_relationships(id_or_slug, session, user_id=user_id)
 
 
-@router.get("/search", response_model=list[ArticleSummaryResponse])
+@router.get("/search", response_model=SearchResponse)
 async def search(
     q: str = Query(..., min_length=2),
     limit: int = 20,
+    offset: int = 0,
     session: AsyncSession = Depends(get_session),
-    service: WikiService = Depends(get_wiki_service),
+    search_service: SearchService = Depends(get_search_service),
     user_id: str = Depends(get_current_user_id),
 ):
-    """Full-text search across wiki articles with source provenance."""
-    return await service.search(q, session, limit=limit, user_id=user_id)
+    """Full-text search across wiki articles using BM25 ranking."""
+    raw_results = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
+    results = [
+        SearchResult(
+            article_id=r["article_id"],
+            slug=r["slug"],
+            title=r["title"],
+            snippet=r["snippet"],
+            rank=r["rank"],
+        )
+        for r in raw_results
+    ]
+    return SearchResponse(results=results, total=len(results), query=q)
 
 
 @router.get("/concepts")

@@ -1136,6 +1136,24 @@ class DeleteConfirmation(BaseModel):
     deleted: str
 
 
+class SearchResult(BaseModel):
+    """A single full-text search result with snippet and relevance score."""
+
+    article_id: str
+    slug: str
+    title: str
+    snippet: str  # FTS5 snippet with <mark> highlights
+    rank: float  # BM25 relevance score
+
+
+class SearchResponse(BaseModel):
+    """Paginated full-text search response."""
+
+    results: list[SearchResult]
+    total: int
+    query: str
+
+
 class EmbeddingStats(BaseModel):
     """Basic statistics about the vector store."""
 

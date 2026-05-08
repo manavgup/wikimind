@@ -24,6 +24,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
 from wikimind.models import Article, Backlink, Job, JobStatus, JobType, PageType
+from wikimind.services.search import remove_article as fts_remove_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
@@ -176,6 +177,7 @@ async def _cleanup_orphaned_concept_pages(
         await session.execute(
             sa_delete(Article).where(Article.id == article.id)  # type: ignore[arg-type]
         )
+        await fts_remove_article(session, article.id)
         cleaned += 1
         log.warning(
             "sweep: removed orphaned concept page (file missing)",
