@@ -2448,6 +2448,45 @@ paths:
           content:
             application/json:
               schema: {}
+  /api/admin/stuck-sources:
+    get:
+      tags:
+      - Admin
+      summary: Get Stuck Sources
+      description: Sources stuck in processing for >10 minutes.
+      operationId: get_stuck_sources_api_admin_stuck_sources_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/retry-stuck/{source_id}:
+    post:
+      tags:
+      - Admin
+      summary: Retry Stuck Source
+      description: Reset a stuck source to pending and re-queue compilation.
+      operationId: retry_stuck_source_api_admin_retry_stuck__source_id__post
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/admin/sweep:
     post:
       tags:

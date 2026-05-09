@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: "/graph", label: "Graph", icon: "🕸️" },
   { to: "/health", label: "Health", icon: "🩺" },
   { to: "/settings", label: "Settings", icon: "⚙️" },
+  { to: "/admin", label: "Admin", icon: "📊" },
 ];
 
 export function Layout({ children }: LayoutProps) {

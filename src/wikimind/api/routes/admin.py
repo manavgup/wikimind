@@ -46,6 +46,27 @@ async def get_eligible_concepts(
     return await service.get_eligible_concepts(session, user_id=user_id)
 
 
+@router.get("/stuck-sources")
+async def get_stuck_sources(
+    session: AsyncSession = Depends(get_session),
+    service: AdminService = Depends(get_admin_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Sources stuck in processing for >10 minutes."""
+    return await service.get_stuck_sources(session, user_id=user_id)
+
+
+@router.post("/retry-stuck/{source_id}")
+async def retry_stuck_source(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: AdminService = Depends(get_admin_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Reset a stuck source to pending and re-queue compilation."""
+    return await service.retry_stuck_source(session, source_id=source_id, user_id=user_id)
+
+
 @router.post("/sweep")
 async def trigger_sweep(
     service: AdminService = Depends(get_admin_service),

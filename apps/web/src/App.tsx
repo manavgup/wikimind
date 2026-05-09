@@ -13,6 +13,7 @@ import { GraphView } from "./components/graph/GraphView";
 import { HealthView } from "./components/health/HealthView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SynthesisView } from "./components/synthesis/SynthesisView";
+import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { LandingRoute } from "./components/auth/LandingRoute";
@@ -45,6 +46,7 @@ function AuthenticatedApp() {
           <Route path="/graph" element={<GraphView />} />
           <Route path="/health" element={<HealthView />} />
           <Route path="/settings" element={<SettingsView />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<Navigate to="/inbox" replace />} />
         </Routes>
       )}

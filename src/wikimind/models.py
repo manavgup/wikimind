@@ -1454,6 +1454,16 @@ class ConceptDetailResponse(BaseModel):
     articles: list[ArticleSummaryResponse] = []
 
 
+class StuckSource(BaseModel):
+    """Source stuck in processing for longer than the threshold."""
+
+    id: str
+    title: str | None
+    source_type: str
+    ingested_at: str
+    minutes_stuck: int
+
+
 class SystemStats(BaseModel):
     """Aggregate system statistics."""
 
@@ -1464,6 +1474,18 @@ class SystemStats(BaseModel):
     orphan_count: int = 0
     conversation_count: int = 0
     articles_by_type: dict[str, int] = {}
+
+    # Content breakdown
+    articles_by_page_type: dict[str, int] = {}
+    articles_by_confidence: dict[str, int] = {}
+    sources_by_type: dict[str, int] = {}
+    sources_by_status: dict[str, int] = {}
+
+    # Operational health
+    sources_stuck_processing: list[StuckSource] = []
+    compilation_queue_depth: int = 0
+    avg_compilation_time_ms: float | None = None
+    last_compilation_at: str | None = None
 
 
 class OrphanArticle(BaseModel):
