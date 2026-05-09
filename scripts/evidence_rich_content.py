@@ -14,6 +14,8 @@ import http.server
 import threading
 from pathlib import Path
 
+from playwright.async_api import async_playwright
+
 EVIDENCE_DIR = Path(__file__).resolve().parent.parent / "docs" / "evidence" / "pr-452"
 EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -203,8 +205,6 @@ def scaled_dot_product_attention(
 
 async def main() -> None:
     """Generate evidence screenshots with Playwright."""
-    from playwright.async_api import async_playwright
-
     # Write the test HTML file
     html_path = EVIDENCE_DIR / "test-page.html"
     html_path.write_text(TEST_HTML)
