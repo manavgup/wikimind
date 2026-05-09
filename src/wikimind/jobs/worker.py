@@ -30,6 +30,7 @@ from wikimind.api.routes.ws import (
     emit_article_recompiled,
     emit_compilation_complete,
     emit_compilation_failed,
+    emit_draft_ready,
     emit_source_progress,
 )
 from wikimind.config import get_settings
@@ -127,6 +128,80 @@ async def _try_embed_article(article: Article) -> None:
         )
 
 
+async def _compile_interactive(
+    source: Source,
+    doc: NormalizedDocument,
+    compiler: Compiler,
+    job: Job,
+    session,
+    user_id: str,
+) -> None:
+    """Interactive compilation: create a draft for user review (issue #418)."""
+    source_id = source.id
+
+    async def _on_chunk_progress(message: str) -> None:
+        await emit_source_progress(source_id, message, user_id=user_id)
+
+    await emit_source_progress(source_id, "Extracting key takeaways...", user_id=user_id)
+    takeaways = await compiler.extract_takeaways(doc)
+
+    result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
+    if not result:
+        msg = "Compiler returned no result"
+        raise ValueError(msg)
+
+    await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
+    from wikimind.services.draft import get_draft_service  # noqa: PLC0415
+
+    draft_service = get_draft_service()
+    draft = await draft_service.create_draft(source, doc, result, takeaways, session)
+
+    job.status = JobStatus.COMPLETE
+    job.completed_at = utcnow_naive()
+    job.result_summary = f"Draft created for review: {result.title}"
+    session.add(job)
+    await session.commit()
+
+    await emit_draft_ready(source_id, draft.id, result.title, user_id=user_id)
+    log.info("compile_source draft ready", source_id=source_id, draft_id=draft.id)
+
+
+async def _compile_direct(
+    source: Source,
+    doc: NormalizedDocument,
+    compiler: Compiler,
+    job: Job,
+    session,
+    ctx,
+    user_id: str,
+) -> None:
+    """Standard compilation: compile and save article directly."""
+    source_id = source.id
+
+    async def _on_chunk_progress(message: str) -> None:
+        await emit_source_progress(source_id, message, user_id=user_id)
+
+    result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
+    if not result:
+        msg = "Compiler returned no result"
+        raise ValueError(msg)
+
+    await emit_source_progress(source_id, "Saving article...", user_id=user_id)
+    article = await compiler.save_article(result, source, session)
+
+    job.status = JobStatus.COMPLETE
+    job.completed_at = utcnow_naive()
+    job.result_summary = f"Created article: {article.slug}"
+    session.add(job)
+    await session.commit()
+
+    await emit_compilation_complete(article.slug, article.title, user_id=user_id)
+    log.info("compile_source complete", source_id=source_id, slug=article.slug)
+
+    await _try_embed_article(article)
+    await sweep_wikilinks(ctx, user_id=user_id)
+
+
 async def compile_source(
     ctx,
     source_id: str,
@@ -177,37 +252,13 @@ async def compile_source(
                 doc = await _build_normalized_doc(source)
 
             await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
-
-            async def _on_chunk_progress(message: str) -> None:
-                await emit_source_progress(source_id, message, user_id=user_id)
-
             compiler = Compiler(user_id=user_id)
-            result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
 
-            if not result:
-                msg = "Compiler returned no result"
-                raise ValueError(msg)
-
-            await emit_source_progress(source_id, "Saving article...", user_id=user_id)
-
-            article = await compiler.save_article(result, source, session)
-
-            # Update job
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Created article: {article.slug}"
-            session.add(job)
-            await session.commit()
-
-            await emit_compilation_complete(article.slug, article.title, user_id=user_id)
-            log.info("compile_source complete", source_id=source_id, slug=article.slug)
-
-            await _try_embed_article(article)
-
-            # Sweep existing articles — a newly compiled article may resolve
-            # brackets that were previously unresolvable. Fast (no LLM),
-            # idempotent, and safe to fire on every compile.
-            await sweep_wikilinks(ctx, user_id=user_id)
+            settings = get_settings()
+            if settings.compiler.interactive:
+                await _compile_interactive(source, doc, compiler, job, session, user_id)
+            else:
+                await _compile_direct(source, doc, compiler, job, session, ctx, user_id)
 
         except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("compile_source failed", source_id=source_id, error=str(e))

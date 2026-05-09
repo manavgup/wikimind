@@ -14,11 +14,13 @@ interface SourceCardProps {
   retrying?: boolean;
   onDelete?: (sourceId: string) => void;
   deleting?: boolean;
+  onReview?: (sourceId: string) => void;
 }
 
 const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
   pending: "neutral",
   processing: "info",
+  review_pending: "warning",
   compiled: "success",
   failed: "danger",
 };
@@ -26,6 +28,7 @@ const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
 const STATUS_LABEL: Record<IngestStatus, string> = {
   pending: "Pending",
   processing: "Processing",
+  review_pending: "Review",
   compiled: "Done",
   failed: "Failed",
 };
@@ -54,7 +57,7 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-export function SourceCard({ source, onRetry, retrying, onDelete, deleting }: SourceCardProps) {
+export function SourceCard({ source, onRetry, retrying, onDelete, deleting, onReview }: SourceCardProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const statusMessage = useWebSocketStore(
@@ -144,6 +147,18 @@ export function SourceCard({ source, onRetry, retrying, onDelete, deleting }: So
               </Button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {source.status === "review_pending" && onReview ? (
+        <div className="mt-3">
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => onReview(source.id)}
+          >
+            Review draft
+          </Button>
         </div>
       ) : null}
 

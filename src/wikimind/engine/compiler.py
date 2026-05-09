@@ -106,6 +106,25 @@ def _extract_typed_suggestions(raw: list[str | dict]) -> list[TypedBacklinkSugge
     return suggestions
 
 
+TAKEAWAY_SYSTEM_PROMPT = """You are a knowledge analyst. Your job is to extract the most important takeaways from raw source material so a user can decide what the resulting wiki article should focus on.
+
+You MUST respond with valid JSON only. No preamble, no markdown fences.
+
+Output schema:
+{
+  "takeaways": [
+    "A concise one-sentence takeaway (10 max)"
+  ]
+}
+
+Rules:
+- Extract 3-10 key takeaways from the source
+- Each takeaway should be a single sentence
+- Prioritize surprising, counter-intuitive, or high-impact findings
+- Include the most important facts, claims, and insights
+- Order from most to least important
+"""
+
 COMPILER_SYSTEM_PROMPT = """You are a knowledge compiler. Your job is to transform raw source material into a structured wiki article for a personal knowledge base.
 
 The user is building a living wiki -- every article should connect to others, surface open questions, and make their knowledge compound over time.
@@ -163,6 +182,114 @@ class Compiler:
         self._last_provider_used: Provider | None = None
         # Typed backlink suggestions from the most recent `compile()` call.
         self._last_typed_suggestions: dict[str, str] = {}
+
+    async def extract_takeaways(
+        self,
+        doc: NormalizedDocument,
+    ) -> list[str]:
+        """Extract key takeaways from a document without full compilation.
+
+        Used by the interactive compilation flow to present the user with
+        a preview of what the LLM found interesting before committing to
+        a full article.
+
+        Args:
+            doc: Normalized document to analyze.
+
+        Returns:
+            A list of takeaway strings (3-10 items).
+        """
+        user_prompt = self._build_user_prompt(doc)
+        settings = get_settings()
+        request = CompletionRequest(
+            system=TAKEAWAY_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+            max_tokens=settings.compiler.max_tokens // 2,
+            temperature=0.3,
+            response_format="json",
+            task_type=TaskType.COMPILE,
+        )
+
+        response = await self.router.complete(request, user_id=self.user_id)
+        try:
+            data = self.router.parse_json_response(response)
+            takeaways = data.get("takeaways", [])
+            return [str(t) for t in takeaways if t][:10]
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            log.warning("Failed to parse takeaways", error=str(e))
+            return []
+
+    async def compile_with_guidance(
+        self,
+        doc: NormalizedDocument,
+        session: AsyncSession,
+        guidance: str,
+        progress_callback: Callable[[str], Awaitable[None]] | None = None,
+    ) -> CompilationResult | None:
+        """Compile a document with user-provided focus guidance.
+
+        Identical to :meth:`compile` but appends the user's guidance to
+        the prompt so the LLM weights the article toward what matters
+        to the user.
+
+        Args:
+            doc: Normalized document to compile.
+            session: Async database session.
+            guidance: User-provided focus direction.
+            progress_callback: Optional async callback for progress messages.
+
+        Returns:
+            CompilationResult or None on failure.
+        """
+        log.info(
+            "Compiling with guidance",
+            title=doc.title,
+            guidance_len=len(guidance),
+        )
+
+        if doc.estimated_tokens > 80_000:
+            return await self._compile_chunked(doc, session, progress_callback)
+
+        user_prompt = self._build_user_prompt(doc)
+        user_prompt += "\n\nUSER GUIDANCE — weight the article toward these priorities:\n" + guidance
+
+        existing_concepts = [c.name for c in (await session.execute(select(Concept))).scalars().all()]
+        if existing_concepts:
+            user_prompt += "\n\nExisting concepts in this wiki (REUSE these before inventing new ones):\n" + ", ".join(
+                sorted(existing_concepts)
+            )
+
+        settings = get_settings()
+        request = CompletionRequest(
+            system=COMPILER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+            max_tokens=settings.compiler.max_tokens,
+            temperature=0.2,
+            response_format="json",
+            task_type=TaskType.COMPILE,
+        )
+
+        response = await self.router.complete(request, user_id=self.user_id)
+        self._last_provider_used = response.provider_used
+
+        try:
+            data = self.router.parse_json_response(response)
+            raw_suggestions = data.get("backlink_suggestions", [])
+            typed = _extract_typed_suggestions(raw_suggestions)
+            self._last_typed_suggestions = {s.target.lower(): s.relation_type.value for s in typed}
+            data["backlink_suggestions"] = _normalize_backlink_suggestions(raw_suggestions)
+            result = CompilationResult(**data)
+            result.compiled = utcnow_naive()
+            result.provider = self._last_provider_used
+            result.page_type = PageType.SOURCE
+            return result
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+            log.error(
+                "Failed to parse guided compilation response",
+                error=str(e),
+                response_preview=(response.content[:500] if response else "no response"),
+            )
+            return None
 
     async def compile(
         self,

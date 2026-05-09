@@ -1,7 +1,15 @@
 // Endpoints in src/wikimind/api/routes/ingest.py and jobs.py.
 
 import { apiFetch, getBaseUrl } from "./client";
-import type { IngestStatus, Source, SourceContentResponse, TriggerCompileResponse } from "../types/api";
+import type {
+  ApproveDraftResponse,
+  CompilationDraft,
+  IngestStatus,
+  RejectDraftResponse,
+  Source,
+  SourceContentResponse,
+  TriggerCompileResponse,
+} from "../types/api";
 
 export interface ListSourcesParams {
   status?: IngestStatus;
@@ -51,4 +59,30 @@ export function getSourceContent(sourceId: string): Promise<SourceContentRespons
 
 export function getOriginalUrl(sourceId: string): string {
   return `${getBaseUrl()}/api/ingest/sources/${encodeURIComponent(sourceId)}/original`;
+}
+
+export function getDraft(sourceId: string): Promise<CompilationDraft> {
+  return apiFetch<CompilationDraft>(
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/draft`,
+  );
+}
+
+export function approveDraft(
+  sourceId: string,
+  guidance?: string,
+): Promise<ApproveDraftResponse> {
+  return apiFetch<ApproveDraftResponse>(
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/draft/approve`,
+    {
+      method: "POST",
+      body: guidance ? { guidance } : {},
+    },
+  );
+}
+
+export function rejectDraft(sourceId: string): Promise<RejectDraftResponse> {
+  return apiFetch<RejectDraftResponse>(
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/draft/reject`,
+    { method: "POST" },
+  );
 }

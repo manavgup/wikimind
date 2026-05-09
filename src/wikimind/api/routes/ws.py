@@ -406,3 +406,22 @@ async def emit_budget_exceeded(spend_usd: float, budget_usd: float, *, user_id: 
         },
         user_id=user_id,
     )
+
+
+async def emit_draft_ready(
+    source_id: str,
+    draft_id: str,
+    title: str,
+    *,
+    user_id: str,
+) -> None:
+    """Emitted when a compilation draft is ready for user review."""
+    await manager.broadcast(
+        {
+            "event": "draft.ready",
+            "source_id": source_id,
+            "draft_id": draft_id,
+            "title": title,
+        },
+        user_id=user_id,
+    )

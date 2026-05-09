@@ -61,6 +61,7 @@ class IngestStatus(StrEnum):
 
     PENDING = "pending"
     PROCESSING = "processing"
+    REVIEW_PENDING = "review_pending"
     COMPILED = "compiled"
     FAILED = "failed"
 
@@ -579,6 +580,27 @@ class RssFeed(SQLModel, table=True):
     last_entry_id: str | None = None  # guid or link of most recent entry
     error_message: str | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class CompilationDraft(SQLModel, table=True):
+    """Draft compilation output awaiting user review before finalizing.
+
+    Created when ``compilation.interactive`` is enabled. The LLM extracts
+    key takeaways and a draft article; the user reviews, optionally adds
+    guidance, and approves or rejects before the article is saved to the wiki.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    source_id: str = Field(foreign_key="source.id", index=True)
+    title: str
+    summary: str
+    key_takeaways: str  # JSON array of strings
+    draft_result_json: str  # Serialized CompilationResult
+    user_guidance: str | None = None  # User-provided focus direction
+    status: str = "pending"  # pending | approved | rejected
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    reviewed_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -1715,6 +1737,41 @@ class SavedSearchExecuteResponse(BaseModel):
 
     saved_search: SavedSearchResponse
     articles: list[ArticleSummaryResponse]
+
+
+class CompilationDraftResponse(BaseModel):
+    """API response for a compilation draft awaiting review."""
+
+    id: str
+    source_id: str
+    title: str
+    summary: str
+    key_takeaways: list[str]
+    draft_body: str
+    status: str
+    created_at: datetime
+    reviewed_at: datetime | None = None
+
+
+class ApproveDraftRequest(BaseModel):
+    """Request to approve a draft, optionally with user guidance."""
+
+    guidance: str | None = None
+
+
+class ApproveDraftResponse(BaseModel):
+    """Response after approving a compilation draft."""
+
+    status: str
+    article_slug: str
+    article_title: str
+
+
+class RejectDraftResponse(BaseModel):
+    """Response after rejecting a compilation draft."""
+
+    status: str
+    source_id: str
 
 
 # ---------------------------------------------------------------------------
