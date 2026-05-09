@@ -276,10 +276,14 @@ omit = [
     "*/api/routes/ws.py", # WebSocket handlers — tested via e2e with real connections
     "*/main.py",          # App lifespan + SPA middleware — tested via e2e startup
     "*/api/routes/auth.py",  # OAuth flows — needs real OAuth providers (tracked in #364)
+    "*/jobs/worker.py",   # ARQ worker process — needs real Redis + LLM; tested via e2e
+    "*/services/embedding.py",  # Requires [search] extras (chromadb, sentence-transformers)
+    "*/db_compat.py",     # Postgres-specific branches — tested via postgres integration tests
+    "*/engine/linter/contradictions.py",  # LLM-dependent contradiction detection — tested via e2e
 ]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 90
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

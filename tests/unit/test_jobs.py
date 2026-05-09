@@ -62,6 +62,54 @@ async def test_run_lint_in_process_logs_exception() -> None:
         await BackgroundCompiler._run_lint_in_process(user_id=TEST_USER_ID)
 
 
+async def test_background_compiler_dev_mode_recompile() -> None:
+    bc = BackgroundCompiler()
+    bc._redis_url = None
+    with patch.object(bg_mod, "recompile_article", AsyncMock()):
+        job_id = await bc.schedule_recompile("art-1", "source", "job-1", user_id=TEST_USER_ID)
+    assert job_id == "job-1"
+
+
+async def test_background_compiler_dev_mode_sweep() -> None:
+    bc = BackgroundCompiler()
+    bc._redis_url = None
+    with patch.object(bg_mod, "sweep_wikilinks", AsyncMock()):
+        job_id = await bc.schedule_sweep(user_id=TEST_USER_ID)
+    assert job_id
+
+
+async def test_background_compiler_prod_mode_recompile() -> None:
+    bc = BackgroundCompiler()
+    bc._redis_url = "redis://localhost:6379"
+    fake_pool = MagicMock()
+    fake_pool.enqueue_job = AsyncMock()
+    fake_pool.close = AsyncMock()
+    with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
+        await bc.schedule_recompile("art-1", "source", "job-1", user_id=TEST_USER_ID)
+    fake_pool.enqueue_job.assert_awaited()
+
+
+async def test_background_compiler_prod_mode_sweep() -> None:
+    bc = BackgroundCompiler()
+    bc._redis_url = "redis://localhost:6379"
+    fake_pool = MagicMock()
+    fake_pool.enqueue_job = AsyncMock()
+    fake_pool.close = AsyncMock()
+    with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
+        await bc.schedule_sweep(user_id=TEST_USER_ID)
+    fake_pool.enqueue_job.assert_awaited()
+
+
+async def test_run_recompile_in_process_logs_exception() -> None:
+    with patch.object(bg_mod, "recompile_article", AsyncMock(side_effect=RuntimeError("x"))):
+        await BackgroundCompiler._run_recompile_in_process("art-1", "source", "job-1", user_id=TEST_USER_ID)
+
+
+async def test_run_sweep_in_process_logs_exception() -> None:
+    with patch.object(bg_mod, "sweep_wikilinks", AsyncMock(side_effect=RuntimeError("x"))):
+        await BackgroundCompiler._run_sweep_in_process(user_id=TEST_USER_ID)
+
+
 def test_background_compiler_singleton() -> None:
     bg_mod._background_compiler = None
     a = get_background_compiler()

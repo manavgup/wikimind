@@ -205,6 +205,20 @@ async def test_service_resolve_contradiction(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_service_resolve_contradiction_not_found(db_session) -> None:
+    """resolve_contradiction raises NotFoundError for bad ID."""
+    service = ContradictionService()
+    with pytest.raises(NotFoundError):
+        await service.resolve_contradiction(
+            db_session,
+            "nonexistent-id",
+            user_id=TEST_USER_ID,
+            new_status=ContradictionStatus.RESOLVED,
+            resolution="test",
+        )
+
+
+@pytest.mark.asyncio
 async def test_service_create_from_finding_deduplicates_same_claims(db_session) -> None:
     """create_from_finding deduplicates on claim-pair level, not article-pair."""
     db_session.add(Article(id="a1", slug="a1", title="A1", file_path="a.md", user_id=TEST_USER_ID))
