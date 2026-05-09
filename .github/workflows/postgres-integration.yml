@@ -1,0 +1,100 @@
+# ===============================================================
+# Postgres Integration — DB Compatibility Gate
+# ===============================================================
+#
+#   - provisions a Postgres 16 service container
+#   - runs the Postgres-marked integration tests against it
+#   - catches DB/runtime compatibility regressions (JSON columns,
+#     named parameters, migration helpers) that SQLite tests miss
+#   - triggers on PRs and pushes to main when backend code changes
+# ---------------------------------------------------------------
+
+name: Postgres Integration
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/postgres-integration.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/postgres-integration.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  postgres-integration:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Postgres integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wikimind_test
+          POSTGRES_USER: wikimind
+          POSTGRES_PASSWORD: wikimind # pragma: allowlist secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wikimind -d wikimind_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_TEST_POSTGRES_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_test # pragma: allowlist secret
+
+    steps:
+      # -----------------------------------------------------------
+      # 0. Checkout
+      # -----------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1. Set up Python + uv
+      # -----------------------------------------------------------
+      - name: Setup Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      # -----------------------------------------------------------
+      # 2. Install dependencies
+      # -----------------------------------------------------------
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      # -----------------------------------------------------------
+      # 3. Run Postgres integration tests
+      # -----------------------------------------------------------
+      - name: Run Postgres integration tests
+        run: make test-postgres-ci
