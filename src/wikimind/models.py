@@ -521,6 +521,25 @@ class ArticleTag(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
+class ShareLink(SQLModel, table=True):
+    """A signed, revocable read-only share link for a single article.
+
+    Each share link has a cryptographically random token used in the public
+    URL. Links can be revoked or set to expire. View counts are tracked
+    for analytics.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    token: str = Field(index=True, unique=True)
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    expires_at: datetime | None = None
+    revoked: bool = False
+    view_count: int = 0
+    last_viewed_at: datetime | None = None
+
+
 class SavedSearch(SQLModel, table=True):
     """User-saved search with optional tag and concept filters.
 
@@ -1617,6 +1636,13 @@ class ExportFormat(StrEnum):
     SLIDES = "slides"
 
 
+class WikiExportFormat(StrEnum):
+    """Supported full-wiki export formats."""
+
+    OBSIDIAN = "obsidian"
+    MARKDOWN_JSON = "markdown_json"
+
+
 class ExportResponse(BaseModel):
     """Response for text-based exports (LinkedIn, slides)."""
 
@@ -1984,3 +2010,48 @@ class ResolvedBacklinks(NamedTuple):
 
     resolved: list[Any]  # list[ResolvedBacklink] — avoids circular import
     unresolved: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Share Link request/response models
+# ---------------------------------------------------------------------------
+
+
+class CreateShareLinkRequest(BaseModel):
+    """Request to create a share link for an article."""
+
+    article_id: str
+    expires_in_days: int | None = Field(default=None, ge=1, le=365)
+
+
+class ShareLinkResponse(BaseModel):
+    """API response for a share link."""
+
+    id: str
+    article_id: str
+    token: str
+    created_at: datetime
+    expires_at: datetime | None
+    revoked: bool
+    view_count: int
+    last_viewed_at: datetime | None
+    article_title: str | None = None
+
+
+class PublicArticleResponse(BaseModel):
+    """Read-only public article content for share links."""
+
+    title: str
+    content_html: str
+    summary: str | None
+    sources: list[SourceResponse] = []
+    created_at: datetime
+    updated_at: datetime
+
+
+class WikiExportResponse(BaseModel):
+    """Response metadata for wiki export (actual file is streamed)."""
+
+    format: WikiExportFormat
+    article_count: int
+    filename: str

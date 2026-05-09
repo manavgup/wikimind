@@ -1,15 +1,20 @@
-"""Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks."""
+"""Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks.
+
+Also supports full-wiki export to Obsidian-flavored markdown or plain
+markdown + JSON metadata for portability.
+"""
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import Article, ExportFormat, ExportResponse
+from wikimind.models import Article, ExportFormat, ExportResponse, WikiExportFormat
 from wikimind.services.export import ExportService, get_export_service
+from wikimind.services.wiki_export import WikiExportService, get_wiki_export_service
 from wikimind.storage import read_article_content
 
 log = structlog.get_logger()
@@ -93,4 +98,35 @@ async def export_article(
         content=text,
         article_id=article.id,
         article_title=article.title,
+    )
+
+
+@router.post(
+    "/export/wiki",
+    responses={
+        200: {
+            "description": "ZIP archive of the full wiki",
+            "content": {"application/zip": {}},
+        },
+    },
+)
+async def export_wiki(
+    format: WikiExportFormat = Query(
+        default=WikiExportFormat.OBSIDIAN,
+        description="Export format: obsidian or markdown_json",
+    ),
+    session: AsyncSession = Depends(get_session),
+    export_service: WikiExportService = Depends(get_wiki_export_service),
+    user_id: str = Depends(get_current_user_id),
+) -> StreamingResponse:
+    """Export the full wiki as a ZIP archive.
+
+    - **obsidian**: Obsidian-flavored markdown with YAML frontmatter and tags.
+    - **markdown_json**: Plain markdown files with a metadata.json sidecar.
+    """
+    buf, filename, _count = await export_service.export_wiki(session, user_id=user_id, fmt=format)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

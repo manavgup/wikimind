@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #457 Evidence: Per-Article Public Share + Portable Wiki Export</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    color: #1a1a1a;
+    line-height: 1.6;
+    background: #f8fafc;
+  }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #0f172a; }
+  .subtitle { color: #64748b; font-size: 1.1rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.4rem; color: #1e293b; margin: 2rem 0 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+  .section { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .section h3 { font-size: 1.1rem; color: #334155; margin-bottom: 0.75rem; }
+  .section p { color: #475569; margin-bottom: 1rem; }
+  .screenshot { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; margin: 1rem 0; }
+  .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .test-results { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  .test-results h4 { color: #166534; margin-bottom: 0.5rem; }
+  code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; font-weight: 600; color: #334155; }
+</style>
+</head>
+<body>
+
+<h1>PR #457 Evidence</h1>
+<p class="subtitle">Per-Article Public Share + Portable Wiki Export</p>
+
+<h2>Summary</h2>
+<div class="section">
+  <p>This PR implements two key features for WikiMind:</p>
+  <ul style="margin-left: 1.5rem; color: #475569;">
+    <li><strong>Per-article share links</strong> &mdash; Generate signed, revocable read-only links for any article. Public rendering with minimal, styled HTML.</li>
+    <li><strong>Portable wiki export</strong> &mdash; Export the full wiki as a ZIP archive in Obsidian-flavored markdown or plain markdown + JSON metadata format.</li>
+  </ul>
+</div>
+
+<h2>API Endpoints</h2>
+<div class="section">
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+    <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/wiki/share-links</code></td><td>Create a share link</td></tr>
+    <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/wiki/share-links</code></td><td>List share links</td></tr>
+    <tr><td style="color:#dc2626">DELETE</td><td><code>/api/wiki/share-links/{id}</code></td><td>Revoke a share link</td></tr>
+    <tr><td><span class="badge badge-blue">GET</span></td><td><code>/public/articles/{token}</code></td><td>Public HTML render (no auth)</td></tr>
+    <tr><td><span class="badge badge-blue">GET</span></td><td><code>/public/articles/{token}/json</code></td><td>Public JSON (no auth)</td></tr>
+    <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/wiki/export/wiki</code></td><td>Export full wiki as ZIP</td></tr>
+  </table>
+</div>
+
+<h2>Screenshots</h2>
+
+<div class="section">
+  <h3>1. Share Links API Response</h3>
+  <p>The share links API returns a list of share links with tokens, view counts, and article titles.</p>
+  <img src="01-share-links-api.png" alt="Share links API response" class="screenshot">
+</div>
+
+<div class="section">
+  <h3>2. Public Shared Article (HTML)</h3>
+  <p>A shared article rendered as a minimal, styled HTML page accessible without authentication. Shows title, summary, and article content.</p>
+  <img src="02-public-shared-article.png" alt="Public shared article" class="screenshot">
+</div>
+
+<div class="section">
+  <h3>3. Public Shared Article (Full Page)</h3>
+  <p>Full-page view of the shared article including all content sections.</p>
+  <img src="03-public-article-full.png" alt="Public article full page" class="screenshot">
+</div>
+
+<div class="section">
+  <h3>4. Public Article JSON Endpoint</h3>
+  <p>The JSON endpoint returns structured article data including HTML content, sources, and metadata for API consumers.</p>
+  <img src="04-public-article-json.png" alt="Public article JSON" class="screenshot">
+</div>
+
+<div class="section">
+  <h3>5. API Documentation (Swagger)</h3>
+  <p>The new endpoints are fully documented in the OpenAPI specification and visible in Swagger UI.</p>
+  <img src="05-api-docs-sharing.png" alt="API docs" class="screenshot">
+</div>
+
+<h2>Frontend Components</h2>
+<div class="section">
+  <h3>ShareButton</h3>
+  <p>Added to the article reader header. Shows a dropdown with share link management (create, copy, revoke).</p>
+  <p>Files: <code>apps/web/src/components/wiki/ShareButton.tsx</code></p>
+
+  <h3>WikiExportPanel</h3>
+  <p>Settings section for exporting the full wiki. Format selector (Obsidian / Markdown+JSON) with download button.</p>
+  <p>Files: <code>apps/web/src/components/settings/WikiExportPanel.tsx</code></p>
+
+  <h3>ShareLinksPanel</h3>
+  <p>Settings section listing all active share links with revoke buttons and view counts.</p>
+  <p>Files: <code>apps/web/src/components/settings/ShareLinksPanel.tsx</code></p>
+</div>
+
+<h2>Test Results</h2>
+<div class="test-results">
+  <h4>20 tests passed</h4>
+  <ul style="margin-left: 1.5rem;">
+    <li>9 unit tests for SharingService (create, revoke, list, filter, public access, expiry, revoked access, invalid tokens)</li>
+    <li>8 integration tests for route handlers (create, list, revoke, public HTML, public JSON, revoked 404, bad token 404, article not found)</li>
+    <li>3 wiki export tests (Obsidian ZIP, Markdown+JSON ZIP with metadata, empty wiki export)</li>
+  </ul>
+</div>
+
+<h2>Backend Files Changed</h2>
+<div class="section">
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td><code>src/wikimind/models.py</code></td><td>Added ShareLink table, WikiExportFormat enum, request/response models</td></tr>
+    <tr><td><code>src/wikimind/services/sharing.py</code></td><td>New: SharingService for share link CRUD and public article rendering</td></tr>
+    <tr><td><code>src/wikimind/services/wiki_export.py</code></td><td>New: WikiExportService for Obsidian and Markdown+JSON ZIP export</td></tr>
+    <tr><td><code>src/wikimind/api/routes/sharing.py</code></td><td>New: Share link CRUD routes + public article endpoint</td></tr>
+    <tr><td><code>src/wikimind/api/routes/export.py</code></td><td>Added wiki export endpoint</td></tr>
+    <tr><td><code>src/wikimind/main.py</code></td><td>Registered sharing router and public routes</td></tr>
+    <tr><td><code>src/wikimind/middleware/auth.py</code></td><td>Added /public/ to auth exemptions</td></tr>
+    <tr><td><code>tests/unit/test_sharing.py</code></td><td>New: 20 tests covering sharing and export</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

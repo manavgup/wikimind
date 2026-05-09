@@ -2515,6 +2515,40 @@ paths:
           description: Article not found
         '422':
           description: Invalid export format
+  /api/wiki/export/wiki:
+    post:
+      tags:
+      - Export
+      summary: Export Wiki
+      description: 'Export the full wiki as a ZIP archive.
+
+
+        - **obsidian**: Obsidian-flavored markdown with YAML frontmatter and tags.
+
+        - **markdown_json**: Plain markdown files with a metadata.json sidecar.'
+      operationId: export_wiki_api_wiki_export_wiki_post
+      parameters:
+      - name: format
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/WikiExportFormat'
+          description: 'Export format: obsidian or markdown_json'
+          default: obsidian
+        description: 'Export format: obsidian or markdown_json'
+      responses:
+        '200':
+          description: ZIP archive of the full wiki
+          content:
+            application/json:
+              schema: {}
+            application/zip: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/tags:
     get:
       tags:
@@ -2709,6 +2743,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/share-links:
+    post:
+      tags:
+      - Sharing
+      summary: Create Share Link
+      description: 'Create a new share link for an article.
+
+
+        The returned token can be used to construct a public URL for
+
+        read-only access to the article content.'
+      operationId: create_share_link_api_wiki_share_links_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShareLinkRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareLinkResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Sharing
+      summary: List Share Links
+      description: List all share links for the current user, optionally filtered
+        by article.
+      operationId: list_share_links_api_wiki_share_links_get
+      parameters:
+      - name: article_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Article Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShareLinkResponse'
+                title: Response List Share Links Api Wiki Share Links Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/share-links/{link_id}:
+    delete:
+      tags:
+      - Sharing
+      summary: Revoke Share Link
+      description: Revoke a share link so it can no longer be accessed.
+      operationId: revoke_share_link_api_wiki_share_links__link_id__delete
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Link Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Share link not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/synthesize:
     post:
       tags:
@@ -2774,6 +2898,73 @@ paths:
                 items:
                   $ref: '#/components/schemas/ArticleSummaryResponse'
                 title: Response List Synthesis Pages Api Wiki Synthesis Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /public/articles/{token}:
+    get:
+      tags:
+      - Sharing
+      summary: Get Public Article
+      description: 'Render a publicly shared article as a minimal HTML page.
+
+
+        No authentication required. The article is identified by its
+
+        cryptographically random share token.'
+      operationId: get_public_article_public_articles__token__get
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Share link not found or revoked
+        '410':
+          description: Share link has expired
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /public/articles/{token}/json:
+    get:
+      tags:
+      - Sharing
+      summary: Get Public Article Json
+      description: Return a publicly shared article as JSON (for API consumers).
+      operationId: get_public_article_json_public_articles__token__json_get
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Token
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicArticleResponse'
+        '404':
+          description: Share link not found or revoked
+        '410':
+          description: Share link has expired
         '422':
           description: Validation Error
           content:
@@ -4075,6 +4266,23 @@ components:
       - name
       title: CreateSavedSearchRequest
       description: Request to create a saved search.
+    CreateShareLinkRequest:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        expires_in_days:
+          anyOf:
+          - type: integer
+            maximum: 365.0
+            minimum: 1.0
+          - type: 'null'
+          title: Expires In Days
+      type: object
+      required:
+      - article_id
+      title: CreateShareLinkRequest
+      description: Request to create a share link for an article.
     CreateStubRequest:
       properties:
         title:
@@ -4992,6 +5200,42 @@ components:
       - configured
       title: ProviderDetail
       description: Provider status.
+    PublicArticleResponse:
+      properties:
+        title:
+          type: string
+          title: Title
+        content_html:
+          type: string
+          title: Content Html
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        sources:
+          items:
+            $ref: '#/components/schemas/SourceResponse'
+          type: array
+          title: Sources
+          default: []
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - title
+      - content_html
+      - summary
+      - created_at
+      - updated_at
+      title: PublicArticleResponse
+      description: Read-only public article content for share links.
     QueryRequest:
       properties:
         question:
@@ -5500,6 +5744,56 @@ components:
       - status
       title: SettingsUpdateResponse
       description: Response after updating settings.
+    ShareLinkResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        article_id:
+          type: string
+          title: Article Id
+        token:
+          type: string
+          title: Token
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        revoked:
+          type: boolean
+          title: Revoked
+        view_count:
+          type: integer
+          title: View Count
+        last_viewed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Viewed At
+        article_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Article Title
+      type: object
+      required:
+      - id
+      - article_id
+      - token
+      - created_at
+      - expires_at
+      - revoked
+      - view_count
+      - last_viewed_at
+      title: ShareLinkResponse
+      description: API response for a share link.
     Source:
       properties:
         id:
@@ -5919,6 +6213,13 @@ components:
       - msg
       - type
       title: ValidationError
+    WikiExportFormat:
+      type: string
+      enum:
+      - obsidian
+      - markdown_json
+      title: WikiExportFormat
+      description: Supported full-wiki export formats.
     WikiWorthinessScore:
       properties:
         word_count:
@@ -6004,6 +6305,8 @@ tags:
   description: User-created organizational tags
 - name: SavedSearches
   description: Saved searches with tag and concept filters
+- name: Sharing
+  description: Per-article share links and public access
 - name: Synthesis
   description: Cross-cutting synthesis pages across multiple sources
 - name: WebSocket

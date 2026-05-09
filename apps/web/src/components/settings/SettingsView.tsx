@@ -7,6 +7,8 @@ import { ProviderCard } from "./ProviderCard";
 import { ApiKeyModal } from "./ApiKeyModal";
 import { CostDashboard } from "./CostDashboard";
 import { SyncStatus } from "./SyncStatus";
+import { WikiExportPanel } from "./WikiExportPanel";
+import { ShareLinksPanel } from "./ShareLinksPanel";
 import { getSettings, updateSettings } from "../../api/settings";
 
 export function SettingsView() {
@@ -73,6 +75,16 @@ export function SettingsView() {
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Sync</h2>
           <SyncStatus sync={settings.sync} />
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold text-slate-700">Export</h2>
+          <WikiExportPanel />
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold text-slate-700">Share Links</h2>
+          <ShareLinksPanel />
         </section>
 
         <section className="mb-8">
