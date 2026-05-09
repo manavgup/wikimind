@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: "/inbox", label: "Inbox", icon: "📥" },
   { to: "/ask", label: "Ask", icon: "💬" },
   { to: "/wiki", label: "Wiki", icon: "📚" },
+  { to: "/synthesis", label: "Synthesis", icon: "✨" },
   { to: "/graph", label: "Graph", icon: "🕸️" },
   { to: "/health", label: "Health", icon: "🩺" },
   { to: "/settings", label: "Settings", icon: "⚙️" },

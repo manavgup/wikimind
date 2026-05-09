@@ -485,6 +485,7 @@ _PAGE_TYPE_TO_MODE = {
     PageType.ANSWER: "source",
     PageType.INDEX: "source",
     PageType.META: "source",
+    PageType.SYNTHESIS: "source",
 }
 
 

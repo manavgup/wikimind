@@ -129,6 +129,19 @@ export interface WikilinkMatch {
   is_stub: boolean;
 }
 
+export interface SynthesisResponse {
+  id: string;
+  slug: string;
+  title: string;
+  query: string;
+  summary: string;
+  themes: string[];
+  source_count: number;
+  source_article_ids: string[];
+  created_at: string;
+  page_type: "synthesis";
+}
+
 export interface Concept {
   id: string;
   name: string;

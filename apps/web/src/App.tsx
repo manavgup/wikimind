@@ -11,6 +11,7 @@ import { AskView } from "./components/ask/AskView";
 import { GraphView } from "./components/graph/GraphView";
 import { HealthView } from "./components/health/HealthView";
 import { SettingsView } from "./components/settings/SettingsView";
+import { SynthesisView } from "./components/synthesis/SynthesisView";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { LandingRoute } from "./components/auth/LandingRoute";
@@ -38,6 +39,7 @@ function AuthenticatedApp() {
           <Route path="/ask/:conversationId" element={<AskView />} />
           <Route path="/wiki" element={<WikiExplorerView />} />
           <Route path="/wiki/:slug" element={<WikiExplorerView />} />
+          <Route path="/synthesis" element={<SynthesisView />} />
           <Route path="/graph" element={<GraphView />} />
           <Route path="/health" element={<HealthView />} />
           <Route path="/settings" element={<SettingsView />} />

@@ -78,3 +78,38 @@ export function resolveWikilinks(
     query: { q, limit },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Synthesis pages
+// ---------------------------------------------------------------------------
+
+export interface CreateSynthesisRequest {
+  query: string;
+  article_ids?: string[];
+}
+
+export interface SynthesisResponse {
+  id: string;
+  slug: string;
+  title: string;
+  query: string;
+  summary: string;
+  themes: string[];
+  source_count: number;
+  source_article_ids: string[];
+  created_at: string;
+  page_type: "synthesis";
+}
+
+export function createSynthesis(
+  body: CreateSynthesisRequest,
+): Promise<SynthesisResponse> {
+  return apiFetch<SynthesisResponse>("/api/wiki/synthesize", {
+    method: "POST",
+    body,
+  });
+}
+
+export function listSynthesisPages(): Promise<Article[]> {
+  return apiFetch<Article[]>("/api/wiki/synthesis");
+}

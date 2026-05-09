@@ -2245,6 +2245,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/synthesize:
+    post:
+      tags:
+      - Synthesis
+      summary: Create Synthesis
+      description: 'Create a synthesis page that analyzes across multiple source articles.
+
+
+        Takes a topic or question and produces a cross-cutting analysis identifying
+
+        themes, contradictions, timelines, and knowledge gaps.
+
+
+        Requires at least 2 relevant articles in the wiki.'
+      operationId: create_synthesis_api_wiki_synthesize_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSynthesisRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesisResponse'
+        '422':
+          description: Not enough relevant articles for synthesis
+  /api/wiki/synthesis:
+    get:
+      tags:
+      - Synthesis
+      summary: List Synthesis Pages
+      description: List all synthesis pages for the current user.
+      operationId: list_synthesis_pages_api_wiki_synthesis_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArticleSummaryResponse'
+                title: Response List Synthesis Pages Api Wiki Synthesis Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/login/{provider}:
     get:
       tags:
@@ -3373,6 +3444,24 @@ components:
       - title
       title: CreateStubResponse
       description: Response after creating a stub article.
+    CreateSynthesisRequest:
+      properties:
+        query:
+          type: string
+          minLength: 3
+          title: Query
+        article_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Article Ids
+      type: object
+      required:
+      - query
+      title: CreateSynthesisRequest
+      description: Request to create a synthesis page from a topic/question.
     CreateTagRequest:
       properties:
         name:
@@ -4793,6 +4882,56 @@ components:
       - bucket
       title: SyncSettingsResponse
       description: Cloud sync configuration section.
+    SynthesisResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        query:
+          type: string
+          title: Query
+        summary:
+          type: string
+          title: Summary
+        themes:
+          items:
+            type: string
+          type: array
+          title: Themes
+        source_count:
+          type: integer
+          title: Source Count
+        source_article_ids:
+          items:
+            type: string
+          type: array
+          title: Source Article Ids
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: synthesis
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - query
+      - summary
+      - themes
+      - source_count
+      - source_article_ids
+      - created_at
+      title: SynthesisResponse
+      description: Response after creating a synthesis page.
     TagArticleRequest:
       properties:
         tag_id:
@@ -5014,5 +5153,7 @@ tags:
   description: User-created organizational tags
 - name: SavedSearches
   description: Saved searches with tag and concept filters
+- name: Synthesis
+  description: Cross-cutting synthesis pages across multiple sources
 - name: WebSocket
   description: Real-time progress streams

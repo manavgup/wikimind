@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PR #415 Evidence: Synthesis Pages</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1200px; margin: 0 auto; padding: 2rem; color: #1e293b; background: #f8fafc; }
+    h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+    h2 { color: #334155; margin-top: 2rem; }
+    .evidence-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .evidence-card img { max-width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 0.75rem; }
+    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .summary { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 1rem; border-radius: 0 8px 8px 0; margin: 1rem 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #e2e8f0; padding: 0.5rem 1rem; text-align: left; }
+    th { background: #f1f5f9; font-weight: 600; }
+    code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+
+<h1>PR #415: Synthesis Pages - Cross-Cutting Analysis</h1>
+<p>Feature evidence for <strong>feat: synthesis pages for cross-cutting analysis (#415)</strong></p>
+
+<div class="summary">
+  <strong>Summary:</strong> Added a new "synthesis" page type that analyzes across multiple wiki articles
+  to identify themes, contradictions, timelines, and knowledge gaps. Includes backend engine,
+  API endpoints, frontend UI, and unit tests.
+</div>
+
+<h2>Backend Changes</h2>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>src/wikimind/models.py</code></td><td>Added <code>SynthesisCompilationResult</code>, <code>SynthesisFrontmatter</code>, <code>CreateSynthesisRequest</code>, <code>SynthesisResponse</code> models</td></tr>
+  <tr><td><code>src/wikimind/engine/synthesis_compiler.py</code></td><td>New synthesis engine: finds relevant articles, calls LLM for cross-cutting analysis, persists result</td></tr>
+  <tr><td><code>src/wikimind/api/routes/synthesis.py</code></td><td>API endpoints: <code>POST /api/wiki/synthesize</code> and <code>GET /api/wiki/synthesis</code></td></tr>
+  <tr><td><code>src/wikimind/main.py</code></td><td>Registered synthesis router</td></tr>
+  <tr><td><code>src/wikimind/config.py</code></td><td>Added <code>synthesis_max_sources</code> setting (default: 15)</td></tr>
+  <tr><td><code>tests/unit/test_synthesis.py</code></td><td>9 unit tests covering article finding, compilation, API, and model validation</td></tr>
+</table>
+
+<h2>Frontend Changes</h2>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>apps/web/src/components/synthesis/SynthesisView.tsx</code></td><td>New synthesis page with form, article picker, and previous syntheses list</td></tr>
+  <tr><td><code>apps/web/src/api/wiki.ts</code></td><td>Added <code>createSynthesis()</code> and <code>listSynthesisPages()</code> API functions</td></tr>
+  <tr><td><code>apps/web/src/types/api.ts</code></td><td>Added <code>SynthesisResponse</code> type</td></tr>
+  <tr><td><code>apps/web/src/App.tsx</code></td><td>Added <code>/synthesis</code> route</td></tr>
+  <tr><td><code>apps/web/src/components/shared/Layout.tsx</code></td><td>Added Synthesis nav item to sidebar</td></tr>
+</table>
+
+<h2>Evidence Screenshots</h2>
+
+<div class="evidence-card">
+  <h3>1. Synthesis Creation UI <span class="badge badge-green">Verified</span></h3>
+  <p>The /synthesis page shows the form for creating a new synthesis with topic input,
+  optional article picker, and a list of previously created synthesis pages.</p>
+  <img src="synthesis-create-ui.png" alt="Synthesis creation UI">
+</div>
+
+<div class="evidence-card">
+  <h3>2. Form with Query Filled <span class="badge badge-green">Verified</span></h3>
+  <p>The synthesis form with a query entered, ready to submit. The "Synthesize" button
+  becomes enabled when the query has at least 3 characters.</p>
+  <img src="synthesis-form-filled.png" alt="Synthesis form with query">
+</div>
+
+<div class="evidence-card">
+  <h3>3. Synthesis Result in Wiki View <span class="badge badge-green">Verified</span></h3>
+  <p>A completed synthesis page viewed in the wiki explorer. Shows the "Synthesis" page type badge,
+  "Inferred" confidence level, concept tags, structured sections (Summary, Themes, Comparative Analysis,
+  Contradictions, Timeline), and "Synthesizes" backlinks to source articles in the sidebar.</p>
+  <img src="synthesis-result.png" alt="Synthesis result page">
+</div>
+
+<div class="evidence-card">
+  <h3>4. Navigation Sidebar <span class="badge badge-green">Verified</span></h3>
+  <p>The Synthesis link appears in the main navigation sidebar between Wiki and Graph,
+  with a sparkle icon to differentiate it from other page types.</p>
+  <img src="synthesis-nav.png" alt="Navigation sidebar with synthesis">
+</div>
+
+<h2>API Endpoints</h2>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+  <tr><td><span class="badge badge-blue">POST</span></td><td><code>/api/wiki/synthesize</code></td><td>Create a synthesis page from a query/topic. Requires 2+ relevant articles.</td></tr>
+  <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/wiki/synthesis</code></td><td>List all synthesis pages for the current user.</td></tr>
+</table>
+
+<h2>Test Results</h2>
+<p><span class="badge badge-green">9 tests passing</span></p>
+<ul>
+  <li><code>test_find_relevant_articles_by_ids</code> - Direct article ID lookup</li>
+  <li><code>test_find_relevant_articles_by_keyword</code> - Keyword-based relevance search</li>
+  <li><code>test_find_relevant_articles_no_match</code> - Empty results for unmatched queries</li>
+  <li><code>test_synthesize_not_enough_articles</code> - Returns None with fewer than 2 articles</li>
+  <li><code>test_synthesize_success</code> - Full end-to-end synthesis with mocked LLM</li>
+  <li><code>test_create_synthesis_api_no_articles</code> - API returns 422 when no articles match</li>
+  <li><code>test_create_synthesis_api_validation</code> - API rejects queries shorter than 3 chars</li>
+  <li><code>test_list_synthesis_pages_empty</code> - Empty list endpoint works</li>
+  <li><code>test_synthesis_compilation_result_model</code> - Pydantic model validates correctly</li>
+</ul>
+
+</body>
+</html>
