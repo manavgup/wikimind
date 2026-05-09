@@ -370,6 +370,7 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make test-unit` | Run unit tests only |
 | `make test-integration` | Run integration tests only |
 | `make test-postgres-ci` | Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL) |
+| `make test-auth-multiuser` | Run auth + multi-user isolation regression tests |
 | `make coverage` | Run tests with coverage report and HTML output |
 | `make test-matrix` | Show how to run the LLM × document type benchmark |
 

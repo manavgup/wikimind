@@ -368,6 +368,19 @@ test-integration: ## Run integration tests only
 test-postgres-ci: ## Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL)
 	$(BIN)/pytest tests/integration/test_postgres_integration.py -m postgres -v
 
+.PHONY: test-auth-multiuser
+test-auth-multiuser: ## Run auth + multi-user isolation regression tests
+	$(BIN)/pytest \
+		tests/unit/test_auth.py \
+		tests/unit/test_endpoint_user_id.py \
+		tests/unit/test_linter_user_scoping.py \
+		tests/unit/test_wikilink_user_scoping.py \
+		tests/unit/test_user_scoping.py \
+		tests/unit/test_query_service.py \
+		tests/unit/test_services.py \
+		tests/integration/test_multiuser_isolation.py \
+		-v
+
 .PHONY: coverage
 coverage: ## Run tests with coverage report and HTML output
 	$(BIN)/pytest --cov=wikimind --cov-report=term-missing --cov-report=html
