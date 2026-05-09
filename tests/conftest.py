@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 TEST_USER_ID = "test-user"
+TEST_JWT_SECRET = "test-secret-key-for-unit-tests!!"  # pragma: allowlist secret  # 32 bytes
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +39,7 @@ TEST_USER_ID = "test-user"
 class _InMemoryKeyring(KeyringBackend):
     """Keyring backend that never touches the OS keychain."""
 
-    priority = 1  # type: ignore[assignment]
+    priority = 1
 
     def __init__(self) -> None:
         self._store: dict[tuple[str, str], str] = {}
@@ -135,6 +136,10 @@ async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, 
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     async with factory() as session:
         yield session
+        # Explicitly close the session connection before the event loop ends,
+        # giving aiosqlite's background thread time to finish. Without this,
+        # the thread tries to post results to an already-closed loop.
+        await session.close()
 
 
 @pytest.fixture
@@ -152,6 +157,7 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
         async with factory() as session:
             yield session
             await session.commit()
+            await session.close()
 
     app.dependency_overrides[get_session] = _override_session
 

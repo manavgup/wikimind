@@ -8,6 +8,7 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
+from tests.conftest import TEST_JWT_SECRET
 from wikimind.config import AuthConfig
 from wikimind.errors import NotFoundError
 from wikimind.models import Article, Conversation, OAuthUserInfo, PageType, Source, SourceType, User
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-def _settings(jwt_secret="test-secret-key-for-jwt-32b", ttl=600):
+def _settings(jwt_secret=TEST_JWT_SECRET, ttl=600):
     s = MagicMock()
     s.auth = AuthConfig(jwt_secret_key=jwt_secret, magic_link_ttl_seconds=ttl)
     return s

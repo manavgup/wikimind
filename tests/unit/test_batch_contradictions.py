@@ -181,6 +181,7 @@ async def test_run_batch_success(tmp_path: Path) -> None:
     settings.linter.contradiction_llm_temperature = 0.2
 
     session = AsyncMock()
+    session.add = MagicMock()  # add() is sync — avoid unawaited coroutine warning
     session.execute = AsyncMock(
         return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
@@ -208,6 +209,7 @@ async def test_run_batch_retries_then_falls_back(tmp_path: Path) -> None:
     settings.linter.contradiction_llm_temperature = 0.2
 
     session = AsyncMock()
+    session.add = MagicMock()  # add() is sync — avoid unawaited coroutine warning
     session.execute = AsyncMock(
         return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
@@ -251,6 +253,7 @@ async def test_run_batch_retry_succeeds_on_second_attempt(tmp_path: Path) -> Non
     settings.linter.contradiction_llm_temperature = 0.2
 
     session = AsyncMock()
+    session.add = MagicMock()  # add() is sync — avoid unawaited coroutine warning
     session.execute = AsyncMock(
         return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )
@@ -285,6 +288,7 @@ async def test_run_batch_parse_error_triggers_fallback(tmp_path: Path) -> None:
     settings.linter.contradiction_llm_temperature = 0.2
 
     session = AsyncMock()
+    session.add = MagicMock()  # add() is sync — avoid unawaited coroutine warning
     session.execute = AsyncMock(
         return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
     )

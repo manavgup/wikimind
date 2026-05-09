@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-import yaml  # type: ignore[import-untyped]
+import yaml
 from pydantic import ValidationError
 
 from wikimind.models import (

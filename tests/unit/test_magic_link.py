@@ -10,6 +10,7 @@ import jwt
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.conftest import TEST_JWT_SECRET
 from wikimind.config import get_settings
 from wikimind.models import User
 from wikimind.services.user import UserService
@@ -58,7 +59,7 @@ async def test_request_magic_link_disabled(client, monkeypatch):
 async def test_magic_link_verify_creates_session(client):
     """Verifying a valid token should return an access_token and user info."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
 
     # Request a magic link
     response = await client.post(
@@ -92,7 +93,7 @@ async def test_magic_link_verify_creates_session(client):
 async def test_magic_link_verify_rejects_expired_token(client, monkeypatch):
     """An expired magic link token should be rejected with 401."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
     settings.auth.magic_link_ttl_seconds = 600
 
     # Create a token with a timestamp in the past
@@ -119,7 +120,7 @@ async def test_magic_link_verify_rejects_expired_token(client, monkeypatch):
 async def test_magic_link_verify_rejects_tampered_token(client):
     """A tampered magic link token should be rejected with 401."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
 
     # Create a valid token, then tamper with it
     email = "tamper@example.com"
@@ -146,7 +147,7 @@ async def test_magic_link_verify_rejects_tampered_token(client):
 async def test_magic_link_verify_creates_user_if_not_exists(client, db_session: AsyncSession):
     """Verifying a magic link for a new email should auto-create the user."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
 
     # Request and verify a magic link for a new user
     response = await client.post(
@@ -184,7 +185,7 @@ async def test_magic_link_verify_rejects_garbage_token(client):
 def test_create_and_verify_magic_link_token():
     """Round-trip: create a token and verify it returns the email."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
     settings.auth.magic_link_ttl_seconds = 600
 
     token = _service.create_magic_link_token("round@trip.com", settings)
@@ -195,7 +196,7 @@ def test_create_and_verify_magic_link_token():
 def test_verify_magic_link_token_expired():
     """Expired tokens should raise ValueError."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
     settings.auth.magic_link_ttl_seconds = 1  # 1 second TTL
 
     token = _service.create_magic_link_token("exp@test.com", settings)
@@ -210,7 +211,7 @@ def test_verify_magic_link_token_expired():
 def test_verify_magic_link_token_tampered():
     """Tampered tokens should raise ValueError."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
 
     token = _service.create_magic_link_token("ok@test.com", settings)
 

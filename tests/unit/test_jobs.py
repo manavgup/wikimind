@@ -73,9 +73,14 @@ async def test_background_compiler_dev_mode_recompile() -> None:
 async def test_background_compiler_dev_mode_sweep() -> None:
     bc = BackgroundCompiler()
     bc._redis_url = None
-    with patch.object(bg_mod, "sweep_wikilinks", AsyncMock()):
+    mock_sweep = AsyncMock()
+    with patch.object(bg_mod, "sweep_wikilinks", mock_sweep):
         job_id = await bc.schedule_sweep(user_id=TEST_USER_ID)
+        # Yield to event loop to allow asyncio.create_task to run
+        import asyncio
+        await asyncio.sleep(0.01)
     assert job_id
+    mock_sweep.assert_awaited()
 
 
 async def test_background_compiler_prod_mode_recompile() -> None:

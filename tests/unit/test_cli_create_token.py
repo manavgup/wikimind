@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import jwt
 import pytest
 
+from tests.conftest import TEST_JWT_SECRET
 from wikimind.cli.create_token import _lookup_user_by_email, main
 from wikimind.models import User
 
@@ -87,7 +88,7 @@ def test_main_generates_token_with_user_uuid(monkeypatch):
     """main() should produce a JWT whose sub claim is the user's UUID, not the email."""
     monkeypatch.setattr(
         "sys.argv",
-        ["create_token", "--email", "alice@example.com", "--secret", "test-secret"],
+        ["create_token", "--email", "alice@example.com", "--secret", TEST_JWT_SECRET],
     )
 
     # Patch _lookup_user_by_email to return a known UUID
@@ -112,7 +113,7 @@ def test_main_generates_token_with_user_uuid(monkeypatch):
     main()
 
     token = captured["token"]
-    decoded = jwt.decode(token, "test-secret", algorithms=["HS256"], options={"verify_aud": False})
+    decoded = jwt.decode(token, TEST_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
 
     # The critical fix: sub must be the UUID, not the email
     assert decoded["sub"] == "uuid-abc-123"
@@ -133,7 +134,7 @@ def test_main_uses_custom_token_name(monkeypatch):
             "--email",
             "alice@example.com",
             "--secret",
-            "test-secret",
+            TEST_JWT_SECRET,
             "--name",
             "my-custom-name",
         ],
@@ -157,5 +158,5 @@ def test_main_uses_custom_token_name(monkeypatch):
 
     main()
 
-    decoded = jwt.decode(captured["token"], "test-secret", algorithms=["HS256"], options={"verify_aud": False})
+    decoded = jwt.decode(captured["token"], TEST_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
     assert decoded["user"]["name"] == "my-custom-name"
