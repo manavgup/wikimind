@@ -11,11 +11,14 @@ from sqlmodel import SQLModel
 from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, SearchResponse, SearchResult, User
 from wikimind.services.search import (
+    SearchService,
     _article_id_to_rowid,
     _sanitize_fts5_query,
     _sanitize_postgres_query,
     create_fts_table,
+    get_search_service,
     index_article,
+    rebuild_fts_index,
     remove_article,
     search_articles,
 )
@@ -376,3 +379,101 @@ class TestSearchModels:
         )
         assert response.total == 1
         assert len(response.results) == 1
+
+
+# ---------------------------------------------------------------------------
+# Rebuild FTS index
+# ---------------------------------------------------------------------------
+
+
+class TestRebuildFtsIndex:
+    @pytest.mark.asyncio
+    async def test_rebuild_empty_db(self, fts_session: AsyncSession):
+        count = await rebuild_fts_index(fts_session)
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_rebuild_with_articles(self, fts_session: AsyncSession):
+        """Rebuild should re-index all articles and make them searchable."""
+        from unittest.mock import AsyncMock, patch
+
+        existing = await fts_session.get(User, TEST_USER_ID)
+        if not existing:
+            fts_session.add(
+                User(
+                    id=TEST_USER_ID,
+                    email=f"{TEST_USER_ID}@test.com",
+                    auth_provider="test",
+                    auth_provider_id=TEST_USER_ID,
+                )
+            )
+            await fts_session.commit()
+
+        a1 = Article(
+            title="Rebuild Test",
+            slug="rebuild-test",
+            file_path="wiki/rebuild-test.md",
+            user_id=TEST_USER_ID,
+            summary="Content about rebuilding indexes.",
+        )
+        fts_session.add(a1)
+        await fts_session.commit()
+
+        mock_storage = AsyncMock()
+        mock_storage.read = AsyncMock(return_value="Content about rebuilding indexes.")
+        with patch("wikimind.services.search.get_wiki_storage", return_value=mock_storage):
+            count = await rebuild_fts_index(fts_session)
+
+        assert count == 1
+
+        results, total = await search_articles(fts_session, "rebuild", TEST_USER_ID)
+        assert total == 1
+
+
+# ---------------------------------------------------------------------------
+# SearchService wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestSearchService:
+    def test_singleton(self):
+        get_search_service.cache_clear()
+        svc1 = get_search_service()
+        svc2 = get_search_service()
+        assert svc1 is svc2
+        get_search_service.cache_clear()
+
+    @pytest.mark.asyncio
+    async def test_search_delegates_to_search_articles(self, fts_session: AsyncSession):
+        """SearchService.search should delegate to the module-level search_articles."""
+        await _create_article(
+            fts_session,
+            title="Wrapper Test Article",
+            slug="wrapper-test",
+            content="Testing the SearchService wrapper class.",
+        )
+
+        svc = SearchService()
+        response = await svc.search("wrapper", fts_session, user_id=TEST_USER_ID)
+        assert response.total == 1
+        assert response.results[0].title == "Wrapper Test Article"
+
+
+# ---------------------------------------------------------------------------
+# Sanitizer edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizerEdgeCases:
+    def test_fts5_strips_quotes(self):
+        result = _sanitize_fts5_query('hello "world"')
+        assert '"' not in result.replace('"hello"*', "").replace('"world"*', "")
+
+    def test_postgres_strips_special_chars(self):
+        result = _sanitize_postgres_query("hello@world #test")
+        assert "@" not in result
+        assert "#" not in result
+
+    def test_postgres_empty_after_stripping(self):
+        result = _sanitize_postgres_query("!!! @@@")
+        assert result == ""

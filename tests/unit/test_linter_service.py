@@ -141,3 +141,155 @@ async def test_dismiss_structural(db_session: AsyncSession):
 async def test_dismiss_not_found(db_session: AsyncSession):
     with pytest.raises(NotFoundError):
         await LinterService().dismiss_finding(db_session, LintFindingKind.CONTRADICTION, "bad", user_id=TEST_USER_ID)
+
+
+async def test_get_report_with_findings(db_session: AsyncSession):
+    """get_report should return grouped findings for a valid report."""
+    report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=1,
+        orphans_count=1,
+        structural_count=1,
+        total_findings=3,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(report)
+    await db_session.commit()
+    await db_session.refresh(report)
+
+    c = ContradictionFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_a_id="a1",
+        article_b_id="b1",
+        article_a_claim="X",
+        article_b_claim="Y",
+        llm_confidence="high",
+        description="contradiction desc",
+        content_hash="ch1",
+    )
+    o = OrphanFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_id="a2",
+        article_title="Orphan",
+        description="orphan desc",
+        content_hash="oh1",
+    )
+    s = StructuralFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_id="a3",
+        violation_type="missing_frontmatter",
+        description="struct desc",
+        content_hash="sh1",
+    )
+    db_session.add_all([c, o, s])
+    await db_session.commit()
+
+    detail = await LinterService().get_report(db_session, report.id, user_id=TEST_USER_ID)
+    assert len(detail.contradictions) == 1
+    assert len(detail.orphans) == 1
+    assert len(detail.structurals) == 1
+
+
+async def test_get_report_wrong_user(db_session: AsyncSession):
+    """get_report should raise NotFoundError for wrong user."""
+    report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=0,
+        orphans_count=0,
+        total_findings=0,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(report)
+    await db_session.commit()
+    await db_session.refresh(report)
+
+    with pytest.raises(NotFoundError):
+        await LinterService().get_report(db_session, report.id, user_id="other-user")
+
+
+async def test_get_report_include_dismissed(db_session: AsyncSession):
+    """get_report with include_dismissed=True should include dismissed findings."""
+    report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=0,
+        orphans_count=1,
+        total_findings=1,
+        dismissed_count=1,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(report)
+    await db_session.commit()
+    await db_session.refresh(report)
+
+    finding = OrphanFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_id="a",
+        article_title="T",
+        description="dismissed finding",
+        content_hash="dh1",
+        dismissed=True,
+    )
+    db_session.add(finding)
+    await db_session.commit()
+
+    detail = await LinterService().get_report(db_session, report.id, user_id=TEST_USER_ID)
+    assert len(detail.orphans) == 0
+
+    detail = await LinterService().get_report(db_session, report.id, include_dismissed=True, user_id=TEST_USER_ID)
+    assert len(detail.orphans) == 1
+
+
+async def test_get_latest_returns_most_recent(db_session: AsyncSession):
+    """get_latest should return the most recent report."""
+    r1 = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=0,
+        orphans_count=0,
+        total_findings=0,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(r1)
+    await db_session.commit()
+    await db_session.refresh(r1)
+
+    r2 = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=1,
+        orphans_count=0,
+        total_findings=1,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(r2)
+    await db_session.commit()
+    await db_session.refresh(r2)
+
+    detail = await LinterService().get_latest(db_session, user_id=TEST_USER_ID)
+    assert detail.report.id == r2.id
+
+
+async def test_list_reports_with_user_filter(db_session: AsyncSession):
+    """list_reports should filter by user_id."""
+    r1 = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=0,
+        orphans_count=0,
+        total_findings=0,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(r1)
+    await db_session.commit()
+
+    reports = await LinterService().list_reports(db_session, user_id=TEST_USER_ID)
+    assert len(reports) == 1
+
+    reports = await LinterService().list_reports(db_session, user_id="other-user")
+    assert len(reports) == 0
