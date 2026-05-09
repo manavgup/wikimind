@@ -23,6 +23,7 @@ from wikimind.api.routes import (
     auth,
     capture,
     compilation_schemas,
+    drafts,
     export,
     ingest,
     jobs,
@@ -225,6 +226,7 @@ app.add_middleware(
 api_router = APIRouter(prefix="/api")
 api_router.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(capture.router, prefix="/capture", tags=["Capture"])
+api_router.include_router(drafts.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
 api_router.include_router(query.router, prefix="/query", tags=["Query"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
