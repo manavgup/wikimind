@@ -74,6 +74,28 @@ class ConfidenceLevel(StrEnum):
     OPINION = "opinion"  # Author's stated opinion
 
 
+class CaptureKind(StrEnum):
+    """Kind of ambient capture adapter that produced a CaptureSource."""
+
+    SHARE_TARGET = "share_target"
+    RSS = "rss"
+    EMAIL = "email"
+    CLIPBOARD = "clipboard"
+    VOICE = "voice"
+    SCREENSHOT = "screenshot"
+    SLACK = "slack"
+    DISCORD = "discord"
+
+
+class CaptureStatus(StrEnum):
+    """Lifecycle status of a captured item."""
+
+    CAPTURED = "captured"
+    TRIAGED = "triaged"
+    INGESTED = "ingested"
+    DISCARDED = "discarded"
+
+
 class JobType(StrEnum):
     """Type of async job."""
 
@@ -85,6 +107,7 @@ class JobType(StrEnum):
     RECOMPILE_ARTICLE = "recompile_article"
     SYNC_PUSH = "sync_push"
     SYNC_PULL = "sync_pull"
+    POLL_RSS_FEEDS = "poll_rss_feeds"
 
 
 class JobStatus(StrEnum):
@@ -510,6 +533,51 @@ class SavedSearch(SQLModel, table=True):
     name: str
     query: str
     filters_json: str = "{}"  # JSON: {"tags": ["read-later"], "concepts": [...]}
+    created_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class CaptureSource(SQLModel, table=True):
+    """An item captured by an ambient capture adapter (issue #442).
+
+    Captures are cheap and promiscuous: every item matching an adapter's
+    filter is logged here. A triage step (manual or auto) decides whether
+    to promote the capture to a full Source for compilation, or discard it.
+
+    Lifecycle: captured -> triaged -> ingested | discarded
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    kind: CaptureKind
+    external_id: str | None = Field(default=None, index=True)
+    title: str | None = None
+    raw_payload: str  # JSON blob or plain text
+    content_hash: str = Field(default="", index=True)
+    status: CaptureStatus = CaptureStatus.CAPTURED
+    source_url: str | None = None
+    source_id: str | None = Field(default=None, foreign_key="source.id")
+    received_at: datetime = Field(default_factory=utcnow_naive)
+    triaged_at: datetime | None = None
+    ingested_at: datetime | None = None
+    discarded_at: datetime | None = None
+    discard_reason: str | None = None
+
+
+class RssFeed(SQLModel, table=True):
+    """A user-subscribed RSS/Atom feed (issue #442).
+
+    The RSS adapter polls each enabled feed on a schedule, creating
+    CaptureSource rows for new entries (deduped by guid or link).
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    feed_url: str
+    title: str | None = None
+    enabled: bool = True
+    last_polled_at: datetime | None = None
+    last_entry_id: str | None = None  # guid or link of most recent entry
+    error_message: str | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
@@ -1712,6 +1780,109 @@ class WikiHealthReport(BaseModel):
     orphans_count: int | None = None
     status: str | None = None
     message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Capture (ambient capture) request/response models (issue #442)
+# ---------------------------------------------------------------------------
+
+
+class CaptureRequest(BaseModel):
+    """Request to capture content from an ambient adapter."""
+
+    title: str | None = None
+    content: str
+    source_url: str | None = None
+    external_id: str | None = None
+
+
+class CaptureResponse(BaseModel):
+    """API response for a captured item."""
+
+    id: str
+    kind: CaptureKind
+    title: str | None
+    source_url: str | None
+    status: CaptureStatus
+    external_id: str | None = None
+    received_at: datetime
+    triaged_at: datetime | None = None
+    ingested_at: datetime | None = None
+    discarded_at: datetime | None = None
+    discard_reason: str | None = None
+    source_id: str | None = None
+
+
+class CaptureListResponse(BaseModel):
+    """Paginated list of captures."""
+
+    items: list[CaptureResponse]
+    total: int
+
+
+class CaptureIngestResponse(BaseModel):
+    """Response after promoting a capture to a full source."""
+
+    capture_id: str
+    source_id: str
+    status: str = "ingested"
+
+
+class CaptureDiscardResponse(BaseModel):
+    """Response after discarding a capture."""
+
+    capture_id: str
+    status: str = "discarded"
+
+
+class DiscardCaptureRequest(BaseModel):
+    """Optional request body when discarding a capture."""
+
+    reason: str | None = None
+
+
+class RssFeedRequest(BaseModel):
+    """Request to subscribe to an RSS feed."""
+
+    feed_url: str
+    title: str | None = None
+
+
+class RssFeedResponse(BaseModel):
+    """API response for an RSS feed subscription."""
+
+    id: str
+    feed_url: str
+    title: str | None
+    enabled: bool
+    last_polled_at: datetime | None = None
+    error_message: str | None = None
+    created_at: datetime
+
+
+class RssFeedListResponse(BaseModel):
+    """List of RSS feed subscriptions."""
+
+    feeds: list[RssFeedResponse]
+
+
+class RssFeedToggleRequest(BaseModel):
+    """Request to enable or disable an RSS feed."""
+
+    enabled: bool
+
+
+class RssPollResponse(BaseModel):
+    """Response after triggering an RSS poll."""
+
+    feed_id: str
+    new_captures: int
+    status: str = "polled"
+
+
+# ---------------------------------------------------------------------------
+# Typed return models for public service/route functions (issue #394)
+# ---------------------------------------------------------------------------
 
 
 class QAResult(NamedTuple):

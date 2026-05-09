@@ -38,6 +38,7 @@ dependencies = [
     "ollama>=0.3.3",
 
     # Document processing (docling is in [pdf] extra — see below)
+    "defusedxml>=0.7.1",
     "lxml>=6.1.0",  # CVE-2026-41066 — transitive dep, pinned to force safe version
     "trafilatura>=1.12.2",
     "pymupdf>=1.24.13",

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PR #442 Evidence -- Ambient Capture Adapters</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; background: #fafafa; color: #1a1a1a; }
+    h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; }
+    h2 { margin-top: 2rem; color: #1e40af; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+    .pass { background: #dcfce7; color: #166534; }
+    .info { background: #dbeafe; color: #1e40af; }
+    pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; line-height: 1.5; }
+    .json-key { color: #93c5fd; }
+    .json-str { color: #86efac; }
+    .json-num { color: #fbbf24; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #f3f4f6; font-weight: 600; }
+    .summary-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+<h1>PR #442 -- Ambient Capture Adapters</h1>
+<p><span class="badge pass">PASS</span> All 32 tests passing | <span class="badge info">Feature</span> Phase 1 + Phase 2 (wiki scope)</p>
+
+<div class="summary-box">
+  <strong>What shipped:</strong> CaptureSource model, capture inbox API (<code>/api/capture</code>), RSS feed adapter with
+  dedup-by-guid polling, RSS feed subscription management, and 32 new tests covering XML parsing, service layer,
+  adapter polling, and API integration.
+</div>
+
+<h2>1. Capture Inbox API</h2>
+
+<h3>POST /api/capture/{kind} -- Create a capture</h3>
+<pre>{
+  <span class="json-key">"content"</span>: <span class="json-str">"This is a fascinating article about the future of AI agents..."</span>,
+  <span class="json-key">"title"</span>: <span class="json-str">"The Future of AI Agents"</span>,
+  <span class="json-key">"source_url"</span>: <span class="json-str">"https://example.com/ai-agents"</span>
+}
+
+Response:
+{
+  <span class="json-key">"id"</span>: <span class="json-str">"e8bca34e-894b-49b4-92de-bf01d0897293"</span>,
+  <span class="json-key">"kind"</span>: <span class="json-str">"share_target"</span>,
+  <span class="json-key">"title"</span>: <span class="json-str">"The Future of AI Agents"</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"captured"</span>,
+  <span class="json-key">"source_url"</span>: <span class="json-str">"https://example.com/ai-agents"</span>,
+  <span class="json-key">"received_at"</span>: <span class="json-str">"2026-05-08T19:10:06.436168"</span>
+}</pre>
+
+<h3>GET /api/capture -- List captures (inbox view)</h3>
+<pre>Response:
+{
+  <span class="json-key">"items"</span>: [... 2 captures ...],
+  <span class="json-key">"total"</span>: <span class="json-num">2</span>
+}
+Supports <code>?status=captured</code> and <code>?kind=rss</code> filters.</pre>
+
+<h3>POST /api/capture/{id}/discard -- Discard a capture</h3>
+<pre>Request: { <span class="json-key">"reason"</span>: <span class="json-str">"Low relevance"</span> }
+Response: { <span class="json-key">"capture_id"</span>: <span class="json-str">"f5bc9f5b-..."</span>, <span class="json-key">"status"</span>: <span class="json-str">"discarded"</span> }</pre>
+
+<h3>Dedup verification</h3>
+<pre>Original capture ID: e8bca34e-894b-49b4-92de-bf01d0897293
+Re-submit same content: e8bca34e-894b-49b4-92de-bf01d0897293
+<span style="color:#86efac">IDs match -- dedup works correctly (SHA-256 content hash)</span></pre>
+
+<h2>2. RSS Feed Management</h2>
+
+<h3>POST /api/capture/rss/feeds -- Subscribe to a feed</h3>
+<pre>Request: { <span class="json-key">"feed_url"</span>: <span class="json-str">"https://hnrss.org/frontpage"</span>, <span class="json-key">"title"</span>: <span class="json-str">"Hacker News Front Page"</span> }
+Response:
+{
+  <span class="json-key">"id"</span>: <span class="json-str">"0f5906b5-f4b6-45d5-9716-bc5b87feed08"</span>,
+  <span class="json-key">"feed_url"</span>: <span class="json-str">"https://hnrss.org/frontpage"</span>,
+  <span class="json-key">"title"</span>: <span class="json-str">"Hacker News Front Page"</span>,
+  <span class="json-key">"enabled"</span>: true
+}</pre>
+
+<h3>POST /api/capture/rss/feeds/{id}/poll -- Poll a feed</h3>
+<pre>Response:
+{
+  <span class="json-key">"feed_id"</span>: <span class="json-str">"0f5906b5-..."</span>,
+  <span class="json-key">"new_captures"</span>: <span class="json-num">20</span>,
+  <span class="json-key">"status"</span>: <span class="json-str">"polled"</span>
+}
+<span style="color:#86efac">20 real HN front page entries captured from live RSS feed</span></pre>
+
+<h3>Live RSS captures (sample of 5 from Hacker News)</h3>
+<table>
+  <tr><th>Title</th><th>Source URL</th><th>External ID</th></tr>
+  <tr><td>Maybe you shouldn't install new software for a bit</td><td>https://xeiaso.net/blog/2026/abstain-from-install/</td><td>hn:48056227</td></tr>
+  <tr><td>Mojo 1.0 Beta</td><td>https://mojolang.org/</td><td>hn:48057901</td></tr>
+  <tr><td>ClojureScript Gets Async/Await</td><td>https://clojurescript.org/news/2026-05-07-release</td><td>hn:48059662</td></tr>
+  <tr><td>Ask HN: We just had an actual UUID v4 collision...</td><td>https://news.ycombinator.com/item?id=48060054</td><td>hn:48060054</td></tr>
+  <tr><td>GeoJSON</td><td>https://geojson.org/</td><td>hn:48060918</td></tr>
+</table>
+
+<h3>PATCH /api/capture/rss/feeds/{id} -- Toggle feed</h3>
+<pre>Request: { <span class="json-key">"enabled"</span>: false }
+Response: { ..., <span class="json-key">"enabled"</span>: false }</pre>
+
+<h2>3. Test Coverage</h2>
+
+<table>
+  <tr><th>Category</th><th>Tests</th><th>Status</th></tr>
+  <tr><td>RSS XML parser (RSS 2.0, Atom, edge cases)</td><td>5</td><td><span class="badge pass">PASS</span></td></tr>
+  <tr><td>CaptureService (create, dedup, list, filter, ingest, discard)</td><td>10</td><td><span class="badge pass">PASS</span></td></tr>
+  <tr><td>RssService (subscribe, list, toggle, delete)</td><td>6</td><td><span class="badge pass">PASS</span></td></tr>
+  <tr><td>RSS Adapter (poll, dedup, HTTP error handling)</td><td>3</td><td><span class="badge pass">PASS</span></td></tr>
+  <tr><td>API integration (endpoints via FastAPI test client)</td><td>8</td><td><span class="badge pass">PASS</span></td></tr>
+  <tr><td><strong>Total</strong></td><td><strong>32</strong></td><td><span class="badge pass">ALL PASS</span></td></tr>
+</table>
+
+<h2>4. Architecture</h2>
+
+<table>
+  <tr><th>Component</th><th>File</th><th>Purpose</th></tr>
+  <tr><td>CaptureSource model</td><td><code>src/wikimind/models.py</code></td><td>SQLModel table: id, kind, raw_payload, status lifecycle, content_hash dedup</td></tr>
+  <tr><td>RssFeed model</td><td><code>src/wikimind/models.py</code></td><td>SQLModel table: feed subscriptions, poll state, error tracking</td></tr>
+  <tr><td>CaptureConfig</td><td><code>src/wikimind/config.py</code></td><td>Pydantic settings: poll interval, max entries, auto-discard threshold</td></tr>
+  <tr><td>CaptureService</td><td><code>src/wikimind/services/capture.py</code></td><td>Create/list/ingest/discard captures with dedup</td></tr>
+  <tr><td>RssService</td><td><code>src/wikimind/services/rss.py</code></td><td>Feed CRUD + poll orchestration</td></tr>
+  <tr><td>RssAdapter</td><td><code>src/wikimind/ingest/adapters/rss.py</code></td><td>RSS/Atom XML parser + HTTP fetch + capture creation</td></tr>
+  <tr><td>Capture routes</td><td><code>src/wikimind/api/routes/capture.py</code></td><td>REST API: /api/capture/* endpoints</td></tr>
+  <tr><td>Tests</td><td><code>tests/unit/test_capture.py</code></td><td>32 tests across all layers</td></tr>
+</table>
+
+<h2>5. Capture Status Lifecycle</h2>
+<pre>
+  captured --> triaged --> ingested (promoted to Source for compilation)
+     |                       |
+     +--- discarded ---------+  (low-signal, user decision)
+</pre>
+
+<h2>6. Configuration</h2>
+<pre>
+WIKIMIND_CAPTURE__RSS_POLL_INTERVAL_MINUTES=60    # How often to auto-poll
+WIKIMIND_CAPTURE__RSS_MAX_ENTRIES_PER_POLL=50     # Max entries per feed per poll
+WIKIMIND_CAPTURE__AUTO_DISCARD_MIN_CHARS=200      # Auto-discard below this
+WIKIMIND_CAPTURE__RSS_HTTP_TIMEOUT_SECONDS=30     # HTTP timeout for feeds
+</pre>
+
+<p style="color:#6b7280; margin-top:2rem; font-size:0.85rem;">
+  Evidence generated 2026-05-08. Backend port 7842.
+  Pre-existing failures (27 tests in smoke, tags, stubs) unrelated to this PR.
+</p>
+
+</body>
+</html>

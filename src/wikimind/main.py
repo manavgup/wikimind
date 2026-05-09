@@ -21,6 +21,7 @@ from wikimind.api.routes import (
     admin,
     api_keys,
     auth,
+    capture,
     export,
     ingest,
     jobs,
@@ -169,6 +170,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Wiki", "description": "Browse wiki articles, knowledge graph, and search"},
         {"name": "Ingest", "description": "Ingest sources (URLs, PDFs, text, YouTube)"},
+        {"name": "Capture", "description": "Ambient capture inbox and RSS feeds"},
         {"name": "Query", "description": "Ask questions against the wiki"},
         {"name": "Jobs", "description": "Manage async compilation and linting jobs"},
         {"name": "Lint", "description": "Wiki health audit reports and findings"},
@@ -217,6 +219,7 @@ app.add_middleware(
 # Health, docs, and auth remain at root level.
 api_router = APIRouter(prefix="/api")
 api_router.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
+api_router.include_router(capture.router, prefix="/capture", tags=["Capture"])
 api_router.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
 api_router.include_router(query.router, prefix="/query", tags=["Query"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
