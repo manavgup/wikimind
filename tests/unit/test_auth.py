@@ -12,13 +12,13 @@ import jwt
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.conftest import TEST_JWT_SECRET
 from wikimind.api.deps import ANONYMOUS_USER_ID, get_ws_user_id
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.auth import (
     _consume_oauth_state,
     _generate_oauth_state,
 )
-from tests.conftest import TEST_JWT_SECRET
 from wikimind.config import get_settings
 from wikimind.models import OAuthUserInfo, User
 from wikimind.services.user import UserService

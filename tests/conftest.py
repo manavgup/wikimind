@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import keyring
 import pytest
-
 from httpx import ASGITransport, AsyncClient
 from keyring.backend import KeyringBackend
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
