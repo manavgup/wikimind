@@ -120,6 +120,7 @@ include = ["wikimind*"]
 
 # ---------- Ruff ----------
 [tool.ruff]
+exclude = ["docs/evidence", "alembic/versions"]
 line-length = 120
 target-version = "py311"
 
