@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR #447 Evidence: WikiMind MCP Server (Phase 1)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8f9fa;
+            color: #1a1a2e;
+        }
+        h1 { border-bottom: 3px solid #4a90d9; padding-bottom: 0.5rem; }
+        h2 { color: #4a90d9; margin-top: 2rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .pass { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .highlight { color: #a6e3a1; }
+        .dim { color: #6c7086; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        th { background: #e9ecef; font-weight: 600; }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+    </style>
+</head>
+<body>
+    <h1>PR #447 Evidence: WikiMind MCP Server</h1>
+    <p>
+        <span class="badge info">Phase 1</span>
+        <span class="badge pass">All Tests Passing</span>
+    </p>
+    <p>
+        Phase 1 of issue #447: stdio-mode MCP server exposing 4 read-only tools.
+        Generated 2026-05-08.
+    </p>
+
+    <h2>1. MCP Tools Registered</h2>
+    <div class="section">
+        <p>The server registers 4 tools accessible via the MCP protocol:</p>
+        <table>
+            <thead>
+                <tr><th>Tool</th><th>Description</th><th>Required Params</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>wiki_search</code></td>
+                    <td>Search wiki articles by keyword</td>
+                    <td><code>query</code> (string)</td>
+                </tr>
+                <tr>
+                    <td><code>wiki_get_article</code></td>
+                    <td>Retrieve full article by ID or slug</td>
+                    <td><code>id_or_slug</code> (string)</td>
+                </tr>
+                <tr>
+                    <td><code>wiki_ask</code></td>
+                    <td>Ask a question against the wiki (Q&amp;A agent)</td>
+                    <td><code>question</code> (string)</td>
+                </tr>
+                <tr>
+                    <td><code>wiki_list_sources</code></td>
+                    <td>List ingested sources</td>
+                    <td>none (all optional)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2>2. Server Initialization (stdio)</h2>
+    <div class="section">
+        <p>The MCP server starts, initializes the database, and responds to the <code>initialize</code> handshake:</p>
+        <pre><span class="dim"># Request:</span>
+{"jsonrpc":"2.0","method":"initialize","params":{
+  "protocolVersion":"2025-03-26",
+  "capabilities":{},
+  "clientInfo":{"name":"test","version":"0.1"}
+},"id":1}
+
+<span class="dim"># Response:</span>
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    <span class="highlight">"protocolVersion": "2025-03-26"</span>,
+    "capabilities": {
+      "tools": { "listChanged": false },
+      "resources": { "subscribe": false, "listChanged": false },
+      "prompts": { "listChanged": false }
+    },
+    "serverInfo": {
+      <span class="highlight">"name": "wikimind"</span>,
+      "version": "1.27.1"
+    },
+    "instructions": "WikiMind is a personal LLM-powered knowledge OS. ..."
+  }
+}</pre>
+    </div>
+
+    <h2>3. tools/list Response</h2>
+    <div class="section">
+        <p>The <code>tools/list</code> method returns all 4 tools with JSON Schema for inputs:</p>
+        <pre><span class="dim"># Request:</span>
+{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}
+
+<span class="dim"># Response (abbreviated):</span>
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        <span class="highlight">"name": "wiki_search"</span>,
+        "description": "Search wiki articles by keyword...",
+        "inputSchema": {
+          "properties": {
+            "query": { "type": "string" },
+            "limit": { "default": 10, "type": "integer" }
+          },
+          "required": ["query"]
+        }
+      },
+      { <span class="highlight">"name": "wiki_get_article"</span>, ... },
+      { <span class="highlight">"name": "wiki_ask"</span>, ... },
+      { <span class="highlight">"name": "wiki_list_sources"</span>, ... }
+    ]
+  }
+}</pre>
+    </div>
+
+    <h2>4. CLI Commands</h2>
+    <div class="section">
+        <p>Two new CLI commands under <code>wikimind mcp</code>:</p>
+        <pre><span class="dim">$ wikimind mcp --help</span>
+Usage: wikimind mcp [OPTIONS] COMMAND [ARGS]...
+
+  Model Context Protocol server commands.
+
+Commands:
+  <span class="highlight">config</span>  Print Claude Desktop configuration snippet for WikiMind MCP.
+  <span class="highlight">serve</span>   Start the WikiMind MCP server (stdio transport).
+
+<span class="dim">$ wikimind mcp config</span>
+Add this to your Claude Desktop config (claude_desktop_config.json):
+
+{
+  "mcpServers": {
+    "wikimind": {
+      "command": "python3",
+      "args": ["-m", "wikimind.mcp.server"]
+    }
+  }
+}</pre>
+    </div>
+
+    <h2>5. Test Results</h2>
+    <div class="section">
+        <p><span class="badge pass">16/16 Passed</span></p>
+        <pre>tests/unit/test_mcp_server.py::TestWikiSearch::test_search_returns_results          <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiSearch::test_search_short_query_returns_error <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiSearch::test_search_clamps_limit             <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiGetArticle::test_get_article_by_slug         <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiGetArticle::test_get_article_not_found       <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiListSources::test_list_sources_returns_results <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiListSources::test_list_sources_empty         <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestWikiListSources::test_list_sources_clamps_limit  <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPCli::test_mcp_help                            <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPCli::test_mcp_config                          <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPCli::test_mcp_serve_help                      <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPServerRegistration::test_server_has_expected_name       <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPServerRegistration::test_server_has_instructions        <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPServerRegistration::test_server_lists_tools             <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPServerRegistration::test_tool_descriptions_present      <span class="highlight">PASSED</span>
+tests/unit/test_mcp_server.py::TestMCPServerRegistration::test_tool_schemas_have_parameters   <span class="highlight">PASSED</span></pre>
+    </div>
+
+    <h2>6. Files Changed</h2>
+    <div class="section">
+        <table>
+            <thead>
+                <tr><th>File</th><th>Change</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>src/wikimind/mcp/__init__.py</code></td><td>New package marker</td></tr>
+                <tr><td><code>src/wikimind/mcp/server.py</code></td><td>MCP server with 4 read-only tools + stdio transport</td></tr>
+                <tr><td><code>src/wikimind/cli/main.py</code></td><td>Added <code>wikimind mcp serve</code> and <code>wikimind mcp config</code></td></tr>
+                <tr><td><code>pyproject.toml</code></td><td>Added <code>mcp>=1.0.0</code> dependency</td></tr>
+                <tr><td><code>tests/unit/test_mcp_server.py</code></td><td>16 unit tests for tools, CLI, and server registration</td></tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

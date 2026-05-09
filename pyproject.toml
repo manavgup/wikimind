@@ -56,6 +56,9 @@ dependencies = [
     # Production server
     "gunicorn>=22.0.0",
 
+    # MCP (Model Context Protocol)
+    "fastmcp>=3.0.2",
+
     # Utilities
     "python-slugify>=8.0.4",
     "python-dateutil>=2.9.0",

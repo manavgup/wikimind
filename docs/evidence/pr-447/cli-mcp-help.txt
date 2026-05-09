@@ -1,0 +1,37 @@
+Usage: wikimind mcp [OPTIONS] COMMAND [ARGS]...
+
+  Model Context Protocol server commands.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  config  Print Claude Desktop configuration snippet for WikiMind MCP.
+  serve   Start the WikiMind MCP server (stdio transport).
+Usage: wikimind mcp serve [OPTIONS]
+
+  Start the WikiMind MCP server (stdio transport).
+
+  Runs the MCP server over stdin/stdout so MCP clients like Claude Desktop or
+  Cursor can connect to the wiki.
+
+  Add this to your Claude Desktop config (claude_desktop_config.json):
+
+  \b   {     "mcpServers": {       "wikimind": {         "command":
+  "wikimind",         "args": ["mcp", "serve"]       }     }   }
+
+Options:
+  --help  Show this message and exit.
+Add this to your Claude Desktop config (claude_desktop_config.json):
+
+{
+  "mcpServers": {
+    "wikimind": {
+      "command": "/Users/mg/mg-work/manav/work/ai-experiments/wikimind/.claude/worktrees/agent-a28a11fd/.venv/bin/python3",
+      "args": [
+        "-m",
+        "wikimind.mcp.server"
+      ]
+    }
+  }
+}
