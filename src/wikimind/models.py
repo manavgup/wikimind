@@ -622,6 +622,36 @@ class CompilationDraft(SQLModel, table=True):
     reviewed_at: datetime | None = None
 
 
+class CompilationSchema(SQLModel, table=True):
+    """User-defined compilation rules that guide how sources become wiki articles.
+
+    Each schema contains structured directives (article structure, style,
+    extraction rules, concept taxonomy preferences) that are injected into
+    the compiler's LLM prompt at compilation time. Only one schema per user
+    can be active at a time (issue #420).
+    """
+
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_compilationschema_user_name"),)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    name: str
+    description: str | None = None
+    is_active: bool = False
+    # Structured rule fields (JSON strings for flexibility)
+    article_max_length: int | None = None
+    required_sections: str | None = None  # JSON array: ["summary", "key_claims"]
+    style: str | None = None  # Freeform style directive
+    focus: str | None = None  # What to emphasize
+    concept_max_depth: int | None = None
+    concept_naming: str | None = None  # e.g. "lowercase, hyphenated"
+    extraction_always_note: str | None = None  # JSON array: ["methodology"]
+    extraction_ignore: str | None = None  # JSON array: ["author bios"]
+    custom_directives: str | None = None  # Freeform additional directives
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
 # ---------------------------------------------------------------------------
 # Pydantic Models (not persisted — used for processing pipeline)
 # ---------------------------------------------------------------------------
@@ -1983,6 +2013,65 @@ class RssPollResponse(BaseModel):
     feed_id: str
     new_captures: int
     status: str = "polled"
+
+
+# ---------------------------------------------------------------------------
+# Compilation Schema request/response models (issue #420)
+# ---------------------------------------------------------------------------
+
+
+class CreateCompilationSchemaRequest(BaseModel):
+    """Request to create a user-defined compilation schema."""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool = False
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
+
+
+class UpdateCompilationSchemaRequest(BaseModel):
+    """Request to update a compilation schema."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool | None = None
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
+
+
+class CompilationSchemaResponse(BaseModel):
+    """API response for a compilation schema."""
+
+    id: str
+    name: str
+    description: str | None
+    is_active: bool
+    article_max_length: int | None
+    required_sections: list[str] | None
+    style: str | None
+    focus: str | None
+    concept_max_depth: int | None
+    concept_naming: str | None
+    extraction_always_note: list[str] | None
+    extraction_ignore: list[str] | None
+    custom_directives: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------

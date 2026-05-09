@@ -30,6 +30,7 @@ from wikimind.models import (
     ArticleSource,
     Backlink,
     CompilationResult,
+    CompilationSchema,
     CompletionRequest,
     Concept,
     ConfidenceLevel,
@@ -169,6 +170,54 @@ Rich content preservation:
 - Images: if the source references images, preserve the markdown image syntax ![alt](url) with the original URL or path. Do not remove or rewrite image references.
 - These rich content blocks are OPAQUE -- do not paraphrase, summarize, or rewrite their contents. They must survive round-trip compilation unchanged.
 """
+
+
+def _safe_json_list(value: str | None) -> list[str] | None:
+    """Parse a JSON string as a list, returning None on failure."""
+    if not value:
+        return None
+    try:
+        result = json.loads(value)
+        return result if isinstance(result, list) and result else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _build_schema_directives(schema: CompilationSchema) -> str:
+    """Build a prompt supplement from a user-defined compilation schema.
+
+    Returns an empty string when the schema has no substantive directives,
+    so it is always safe to append.
+    """
+    lines: list[str] = []
+
+    # Simple scalar directives
+    _scalar_directives = [
+        (schema.article_max_length, lambda v: f"- Article body must not exceed {v} words."),
+        (schema.style, lambda v: f"- Writing style: {v}"),
+        (schema.focus, lambda v: f"- Focus: {v}"),
+        (schema.concept_max_depth, lambda v: f"- Concept taxonomy max depth: {v} levels."),
+        (schema.concept_naming, lambda v: f"- Concept naming convention: {v}"),
+        (schema.custom_directives, lambda v: f"- Additional directives: {v}"),
+    ]
+    for value, fmt in _scalar_directives:
+        if value:
+            lines.append(fmt(value))
+
+    # JSON list directives
+    _list_directives = [
+        (schema.required_sections, "- Article MUST include these sections: {}."),
+        (schema.extraction_always_note, "- Always note these when present in the source: {}."),
+        (schema.extraction_ignore, "- Ignore these during extraction: {}."),
+    ]
+    for raw_value, template in _list_directives:
+        items = _safe_json_list(raw_value)
+        if items:
+            lines.append(template.format(", ".join(items)))
+
+    if not lines:
+        return ""
+    return "\n\nUser-defined compilation rules (FOLLOW THESE):\n" + "\n".join(lines)
 
 
 class Compiler:
@@ -314,9 +363,23 @@ class Compiler:
                 sorted(existing_concepts)
             )
 
+        # Load user-defined compilation schema (issue #420).
+        system_prompt = COMPILER_SYSTEM_PROMPT
+        active_schema_result = await session.execute(
+            select(CompilationSchema).where(
+                CompilationSchema.user_id == self.user_id,
+                CompilationSchema.is_active == True,  # noqa: E712
+            )
+        )
+        active_schema = active_schema_result.scalar_one_or_none()
+        if active_schema is not None:
+            schema_directives = _build_schema_directives(active_schema)
+            if schema_directives:
+                system_prompt += schema_directives
+
         settings = get_settings()
         request = CompletionRequest(
-            system=COMPILER_SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
             max_tokens=settings.compiler.max_tokens,
             temperature=0.2,

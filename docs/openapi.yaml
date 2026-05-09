@@ -2904,6 +2904,135 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/compilation-schemas:
+    get:
+      tags:
+      - CompilationSchemas
+      summary: List Schemas
+      description: List all compilation schemas for the current user.
+      operationId: list_schemas_api_compilation_schemas_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CompilationSchemaResponse'
+                type: array
+                title: Response List Schemas Api Compilation Schemas Get
+    post:
+      tags:
+      - CompilationSchemas
+      summary: Create Schema
+      description: Create a new compilation schema.
+      operationId: create_schema_api_compilation_schemas_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompilationSchemaRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationSchemaResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/compilation-schemas/{schema_id}:
+    get:
+      tags:
+      - CompilationSchemas
+      summary: Get Schema
+      description: Get a compilation schema by ID.
+      operationId: get_schema_api_compilation_schemas__schema_id__get
+      parameters:
+      - name: schema_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Schema Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationSchemaResponse'
+        '404':
+          description: Schema not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - CompilationSchemas
+      summary: Update Schema
+      description: Update a compilation schema.
+      operationId: update_schema_api_compilation_schemas__schema_id__patch
+      parameters:
+      - name: schema_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Schema Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompilationSchemaRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationSchemaResponse'
+        '404':
+          description: Schema not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - CompilationSchemas
+      summary: Delete Schema
+      description: Delete a compilation schema.
+      operationId: delete_schema_api_compilation_schemas__schema_id__delete
+      parameters:
+      - name: schema_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Schema Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Schema not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /public/articles/{token}:
     get:
       tags:
@@ -3677,7 +3806,7 @@ components:
       properties:
         file:
           type: string
-          contentMediaType: application/octet-stream
+          format: binary
           title: File
       type: object
       required:
@@ -3897,6 +4026,100 @@ components:
       - created_at
       title: CompilationDraftResponse
       description: API response for a compilation draft awaiting review.
+    CompilationSchemaResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          type: boolean
+          title: Is Active
+        article_max_length:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Custom Directives
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - is_active
+      - article_max_length
+      - required_sections
+      - style
+      - focus
+      - concept_max_depth
+      - concept_naming
+      - extraction_always_note
+      - extraction_ignore
+      - custom_directives
+      - created_at
+      - updated_at
+      title: CompilationSchemaResponse
+      description: API response for a compilation schema.
     ConfidenceLevel:
       type: string
       enum:
@@ -4246,6 +4469,86 @@ components:
       - budget_remaining_usd
       title: CostSummaryResponse
       description: Simple cost summary for current month.
+    CreateCompilationSchemaRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          type: boolean
+          title: Is Active
+          default: false
+        article_max_length:
+          anyOf:
+          - type: integer
+            maximum: 50000.0
+            minimum: 100.0
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Custom Directives
+      type: object
+      required:
+      - name
+      title: CreateCompilationSchemaRequest
+      description: Request to create a user-defined compilation schema.
     CreateSavedSearchRequest:
       properties:
         name:
@@ -6162,6 +6465,87 @@ components:
       - turn_indices
       title: TurnSelection
       description: A selection of specific turns from a single conversation.
+    UpdateCompilationSchemaRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        article_max_length:
+          anyOf:
+          - type: integer
+            maximum: 50000.0
+            minimum: 100.0
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Custom Directives
+      type: object
+      title: UpdateCompilationSchemaRequest
+      description: Request to update a compilation schema.
     UserProfileResponse:
       properties:
         id:
@@ -6202,11 +6586,6 @@ components:
         type:
           type: string
           title: Error Type
-        input:
-          title: Input
-        ctx:
-          type: object
-          title: Context
       type: object
       required:
       - loc
@@ -6309,5 +6688,7 @@ tags:
   description: Per-article share links and public access
 - name: Synthesis
   description: Cross-cutting synthesis pages across multiple sources
+- name: CompilationSchemas
+  description: User-defined compilation rules for wiki articles
 - name: WebSocket
   description: Real-time progress streams
