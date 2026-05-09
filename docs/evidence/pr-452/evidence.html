@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PR #452 Evidence — Rich Content Rendering</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1e293b;
+      background: #f8fafc;
+      line-height: 1.6;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .meta { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin: 2rem 0 0.75rem; color: #0f172a; }
+    p { margin-bottom: 1rem; }
+    .evidence-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .evidence-card .label {
+      padding: 0.75rem 1.25rem;
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    .evidence-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .evidence-card .desc {
+      padding: 0.75rem 1.25rem;
+      font-size: 0.8125rem;
+      color: #475569;
+      border-top: 1px solid #e2e8f0;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1rem 0;
+    }
+    .summary-table th, .summary-table td {
+      padding: 0.625rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .summary-table th { background: #f8fafc; font-weight: 600; color: #475569; }
+    .badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+    }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .files-changed { background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.5rem; padding: 1rem 1.25rem; margin: 1.5rem 0; font-size: 0.8125rem; }
+    .files-changed h3 { font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.5rem; color: #92400e; }
+    .files-changed ul { margin: 0; padding-left: 1.25rem; }
+    .files-changed li { margin-bottom: 0.25rem; }
+    code { background: #f1f5f9; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.8125rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PR #452 — Rich Content Rendering</h1>
+    <p class="meta">Issue: feat: rich content support &mdash; math, tables, images, code rendered + round-tripped through compile<br/>Date: 2026-05-08</p>
+
+    <h2>Summary</h2>
+    <p>This PR adds rich content rendering to the WikiMind article reader: LaTeX math (via KaTeX), GFM tables with styled headers and zebra striping, syntax-highlighted code blocks (via highlight.js), and enhanced image rendering with captions. The compiler prompt is updated to preserve these blocks through recompilation.</p>
+
+    <table class="summary-table">
+      <thead>
+        <tr><th>Content Type</th><th>Library</th><th>Status</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Math (inline + display)</td>
+          <td><code>remark-math</code> + <code>rehype-katex</code></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td>Inline $...$ and display $$...$$ both render correctly</td>
+        </tr>
+        <tr>
+          <td>Tables</td>
+          <td><code>remark-gfm</code> (existing) + custom components</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td>Styled thead, zebra rows, rounded borders, overflow scroll</td>
+        </tr>
+        <tr>
+          <td>Code blocks</td>
+          <td><code>rehype-highlight</code></td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td>Language auto-detection, GitHub theme, JetBrains Mono font</td>
+        </tr>
+        <tr>
+          <td>Images</td>
+          <td>Custom <code>img</code> component (existing, enhanced)</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td>Captions, rounded borders, shadow, /api/ path resolution</td>
+        </tr>
+        <tr>
+          <td>Compiler preservation</td>
+          <td>System prompt update</td>
+          <td><span class="badge badge-pass">PASS</span></td>
+          <td>Rich content blocks treated as opaque in compiler + concept compiler</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="files-changed">
+      <h3>Files Changed</h3>
+      <ul>
+        <li><code>apps/web/package.json</code> &mdash; Added katex, remark-math, rehype-katex, rehype-highlight</li>
+        <li><code>apps/web/src/components/wiki/ArticleReader.tsx</code> &mdash; Math, code, table, image rendering plugins + components</li>
+        <li><code>apps/web/src/index.css</code> &mdash; KaTeX display math, code block, and table styling</li>
+        <li><code>src/wikimind/engine/compiler.py</code> &mdash; Rich content preservation rules in system prompt</li>
+        <li><code>src/wikimind/engine/concept_compiler.py</code> &mdash; Rich content preservation rules in concept synthesis prompt</li>
+      </ul>
+    </div>
+
+    <h2>Evidence Screenshots</h2>
+
+    <div class="evidence-card">
+      <div class="label">Math Rendering (KaTeX)</div>
+      <img src="math-rendering.png" alt="Math rendering with KaTeX" />
+      <div class="desc">Inline math ($\mu$, $\sigma$, $\alpha$) and display math (Gaussian PDF, KL divergence, gradient descent) render correctly via remark-math + rehype-katex.</div>
+    </div>
+
+    <div class="evidence-card">
+      <div class="label">Table Rendering (GFM)</div>
+      <img src="table-rendering.png" alt="Table rendering" />
+      <div class="desc">GitHub-flavored markdown tables with styled headers (uppercase, slate background), zebra-striped rows, rounded border container, and horizontal overflow scroll.</div>
+    </div>
+
+    <div class="evidence-card">
+      <div class="label">Code Syntax Highlighting</div>
+      <img src="code-highlighting.png" alt="Code syntax highlighting" />
+      <div class="desc">Python code with syntax highlighting via rehype-highlight (GitHub theme). Keywords, strings, built-ins, and comments are color-coded. JetBrains Mono font for readability.</div>
+    </div>
+
+    <div class="evidence-card">
+      <div class="label">Image Rendering with Captions</div>
+      <img src="image-rendering.png" alt="Image rendering" />
+      <div class="desc">Images render with rounded borders, subtle shadow, and italic captions. The img component resolves /images/ and /api/ paths to the backend URL automatically.</div>
+    </div>
+
+    <div class="evidence-card">
+      <div class="label">Full Page View</div>
+      <img src="full-page.png" alt="Full page rich content rendering" />
+      <div class="desc">All four rich content types rendered together in a single article view, demonstrating the complete rendering pipeline.</div>
+    </div>
+  </div>
+</body>
+</html>

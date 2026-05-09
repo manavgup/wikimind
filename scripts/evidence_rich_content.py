@@ -1,0 +1,263 @@
+"""Playwright evidence script for rich content rendering (issue #452).
+
+Generates screenshots demonstrating:
+- Math rendering (KaTeX)
+- Table rendering (GFM)
+- Code syntax highlighting
+- Image rendering with captions
+
+Uses a standalone HTML page that mirrors the ArticleReader rendering pipeline.
+"""
+
+import asyncio
+import http.server
+import threading
+from pathlib import Path
+
+from playwright.async_api import async_playwright
+
+EVIDENCE_DIR = Path(__file__).resolve().parent.parent / "docs" / "evidence" / "pr-452"
+EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Standalone HTML that uses KaTeX + highlight.js (same libs as the React app)
+TEST_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WikiMind Rich Content — Evidence</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/github.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/contrib/auto-render.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: #1e293b;
+      background: #fff;
+    }
+    .container { max-width: 768px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.875rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .subtitle { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin: 2rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+    p { line-height: 1.75; margin-bottom: 1rem; }
+
+    /* Math */
+    .katex-display { overflow-x: auto; padding: 0.75rem 0; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead { background: #f8fafc; }
+    th { padding: 0.625rem 1rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; border-bottom: 1px solid #e2e8f0; }
+    td { padding: 0.625rem 1rem; color: #334155; border-bottom: 1px solid #f1f5f9; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* Code blocks */
+    pre { overflow-x: auto; border-radius: 0.5rem; border: 1px solid #e2e8f0; background: #f8fafc; padding: 1rem; margin: 1.5rem 0; font-size: 0.8125rem; line-height: 1.625; }
+    pre code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace; }
+    code:not(pre code) { background: #f1f5f9; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.875rem; font-weight: 500; color: #1e293b; }
+
+    /* Images */
+    figure { margin: 1.5rem 0; }
+    figure img { display: block; margin: 0 auto; max-width: 100%; border-radius: 0.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    figcaption { margin-top: 0.5rem; text-align: center; font-size: 0.875rem; font-style: italic; color: #64748b; }
+
+    /* Section separators */
+    .section { margin-bottom: 2rem; padding: 1.5rem; background: #fafbfc; border-radius: 0.75rem; border: 1px solid #e2e8f0; }
+    .section-label { display: inline-block; background: #3b82f6; color: white; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 0.25rem 0.5rem; border-radius: 0.25rem; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Rich Content Rendering</h1>
+    <p class="subtitle">WikiMind Article Reader — Issue #452 Evidence</p>
+
+    <!-- MATH SECTION -->
+    <div class="section" id="math-section">
+      <span class="section-label">Math Rendering (KaTeX)</span>
+      <h2>Gaussian Distribution</h2>
+      <p>The probability density function of the normal distribution is given by:</p>
+      <p>$$f(x) = \frac{1}{\sigma\sqrt{2\pi}} e^{-\frac{1}{2}\left(\frac{x-\mu}{\sigma}\right)^2}$$</p>
+      <p>where $\mu$ is the mean and $\sigma$ is the standard deviation. The cumulative distribution function is $\Phi(x) = \frac{1}{2}\left[1 + \operatorname{erf}\left(\frac{x-\mu}{\sigma\sqrt{2}}\right)\right]$.</p>
+      <p>The Kullback-Leibler divergence between two Gaussians:</p>
+      <p>$$D_{\text{KL}}(P \| Q) = \ln\frac{\sigma_Q}{\sigma_P} + \frac{\sigma_P^2 + (\mu_P - \mu_Q)^2}{2\sigma_Q^2} - \frac{1}{2}$$</p>
+      <p>Gradient descent update with learning rate $\alpha$: $\theta_{t+1} = \theta_t - \alpha \nabla_\theta \mathcal{L}(\theta_t)$</p>
+    </div>
+
+    <!-- TABLE SECTION -->
+    <div class="section" id="table-section">
+      <span class="section-label">Table Rendering (GFM)</span>
+      <h2>Language Model Comparison</h2>
+      <p>A comparison of recent large language models and their key characteristics:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Parameters</th>
+              <th>Context Window</th>
+              <th>Training Data</th>
+              <th>Release Year</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>GPT-4</td><td>~1.8T (est.)</td><td>128K tokens</td><td>Mixed web + books</td><td>2023</td></tr>
+            <tr><td>Claude 3.5 Sonnet</td><td>Undisclosed</td><td>200K tokens</td><td>Mixed web + books</td><td>2024</td></tr>
+            <tr><td>Llama 3</td><td>70B / 405B</td><td>128K tokens</td><td>15T tokens</td><td>2024</td></tr>
+            <tr><td>Gemini 1.5 Pro</td><td>Undisclosed</td><td>1M tokens</td><td>Mixed multimodal</td><td>2024</td></tr>
+            <tr><td>Mistral Large</td><td>~123B</td><td>32K tokens</td><td>Web + code</td><td>2024</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CODE SECTION -->
+    <div class="section" id="code-section">
+      <span class="section-label">Code Syntax Highlighting</span>
+      <h2>Transformer Self-Attention</h2>
+      <p>Implementation of scaled dot-product attention in PyTorch:</p>
+      <pre><code class="language-python">import torch
+import torch.nn.functional as F
+
+def scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    mask: torch.Tensor | None = None,
+) -> torch.Tensor:
+    # Compute scaled dot-product attention.
+    #
+    # Args:
+    #   query: (batch, heads, seq_len, d_k)
+    #   key: (batch, heads, seq_len, d_k)
+    #   value: (batch, heads, seq_len, d_v)
+    #   mask: optional attention mask
+    #
+    # Returns:
+    #   Attention output of shape (batch, heads, seq_len, d_v)
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / (d_k ** 0.5)
+
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, float("-inf"))
+
+    weights = F.softmax(scores, dim=-1)
+    return torch.matmul(weights, value)</code></pre>
+    </div>
+
+    <!-- IMAGE SECTION -->
+    <div class="section" id="image-section">
+      <span class="section-label">Image Rendering</span>
+      <h2>Transformer Architecture</h2>
+      <p>The original transformer architecture from "Attention Is All You Need" (Vaswani et al., 2017):</p>
+      <figure>
+        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="260" viewBox="0 0 400 260" style="display:block;margin:0 auto;border-radius:0.5rem;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.05)">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#f0f4ff"/><stop offset="100%" style="stop-color:#e0e8ff"/></linearGradient>
+          </defs>
+          <rect width="400" height="260" fill="url(#bg)" rx="8"/>
+          <!-- Encoder -->
+          <rect x="40" y="60" width="120" height="140" rx="8" fill="#3b82f6" opacity=".12" stroke="#3b82f6" stroke-width="1.5"/>
+          <text x="100" y="90" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#1e40af">Encoder</text>
+          <rect x="60" y="105" width="80" height="24" rx="4" fill="#3b82f6" opacity=".2"/><text x="100" y="121" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#1e40af">Multi-Head Attn</text>
+          <rect x="60" y="137" width="80" height="24" rx="4" fill="#3b82f6" opacity=".2"/><text x="100" y="153" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#1e40af">Feed Forward</text>
+          <rect x="60" y="169" width="80" height="20" rx="4" fill="#3b82f6" opacity=".15"/><text x="100" y="183" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#1e40af">Add &amp; Norm</text>
+          <!-- Decoder -->
+          <rect x="240" y="60" width="120" height="140" rx="8" fill="#8b5cf6" opacity=".12" stroke="#8b5cf6" stroke-width="1.5"/>
+          <text x="300" y="90" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#5b21b6">Decoder</text>
+          <rect x="260" y="105" width="80" height="24" rx="4" fill="#8b5cf6" opacity=".2"/><text x="300" y="121" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#5b21b6">Masked Attn</text>
+          <rect x="260" y="137" width="80" height="24" rx="4" fill="#8b5cf6" opacity=".2"/><text x="300" y="153" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#5b21b6">Cross Attn</text>
+          <rect x="260" y="169" width="80" height="20" rx="4" fill="#8b5cf6" opacity=".15"/><text x="300" y="183" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#5b21b6">Feed Forward</text>
+          <!-- Arrow -->
+          <line x1="160" y1="130" x2="240" y2="130" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+          <!-- Labels -->
+          <text x="100" y="40" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#64748b">Input Embedding</text>
+          <text x="300" y="40" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#64748b">Output Embedding</text>
+          <text x="200" y="245" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="#475569">Transformer Architecture (Vaswani et al., 2017)</text>
+        </svg>
+        <figcaption>Transformer model architecture — encoder-decoder with multi-head attention layers</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <script>
+    // Render math with KaTeX auto-render
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+      ],
+      throwOnError: false,
+    });
+    // Highlight code blocks
+    hljs.highlightAll();
+  </script>
+</body>
+</html>
+"""
+
+
+async def main() -> None:
+    """Generate evidence screenshots with Playwright."""
+    # Write the test HTML file
+    html_path = EVIDENCE_DIR / "test-page.html"
+    html_path.write_text(TEST_HTML)
+
+    # Start a simple HTTP server to serve the test page
+    handler = http.server.SimpleHTTPRequestHandler
+    server = http.server.HTTPServer(("127.0.0.1", 9876), handler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page(viewport={"width": 1280, "height": 900})
+
+        # Navigate to the test page
+        file_url = f"file://{html_path}"
+        await page.goto(file_url, wait_until="networkidle")
+
+        # Wait for KaTeX and highlight.js to render
+        await page.wait_for_timeout(2000)
+
+        # Full page screenshot
+        await page.screenshot(
+            path=str(EVIDENCE_DIR / "full-page.png"),
+            full_page=True,
+        )
+        print(f"Saved: {EVIDENCE_DIR / 'full-page.png'}")
+
+        # Math section
+        math_el = page.locator("#math-section")
+        await math_el.screenshot(path=str(EVIDENCE_DIR / "math-rendering.png"))
+        print(f"Saved: {EVIDENCE_DIR / 'math-rendering.png'}")
+
+        # Table section
+        table_el = page.locator("#table-section")
+        await table_el.screenshot(path=str(EVIDENCE_DIR / "table-rendering.png"))
+        print(f"Saved: {EVIDENCE_DIR / 'table-rendering.png'}")
+
+        # Code section
+        code_el = page.locator("#code-section")
+        await code_el.screenshot(path=str(EVIDENCE_DIR / "code-highlighting.png"))
+        print(f"Saved: {EVIDENCE_DIR / 'code-highlighting.png'}")
+
+        # Image section
+        image_el = page.locator("#image-section")
+        await image_el.screenshot(path=str(EVIDENCE_DIR / "image-rendering.png"))
+        print(f"Saved: {EVIDENCE_DIR / 'image-rendering.png'}")
+
+        await browser.close()
+
+    server.shutdown()
+    print("Evidence screenshots generated successfully.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

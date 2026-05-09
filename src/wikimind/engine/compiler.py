@@ -142,6 +142,13 @@ Rules:
 - article_body must be substantive -- at least 300 words
 - Never fabricate quotes or statistics not in the source
 - For concepts: reuse existing concept names when they match your intent -- do not invent synonyms or near-duplicates
+
+Rich content preservation:
+- Math: if the source contains mathematical expressions, reproduce them in LaTeX using $...$ for inline math and $$...$$ for display math blocks. Copy formulas verbatim from the source -- do not simplify or rewrite them.
+- Tables: if the source contains tabular data, reproduce it as GitHub-flavored markdown tables (pipe-delimited). Preserve column headers and data exactly.
+- Code: if the source contains code snippets, reproduce them in fenced code blocks (```language). Preserve the code exactly as it appears in the source.
+- Images: if the source references images, preserve the markdown image syntax ![alt](url) with the original URL or path. Do not remove or rewrite image references.
+- These rich content blocks are OPAQUE -- do not paraphrase, summarize, or rewrite their contents. They must survive round-trip compilation unchanged.
 """
 
 

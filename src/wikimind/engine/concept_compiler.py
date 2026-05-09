@@ -48,6 +48,13 @@ Produce a synthesis: Overview, Key Themes (JSON list), Consensus & Conflicts,
 Open Questions (JSON list), Timeline, Sources Summary, Article Body (## headings, 300+ words),
 Related Concepts (JSON list).
 
+Rich content rules for article_body:
+- Preserve math expressions in LaTeX: $...$ inline, $$...$$ display blocks. Copy formulas verbatim from source articles.
+- Preserve markdown tables (pipe-delimited) from source articles.
+- Preserve fenced code blocks (```language) from source articles.
+- Preserve image references ![alt](url) from source articles.
+- These blocks are opaque -- do not paraphrase or rewrite their contents.
+
 Output as JSON:
 {{"title": "string", "overview": "string", "key_themes": ["string"],
 "consensus_conflicts": "string", "open_questions": ["string"],
