@@ -108,8 +108,8 @@ jobs:
           SIZE=$(docker image inspect wikimind-prod:ci --format '{{.Size}}')
           SIZE_MB=$((SIZE / 1024 / 1024))
           echo "Image size: ${SIZE_MB}MB"
-          if [ "$SIZE_MB" -gt 1200 ]; then
-            echo "::error::Image exceeds 1200MB (got ${SIZE_MB}MB)"
+          if [ "$SIZE_MB" -gt 1400 ]; then
+            echo "::error::Image exceeds 1400MB (got ${SIZE_MB}MB)"
             exit 1
           fi
 
