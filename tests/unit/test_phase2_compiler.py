@@ -20,7 +20,7 @@ from wikimind.models import (
     Article,
     Backlink,
     CompilationResult,
-    CompiledClaim,
+    CompiledClaimDTO,
     CompletionResponse,
     Concept,
     ConfidenceLevel,
@@ -38,7 +38,7 @@ def _result(**overrides):
     defaults = {
         "title": "Test Article",
         "summary": "A two sentence summary. It explains things.",
-        "key_claims": [CompiledClaim(claim="X", confidence=ConfidenceLevel.SOURCED)],
+        "key_claims": [CompiledClaimDTO(claim="X", confidence=ConfidenceLevel.SOURCED)],
         "concepts": ["test-concept"],
         "backlink_suggestions": ["Related"],
         "open_questions": ["Q?"],

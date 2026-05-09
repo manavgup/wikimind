@@ -214,6 +214,24 @@ class LinterConfig(BaseModel):
     auto_recompile_on_contradiction: bool = True
 
 
+class ConceptLayerConfig(BaseModel):
+    """Concept-layer clustering configuration (issue #466).
+
+    Controls the two-stage concept clustering pipeline: online (advisory)
+    labeling at ingest time, and offline reconciliation by the batch reconciler.
+    """
+
+    embedding_backend: Literal["bge-small", "openai"] = "bge-small"
+    embedding_dim: int = 384
+    embedding_version: str = "bge-small-1.5"
+    auto_join_threshold: float = 0.85
+    tiebreaker_threshold: float = 0.70
+    cluster_promote_min_members: int = 2
+    cluster_canonical_refresh_min_members: int = 5
+    cluster_size_split_threshold: int = 100
+    reconciler_min_interval_minutes: int = 60
+
+
 class EmbeddingConfig(BaseModel):
     """Embedding and semantic search configuration."""
 
@@ -299,6 +317,7 @@ class Settings(BaseSettings):
     linter: LinterConfig = Field(default_factory=LinterConfig)
     staleness: StalenessConfig = Field(default_factory=StalenessConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    concept_layer: ConceptLayerConfig = Field(default_factory=ConceptLayerConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
 
     # Storage backend: "local" creates wiki/ and raw/ on the local filesystem;

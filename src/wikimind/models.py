@@ -61,7 +61,6 @@ class IngestStatus(StrEnum):
 
     PENDING = "pending"
     PROCESSING = "processing"
-    REVIEW_PENDING = "review_pending"
     COMPILED = "compiled"
     FAILED = "failed"
 
@@ -73,6 +72,27 @@ class ConfidenceLevel(StrEnum):
     MIXED = "mixed"  # Mix of source + inference
     INFERRED = "inferred"  # LLM synthesis
     OPINION = "opinion"  # Author's stated opinion
+
+
+class ClusterStatus(StrEnum):
+    """Lifecycle status of a concept cluster.
+
+    Progression: candidate -> active -> archived | superseded | rejected.
+    See issue #466 for status semantics.
+    """
+
+    CANDIDATE = "candidate"  # singleton or unconfirmed; hidden from default views
+    ACTIVE = "active"  # promoted (member_count >= 2, reconciled)
+    ARCHIVED = "archived"  # no reinforcement for >N months; recoverable
+    SUPERSEDED = "superseded"  # merged into another cluster; superseded_by redirects
+    REJECTED = "rejected"  # flagged as bad cluster; kept as negative training data
+
+
+class ClaimConceptRole(StrEnum):
+    """Role of a claim's relationship to a concept cluster."""
+
+    SUBJECT = "subject"
+    MENTIONED = "mentioned"
 
 
 class CaptureKind(StrEnum):
@@ -601,25 +621,73 @@ class RssFeed(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
-class CompilationDraft(SQLModel, table=True):
-    """Draft compilation output awaiting user review before finalizing.
+class CompiledClaim(SQLModel, table=True):
+    """A persisted compiled claim extracted from a source article (issue #466).
 
-    Created when ``compilation.interactive`` is enabled. The LLM extracts
-    key takeaways and a draft article; the user reviews, optionally adds
-    guidance, and approves or rejects before the article is saved to the wiki.
+    Promoted from the Pydantic-only ``CompiledClaimDTO`` to a first-class table
+    so that claims are individually queryable, linkable to concept clusters,
+    and carry their own embedding for semantic similarity.
     """
+
+    __tablename__ = "compiled_claim"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    text: str  # The claim text
+    subjects: str = "[]"  # JSON list[str]: LLM-extracted canonical subject names
+    predicate: str | None = None  # LLM-extracted predicate (nullable initially)
+    confidence_level: str  # ConfidenceLevel enum value
+    confidence_score: float = Field(default=0.5)  # numeric, reused from #422
+    source_ids: str = "[]"  # JSON list of source UUIDs supporting this claim
+    last_reinforced_at: datetime = Field(default_factory=utcnow_naive)
+    quote: str | None = None
+    embedding: bytes | None = None  # raw float32 array; nullable until embedding runs
+    embedding_version: str | None = None  # e.g. "bge-small-1.5"
+    cluster_assignment_reconciled: bool = False
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class ConceptCluster(SQLModel, table=True):
+    """An implicit concept cluster derived from compiled claim subjects (issue #466).
+
+    Clusters group semantically related claims by subject. The two-stage pipeline
+    assigns claims to clusters: online (advisory) at ingest time, offline
+    (reconciled) by the batch reconciler.
+    """
+
+    __tablename__ = "concept_cluster"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
-    source_id: str = Field(foreign_key="source.id", index=True)
-    title: str
-    summary: str
-    key_takeaways: str  # JSON array of strings
-    draft_result_json: str  # Serialized CompilationResult
-    user_guidance: str | None = None  # User-provided focus direction
-    status: str = "pending"  # pending | approved | rejected
+    canonical_text: str  # canonical subject name
+    centroid_embedding: bytes | None = None  # raw float32 array
+    embedding_version: str | None = None  # centroid valid only for this version
+    member_count: int = 0
+    status: str = Field(default=ClusterStatus.CANDIDATE)  # ClusterStatus enum value
+    superseded_by: str | None = Field(default=None, foreign_key="concept_cluster.id")
+    last_reinforced_at: datetime = Field(default_factory=utcnow_naive)
+    last_reconciled_at: datetime | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
-    reviewed_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=utcnow_naive)
+
+
+class ClaimConcept(SQLModel, table=True):
+    """Join table linking compiled claims to concept clusters (issue #466).
+
+    ``advisory=True`` is the default at ingest time — the online clusterer's
+    best guess. The offline reconciler sets ``advisory=False`` and updates
+    ``CompiledClaim.cluster_assignment_reconciled=True``.
+    """
+
+    __tablename__ = "claim_concept"
+
+    claim_id: str = Field(foreign_key="compiled_claim.id", primary_key=True)
+    concept_id: str = Field(foreign_key="concept_cluster.id", primary_key=True, index=True)
+    role: str = Field(primary_key=True)  # ClaimConceptRole enum value
+    advisory: bool = True  # TRUE until offline reconciler confirms
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class CompilationSchema(SQLModel, table=True):
@@ -682,12 +750,19 @@ class NormalizedDocument(BaseModel):
     chunks: list[DocumentChunk] = []
 
 
-class CompiledClaim(BaseModel):
-    """A single compiled claim from a source."""
+class CompiledClaimDTO(BaseModel):
+    """A single compiled claim from a source (pipeline DTO).
+
+    This Pydantic model carries claim data through the ingest/compile pipeline.
+    For the persisted table, see :class:`CompiledClaim` (SQLModel table).
+    """
 
     claim: str
     confidence: ConfidenceLevel
+    subjects: list[str] = []  # LLM-extracted canonical subject names
+    predicate: str | None = None  # LLM-extracted predicate
     quote: str | None = None  # Direct quote < 15 words if critical
+    source_ids: list[str] = []  # Source UUIDs supporting this claim
 
 
 class CompilationResult(BaseModel):
@@ -695,7 +770,7 @@ class CompilationResult(BaseModel):
 
     title: str
     summary: str
-    key_claims: list[CompiledClaim]
+    key_claims: list[CompiledClaimDTO]
     concepts: list[str]
     backlink_suggestions: list[str]
     open_questions: list[str]
@@ -1793,41 +1868,6 @@ class SavedSearchExecuteResponse(BaseModel):
 
     saved_search: SavedSearchResponse
     articles: list[ArticleSummaryResponse]
-
-
-class CompilationDraftResponse(BaseModel):
-    """API response for a compilation draft awaiting review."""
-
-    id: str
-    source_id: str
-    title: str
-    summary: str
-    key_takeaways: list[str]
-    draft_body: str
-    status: str
-    created_at: datetime
-    reviewed_at: datetime | None = None
-
-
-class ApproveDraftRequest(BaseModel):
-    """Request to approve a draft, optionally with user guidance."""
-
-    guidance: str | None = None
-
-
-class ApproveDraftResponse(BaseModel):
-    """Response after approving a compilation draft."""
-
-    status: str
-    article_slug: str
-    article_title: str
-
-
-class RejectDraftResponse(BaseModel):
-    """Response after rejecting a compilation draft."""
-
-    status: str
-    source_id: str
 
 
 # ---------------------------------------------------------------------------

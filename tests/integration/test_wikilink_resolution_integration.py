@@ -25,7 +25,7 @@ from wikimind.models import (
     Article,
     Backlink,
     CompilationResult,
-    CompiledClaim,
+    CompiledClaimDTO,
     ConfidenceLevel,
     IngestStatus,
     Source,
@@ -76,7 +76,7 @@ async def test_wikilink_resolution_end_to_end(
         title="New Compiled Article",
         summary="Two sentence summary. For integration test.",
         key_claims=[
-            CompiledClaim(claim="test claim", confidence=ConfidenceLevel.SOURCED),
+            CompiledClaimDTO(claim="test claim", confidence=ConfidenceLevel.SOURCED),
         ],
         concepts=["test"],
         backlink_suggestions=["Existing Target", "Nonexistent Topic"],
