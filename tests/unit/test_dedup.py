@@ -29,7 +29,7 @@ from wikimind.jobs import background as bg
 from wikimind.models import (
     Article,
     CompilationResult,
-    CompiledClaim,
+    CompiledClaimDTO,
     ConfidenceLevel,
     IngestStatus,
     NormalizedDocument,
@@ -79,7 +79,7 @@ def _sample_compilation_result(title: str = "Sample") -> CompilationResult:
     return CompilationResult(
         title=title,
         summary="A two-sentence summary. It exists for testing.",
-        key_claims=[CompiledClaim(claim="The sky is blue", confidence=ConfidenceLevel.SOURCED)],
+        key_claims=[CompiledClaimDTO(claim="The sky is blue", confidence=ConfidenceLevel.SOURCED)],
         concepts=["test-concept"],
         backlink_suggestions=[],
         open_questions=[],

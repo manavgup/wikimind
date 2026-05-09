@@ -119,6 +119,8 @@ _MOCK_COMPILE_RESPONSE: dict = {
     "key_claims": [
         {
             "claim": "This article was produced by the mock LLM provider.",
+            "subjects": ["mock-llm-provider"],
+            "predicate": "produced",
             "confidence": "sourced",
             "quote": "mock provider",
         }

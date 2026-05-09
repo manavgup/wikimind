@@ -18,7 +18,7 @@ from wikimind.models import (
     Article,
     Backlink,
     CompilationResult,
-    CompiledClaim,
+    CompiledClaimDTO,
     CompletionResponse,
     Concept,
     ConfidenceLevel,
@@ -31,11 +31,11 @@ from wikimind.models import (
 )
 
 
-def _result(claims: list[CompiledClaim] | None = None, concepts: list[str] | None = None) -> CompilationResult:
+def _result(claims: list[CompiledClaimDTO] | None = None, concepts: list[str] | None = None) -> CompilationResult:
     return CompilationResult(
         title="Test Article",
         summary="A two sentence summary. It explains things.",
-        key_claims=claims or [CompiledClaim(claim="X", confidence=ConfidenceLevel.SOURCED)],
+        key_claims=claims or [CompiledClaimDTO(claim="X", confidence=ConfidenceLevel.SOURCED)],
         concepts=concepts or ["test-concept"],
         backlink_suggestions=["Related"],
         open_questions=["Q?"],
@@ -172,15 +172,15 @@ def test_overall_confidence_no_claims() -> None:
 
 def test_overall_confidence_sourced() -> None:
     c = _make_compiler()
-    r = _result(claims=[CompiledClaim(claim=f"c{i}", confidence=ConfidenceLevel.SOURCED) for i in range(5)])
+    r = _result(claims=[CompiledClaimDTO(claim=f"c{i}", confidence=ConfidenceLevel.SOURCED) for i in range(5)])
     assert c._overall_confidence(r) == ConfidenceLevel.SOURCED
 
 
 def test_overall_confidence_mixed() -> None:
     c = _make_compiler()
     claims = [
-        CompiledClaim(claim="a", confidence=ConfidenceLevel.SOURCED),
-        CompiledClaim(claim="b", confidence=ConfidenceLevel.INFERRED),
+        CompiledClaimDTO(claim="a", confidence=ConfidenceLevel.SOURCED),
+        CompiledClaimDTO(claim="b", confidence=ConfidenceLevel.INFERRED),
     ]
     assert c._overall_confidence(_result(claims=claims)) == ConfidenceLevel.MIXED
 
@@ -188,9 +188,9 @@ def test_overall_confidence_mixed() -> None:
 def test_overall_confidence_inferred() -> None:
     c = _make_compiler()
     claims = [
-        CompiledClaim(claim="a", confidence=ConfidenceLevel.INFERRED),
-        CompiledClaim(claim="b", confidence=ConfidenceLevel.INFERRED),
-        CompiledClaim(claim="c", confidence=ConfidenceLevel.SOURCED),
+        CompiledClaimDTO(claim="a", confidence=ConfidenceLevel.INFERRED),
+        CompiledClaimDTO(claim="b", confidence=ConfidenceLevel.INFERRED),
+        CompiledClaimDTO(claim="c", confidence=ConfidenceLevel.SOURCED),
     ]
     # 1/3 sourced -> inferred
     assert c._overall_confidence(_result(claims=claims)) == ConfidenceLevel.INFERRED
@@ -263,7 +263,7 @@ async def test_write_article_file_no_concepts(tmp_path) -> None:
     r = CompilationResult(
         title="t",
         summary="s. s.",
-        key_claims=[CompiledClaim(claim="x", confidence=ConfidenceLevel.SOURCED)],
+        key_claims=[CompiledClaimDTO(claim="x", confidence=ConfidenceLevel.SOURCED)],
         concepts=[],
         backlink_suggestions=[],
         open_questions=[],
@@ -348,7 +348,7 @@ def _result_with_backlinks(
         title=title,
         summary="A two-sentence summary. For testing.",
         key_claims=[
-            CompiledClaim(claim="test claim", confidence=ConfidenceLevel.SOURCED),
+            CompiledClaimDTO(claim="test claim", confidence=ConfidenceLevel.SOURCED),
         ],
         concepts=["test-concept"],
         backlink_suggestions=backlink_suggestions or [],
