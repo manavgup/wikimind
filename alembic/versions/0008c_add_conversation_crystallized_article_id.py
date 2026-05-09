@@ -1,7 +1,7 @@
 """Add crystallized_article_id to conversation table.
 
-Revision ID: 0008
-Revises: 0007
+Revision ID: 0008c
+Revises: 0008b
 Create Date: 2026-05-07
 
 Tracks which synthesis article was created when a conversation is
@@ -16,8 +16,8 @@ from sqlalchemy import inspect as sa_inspect
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0008"
-down_revision: str = "0007"
+revision: str = "0008c"
+down_revision: str = "0008b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
