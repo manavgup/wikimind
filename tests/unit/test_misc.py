@@ -350,7 +350,7 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
 
     # Create tables without running versioned migrations so we can insert
     # a legacy Query row first, then let init_db() backfill it.
-    from sqlmodel import SQLModel as _SM  # noqa: PLC0415
+    from sqlmodel import SQLModel as _SM
 
     engine = db_mod.get_async_engine()
     async with engine.begin() as conn:

@@ -56,6 +56,5 @@ def downgrade() -> None:
         with op.batch_alter_table("article") as batch_op:
             if _column_exists(conn, "article", "is_stub"):
                 batch_op.drop_column("is_stub")
-    else:
-        if _column_exists(conn, "article", "is_stub"):
-            op.drop_column("article", "is_stub")
+    elif _column_exists(conn, "article", "is_stub"):
+        op.drop_column("article", "is_stub")

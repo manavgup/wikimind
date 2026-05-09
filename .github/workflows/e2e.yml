@@ -131,13 +131,13 @@ jobs:
       # -----------------------------------------------------------
       - name: 🌱  Seed wiki with fixture article
         run: |
-          curl -sf -X POST http://127.0.0.1:7842/ingest/text \
+          curl -sf -X POST http://127.0.0.1:7842/api/ingest/text \
             -H "Content-Type: application/json" \
             -d '{"content":"WikiMind is a personal LLM-powered knowledge OS that ingests sources, compiles them into wiki articles, and answers questions against the wiki. It closes the Karpathy loop by filing conversations back into the wiki as new articles.","title":"WikiMind Overview","auto_compile":true}'
           echo ""
           echo "Waiting for in-process compile to complete..."
           for i in {1..30}; do
-            count=$(curl -sf http://127.0.0.1:7842/wiki/articles | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+            count=$(curl -sf http://127.0.0.1:7842/api/wiki/articles | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
             if [ "$count" -gt 0 ]; then
               echo "Wiki seeded with ${count} article(s) after ${i}s"
               break

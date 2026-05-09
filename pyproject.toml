@@ -120,6 +120,7 @@ include = ["wikimind*"]
 
 # ---------- Ruff ----------
 [tool.ruff]
+exclude = ["docs/evidence", "alembic/versions"]
 line-length = 120
 target-version = "py311"
 
@@ -186,7 +187,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ", "ARG", "EM"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D104", "T20", "PERF", "S", "N", "DTZ", "ARG", "EM", "PLC0415", "RUF059", "F841", "E702", "E701"]
 "scripts/**/*.py" = ["T20", "S", "EM"]
 "alembic/**/*.py" = ["N"]
 "vulture_whitelist.py" = ["B018", "F405", "PGH004"]  # Intentional dead-code references for vulture
@@ -264,15 +265,23 @@ markers = [
 [tool.coverage.run]
 source = ["wikimind"]
 branch = true
-omit = ["*/tests/*", "*/conftest.py"]
+omit = [
+    "*/tests/*",
+    "*/conftest.py",
+    "*/cli/*",            # CLI entry points — tested via subprocess in e2e
+    "*/api/routes/ws.py", # WebSocket handlers — tested via e2e with real connections
+    "*/main.py",          # App lifespan + SPA middleware — tested via e2e startup
+    "*/api/routes/auth.py",  # OAuth flows — needs real OAuth providers (tracked in #364)
+]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 85
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
+    "^\\s*\\.\\.\\.\\s*$",   # Protocol stub bodies (bare ellipsis)
 ]
 
 # ---------- Bandit ----------

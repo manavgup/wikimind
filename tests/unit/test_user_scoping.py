@@ -344,7 +344,7 @@ class TestEmbeddingServiceUserScoping:
         reason="search extras not installed",
     )
     def test_embed_article_includes_user_id_metadata(self) -> None:
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
+        from wikimind.services.embedding import EmbeddingService
 
         with (
             patch.object(EmbeddingService, "__init__", lambda self: None),
@@ -380,7 +380,7 @@ class TestEmbeddingServiceUserScoping:
         reason="search extras not installed",
     )
     def test_search_passes_user_id_filter(self) -> None:
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
+        from wikimind.services.embedding import EmbeddingService
 
         with (
             patch.object(EmbeddingService, "__init__", lambda self: None),

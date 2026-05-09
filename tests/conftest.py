@@ -104,7 +104,7 @@ def _reset_fts_ready() -> Iterator[None]:
     before every test ensures FTS write helpers no-op unless the current
     test explicitly creates the FTS table.
     """
-    import wikimind.services.search as _search_mod  # noqa: PLC0415
+    import wikimind.services.search as _search_mod
 
     _search_mod._fts_ready = False
     yield
