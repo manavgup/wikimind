@@ -1,7 +1,7 @@
 """Add source_newest_at to article and create reinforcement_event table.
 
-Revision ID: 0008
-Revises: 0007
+Revision ID: 0008d
+Revises: 0008c
 Create Date: 2026-05-07
 
 Adds staleness detection infrastructure (issue #425):
@@ -17,8 +17,8 @@ from sqlalchemy import inspect as sa_inspect
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0008"
-down_revision: str = "0007"
+revision: str = "0008d"
+down_revision: str = "0008c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
