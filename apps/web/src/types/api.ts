@@ -173,6 +173,36 @@ export interface TriggerCompileResponse {
   status: string;
 }
 
+export interface SearchResult {
+  article_id: string;
+  slug: string;
+  title: string;
+  snippet: string;
+  rank: number;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  total: number;
+  query: string;
+}
+
+export interface FacetBucket {
+  value: string;
+  count: number;
+}
+
+export interface FacetGroup {
+  name: string;
+  buckets: FacetBucket[];
+}
+
+export interface FacetResponse {
+  facets: FacetGroup[];
+  total: number;
+  query: string;
+}
+
 export interface GraphNode {
   id: string;
   label: string;

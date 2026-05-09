@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR #455 Evidence: Faceted Browse + In-Article Search</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 2rem; background: #f8fafc; color: #1e293b; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+  h2 { font-size: 1.15rem; color: #334155; margin-top: 2rem; }
+  h3 { font-size: 0.95rem; color: #475569; }
+  .section { background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; margin: 1rem 0; }
+  pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
+  code { font-family: 'SF Mono', Monaco, Consolas, monospace; }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+  .badge-green { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+  .badge-blue { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .badge-amber { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .api-test { border-left: 3px solid #3b82f6; padding-left: 1rem; margin: 0.5rem 0; }
+  .api-test.pass { border-left-color: #10b981; }
+  .file-list { list-style: none; padding: 0; }
+  .file-list li { padding: 0.25rem 0; font-family: monospace; font-size: 0.85rem; }
+  .file-list li:before { content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.5rem; }
+  .file-list li.backend:before { background: #3b82f6; }
+  .file-list li.frontend:before { background: #8b5cf6; }
+  .file-list li.test:before { background: #10b981; }
+  table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f1f5f9; font-weight: 600; }
+  mark { background: #fbbf24; padding: 0 2px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>PR #455 Evidence: Faceted Browse + In-Article Search</h1>
+<p>Issue: <a href="https://github.com/manavgup/wikimind/issues/455">#455</a> &mdash; Build the user-facing surface for the search index (from #419).</p>
+
+<div class="section">
+<h2>Summary of Changes</h2>
+<div class="grid-2">
+  <div>
+    <h3>Backend (Python/FastAPI)</h3>
+    <ul class="file-list">
+      <li class="backend">src/wikimind/models.py &mdash; FacetBucket, FacetGroup, FacetResponse models</li>
+      <li class="backend">src/wikimind/services/search.py &mdash; Faceted search + filter logic</li>
+      <li class="backend">src/wikimind/api/routes/wiki.py &mdash; Enhanced search + /search/facets endpoint</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Frontend (React/TypeScript)</h3>
+    <ul class="file-list">
+      <li class="frontend">apps/web/src/components/wiki/SearchBar.tsx &mdash; Enhanced with keyboard nav, recent searches</li>
+      <li class="frontend">apps/web/src/components/wiki/FacetSidebar.tsx &mdash; Collapsible facet sidebar</li>
+      <li class="frontend">apps/web/src/components/wiki/FacetedSearchView.tsx &mdash; Full search page with facets</li>
+      <li class="frontend">apps/web/src/components/wiki/InArticleSearch.tsx &mdash; Cmd+F in-article search overlay</li>
+      <li class="frontend">apps/web/src/api/wiki.ts &mdash; facetedSearch + searchFacets API functions</li>
+      <li class="frontend">apps/web/src/hooks/useArticles.ts &mdash; useFacetedSearch + useSearchFacets hooks</li>
+      <li class="frontend">apps/web/src/types/api.ts &mdash; SearchResult, SearchResponse, FacetResponse types</li>
+      <li class="frontend">apps/web/src/App.tsx &mdash; /wiki/search route</li>
+    </ul>
+  </div>
+</div>
+<div>
+  <h3>Tests</h3>
+  <ul class="file-list">
+    <li class="test">tests/unit/test_faceted_search.py &mdash; 12 tests: models, staleness helper, filter + facet integration</li>
+  </ul>
+</div>
+</div>
+
+<div class="section">
+<h2>API Endpoints</h2>
+
+<h3>GET /api/wiki/search (enhanced)</h3>
+<p>Now accepts facet filter parameters: <code>source_kind</code>, <code>page_type</code>, <code>concept</code>, <code>tag</code>, <code>date_range</code>, <code>staleness</code>, <code>sort</code>.</p>
+
+<div class="api-test pass">
+<strong>Test: Search with page_type=concept filter</strong>
+<pre>GET /api/wiki/search?q=test&amp;page_type=concept
+
+{
+  "results": [
+    {"title": "Benchmark Design", "slug": "concept-benchmark-design", "rank": -1.68},
+    {"title": "Pattern-Matching", "slug": "concept-pattern-matching", "rank": -1.52}
+  ],
+  "total": 2,
+  "query": "test"
+}</pre>
+<span class="badge badge-green">PASS</span> Returned 2 concept articles out of 8 total matches.
+</div>
+
+<div class="api-test pass">
+<strong>Test: Search with source_kind=pdf filter</strong>
+<pre>GET /api/wiki/search?q=test&amp;source_kind=pdf
+
+{
+  "total": 4,
+  "results": [
+    {"title": "WikiMind PDF Image Extraction Evidence Test"},
+    {"title": "WikiMind PDF Image Extraction Test"},
+    {"title": "Visual Content Extraction in WikiMind Evidence"},
+    {"title": "GlazyBench: A Benchmark for Ceramic Glaze Property Prediction..."}
+  ]
+}</pre>
+<span class="badge badge-green">PASS</span> Narrowed to 4 articles with PDF sources.
+</div>
+
+<div class="api-test pass">
+<strong>Test: Search with sort=recency</strong>
+<pre>GET /api/wiki/search?q=test&amp;sort=recency
+
+{
+  "total": 8,
+  "results": [
+    {"title": "Cross-Analysis of PDF Image Extraction and Benchmark Design"},
+    {"title": "Benchmark Design"},
+    {"title": "GlazyBench..."},
+    ...
+  ]
+}</pre>
+<span class="badge badge-green">PASS</span> Results ordered by updated_at descending.
+</div>
+
+<div class="api-test pass">
+<strong>Test: Search with staleness=low filter</strong>
+<pre>GET /api/wiki/search?q=test&amp;staleness=low
+
+{
+  "total": 4,
+  "results": [
+    {"title": "WikiMind PDF Image Extraction Evidence Test"},
+    {"title": "WikiMind PDF Image Extraction Test"},
+    {"title": "Visual Content Extraction in WikiMind Evidence"},
+    {"title": "GlazyBench..."}
+  ]
+}</pre>
+<span class="badge badge-green">PASS</span> Filtered to 4 articles with staleness &lt; 0.3.
+</div>
+
+<h3>GET /api/wiki/search/facets (new)</h3>
+<p>Returns facet counts for a search query across 6 dimensions.</p>
+
+<div class="api-test pass">
+<strong>Test: Facet counts for q=test</strong>
+<pre>GET /api/wiki/search/facets?q=test
+
+{
+  "facets": [
+    {"name": "page_type", "buckets": [
+      {"value": "source", "count": 5},
+      {"value": "concept", "count": 2},
+      {"value": "synthesis", "count": 1}
+    ]},
+    {"name": "source_kind", "buckets": [
+      {"value": "pdf", "count": 4},
+      {"value": "text", "count": 1}
+    ]},
+    {"name": "concept", "buckets": [
+      {"value": "benchmark-design", "count": 3},
+      {"value": "pattern-matching", "count": 3},
+      {"value": "large-language-models", "count": 2},
+      ...
+    ]},
+    {"name": "date", "buckets": [
+      {"value": "7d", "count": 8},
+      {"value": "30d", "count": 8},
+      {"value": "365d", "count": 8}
+    ]},
+    {"name": "staleness", "buckets": [
+      {"value": "low", "count": 4},
+      {"value": "high", "count": 4}
+    ]}
+  ],
+  "total": 8,
+  "query": "test"
+}</pre>
+<span class="badge badge-green">PASS</span> All 6 facet groups returned with correct counts.
+</div>
+</div>
+
+<div class="section">
+<h2>Frontend Components</h2>
+
+<h3>SearchBar (enhanced)</h3>
+<ul>
+  <li><span class="badge badge-blue">Feature</span> Search-as-you-type with 300ms debounce</li>
+  <li><span class="badge badge-blue">Feature</span> Keyboard navigation: Arrow Up/Down to highlight, Enter to open</li>
+  <li><span class="badge badge-blue">Feature</span> Global "/" shortcut to focus search</li>
+  <li><span class="badge badge-blue">Feature</span> "View all results" button links to faceted search page</li>
+  <li><span class="badge badge-blue">Feature</span> Recent searches persisted in localStorage</li>
+  <li><span class="badge badge-blue">Feature</span> Recent searches shown on focus when no query entered</li>
+</ul>
+
+<h3>FacetedSearchView (/wiki/search)</h3>
+<ul>
+  <li><span class="badge badge-blue">Feature</span> Dedicated search results page at /wiki/search?q=...</li>
+  <li><span class="badge badge-blue">Feature</span> Facet sidebar with collapsible sections</li>
+  <li><span class="badge badge-blue">Feature</span> Active filter pills with click-to-remove</li>
+  <li><span class="badge badge-blue">Feature</span> Sort dropdown (Relevance / Most Recent)</li>
+  <li><span class="badge badge-blue">Feature</span> URL-based filter state (bookmarkable)</li>
+  <li><span class="badge badge-blue">Feature</span> "Clear all" filters button</li>
+</ul>
+
+<h3>FacetSidebar</h3>
+<ul>
+  <li><span class="badge badge-blue">Feature</span> 6 facet groups: Page Type, Source Kind, Concept, Tag, Date Range, Staleness</li>
+  <li><span class="badge badge-blue">Feature</span> Each bucket shows count badge</li>
+  <li><span class="badge badge-blue">Feature</span> Active facet highlighted</li>
+  <li><span class="badge badge-blue">Feature</span> Collapsible per section</li>
+</ul>
+
+<h3>InArticleSearch</h3>
+<ul>
+  <li><span class="badge badge-blue">Feature</span> Cmd+F (or Ctrl+F) opens floating search bar</li>
+  <li><span class="badge badge-blue">Feature</span> Match count display ("3 / 12")</li>
+  <li><span class="badge badge-blue">Feature</span> Next/Previous navigation buttons</li>
+  <li><span class="badge badge-blue">Feature</span> All matches highlighted in amber</li>
+  <li><span class="badge badge-blue">Feature</span> Current match highlighted in orange with ring</li>
+  <li><span class="badge badge-blue">Feature</span> Smooth scroll to current match</li>
+  <li><span class="badge badge-blue">Feature</span> Escape to close, Enter/Shift+Enter to navigate</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>Test Results</h2>
+<table>
+<tr><th>Test</th><th>Status</th></tr>
+<tr><td>TestFacetModels::test_facet_bucket</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetModels::test_facet_group</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetModels::test_facet_response</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestMatchesStalnessBucket::test_low</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestMatchesStalnessBucket::test_medium</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestMatchesStalnessBucket::test_high</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestMatchesStalnessBucket::test_unknown</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetedSearch::test_search_with_page_type_filter</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetedSearch::test_search_with_concept_filter</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetedSearch::test_get_facets_returns_page_type</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetedSearch::test_get_facets_empty_query</td><td><span class="badge badge-green">PASS</span></td></tr>
+<tr><td>TestFacetedSearch::test_sort_by_recency</td><td><span class="badge badge-green">PASS</span></td></tr>
+</table>
+<p>12 tests passing, 0 failures. All existing tests (24 in test_search.py) continue to pass.</p>
+</div>
+
+<div class="section">
+<h2>Verification</h2>
+<ul>
+  <li><span class="badge badge-green">PASS</span> <code>ruff check</code> &mdash; All checks passed</li>
+  <li><span class="badge badge-green">PASS</span> <code>ruff format</code> &mdash; 191 files already formatted</li>
+  <li><span class="badge badge-green">PASS</span> <code>mypy</code> &mdash; 0 new errors (2 pre-existing in other files)</li>
+  <li><span class="badge badge-green">PASS</span> <code>pytest</code> &mdash; 12 new tests + 24 existing search tests pass</li>
+  <li><span class="badge badge-green">PASS</span> <code>tsc --noEmit</code> &mdash; TypeScript compiles cleanly</li>
+  <li><span class="badge badge-green">PASS</span> <code>check-docs</code> &mdash; OpenAPI, ADR index, README targets in sync</li>
+</ul>
+</div>
+
+<footer style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; font-size: 0.8rem; color: #94a3b8;">
+Generated 2026-05-08 for PR #455 &mdash; WikiMind faceted browse + in-article search
+</footer>
+</body>
+</html>

@@ -12,6 +12,7 @@ import { BacklinkPanel } from "./BacklinkPanel";
 import { ConceptTree } from "./ConceptTree";
 import { CreateStubModal } from "./CreateStubModal";
 import { FiguresPanel } from "./FiguresPanel";
+import { InArticleSearch } from "./InArticleSearch";
 import { SavedSearches } from "./SavedSearches";
 import { SearchBar } from "./SearchBar";
 import { SourcePanel } from "./SourcePanel";
@@ -55,13 +56,20 @@ export function WikiExplorerView() {
     queryClient.invalidateQueries({ queryKey: ["article", slug] });
   }, [queryClient, slug]);
 
+  const handleSearchSubmit = useCallback(
+    (q: string) => {
+      navigate(`/wiki/search?q=${encodeURIComponent(q)}`);
+    },
+    [navigate],
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <header className="border-b border-slate-200 bg-white px-6 py-4">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold text-slate-900">Wiki</h1>
           <div className="max-w-md flex-1">
-            <SearchBar />
+            <SearchBar onSearchSubmit={handleSearchSubmit} />
           </div>
           <button
             type="button"
@@ -163,7 +171,7 @@ export function WikiExplorerView() {
                 Failed to load article.
               </div>
             ) : articleQuery.data ? (
-              <>
+              <div id="article-content">
                 <ArticleReader
                   article={articleQuery.data}
                   onArticleUpdated={handleArticleUpdated}
@@ -174,7 +182,7 @@ export function WikiExplorerView() {
                     onImageCount={setFigureCount}
                   />
                 )}
-              </>
+              </div>
             ) : null}
           </section>
 
@@ -230,6 +238,8 @@ export function WikiExplorerView() {
           onCreate={handleCreateStub}
         />
       ) : null}
+
+      {slug && <InArticleSearch containerId="article-content" />}
     </div>
   );
 }

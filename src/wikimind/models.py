@@ -1378,6 +1378,28 @@ class SearchResponse(BaseModel):
     query: str
 
 
+class FacetBucket(BaseModel):
+    """A single bucket within a facet (e.g. source_kind=pdf, count=12)."""
+
+    value: str
+    count: int
+
+
+class FacetGroup(BaseModel):
+    """A named facet with its buckets."""
+
+    name: str
+    buckets: list[FacetBucket]
+
+
+class FacetResponse(BaseModel):
+    """All facet groups for a search query."""
+
+    facets: list[FacetGroup]
+    total: int
+    query: str
+
+
 class EmbeddingStats(BaseModel):
     """Basic statistics about the vector store."""
 

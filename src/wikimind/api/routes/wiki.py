@@ -26,6 +26,7 @@ from wikimind.models import (
     ContradictionStatus,
     CreateStubRequest,
     CreateStubResponse,
+    FacetResponse,
     GraphResponse,
     HealthSummaryResponse,
     Job,
@@ -280,12 +281,37 @@ async def search(
     q: str = Query(..., min_length=2),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    source_kind: str | None = Query(None),
+    page_type: str | None = Query(None),
+    concept: str | None = Query(None),
+    tag: str | None = Query(None),
+    date_range: str | None = Query(None),
+    staleness: str | None = Query(None),
+    sort: str | None = Query(None),
     session: AsyncSession = Depends(get_session),
     search_service: SearchService = Depends(get_search_service),
     user_id: str = Depends(get_current_user_id),
 ):
-    """Full-text search across wiki articles using BM25 ranking."""
-    fts_response = await search_service.search(q, session, user_id=user_id, limit=limit, offset=offset)
+    """Full-text search across wiki articles with optional facet filters.
+
+    Supports filtering by source_kind, page_type, concept, tag,
+    date_range (7d, 30d, 365d), and staleness (low, medium, high).
+    Sort by ``relevance`` (default) or ``recency``.
+    """
+    fts_response = await search_service.search(
+        q,
+        session,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+        source_kind=source_kind,
+        page_type=page_type,
+        concept=concept,
+        tag=tag,
+        date_range=date_range,
+        staleness=staleness,
+        sort=sort,
+    )
     results = [
         SearchResult(
             article_id=r.article_id,
@@ -297,6 +323,21 @@ async def search(
         for r in fts_response.results
     ]
     return SearchResponse(results=results, total=fts_response.total, query=q)
+
+
+@router.get("/search/facets", response_model=FacetResponse)
+async def search_facets(
+    q: str = Query(..., min_length=2),
+    session: AsyncSession = Depends(get_session),
+    search_service: SearchService = Depends(get_search_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Compute facet counts for the current search query.
+
+    Returns counts grouped by: page_type, source_kind, concept,
+    tag, date, and staleness.
+    """
+    return await search_service.get_facets(q, session, user_id=user_id)
 
 
 @router.get("/concepts")

@@ -1029,7 +1029,14 @@ paths:
       tags:
       - Wiki
       summary: Search
-      description: Full-text search across wiki articles using BM25 ranking.
+      description: 'Full-text search across wiki articles with optional facet filters.
+
+
+        Supports filtering by source_kind, page_type, concept, tag,
+
+        date_range (7d, 30d, 365d), and staleness (low, medium, high).
+
+        Sort by ``relevance`` (default) or ``recency``.'
       operationId: search_api_wiki_search_get
       parameters:
       - name: q
@@ -1056,6 +1063,62 @@ paths:
           minimum: 0
           default: 0
           title: Offset
+      - name: source_kind
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Kind
+      - name: page_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Page Type
+      - name: concept
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concept
+      - name: tag
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tag
+      - name: date_range
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date Range
+      - name: staleness
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Staleness
+      - name: sort
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sort
       responses:
         '200':
           description: Successful Response
@@ -1063,6 +1126,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/search/facets:
+    get:
+      tags:
+      - Wiki
+      summary: Search Facets
+      description: 'Compute facet counts for the current search query.
+
+
+        Returns counts grouped by: page_type, source_kind, concept,
+
+        tag, date, and staleness.'
+      operationId: search_facets_api_wiki_search_facets_get
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 2
+          title: Q
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacetResponse'
         '422':
           description: Validation Error
           content:
@@ -3998,6 +4094,56 @@ components:
       - article_title
       title: ExportResponse
       description: Response for text-based exports (LinkedIn, slides).
+    FacetBucket:
+      properties:
+        value:
+          type: string
+          title: Value
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - value
+      - count
+      title: FacetBucket
+      description: A single bucket within a facet (e.g. source_kind=pdf, count=12).
+    FacetGroup:
+      properties:
+        name:
+          type: string
+          title: Name
+        buckets:
+          items:
+            $ref: '#/components/schemas/FacetBucket'
+          type: array
+          title: Buckets
+      type: object
+      required:
+      - name
+      - buckets
+      title: FacetGroup
+      description: A named facet with its buckets.
+    FacetResponse:
+      properties:
+        facets:
+          items:
+            $ref: '#/components/schemas/FacetGroup'
+          type: array
+          title: Facets
+        total:
+          type: integer
+          title: Total
+        query:
+          type: string
+          title: Query
+      type: object
+      required:
+      - facets
+      - total
+      - query
+      title: FacetResponse
+      description: All facet groups for a search query.
     FileBackSelectionRequest:
       properties:
         selections:
