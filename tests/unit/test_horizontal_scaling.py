@@ -241,7 +241,7 @@ class TestBackgroundCompilerSafety:
 
     def test_prod_mode_uses_arq_not_local(self) -> None:
         """In prod (redis_url set), BackgroundCompiler routes through ARQ."""
-        from wikimind.jobs.background import BackgroundCompiler  # noqa: PLC0415
+        from wikimind.jobs.background import BackgroundCompiler
 
         settings = SimpleNamespace(redis_url="redis://localhost:6379/0")
         with patch.object(llm_router_mod, "get_settings", return_value=settings):
@@ -253,7 +253,7 @@ class TestBackgroundCompilerSafety:
 
     def test_dev_mode_uses_in_process(self) -> None:
         """In dev (no redis_url), BackgroundCompiler runs in-process."""
-        from wikimind.jobs.background import BackgroundCompiler  # noqa: PLC0415
+        from wikimind.jobs.background import BackgroundCompiler
 
         compiler = BackgroundCompiler.__new__(BackgroundCompiler)
         compiler._redis_url = None
@@ -275,8 +275,8 @@ class TestChromaDBSingleWriter:
         embed_article is only called from worker.py, which runs as a single
         ARQ process. This test documents the single-writer contract.
         """
-        import ast  # noqa: PLC0415
-        from pathlib import Path  # noqa: PLC0415
+        import ast
+        from pathlib import Path
 
         src_dir = Path(__file__).resolve().parent.parent.parent / "src" / "wikimind"
         callers = []

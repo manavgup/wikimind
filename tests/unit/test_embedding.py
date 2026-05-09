@@ -149,7 +149,7 @@ class TestGracefulDegradation:
 class TestEmbeddingServiceMocked:
     @pytest.mark.skipif(not _SEARCH_AVAILABLE, reason="search extras not installed")
     def test_embed_article_stores_chunks(self):
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
+        from wikimind.services.embedding import EmbeddingService
 
         with (
             patch.object(EmbeddingService, "__init__", lambda self: None),
@@ -169,7 +169,7 @@ class TestEmbeddingServiceMocked:
 
     @pytest.mark.skipif(not _SEARCH_AVAILABLE, reason="search extras not installed")
     def test_search_returns_results(self):
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
+        from wikimind.services.embedding import EmbeddingService
 
         with (
             patch.object(EmbeddingService, "__init__", lambda self: None),
@@ -196,7 +196,7 @@ class TestEmbeddingServiceMocked:
 
     @pytest.mark.skipif(not _SEARCH_AVAILABLE, reason="search extras not installed")
     def test_delete_article_calls_collection_delete(self):
-        from wikimind.services.embedding import EmbeddingService  # noqa: PLC0415
+        from wikimind.services.embedding import EmbeddingService
 
         with patch.object(EmbeddingService, "__init__", lambda self: None):
             svc = EmbeddingService.__new__(EmbeddingService)
@@ -221,7 +221,7 @@ class TestEmbeddingFailureResilience:
             "wikimind.services.embedding.get_embedding_service",
             side_effect=RuntimeError("boom"),
         ):
-            from wikimind.services.embedding import get_embedding_service  # noqa: PLC0415
+            from wikimind.services.embedding import get_embedding_service
 
             # Simulate what the worker does
             try:
