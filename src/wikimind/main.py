@@ -22,7 +22,7 @@ from wikimind.api.routes import (
     api_keys,
     auth,
     capture,
-    drafts,
+    compilation_schemas,
     export,
     ingest,
     jobs,
@@ -185,6 +185,7 @@ app = FastAPI(
         {"name": "SavedSearches", "description": "Saved searches with tag and concept filters"},
         {"name": "Sharing", "description": "Per-article share links and public access"},
         {"name": "Synthesis", "description": "Cross-cutting synthesis pages across multiple sources"},
+        {"name": "CompilationSchemas", "description": "User-defined compilation rules for wiki articles"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
@@ -224,7 +225,6 @@ app.add_middleware(
 api_router = APIRouter(prefix="/api")
 api_router.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(capture.router, prefix="/capture", tags=["Capture"])
-api_router.include_router(drafts.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
 api_router.include_router(query.router, prefix="/query", tags=["Query"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
@@ -237,6 +237,7 @@ api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
 api_router.include_router(saved_searches.router, prefix="/saved-searches", tags=["SavedSearches"])
 api_router.include_router(sharing.router, prefix="/wiki", tags=["Sharing"])
 api_router.include_router(synthesis.router, prefix="/wiki", tags=["Synthesis"])
+api_router.include_router(compilation_schemas.router, prefix="/compilation-schemas", tags=["CompilationSchemas"])
 app.include_router(api_router)
 
 # Public share links — no auth required. Mounted at root level so the

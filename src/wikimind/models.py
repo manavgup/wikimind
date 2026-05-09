@@ -61,7 +61,6 @@ class IngestStatus(StrEnum):
 
     PENDING = "pending"
     PROCESSING = "processing"
-    REVIEW_PENDING = "review_pending"
     COMPILED = "compiled"
     FAILED = "failed"
 
@@ -601,25 +600,34 @@ class RssFeed(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
-class CompilationDraft(SQLModel, table=True):
-    """Draft compilation output awaiting user review before finalizing.
+class CompilationSchema(SQLModel, table=True):
+    """User-defined compilation rules that guide how sources become wiki articles.
 
-    Created when ``compilation.interactive`` is enabled. The LLM extracts
-    key takeaways and a draft article; the user reviews, optionally adds
-    guidance, and approves or rejects before the article is saved to the wiki.
+    Each schema contains structured directives (article structure, style,
+    extraction rules, concept taxonomy preferences) that are injected into
+    the compiler's LLM prompt at compilation time. Only one schema per user
+    can be active at a time (issue #420).
     """
+
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_compilationschema_user_name"),)
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
-    source_id: str = Field(foreign_key="source.id", index=True)
-    title: str
-    summary: str
-    key_takeaways: str  # JSON array of strings
-    draft_result_json: str  # Serialized CompilationResult
-    user_guidance: str | None = None  # User-provided focus direction
-    status: str = "pending"  # pending | approved | rejected
+    name: str
+    description: str | None = None
+    is_active: bool = False
+    # Structured rule fields (JSON strings for flexibility)
+    article_max_length: int | None = None
+    required_sections: str | None = None  # JSON array: ["summary", "key_claims"]
+    style: str | None = None  # Freeform style directive
+    focus: str | None = None  # What to emphasize
+    concept_max_depth: int | None = None
+    concept_naming: str | None = None  # e.g. "lowercase, hyphenated"
+    extraction_always_note: str | None = None  # JSON array: ["methodology"]
+    extraction_ignore: str | None = None  # JSON array: ["author bios"]
+    custom_directives: str | None = None  # Freeform additional directives
     created_at: datetime = Field(default_factory=utcnow_naive)
-    reviewed_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=utcnow_naive)
 
 
 # ---------------------------------------------------------------------------
@@ -1765,41 +1773,6 @@ class SavedSearchExecuteResponse(BaseModel):
     articles: list[ArticleSummaryResponse]
 
 
-class CompilationDraftResponse(BaseModel):
-    """API response for a compilation draft awaiting review."""
-
-    id: str
-    source_id: str
-    title: str
-    summary: str
-    key_takeaways: list[str]
-    draft_body: str
-    status: str
-    created_at: datetime
-    reviewed_at: datetime | None = None
-
-
-class ApproveDraftRequest(BaseModel):
-    """Request to approve a draft, optionally with user guidance."""
-
-    guidance: str | None = None
-
-
-class ApproveDraftResponse(BaseModel):
-    """Response after approving a compilation draft."""
-
-    status: str
-    article_slug: str
-    article_title: str
-
-
-class RejectDraftResponse(BaseModel):
-    """Response after rejecting a compilation draft."""
-
-    status: str
-    source_id: str
-
-
 # ---------------------------------------------------------------------------
 # Typed return models for public service/route functions (issue #394)
 # ---------------------------------------------------------------------------
@@ -1983,6 +1956,65 @@ class RssPollResponse(BaseModel):
     feed_id: str
     new_captures: int
     status: str = "polled"
+
+
+# ---------------------------------------------------------------------------
+# Compilation Schema request/response models (issue #420)
+# ---------------------------------------------------------------------------
+
+
+class CreateCompilationSchemaRequest(BaseModel):
+    """Request to create a user-defined compilation schema."""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool = False
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
+
+
+class UpdateCompilationSchemaRequest(BaseModel):
+    """Request to update a compilation schema."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool | None = None
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
+
+
+class CompilationSchemaResponse(BaseModel):
+    """API response for a compilation schema."""
+
+    id: str
+    name: str
+    description: str | None
+    is_active: bool
+    article_max_length: int | None
+    required_sections: list[str] | None
+    style: str | None
+    focus: str | None
+    concept_max_depth: int | None
+    concept_naming: str | None
+    extraction_always_note: list[str] | None
+    extraction_ignore: list[str] | None
+    custom_directives: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------

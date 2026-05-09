@@ -593,106 +593,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/ingest/sources/{source_id}/draft:
-    get:
-      tags:
-      - Ingest
-      summary: Get Draft
-      description: Get the pending compilation draft for a source.
-      operationId: get_draft_api_ingest_sources__source_id__draft_get
-      parameters:
-      - name: source_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Source Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompilationDraftResponse'
-        '404':
-          description: No pending draft for this source
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/ingest/sources/{source_id}/draft/approve:
-    post:
-      tags:
-      - Ingest
-      summary: Approve Draft
-      description: 'Approve a compilation draft, optionally with focus guidance.
-
-
-        When ``guidance`` is provided, the source is re-compiled with the
-
-        user''s direction. Otherwise the original draft is saved as-is.'
-      operationId: approve_draft_api_ingest_sources__source_id__draft_approve_post
-      parameters:
-      - name: source_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Source Id
-      requestBody:
-        content:
-          application/json:
-            schema:
-              anyOf:
-              - $ref: '#/components/schemas/ApproveDraftRequest'
-              - type: 'null'
-              title: Body
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApproveDraftResponse'
-        '404':
-          description: No pending draft for this source
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/ingest/sources/{source_id}/draft/reject:
-    post:
-      tags:
-      - Ingest
-      summary: Reject Draft
-      description: Reject a compilation draft and reset the source to pending.
-      operationId: reject_draft_api_ingest_sources__source_id__draft_reject_post
-      parameters:
-      - name: source_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Source Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RejectDraftResponse'
-        '404':
-          description: No pending draft for this source
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/contradiction-resolutions:
     get:
       tags:
@@ -2515,40 +2415,6 @@ paths:
           description: Article not found
         '422':
           description: Invalid export format
-  /api/wiki/export/wiki:
-    post:
-      tags:
-      - Export
-      summary: Export Wiki
-      description: 'Export the full wiki as a ZIP archive.
-
-
-        - **obsidian**: Obsidian-flavored markdown with YAML frontmatter and tags.
-
-        - **markdown_json**: Plain markdown files with a metadata.json sidecar.'
-      operationId: export_wiki_api_wiki_export_wiki_post
-      parameters:
-      - name: format
-        in: query
-        required: false
-        schema:
-          $ref: '#/components/schemas/WikiExportFormat'
-          description: 'Export format: obsidian or markdown_json'
-          default: obsidian
-        description: 'Export format: obsidian or markdown_json'
-      responses:
-        '200':
-          description: ZIP archive of the full wiki
-          content:
-            application/json:
-              schema: {}
-            application/zip: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/tags:
     get:
       tags:
@@ -2743,96 +2609,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/wiki/share-links:
-    post:
-      tags:
-      - Sharing
-      summary: Create Share Link
-      description: 'Create a new share link for an article.
-
-
-        The returned token can be used to construct a public URL for
-
-        read-only access to the article content.'
-      operationId: create_share_link_api_wiki_share_links_post
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateShareLinkRequest'
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ShareLinkResponse'
-        '404':
-          description: Article not found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    get:
-      tags:
-      - Sharing
-      summary: List Share Links
-      description: List all share links for the current user, optionally filtered
-        by article.
-      operationId: list_share_links_api_wiki_share_links_get
-      parameters:
-      - name: article_id
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Article Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ShareLinkResponse'
-                title: Response List Share Links Api Wiki Share Links Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/wiki/share-links/{link_id}:
-    delete:
-      tags:
-      - Sharing
-      summary: Revoke Share Link
-      description: Revoke a share link so it can no longer be accessed.
-      operationId: revoke_share_link_api_wiki_share_links__link_id__delete
-      parameters:
-      - name: link_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Link Id
-      responses:
-        '204':
-          description: Successful Response
-        '404':
-          description: Share link not found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/synthesize:
     post:
       tags:
@@ -2904,67 +2680,129 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /public/articles/{token}:
+  /api/compilation-schemas:
     get:
       tags:
-      - Sharing
-      summary: Get Public Article
-      description: 'Render a publicly shared article as a minimal HTML page.
-
-
-        No authentication required. The article is identified by its
-
-        cryptographically random share token.'
-      operationId: get_public_article_public_articles__token__get
-      parameters:
-      - name: token
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Token
+      - CompilationSchemas
+      summary: List Schemas
+      description: List all compilation schemas for the current user.
+      operationId: list_schemas_api_compilation_schemas_get
       responses:
         '200':
           description: Successful Response
           content:
-            text/html:
+            application/json:
               schema:
-                type: string
-        '404':
-          description: Share link not found or revoked
-        '410':
-          description: Share link has expired
+                items:
+                  $ref: '#/components/schemas/CompilationSchemaResponse'
+                type: array
+                title: Response List Schemas Api Compilation Schemas Get
+    post:
+      tags:
+      - CompilationSchemas
+      summary: Create Schema
+      description: Create a new compilation schema.
+      operationId: create_schema_api_compilation_schemas_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompilationSchemaRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationSchemaResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /public/articles/{token}/json:
+  /api/compilation-schemas/{schema_id}:
     get:
       tags:
-      - Sharing
-      summary: Get Public Article Json
-      description: Return a publicly shared article as JSON (for API consumers).
-      operationId: get_public_article_json_public_articles__token__json_get
+      - CompilationSchemas
+      summary: Get Schema
+      description: Get a compilation schema by ID.
+      operationId: get_schema_api_compilation_schemas__schema_id__get
       parameters:
-      - name: token
+      - name: schema_id
         in: path
         required: true
         schema:
           type: string
-          title: Token
+          title: Schema Id
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicArticleResponse'
+                $ref: '#/components/schemas/CompilationSchemaResponse'
         '404':
-          description: Share link not found or revoked
-        '410':
-          description: Share link has expired
+          description: Schema not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - CompilationSchemas
+      summary: Update Schema
+      description: Update a compilation schema.
+      operationId: update_schema_api_compilation_schemas__schema_id__patch
+      parameters:
+      - name: schema_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Schema Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompilationSchemaRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationSchemaResponse'
+        '404':
+          description: Schema not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - CompilationSchemas
+      summary: Delete Schema
+      description: Delete a compilation schema.
+      operationId: delete_schema_api_compilation_schemas__schema_id__delete
+      parameters:
+      - name: schema_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Schema Id
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Schema not found
         '422':
           description: Validation Error
           content:
@@ -3297,34 +3135,6 @@ components:
       - status
       title: ApiKeySetResponse
       description: Response after setting an API key.
-    ApproveDraftRequest:
-      properties:
-        guidance:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Guidance
-      type: object
-      title: ApproveDraftRequest
-      description: Request to approve a draft, optionally with user guidance.
-    ApproveDraftResponse:
-      properties:
-        status:
-          type: string
-          title: Status
-        article_slug:
-          type: string
-          title: Article Slug
-        article_title:
-          type: string
-          title: Article Title
-      type: object
-      required:
-      - status
-      - article_slug
-      - article_title
-      title: ApproveDraftResponse
-      description: Response after approving a compilation draft.
     ArticleEditRequest:
       properties:
         content:
@@ -3850,53 +3660,100 @@ components:
       title: CitationResponse
       description: 'A single Q&A citation: an article plus the sources it was compiled
         from.'
-    CompilationDraftResponse:
+    CompilationSchemaResponse:
       properties:
         id:
           type: string
           title: Id
-        source_id:
+        name:
           type: string
-          title: Source Id
-        title:
-          type: string
-          title: Title
-        summary:
-          type: string
-          title: Summary
-        key_takeaways:
-          items:
-            type: string
-          type: array
-          title: Key Takeaways
-        draft_body:
-          type: string
-          title: Draft Body
-        status:
-          type: string
-          title: Status
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          type: boolean
+          title: Is Active
+        article_max_length:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Custom Directives
         created_at:
           type: string
           format: date-time
           title: Created At
-        reviewed_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Reviewed At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
       type: object
       required:
       - id
-      - source_id
-      - title
-      - summary
-      - key_takeaways
-      - draft_body
-      - status
+      - name
+      - description
+      - is_active
+      - article_max_length
+      - required_sections
+      - style
+      - focus
+      - concept_max_depth
+      - concept_naming
+      - extraction_always_note
+      - extraction_ignore
+      - custom_directives
       - created_at
-      title: CompilationDraftResponse
-      description: API response for a compilation draft awaiting review.
+      - updated_at
+      title: CompilationSchemaResponse
+      description: API response for a compilation schema.
     ConfidenceLevel:
       type: string
       enum:
@@ -4246,6 +4103,86 @@ components:
       - budget_remaining_usd
       title: CostSummaryResponse
       description: Simple cost summary for current month.
+    CreateCompilationSchemaRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          type: boolean
+          title: Is Active
+          default: false
+        article_max_length:
+          anyOf:
+          - type: integer
+            maximum: 50000.0
+            minimum: 100.0
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Custom Directives
+      type: object
+      required:
+      - name
+      title: CreateCompilationSchemaRequest
+      description: Request to create a user-defined compilation schema.
     CreateSavedSearchRequest:
       properties:
         name:
@@ -4266,23 +4203,6 @@ components:
       - name
       title: CreateSavedSearchRequest
       description: Request to create a saved search.
-    CreateShareLinkRequest:
-      properties:
-        article_id:
-          type: string
-          title: Article Id
-        expires_in_days:
-          anyOf:
-          - type: integer
-            maximum: 365.0
-            minimum: 1.0
-          - type: 'null'
-          title: Expires In Days
-      type: object
-      required:
-      - article_id
-      title: CreateShareLinkRequest
-      description: Request to create a share link for an article.
     CreateStubRequest:
       properties:
         title:
@@ -4701,7 +4621,6 @@ components:
       enum:
       - pending
       - processing
-      - review_pending
       - compiled
       - failed
       title: IngestStatus
@@ -5200,42 +5119,6 @@ components:
       - configured
       title: ProviderDetail
       description: Provider status.
-    PublicArticleResponse:
-      properties:
-        title:
-          type: string
-          title: Title
-        content_html:
-          type: string
-          title: Content Html
-        summary:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Summary
-        sources:
-          items:
-            $ref: '#/components/schemas/SourceResponse'
-          type: array
-          title: Sources
-          default: []
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-        updated_at:
-          type: string
-          format: date-time
-          title: Updated At
-      type: object
-      required:
-      - title
-      - content_html
-      - summary
-      - created_at
-      - updated_at
-      title: PublicArticleResponse
-      description: Read-only public article content for share links.
     QueryRequest:
       properties:
         question:
@@ -5372,20 +5255,6 @@ components:
       title: RefreshArticleResponse
       description: 'Response after marking an article as manually refreshed (issue
         #425).'
-    RejectDraftResponse:
-      properties:
-        status:
-          type: string
-          title: Status
-        source_id:
-          type: string
-          title: Source Id
-      type: object
-      required:
-      - status
-      - source_id
-      title: RejectDraftResponse
-      description: Response after rejecting a compilation draft.
     RelationType:
       type: string
       enum:
@@ -5744,56 +5613,6 @@ components:
       - status
       title: SettingsUpdateResponse
       description: Response after updating settings.
-    ShareLinkResponse:
-      properties:
-        id:
-          type: string
-          title: Id
-        article_id:
-          type: string
-          title: Article Id
-        token:
-          type: string
-          title: Token
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-        expires_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Expires At
-        revoked:
-          type: boolean
-          title: Revoked
-        view_count:
-          type: integer
-          title: View Count
-        last_viewed_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Last Viewed At
-        article_title:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Article Title
-      type: object
-      required:
-      - id
-      - article_id
-      - token
-      - created_at
-      - expires_at
-      - revoked
-      - view_count
-      - last_viewed_at
-      title: ShareLinkResponse
-      description: API response for a share link.
     Source:
       properties:
         id:
@@ -6162,6 +5981,87 @@ components:
       - turn_indices
       title: TurnSelection
       description: A selection of specific turns from a single conversation.
+    UpdateCompilationSchemaRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        is_active:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Active
+        article_max_length:
+          anyOf:
+          - type: integer
+            maximum: 50000.0
+            minimum: 100.0
+          - type: 'null'
+          title: Article Max Length
+        required_sections:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Sections
+        style:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Style
+        focus:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Focus
+        concept_max_depth:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Concept Max Depth
+        concept_naming:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Concept Naming
+        extraction_always_note:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Always Note
+        extraction_ignore:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Extraction Ignore
+        custom_directives:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Custom Directives
+      type: object
+      title: UpdateCompilationSchemaRequest
+      description: Request to update a compilation schema.
     UserProfileResponse:
       properties:
         id:
@@ -6213,13 +6113,6 @@ components:
       - msg
       - type
       title: ValidationError
-    WikiExportFormat:
-      type: string
-      enum:
-      - obsidian
-      - markdown_json
-      title: WikiExportFormat
-      description: Supported full-wiki export formats.
     WikiWorthinessScore:
       properties:
         word_count:
@@ -6305,9 +6198,9 @@ tags:
   description: User-created organizational tags
 - name: SavedSearches
   description: Saved searches with tag and concept filters
-- name: Sharing
-  description: Per-article share links and public access
 - name: Synthesis
   description: Cross-cutting synthesis pages across multiple sources
+- name: CompilationSchemas
+  description: User-defined compilation rules for wiki articles
 - name: WebSocket
   description: Real-time progress streams
