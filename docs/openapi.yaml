@@ -593,6 +593,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/draft:
+    get:
+      tags:
+      - Ingest
+      summary: Get Draft
+      description: Get the pending compilation draft for a source.
+      operationId: get_draft_api_ingest_sources__source_id__draft_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompilationDraftResponse'
+        '404':
+          description: No pending draft for this source
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/draft/approve:
+    post:
+      tags:
+      - Ingest
+      summary: Approve Draft
+      description: 'Approve a compilation draft, optionally with focus guidance.
+
+
+        When ``guidance`` is provided, the source is re-compiled with the
+
+        user''s direction. Otherwise the original draft is saved as-is.'
+      operationId: approve_draft_api_ingest_sources__source_id__draft_approve_post
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ApproveDraftRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveDraftResponse'
+        '404':
+          description: No pending draft for this source
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/draft/reject:
+    post:
+      tags:
+      - Ingest
+      summary: Reject Draft
+      description: Reject a compilation draft and reset the source to pending.
+      operationId: reject_draft_api_ingest_sources__source_id__draft_reject_post
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RejectDraftResponse'
+        '404':
+          description: No pending draft for this source
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/contradiction-resolutions:
     get:
       tags:
@@ -3006,6 +3106,34 @@ components:
       - status
       title: ApiKeySetResponse
       description: Response after setting an API key.
+    ApproveDraftRequest:
+      properties:
+        guidance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guidance
+      type: object
+      title: ApproveDraftRequest
+      description: Request to approve a draft, optionally with user guidance.
+    ApproveDraftResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        article_slug:
+          type: string
+          title: Article Slug
+        article_title:
+          type: string
+          title: Article Title
+      type: object
+      required:
+      - status
+      - article_slug
+      - article_title
+      title: ApproveDraftResponse
+      description: Response after approving a compilation draft.
     ArticleEditRequest:
       properties:
         content:
@@ -3531,6 +3659,53 @@ components:
       title: CitationResponse
       description: 'A single Q&A citation: an article plus the sources it was compiled
         from.'
+    CompilationDraftResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_id:
+          type: string
+          title: Source Id
+        title:
+          type: string
+          title: Title
+        summary:
+          type: string
+          title: Summary
+        key_takeaways:
+          items:
+            type: string
+          type: array
+          title: Key Takeaways
+        draft_body:
+          type: string
+          title: Draft Body
+        status:
+          type: string
+          title: Status
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        reviewed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Reviewed At
+      type: object
+      required:
+      - id
+      - source_id
+      - title
+      - summary
+      - key_takeaways
+      - draft_body
+      - status
+      - created_at
+      title: CompilationDraftResponse
+      description: API response for a compilation draft awaiting review.
     ConfidenceLevel:
       type: string
       enum:
@@ -4318,6 +4493,7 @@ components:
       enum:
       - pending
       - processing
+      - review_pending
       - compiled
       - failed
       title: IngestStatus
@@ -4952,6 +5128,20 @@ components:
       title: RefreshArticleResponse
       description: 'Response after marking an article as manually refreshed (issue
         #425).'
+    RejectDraftResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        source_id:
+          type: string
+          title: Source Id
+      type: object
+      required:
+      - status
+      - source_id
+      title: RejectDraftResponse
+      description: Response after rejecting a compilation draft.
     RelationType:
       type: string
       enum:
