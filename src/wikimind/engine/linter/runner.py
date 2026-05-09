@@ -21,7 +21,7 @@ from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import emit_linter_alert
-from wikimind.config import get_settings
+from wikimind.config import Settings, get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.backlink_enforcer import enforce_backlinks
 from wikimind.engine.linter.contradictions import detect_contradictions
@@ -239,7 +239,7 @@ async def _persist_and_finalize(
     orphans: list,
     structurals: list,
     existing_contradiction_hashes: set,
-    settings: object,
+    settings: Settings,
     user_id: str,
 ) -> None:
     """Persist findings, update report counts, emit alerts, and trigger recompile."""
@@ -381,8 +381,14 @@ async def run_lint(
         await _apply_dismiss_suppression(session, contradictions, orphans, structurals)
 
         await _persist_and_finalize(
-            session, report, contradictions, orphans, structurals,
-            existing_contradiction_hashes, settings, user_id,
+            session,
+            report,
+            contradictions,
+            orphans,
+            structurals,
+            existing_contradiction_hashes,
+            settings,
+            user_id,
         )
 
     except Exception as e:  # Intentional broad catch — job runner must not crash

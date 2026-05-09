@@ -120,7 +120,7 @@ class UserService:
                 if primary:
                     user_data["email"] = primary["email"]
 
-            return OAuthUserInfo(**user_data)
+            return OAuthUserInfo.model_validate(user_data)
 
     # ------------------------------------------------------------------
     # User upsert + JWT creation
@@ -169,7 +169,7 @@ class UserService:
             session.add(user)
         else:
             user = User(
-                email=email,
+                email=email or f"{provider}:{provider_id}@noemail",
                 name=name,
                 avatar_url=avatar_url,
                 auth_provider=provider,

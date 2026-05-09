@@ -83,9 +83,7 @@ class SavedSearchService:
             List of saved searches ordered by creation time.
         """
         result = await session.execute(
-            select(SavedSearch)
-            .where(SavedSearch.user_id == user_id)
-            .order_by(SavedSearch.created_at)  # type: ignore[arg-type]
+            select(SavedSearch).where(SavedSearch.user_id == user_id).order_by(SavedSearch.created_at)  # type: ignore[arg-type]
         )
         return [_to_response(s) for s in result.scalars().all()]
 
