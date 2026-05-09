@@ -153,7 +153,7 @@ async def test_synthesize_success(
     """Successful synthesis creates an article with page_type=synthesis."""
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path / "wikimind"))
 
-    from wikimind.config import get_settings  # noqa: PLC0415
+    from wikimind.config import get_settings
 
     get_settings.cache_clear()
 
