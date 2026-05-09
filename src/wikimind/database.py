@@ -405,19 +405,26 @@ def _parse_concept_names_from_json(raw: str) -> list[str]:
 
 def _collect_concept_names(
     rows: list,
-) -> tuple[dict[str, str], list[list[str]]]:
-    """Collect normalized concept names from article rows.
+) -> tuple[dict[tuple[str, str], str], list[tuple[str, list[str]]]]:
+    """Collect normalized concept names per user from article rows.
 
-    Returns a tuple of (all_names mapping, per-article normalized lists).
+    Returns a tuple of:
+    - ``all_names``: mapping ``(user_id, normalized) -> first raw name seen``.
+    - ``article_concepts``: per-article list of ``(user_id, [normalized, ...])``.
+
+    Concepts are partitioned by user because ``concept`` has a NOT NULL
+    ``user_id`` FK and a ``UNIQUE(user_id, name)`` constraint — the same
+    normalized name owned by two different users is two distinct rows.
     """
-    all_names: dict[str, str] = {}  # normalized -> first raw name seen
-    article_concepts: list[list[str]] = []
+    all_names: dict[tuple[str, str], str] = {}
+    article_concepts: list[tuple[str, list[str]]] = []
     for row in rows:
-        _article_id, concept_ids_raw = row
+        _article_id, user_id, concept_ids_raw = row
         normalized_names = _parse_concept_names_from_json(concept_ids_raw)
-        article_concepts.append(normalized_names)
+        article_concepts.append((user_id, normalized_names))
         for name in normalized_names:
-            if name not in all_names:
+            key = (user_id, name)
+            if key not in all_names:
                 # Store the original raw value for the description
                 try:
                     raw_list = json.loads(concept_ids_raw)
@@ -427,7 +434,7 @@ def _collect_concept_names(
                     )
                 except (json.JSONDecodeError, TypeError):
                     raw_match = name
-                all_names[name] = raw_match
+                all_names[key] = raw_match
     return all_names, article_concepts
 
 
@@ -445,7 +452,7 @@ async def _backfill_concepts_from_articles(engine) -> None:
 
         def _select_articles(sync_conn):
             return sync_conn.execute(
-                sa_text("SELECT id, concept_ids FROM article WHERE concept_ids IS NOT NULL")
+                sa_text("SELECT id, user_id, concept_ids FROM article WHERE concept_ids IS NOT NULL")
             ).fetchall()
 
         rows = await conn.run_sync(_select_articles)
@@ -455,39 +462,48 @@ async def _backfill_concepts_from_articles(engine) -> None:
             return
 
         def _select_existing_concepts(sync_conn):
-            return sync_conn.execute(sa_text("SELECT name FROM concept")).fetchall()
+            return sync_conn.execute(sa_text("SELECT user_id, name FROM concept")).fetchall()
 
         existing_rows = await conn.run_sync(_select_existing_concepts)
-        existing_names = {row[0] for row in existing_rows}
+        existing_keys = {(row[0], row[1]) for row in existing_rows}
 
-        for normalized, raw_name in all_names.items():
-            if normalized not in existing_names:
+        for (user_id, normalized), raw_name in all_names.items():
+            if (user_id, normalized) not in existing_keys:
                 concept_id = str(uuid.uuid4())
                 await conn.execute(
                     sa_text(
-                        "INSERT INTO concept (id, name, description, article_count, created_at) "
-                        "VALUES (:id, :name, :desc, 0, :created_at)"
+                        "INSERT INTO concept "
+                        "(id, user_id, name, description, article_count, created_at, concept_kind) "
+                        "VALUES (:id, :user_id, :name, :desc, 0, :created_at, :concept_kind)"
                     ),
-                    {"id": concept_id, "name": normalized, "desc": raw_name, "created_at": utcnow_naive().isoformat()},
+                    {
+                        "id": concept_id,
+                        "user_id": user_id,
+                        "name": normalized,
+                        "desc": raw_name,
+                        "created_at": utcnow_naive(),
+                        "concept_kind": "topic",
+                    },
                 )
 
-        # Recalculate article counts
-        counts: dict[str, int] = {}
-        for names in article_concepts:
+        # Recalculate article counts per (user_id, name)
+        counts: dict[tuple[str, str], int] = {}
+        for user_id, names in article_concepts:
             for name in names:
-                counts[name] = counts.get(name, 0) + 1
+                key = (user_id, name)
+                counts[key] = counts.get(key, 0) + 1
 
-        for normalized, count in counts.items():
+        for (user_id, normalized), count in counts.items():
             await conn.execute(
-                sa_text("UPDATE concept SET article_count = :count WHERE name = :name"),
-                {"count": count, "name": normalized},
+                sa_text("UPDATE concept SET article_count = :count WHERE user_id = :user_id AND name = :name"),
+                {"count": count, "user_id": user_id, "name": normalized},
             )
 
-        unreferenced = (existing_names | set(all_names.keys())) - set(counts.keys())
-        for name in unreferenced:
+        unreferenced = (existing_keys | set(all_names.keys())) - set(counts.keys())
+        for user_id, name in unreferenced:
             await conn.execute(
-                sa_text("UPDATE concept SET article_count = 0 WHERE name = :name"),
-                {"name": name},
+                sa_text("UPDATE concept SET article_count = 0 WHERE user_id = :user_id AND name = :name"),
+                {"user_id": user_id, "name": name},
             )
 
 

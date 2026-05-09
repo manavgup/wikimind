@@ -15,7 +15,7 @@ from sqlmodel import SQLModel, select
 
 from tests.conftest import TEST_USER_ID
 from wikimind.database import _backfill_concepts_from_articles
-from wikimind.models import Article, ConfidenceLevel, Query, Source, SourceType
+from wikimind.models import Article, ConfidenceLevel, Query, Source, SourceType, User
 
 POSTGRES_URL = os.environ.get("WIKIMIND_TEST_POSTGRES_URL")
 
@@ -40,9 +40,25 @@ async def pg_engine():
 
 @pytest.fixture
 async def pg_session(pg_engine) -> AsyncSession:
-    """Async session backed by Postgres test database."""
+    """Async session backed by Postgres test database.
+
+    Seeds the canonical ``TEST_USER_ID`` row before yielding so tests can
+    insert rows whose ``user_id`` FK points at it without violating
+    Postgres' foreign-key constraints (SQLite tests get away without this
+    because FKs are off by default in SQLite).
+    """
     factory = async_sessionmaker(pg_engine, expire_on_commit=False)
     async with factory() as session:
+        session.add(
+            User(
+                id=TEST_USER_ID,
+                email=f"{TEST_USER_ID}@test.local",
+                name="Postgres Integration Test User",
+                auth_provider="jwt",
+                auth_provider_id=TEST_USER_ID,
+            )
+        )
+        await session.commit()
         yield session
 
 

@@ -34,12 +34,19 @@ class TestCollectConceptNames:
         assert _collect_concept_names([]) == ({}, [])
 
     def test_single(self):
-        names, concepts = _collect_concept_names([("a1", '["ML"]')])
-        assert "ml" in names
+        names, concepts = _collect_concept_names([("a1", "u1", '["ML"]')])
+        assert ("u1", "ml") in names
+        assert concepts == [("u1", ["ml"])]
 
     def test_invalid(self):
-        names, concepts = _collect_concept_names([("a1", "bad")])
+        names, concepts = _collect_concept_names([("a1", "u1", "bad")])
         assert names == {}
+
+    def test_partitions_by_user(self):
+        names, _ = _collect_concept_names([("a1", "u1", '["ML"]'), ("a2", "u2", '["ML"]')])
+        # Same normalized name owned by two users → two distinct keys
+        assert ("u1", "ml") in names
+        assert ("u2", "ml") in names
 
 
 class TestParseSsl:

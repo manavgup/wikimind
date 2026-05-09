@@ -4888,6 +4888,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260508"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/6b/f9d82598121b2f0532238381aec27734c24a0ff548ac352b358c2857a176/types_pyyaml-6.0.12.20260508.tar.gz", hash = "sha256:5ae42149c3ebf7aaaf6c65ee49af590c80f0ba52e9e3f75a75c5564b33556fa6", size = 17776 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b0/80/96690460fe7f4e4b4ab0ecd79a8609aec2ae63927ad97625f3c747ca6a1d/types_pyyaml-6.0.12.20260508-py3-none-any.whl", hash = "sha256:edc094ed3a918b0c6232f71a5b67fdf38e76e17517b7d87bfbb9fc27d442fb51", size = 20309 },
+]
+
+[[package]]
 name = "types-toml"
 version = "0.10.8.20260408"
 source = { registry = "https://pypi.org/simple" }
@@ -5262,6 +5271,7 @@ dev = [
     { name = "python-semantic-release" },
     { name = "pyyaml" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
     { name = "types-toml" },
     { name = "vulture" },
 ]
@@ -5278,6 +5288,7 @@ lint = [
     { name = "pylint-pydantic" },
     { name = "pyyaml" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
     { name = "types-toml" },
     { name = "vulture" },
 ]
@@ -5356,6 +5367,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "trafilatura", specifier = ">=1.12.2" },
+    { name = "types-pyyaml", marker = "extra == 'lint'", specifier = ">=6.0" },
     { name = "types-toml", marker = "extra == 'lint'", specifier = ">=0.10.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.6" },
     { name = "vulture", marker = "extra == 'lint'", specifier = ">=2.11" },

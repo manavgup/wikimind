@@ -108,6 +108,7 @@ lint = [
     "pydocstyle>=6.3.0",
     "pre-commit>=3.8.0",
     "types-toml>=0.10.0",
+    "types-PyYAML>=6.0",
     "bandit[toml]>=1.7",
     "vulture>=2.11",
     "interrogate>=1.7.0",
