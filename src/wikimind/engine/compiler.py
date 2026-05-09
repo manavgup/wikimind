@@ -31,6 +31,7 @@ from wikimind.models import (
     Backlink,
     CompilationResult,
     CompilationSchema,
+    CompiledClaim,
     CompletionRequest,
     Concept,
     ConfidenceLevel,
@@ -626,6 +627,8 @@ Compile this into a wiki article following the JSON schema exactly."""
             user_id=self.user_id,
         )
 
+        await self._persist_claims(article.id, result, source, session)
+
         await self._refresh_confidence_score(article, session)
 
         await self._post_save_side_effects(article, result, source, session)
@@ -704,10 +707,13 @@ Compile this into a wiki article following the JSON schema exactly."""
         article_id: str,
         session: AsyncSession,
     ) -> None:
-        """Delete backlinks and join-table rows for an article before re-populating."""
+        """Delete backlinks, claims, and join-table rows for an article before re-populating."""
         old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == article_id))
         for row in old_bl.scalars().all():
             await session.delete(row)
+        old_claims = await session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article_id))
+        for claim in old_claims.scalars().all():
+            await session.delete(claim)
         old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
         for ac in old_ac.scalars().all():
             await session.delete(ac)
@@ -781,6 +787,28 @@ Compile this into a wiki article following the JSON schema exactly."""
                     source=source_article_id,
                     target=rb.target_id,
                 )
+        await session.commit()
+
+    async def _persist_claims(
+        self,
+        article_id: str,
+        result: CompilationResult,
+        source: Source,
+        session: AsyncSession,
+    ) -> None:
+        """Persist CompiledClaim rows for each key_claim in the compilation result."""
+        for dto in result.key_claims:
+            claim = CompiledClaim(
+                article_id=article_id,
+                user_id=self.user_id,
+                text=dto.claim,
+                subjects=json.dumps(dto.subjects),
+                predicate=dto.predicate,
+                confidence_level=dto.confidence.value if hasattr(dto.confidence, "value") else str(dto.confidence),
+                quote=dto.quote,
+                source_ids=json.dumps(dto.source_ids or [source.id]),
+            )
+            session.add(claim)
         await session.commit()
 
     async def _generate_unique_slug(self, title: str, session: AsyncSession) -> str:
