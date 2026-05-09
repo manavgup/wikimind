@@ -49,6 +49,10 @@ primary_region = "ord"
   cpu_kind = "shared"
   cpus = 1
 
+[metrics]
+  port = 7842
+  path = "/metrics"
+
 [checks]
   [checks.health]
     type = "http"

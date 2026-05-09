@@ -19,7 +19,7 @@ from starlette.responses import JSONResponse, Response
 
 from wikimind.config import get_settings
 
-EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+EXEMPT_PATHS = {"/health", "/health/deep", "/metrics", "/docs", "/openapi.json", "/redoc"}
 EXEMPT_PREFIXES = (
     "/auth/login/",
     "/auth/callback",

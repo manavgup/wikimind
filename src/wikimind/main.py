@@ -4,6 +4,7 @@ Runs as a local daemon on localhost:7842. Initializes the database,
 registers all routers, and configures CORS for Electron and web dev servers.
 """
 
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from wikimind.api.routes import (
     compilation_schemas,
     drafts,
     export,
+    health,
     ingest,
     jobs,
     lint,
@@ -62,6 +64,8 @@ _API_ONLY_PREFIXES = (
     "/assets/",
     "/auth/",
     "/docs",
+    "/health",
+    "/metrics",
     "/public/",
     "/redoc",
     "/openapi.json",
@@ -146,6 +150,12 @@ async def lifespan(_app: FastAPI):
     """Startup and shutdown lifecycle."""
     configure_logging()
 
+    if dsn := os.environ.get("SENTRY_DSN"):
+        import sentry_sdk  # noqa: PLC0415
+
+        sentry_sdk.init(dsn=dsn, traces_sample_rate=0.1)
+        log.info("Sentry initialized")
+
     settings = get_settings()
     settings.ensure_dirs()
 
@@ -190,6 +200,13 @@ app = FastAPI(
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics — exposes /metrics for scraping
+# ---------------------------------------------------------------------------
+from prometheus_fastapi_instrumentator import Instrumentator  # noqa: E402
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ---------------------------------------------------------------------------
 # Middleware stack — evaluated bottom-to-top.
@@ -246,8 +263,9 @@ app.include_router(api_router)
 # auth middleware EXEMPT_PREFIXES can skip these paths.
 app.include_router(sharing.public_router, tags=["Sharing"])
 
-# Auth and WebSocket remain at root — auth redirects require stable paths,
-# and WebSocket connections are not prefixed.
+# Health, Auth, and WebSocket remain at root — auth redirects require stable
+# paths, and WebSocket connections are not prefixed.
+app.include_router(health.router, tags=["Admin"])
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
@@ -273,7 +291,7 @@ async def wikimind_error_handler(request: Request, exc: WikiMindError) -> JSONRe
 
 
 @app.get("/health")
-async def health():
+async def health_check():
     """Health check — used by Electron to confirm daemon is ready."""
     settings = get_settings()
     background_mode = "arq" if settings.redis_url else "in-process"

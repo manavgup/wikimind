@@ -57,6 +57,9 @@ dependencies = [
     # Production server
     "gunicorn>=22.0.0",
 
+    # Monitoring
+    "prometheus-fastapi-instrumentator>=7.0.0",
+
     # MCP (Model Context Protocol)
     "fastmcp>=3.0.2",
 
@@ -79,6 +82,9 @@ pdf = [
 export = [
     # Future: weasyprint or other PDF rendering libs can be added here.
     # The default export uses markdown-to-HTML which requires no extra deps.
+]
+monitoring = [
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 search = [
     "chromadb>=0.5.20",
@@ -322,7 +328,7 @@ verbose = 1
 [tool.deptry]
 # Only test/lint/dev extras are true dev-only groups; search/transcribe/pdf/export
 # are optional runtime features whose deps may be lazily imported.
-optional_dependencies_dev_groups = ["test", "lint", "dev"]
+optional_dependencies_dev_groups = ["test", "lint", "dev", "monitoring"]
 
 # DEP002: packages that are not directly imported but are needed at runtime.
 # DEP003: transitive deps whose public API we use (sqlalchemy via sqlmodel,

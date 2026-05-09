@@ -7,6 +7,7 @@ This is the core value-creation step.
 from __future__ import annotations
 
 import json
+import time
 from typing import TYPE_CHECKING
 
 import structlog
@@ -232,6 +233,9 @@ class Compiler:
         self._last_provider_used: Provider | None = None
         # Typed backlink suggestions from the most recent `compile()` call.
         self._last_typed_suggestions: dict[str, str] = {}
+        # Compilation monitoring — set during compile(), read during save_article().
+        self._last_compilation_duration_ms: int | None = None
+        self._last_compilation_tokens: int | None = None
 
     async def extract_takeaways(
         self,
@@ -319,7 +323,10 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
+        compile_start = time.monotonic()
         response = await self.router.complete(request, user_id=self.user_id)
+        self._last_compilation_duration_ms = round((time.monotonic() - compile_start) * 1000)
+        self._last_compilation_tokens = response.input_tokens + response.output_tokens
         self._last_provider_used = response.provider_used
 
         try:
@@ -388,7 +395,10 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
+        compile_start = time.monotonic()
         response = await self.router.complete(request, user_id=self.user_id)
+        self._last_compilation_duration_ms = round((time.monotonic() - compile_start) * 1000)
+        self._last_compilation_tokens = response.input_tokens + response.output_tokens
         self._last_provider_used = response.provider_used
 
         try:
@@ -535,6 +545,27 @@ Compile this into a wiki article following the JSON schema exactly."""
                 return article
         return None
 
+    def _apply_article_fields(
+        self,
+        article: Article,
+        result: CompilationResult,
+        relative_path: str,
+        source: Source,
+        provider: Provider | None,
+    ) -> None:
+        """Apply compilation result fields to an existing article row."""
+        article.title = result.title
+        article.summary = result.summary
+        article.confidence = self._overall_confidence(result)
+        article.file_path = relative_path
+        article.concept_ids = json.dumps(result.concepts)
+        article.page_type = PageType.SOURCE
+        article.updated_at = utcnow_naive()
+        article.user_id = source.user_id
+        article.compiled_at = utcnow_naive()
+        article.compilation_duration_ms = self._last_compilation_duration_ms
+        article.compilation_tokens = self._last_compilation_tokens
+
     async def _upsert_article(
         self,
         result: CompilationResult,
@@ -570,14 +601,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             if old_relative is not None and old_relative != relative_path:
                 await wiki_storage.delete(old_relative)
 
-            existing.title = result.title
-            existing.summary = result.summary
-            existing.confidence = self._overall_confidence(result)
-            existing.file_path = relative_path
-            existing.concept_ids = json.dumps(result.concepts)
-            existing.page_type = PageType.SOURCE
-            existing.updated_at = utcnow_naive()
-            existing.user_id = source.user_id
+            self._apply_article_fields(existing, result, relative_path, source, provider)
             session.add(existing)
             article = existing
 
@@ -595,6 +619,9 @@ Compile this into a wiki article following the JSON schema exactly."""
                 provider=provider,
                 page_type=PageType.SOURCE,
                 user_id=self.user_id,
+                compiled_at=utcnow_naive(),
+                compilation_duration_ms=self._last_compilation_duration_ms,
+                compilation_tokens=self._last_compilation_tokens,
             )
             session.add(article)
 
