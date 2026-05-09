@@ -36,8 +36,9 @@ export function listConcepts(): Promise<Concept[]> {
   return apiFetch<Concept[]>("/api/wiki/concepts");
 }
 
-export function searchWiki(q: string, limit = 20): Promise<Article[]> {
-  return apiFetch<Article[]>("/api/wiki/search", { query: { q, limit } });
+export async function searchWiki(q: string, limit = 20): Promise<Article[]> {
+  const resp = await apiFetch<SearchResponse>("/api/wiki/search", { query: { q, limit } });
+  return (resp.results ?? []) as unknown as Article[];
 }
 
 export interface FacetedSearchParams {

@@ -11,17 +11,14 @@ const api = { target: BACKEND, changeOrigin: false };
 
 // All backend route prefixes.  Requests matching these are forwarded to
 // the gateway; everything else is served by Vite (SPA routes, assets).
+// Since PR #500 all API routes live under /api, so only /api, /auth,
+// /health, and /public need proxying.  The old bare prefixes (/wiki,
+// /ingest, etc.) conflicted with SPA routes like /wiki/search.
 const API_PREFIXES = [
-  "/auth",
-  "/ingest",
-  "/wiki",
-  "/query",
-  "/jobs",
-  "/lint",
-  "/settings",
   "/api",
+  "/auth",
   "/health",
-  "/images",
+  "/public",
 ];
 
 export default defineConfig({
