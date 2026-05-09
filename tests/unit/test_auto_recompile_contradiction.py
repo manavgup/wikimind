@@ -262,6 +262,7 @@ async def test_auto_recompile_disabled_by_setting() -> None:
             ) as mock_queue,
         ):
             mock_session = AsyncMock()
+            mock_session.add = MagicMock()  # add() is sync
             mock_session.execute = AsyncMock()
             # Return 0 for article count
             mock_result = AsyncMock()

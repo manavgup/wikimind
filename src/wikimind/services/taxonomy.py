@@ -217,7 +217,7 @@ async def maybe_trigger_concept_pages(
     stmt = select(Concept).where(Concept.article_count >= min_sources)
     if user_id:
         stmt = stmt.where(Concept.user_id == user_id)
-    result = await session.execute(stmt)
+    result = await session.execute(stmt)  # AsyncSession, not SQLModel Session
     eligible = list(result.scalars().all())
     if not eligible:
         return []

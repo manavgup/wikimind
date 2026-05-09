@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 TEST_USER_ID = "test-user"
+TEST_JWT_SECRET = "test-secret-key-for-unit-tests!!"  # pragma: allowlist secret  # 32 bytes
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +136,10 @@ async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, 
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
     async with factory() as session:
         yield session
+        # Explicitly close the session connection before the event loop ends,
+        # giving aiosqlite's background thread time to finish. Without this,
+        # the thread tries to post results to an already-closed loop.
+        await session.close()
 
 
 @pytest.fixture

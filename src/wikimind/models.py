@@ -651,8 +651,6 @@ class CompiledClaim(SQLModel, table=True):
     and carry their own embedding for semantic similarity.
     """
 
-    __tablename__ = "compiled_claim"
-
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     article_id: str = Field(foreign_key="article.id", index=True)
     user_id: str = Field(foreign_key="user.id", index=True)
@@ -679,8 +677,6 @@ class ConceptCluster(SQLModel, table=True):
     (reconciled) by the batch reconciler.
     """
 
-    __tablename__ = "concept_cluster"
-
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
     canonical_text: str  # canonical subject name
@@ -688,7 +684,7 @@ class ConceptCluster(SQLModel, table=True):
     embedding_version: str | None = None  # centroid valid only for this version
     member_count: int = 0
     status: str = Field(default=ClusterStatus.CANDIDATE)  # ClusterStatus enum value
-    superseded_by: str | None = Field(default=None, foreign_key="concept_cluster.id")
+    superseded_by: str | None = Field(default=None, foreign_key="conceptcluster.id")
     last_reinforced_at: datetime = Field(default_factory=utcnow_naive)
     last_reconciled_at: datetime | None = None
     created_at: datetime = Field(default_factory=utcnow_naive)
@@ -703,10 +699,8 @@ class ClaimConcept(SQLModel, table=True):
     ``CompiledClaim.cluster_assignment_reconciled=True``.
     """
 
-    __tablename__ = "claim_concept"
-
-    claim_id: str = Field(foreign_key="compiled_claim.id", primary_key=True)
-    concept_id: str = Field(foreign_key="concept_cluster.id", primary_key=True, index=True)
+    claim_id: str = Field(foreign_key="compiledclaim.id", primary_key=True)
+    concept_id: str = Field(foreign_key="conceptcluster.id", primary_key=True, index=True)
     role: str = Field(primary_key=True)  # ClaimConceptRole enum value
     advisory: bool = True  # TRUE until offline reconciler confirms
     created_at: datetime = Field(default_factory=utcnow_naive)
