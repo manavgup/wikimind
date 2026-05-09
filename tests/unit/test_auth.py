@@ -18,6 +18,7 @@ from wikimind.api.routes.auth import (
     _consume_oauth_state,
     _generate_oauth_state,
 )
+from tests.conftest import TEST_JWT_SECRET
 from wikimind.config import get_settings
 from wikimind.models import OAuthUserInfo, User
 from wikimind.services.user import UserService
@@ -32,7 +33,7 @@ _service = UserService()
 def test_create_jwt_contains_expected_claims():
     """JWT payload should contain sub, email, iat, and exp claims."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
     settings.auth.jwt_algorithm = "HS256"
     settings.auth.jwt_expiry_minutes = 60
 
@@ -44,7 +45,7 @@ def test_create_jwt_contains_expected_claims():
     )
 
     token = _service.create_jwt(user, settings)
-    payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
+    payload = jwt.decode(token, TEST_JWT_SECRET, algorithms=["HS256"])
 
     assert payload["sub"] == "user-1"
     assert payload["email"] == "alice@example.com"
@@ -55,7 +56,7 @@ def test_create_jwt_contains_expected_claims():
 def test_create_jwt_expiry():
     """JWT should expire after the configured number of minutes."""
     settings = get_settings()
-    settings.auth.jwt_secret_key = "test-secret"  # pragma: allowlist secret
+    settings.auth.jwt_secret_key = TEST_JWT_SECRET
     settings.auth.jwt_algorithm = "HS256"
     settings.auth.jwt_expiry_minutes = 30
 
@@ -67,7 +68,7 @@ def test_create_jwt_expiry():
     )
 
     token = _service.create_jwt(user, settings)
-    payload = jwt.decode(token, "test-secret", algorithms=["HS256"])
+    payload = jwt.decode(token, TEST_JWT_SECRET, algorithms=["HS256"])
 
     now = datetime.now(UTC)
     exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
@@ -106,7 +107,7 @@ async def test_middleware_returns_401_when_no_token(client, monkeypatch):
     """When auth is enabled, missing token should return 401."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     response = await client.get("/api/wiki/articles")
     assert response.status_code == 401
@@ -119,7 +120,7 @@ async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
     """An expired JWT should return a TOKEN_EXPIRED error."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     expired_payload = {
         "sub": "user-1",
@@ -127,7 +128,7 @@ async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
         "exp": datetime.now(UTC) - timedelta(hours=1),
         "iat": datetime.now(UTC) - timedelta(hours=2),
     }
-    expired_token = jwt.encode(expired_payload, "test-secret", algorithm="HS256")
+    expired_token = jwt.encode(expired_payload, TEST_JWT_SECRET, algorithm="HS256")
 
     response = await client.get(
         "/api/wiki/articles",
@@ -143,11 +144,11 @@ async def test_middleware_returns_401_when_token_invalid(client, monkeypatch):
     """A token signed with the wrong key should return INVALID_TOKEN."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     bad_token = jwt.encode(
         {"sub": "user-1", "email": "a@b.com", "exp": datetime.now(UTC) + timedelta(hours=1)},
-        "wrong-secret",
+        "wrong-secret-key-for-unit-tests!!",
         algorithm="HS256",
     )
 
@@ -165,7 +166,7 @@ async def test_middleware_passes_with_valid_token(client, monkeypatch):
     """A valid JWT should allow the request through."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     valid_token = jwt.encode(
         {
@@ -173,7 +174,7 @@ async def test_middleware_passes_with_valid_token(client, monkeypatch):
             "email": "alice@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 
@@ -189,7 +190,7 @@ async def test_middleware_skips_exempt_paths(client, monkeypatch):
     """Exempt paths should not require authentication even when auth is enabled."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     # /health is exempt
     response = await client.get("/health")
@@ -206,7 +207,7 @@ async def test_auth_me_returns_user_profile(client, db_session: AsyncSession, mo
     """GET /auth/me should return the authenticated user's profile."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     # Create a user directly in the DB
     user = User(
@@ -226,7 +227,7 @@ async def test_auth_me_returns_user_profile(client, db_session: AsyncSession, mo
             "email": "alice@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 
@@ -257,7 +258,7 @@ async def test_auth_me_returns_401_when_auth_enabled_no_token(client, monkeypatc
     """GET /auth/me with auth enabled but no token returns 401."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret-key-32chars-long!!")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     response = await client.get("/auth/me")
     assert response.status_code == 401
@@ -339,7 +340,7 @@ async def test_get_ws_user_id_extracts_user_from_jwt_cookie(monkeypatch):
     """When auth is enabled, get_ws_user_id should decode user_id from the session cookie."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
 
     token = jwt.encode(
@@ -348,7 +349,7 @@ async def test_get_ws_user_id_extracts_user_from_jwt_cookie(monkeypatch):
             "email": "ws@example.com",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 
@@ -362,7 +363,7 @@ async def test_get_ws_user_id_falls_back_to_token_query_param(monkeypatch):
     """When no cookie is present, get_ws_user_id should try the ``token`` query param."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
 
     token = jwt.encode(
@@ -370,7 +371,7 @@ async def test_get_ws_user_id_falls_back_to_token_query_param(monkeypatch):
             "sub": "user-77",
             "exp": datetime.now(UTC) + timedelta(hours=1),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 
@@ -384,7 +385,7 @@ async def test_get_ws_user_id_returns_anonymous_for_missing_token(monkeypatch):
     """When auth is enabled but no token is provided, return ANONYMOUS_USER_ID."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     ws = _make_ws_mock()
     result = await get_ws_user_id(ws)
@@ -396,12 +397,12 @@ async def test_get_ws_user_id_returns_anonymous_for_invalid_token(monkeypatch):
     """An invalid JWT should result in ANONYMOUS_USER_ID, not an exception."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
 
     bad_token = jwt.encode(
         {"sub": "user-1", "exp": datetime.now(UTC) + timedelta(hours=1)},
-        "wrong-secret",
+        "wrong-secret-key-for-unit-tests!!",
         algorithm="HS256",
     )
 
@@ -415,7 +416,7 @@ async def test_get_ws_user_id_returns_anonymous_for_expired_token(monkeypatch):
     """An expired JWT should result in ANONYMOUS_USER_ID."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
 
     expired_token = jwt.encode(
@@ -424,7 +425,7 @@ async def test_get_ws_user_id_returns_anonymous_for_expired_token(monkeypatch):
             "exp": datetime.now(UTC) - timedelta(hours=1),
             "iat": datetime.now(UTC) - timedelta(hours=2),
         },
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithm="HS256",
     )
 
@@ -459,7 +460,7 @@ def _build_state_token(provider: str, timestamp: int, secret: str) -> str:
 def test_generate_oauth_state_returns_unique_tokens(monkeypatch):
     """_generate_oauth_state should return distinct tokens for successive calls."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     token1 = _generate_oauth_state("google")
     # Advance time by 1 second to guarantee a different timestamp
@@ -473,7 +474,7 @@ def test_generate_oauth_state_returns_unique_tokens(monkeypatch):
 def test_generate_oauth_state_encodes_provider(monkeypatch):
     """The generated token should encode the provider name (verifiable via consume)."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     token = _generate_oauth_state("github")
     result = _consume_oauth_state(token)
@@ -483,7 +484,7 @@ def test_generate_oauth_state_encodes_provider(monkeypatch):
 def test_consume_oauth_state_returns_provider(monkeypatch):
     """_consume_oauth_state should return the provider for a valid token."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     token = _generate_oauth_state("google")
     result = _consume_oauth_state(token)
@@ -493,7 +494,7 @@ def test_consume_oauth_state_returns_provider(monkeypatch):
 def test_consume_oauth_state_rejects_unknown_token(monkeypatch):
     """An unknown/garbage state token should return None."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     result = _consume_oauth_state("bogus-token")
     assert result is None
@@ -502,7 +503,7 @@ def test_consume_oauth_state_rejects_unknown_token(monkeypatch):
 def test_consume_oauth_state_rejects_tampered_token(monkeypatch):
     """A token with a tampered payload should be rejected."""
     settings = get_settings()
-    secret = "test-secret"  # pragma: allowlist secret
+    secret = TEST_JWT_SECRET  # pragma: allowlist secret
     monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
 
     token = _generate_oauth_state("google")
@@ -517,7 +518,7 @@ def test_consume_oauth_state_rejects_tampered_token(monkeypatch):
 def test_consume_oauth_state_rejects_expired_token(monkeypatch):
     """A state token older than oauth_state_ttl_seconds should be rejected."""
     settings = get_settings()
-    secret = "test-secret"  # pragma: allowlist secret
+    secret = TEST_JWT_SECRET  # pragma: allowlist secret
     monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
     monkeypatch.setattr(settings.auth, "oauth_state_ttl_seconds", 600)
 
@@ -534,7 +535,7 @@ def test_consume_oauth_state_rejects_wrong_signature(monkeypatch):
     monkeypatch.setattr(settings.auth, "jwt_secret_key", "correct-secret")
 
     # Build a token signed with a different secret
-    token = _build_state_token("google", int(time.time()), "wrong-secret")
+    token = _build_state_token("google", int(time.time()), "wrong-secret-key-for-unit-tests!!")
     result = _consume_oauth_state(token)
     assert result is None
 
@@ -542,7 +543,7 @@ def test_consume_oauth_state_rejects_wrong_signature(monkeypatch):
 def test_login_state_is_not_provider_name(monkeypatch):
     """The state parameter in the authorize URL must not be the provider name."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     token = _generate_oauth_state("google")
     assert token != "google"
@@ -575,7 +576,7 @@ async def test_login_sets_next_cookie_for_safe_path(client, monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     resp = await client.get("/auth/login/google?next=/auth/tokens", follow_redirects=False)
     assert resp.status_code == 307
@@ -589,7 +590,7 @@ async def test_login_ignores_unsafe_next_url(client, monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     resp = await client.get("/auth/login/google?next=//evil.com", follow_redirects=False)
     assert resp.status_code == 307
@@ -607,7 +608,7 @@ async def test_login_uses_x_forwarded_proto(client, monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     resp = await client.get(
         "/auth/login/google",
@@ -626,7 +627,7 @@ async def test_login_uses_x_forwarded_proto(client, monkeypatch):
 
 def _auth_header(
     user_id: str = "user-1",
-    secret: str = "test-secret",  # pragma: allowlist secret
+    secret: str = TEST_JWT_SECRET,  # pragma: allowlist secret
 ) -> dict[str, str]:
     """Build an Authorization header with a valid session JWT."""
     token = jwt.encode(
@@ -646,7 +647,7 @@ async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, mo
     """POST /auth/token should return a valid JWT with the expected response shape."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     user = User(
         id="user-1",
@@ -673,7 +674,7 @@ async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, mo
     # The access_token should be a valid JWT
     decoded = jwt.decode(
         body["access_token"],
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithms=["HS256"],
         options={"verify_aud": False},
     )
@@ -685,7 +686,7 @@ async def test_api_token_has_correct_claims(client, db_session: AsyncSession, mo
     """The API token JWT should contain all expected claims."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     user = User(
         id="user-1",
@@ -706,7 +707,7 @@ async def test_api_token_has_correct_claims(client, db_session: AsyncSession, mo
 
     decoded = jwt.decode(
         response.json()["access_token"],
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithms=["HS256"],
         options={"verify_aud": False},
     )
@@ -727,7 +728,7 @@ async def test_api_token_expires_in_requested_days(client, db_session: AsyncSess
     """The API token exp claim should match the requested expires_in_days."""
     settings = get_settings()
     monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", "test-secret")
+    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
     user = User(
         id="user-1",
@@ -749,7 +750,7 @@ async def test_api_token_expires_in_requested_days(client, db_session: AsyncSess
 
     decoded = jwt.decode(
         response.json()["access_token"],
-        "test-secret",
+        TEST_JWT_SECRET,
         algorithms=["HS256"],
         options={"verify_aud": False},
     )

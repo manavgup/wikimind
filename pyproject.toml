@@ -259,6 +259,11 @@ reportMissingTypeStubs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",  # SwigPy* builtin types
+    "ignore:coroutine.*was never awaited:RuntimeWarning:rich.text",  # rich formatting mock objects
+    "ignore::DeprecationWarning:wikimind",  # SQLModel session.exec() vs session.execute() false positive on AsyncSession
+]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "e2e: end-to-end tests requiring full stack",
