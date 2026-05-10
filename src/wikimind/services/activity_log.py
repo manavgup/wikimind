@@ -42,7 +42,9 @@ def append_log_entry(
     """
     wiki_dir = Path(get_settings().data_dir) / "wiki"
     if user_id:
-        wiki_dir = wiki_dir / user_id
+        # Sanitize: use only the basename to prevent path traversal.
+        safe_id = Path(user_id).name
+        wiki_dir = wiki_dir / safe_id
     wiki_dir.mkdir(parents=True, exist_ok=True)
     log_path = wiki_dir / "log.md"
 
