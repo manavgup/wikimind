@@ -368,6 +368,10 @@ test-integration: ## Run integration tests only
 test-postgres-ci: ## Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL)
 	$(BIN)/pytest tests/integration/test_postgres_integration.py -m postgres -v
 
+.PHONY: test-schema-migration
+test-schema-migration: ## Replay schema migration scenarios on local Postgres (use ARGS='fly-replay --schema-sql ...')
+	./scripts/test_migration_0010.sh $(ARGS)
+
 .PHONY: test-auth-multiuser
 test-auth-multiuser: ## Run auth + multi-user isolation regression tests
 	$(BIN)/pytest \
