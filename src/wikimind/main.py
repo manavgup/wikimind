@@ -206,7 +206,9 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 from prometheus_fastapi_instrumentator import Instrumentator  # noqa: E402
 
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+Instrumentator(
+    excluded_handlers=["/health", "/health/deep", "/metrics"],
+).instrument(app).expose(app, endpoint="/metrics")
 
 # ---------------------------------------------------------------------------
 # Middleware stack — evaluated bottom-to-top.
