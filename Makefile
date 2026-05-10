@@ -11,6 +11,7 @@ PIP := $(BIN)/pip
 # Build-time overrides (container runtime, compose command).
 # Create .env.make from .env.make.example to customize.
 -include .env.make
+-include .env
 COMPOSE_CMD ?= docker compose
 COMPOSE_PROD_FILE ?= docker-compose.prod.yml
 
@@ -124,6 +125,13 @@ serve: ## Run production server on :7842 (gunicorn)
 	$(BIN)/gunicorn wikimind.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:7842
 
 DEV_PG_URL := postgresql+asyncpg://wikimind:wikimind@localhost:5433/wikimind
+FLY_DB_APP ?= wikimind-db
+FLY_PROXY_PORT ?= 6543
+FLY_DB_USER ?= wikimind
+FLY_DB_PASSWORD ?= $(POSTGRES_PASSWORD)
+FLY_DB_NAME ?= $(POSTGRES_DB)
+FLY_SCHEMA_SQL ?= /tmp/fly-schema.sql
+FLY_DATA_SQL ?= /tmp/fly-data.sql
 
 .PHONY: pg-up
 pg-up: ## Start local Postgres (docker-compose.dev.yml, port 5433)
@@ -146,6 +154,38 @@ dev-postgres: check-venv ## Run dev server against local Postgres (make pg-up fi
 test-postgres: ## Run tests against local Postgres (make pg-up first)
 	WIKIMIND_DATABASE_URL=$${WIKIMIND_DATABASE_URL:-$(DEV_PG_URL)} \
 	$(BIN)/pytest $(ARGS)
+
+.PHONY: dump-fly-migration-fixtures
+dump-fly-migration-fixtures: ## Dump Fly Postgres schema + migration-table data for local replay
+	@command -v fly >/dev/null 2>&1 || (echo "fly CLI is required" && exit 1)
+	@test -n "$(FLY_DB_PASSWORD)" || (echo "set FLY_DB_PASSWORD (or PGPASSWORD) first" && exit 1)
+	@set -euo pipefail; \
+	rm -f "$(FLY_SCHEMA_SQL)" "$(FLY_DATA_SQL)"; \
+	echo "Starting fly proxy on localhost:$(FLY_PROXY_PORT) for app $(FLY_DB_APP)"; \
+	fly proxy $(FLY_PROXY_PORT):5432 -a $(FLY_DB_APP) >/tmp/wikimind-fly-proxy.log 2>&1 & \
+	proxy_pid=$$!; \
+	trap 'kill $$proxy_pid >/dev/null 2>&1 || true' EXIT; \
+	ready=; \
+	for _ in $$(seq 1 60); do \
+		if (echo >/dev/tcp/127.0.0.1/$(FLY_PROXY_PORT)) >/dev/null 2>&1; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	test "$$ready" = 1 || (cat /tmp/wikimind-fly-proxy.log; echo "fly proxy did not become ready on localhost:$(FLY_PROXY_PORT)"; exit 1); \
+	$(PYTHON) scripts/dump_fly_migration_fixtures.py \
+		--host localhost \
+		--port $(FLY_PROXY_PORT) \
+		--user $(FLY_DB_USER) \
+		--password "$(FLY_DB_PASSWORD)" \
+		--database $(FLY_DB_NAME) \
+		--schema-sql "$(FLY_SCHEMA_SQL)" \
+		--data-sql "$(FLY_DATA_SQL)"; \
+	kill $$proxy_pid >/dev/null 2>&1 || true; \
+	trap - EXIT; \
+	echo "Wrote $(FLY_SCHEMA_SQL)"; \
+	echo "Wrote $(FLY_DATA_SQL)"
 
 .PHONY: worker
 worker: ## Start ARQ background job worker
@@ -367,6 +407,15 @@ test-integration: ## Run integration tests only
 .PHONY: test-postgres-ci
 test-postgres-ci: ## Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL)
 	$(BIN)/pytest tests/integration/test_postgres_integration.py -m postgres -v
+
+.PHONY: test-schema-migration
+test-schema-migration: ## Replay schema migration scenarios on local Postgres (use ARGS='fly-replay --schema-sql ...')
+	./scripts/test_migration_0010.sh $(ARGS)
+
+.PHONY: test-fly-schema-migration
+test-fly-schema-migration: ## Dump current Fly Postgres schema/data and replay migration locally
+	@$(MAKE) dump-fly-migration-fixtures
+	@$(MAKE) test-schema-migration ARGS="fly-replay --schema-sql $(FLY_SCHEMA_SQL) --data-sql $(FLY_DATA_SQL)"
 
 .PHONY: test-auth-multiuser
 test-auth-multiuser: ## Run auth + multi-user isolation regression tests
