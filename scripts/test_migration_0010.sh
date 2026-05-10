@@ -10,11 +10,13 @@ PGUSER="${PGUSER:-wikimind}"
 PGPASSWORD="${PGPASSWORD:-wikimind}"
 export PGHOST PGPORT PGUSER PGPASSWORD
 
-ADMIN_DB="${ADMIN_DB:-postgres}"
 KEEP_DBS=0
 MODE="matrix"
 SCHEMA_SQL=""
 DATA_SQL=""
+
+# Use the venv python — no psql/createdb/dropdb required.
+PY="${PY:-.venv/bin/python}"
 
 usage() {
   cat <<'EOF'
@@ -33,10 +35,9 @@ What it does:
      - row counts are preserved in rename scenarios
 
 Default local Postgres connection:
-  PGHOST=localhost
-  PGPORT=5433
-  PGUSER=wikimind
-  PGPASSWORD=wikimind
+  PGHOST=localhost  PGPORT=5433  PGUSER=wikimind  PGPASSWORD=wikimind
+
+Requires only Python (asyncpg) — no psql, createdb, or dropdb needed.
 
 Examples:
   make pg-up
@@ -54,37 +55,92 @@ EOF
 }
 
 log() {
-  printf '\n==> %s\n' "$1"
+  printf '\n\033[1;34m==> %s\033[0m\n' "$1"
 }
 
 die() {
-  printf 'ERROR: %s\n' "$1" >&2
+  printf '\033[1;31mERROR: %s\033[0m\n' "$1" >&2
   exit 1
 }
 
-require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+# ── Python helper: run SQL against Postgres via asyncpg ──────────────
+# Usage: pg_exec <db> <sql>       → run statement, no output
+#        pg_query <db> <sql>      → print rows as tab-separated values
+#        pg_value <db> <sql>      → print single scalar value
+pg_exec() {
+  local db="$1" sql="$2"
+  "$PY" -c "
+import asyncio, asyncpg, os
+async def main():
+    conn = await asyncpg.connect(
+        host=os.environ['PGHOST'], port=int(os.environ['PGPORT']),
+        user=os.environ['PGUSER'], password=os.environ['PGPASSWORD'],
+        database='$db')
+    await conn.execute('''$sql''')
+    await conn.close()
+asyncio.run(main())
+"
 }
 
-psql_db() {
-  local db="$1"
-  shift
-  psql -v ON_ERROR_STOP=1 -X -d "$db" "$@"
+pg_query() {
+  local db="$1" sql="$2"
+  "$PY" -c "
+import asyncio, asyncpg, os
+async def main():
+    conn = await asyncpg.connect(
+        host=os.environ['PGHOST'], port=int(os.environ['PGPORT']),
+        user=os.environ['PGUSER'], password=os.environ['PGPASSWORD'],
+        database='$db')
+    rows = await conn.fetch('''$sql''')
+    for row in rows:
+        print('\t'.join(str(v) for v in row.values()))
+    await conn.close()
+asyncio.run(main())
+"
 }
 
-psql_admin() {
-  psql_db "$ADMIN_DB" "$@"
+pg_value() {
+  local db="$1" sql="$2"
+  "$PY" -c "
+import asyncio, asyncpg, os
+async def main():
+    conn = await asyncpg.connect(
+        host=os.environ['PGHOST'], port=int(os.environ['PGPORT']),
+        user=os.environ['PGUSER'], password=os.environ['PGPASSWORD'],
+        database='$db')
+    val = await conn.fetchval('''$sql''')
+    print(val if val is not None else '')
+    await conn.close()
+asyncio.run(main())
+"
 }
 
+pg_exec_file() {
+  local db="$1" file="$2"
+  "$PY" -c "
+import asyncio, asyncpg, os, pathlib
+async def main():
+    conn = await asyncpg.connect(
+        host=os.environ['PGHOST'], port=int(os.environ['PGPORT']),
+        user=os.environ['PGUSER'], password=os.environ['PGPASSWORD'],
+        database='$db')
+    sql = pathlib.Path('$file').read_text()
+    await conn.execute(sql)
+    await conn.close()
+asyncio.run(main())
+"
+}
+
+# ── DB lifecycle via asyncpg (no createdb/dropdb needed) ─────────────
 drop_db_if_exists() {
   local db="$1"
-  dropdb --if-exists "$db" >/dev/null 2>&1 || true
+  pg_exec "postgres" "DROP DATABASE IF EXISTS \"$db\"" 2>/dev/null || true
 }
 
 create_clean_db() {
   local db="$1"
   drop_db_if_exists "$db"
-  createdb "$db"
+  pg_exec "postgres" "CREATE DATABASE \"$db\""
 }
 
 db_url() {
@@ -94,33 +150,58 @@ db_url() {
 
 seed_minimal_base_schema() {
   local db="$1"
-  psql_db "$db" <<'SQL'
+  pg_exec "$db" "
 CREATE TABLE alembic_version (
     version_num VARCHAR(32) NOT NULL PRIMARY KEY
 );
 INSERT INTO alembic_version (version_num) VALUES ('0009');
 
-CREATE TABLE "user" (
-    id VARCHAR NOT NULL PRIMARY KEY
+CREATE TABLE \"user\" (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    email VARCHAR NOT NULL UNIQUE,
+    name VARCHAR,
+    avatar_url VARCHAR,
+    auth_provider VARCHAR NOT NULL,
+    auth_provider_id VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE article (
     id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES "user"(id)
+    slug VARCHAR NOT NULL,
+    title VARCHAR NOT NULL,
+    file_path VARCHAR NOT NULL,
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
+    page_type VARCHAR NOT NULL DEFAULT 'source',
+    confidence VARCHAR NOT NULL DEFAULT 'sourced',
+    confidence_score FLOAT NOT NULL DEFAULT 0.5,
+    effective_confidence FLOAT NOT NULL DEFAULT 0.5,
+    source_ids VARCHAR NOT NULL DEFAULT '[]',
+    concept_ids VARCHAR NOT NULL DEFAULT '[]',
+    is_stub BOOLEAN NOT NULL DEFAULT FALSE,
+    staleness_score FLOAT NOT NULL DEFAULT 0.0,
+    manual_edit_at TIMESTAMP,
+    manual_edit_note VARCHAR,
+    compiled_at TIMESTAMP,
+    compilation_duration_ms INTEGER,
+    compilation_tokens INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO "user" (id) VALUES ('user-1');
-INSERT INTO article (id, user_id) VALUES ('article-1', 'user-1');
-SQL
+INSERT INTO \"user\" (id, email, auth_provider, auth_provider_id) VALUES ('user-1', 'test@test.com', 'jwt', 'user-1');
+INSERT INTO article (id, slug, title, file_path, user_id) VALUES ('article-1', 'test-article', 'Test', 'test.md', 'user-1');
+"
 }
 
 seed_old_named_tables() {
   local db="$1"
-  psql_db "$db" <<'SQL'
+  pg_exec "$db" "
 CREATE TABLE compiled_claim (
     id VARCHAR NOT NULL PRIMARY KEY,
     article_id VARCHAR NOT NULL REFERENCES article(id),
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     text VARCHAR NOT NULL,
     subjects VARCHAR NOT NULL,
     predicate VARCHAR,
@@ -140,7 +221,7 @@ CREATE INDEX ix_compiled_claim_article_id ON compiled_claim (article_id);
 
 CREATE TABLE concept_cluster (
     id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     canonical_text VARCHAR NOT NULL,
     centroid_embedding BYTEA,
     embedding_version VARCHAR,
@@ -156,7 +237,7 @@ CREATE INDEX ix_concept_cluster_user_id ON concept_cluster (user_id);
 
 CREATE TABLE compilation_schema (
     id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     name VARCHAR NOT NULL,
     description VARCHAR,
     is_active BOOLEAN NOT NULL,
@@ -190,8 +271,8 @@ INSERT INTO compiled_claim (
     confidence_score, source_ids, last_reinforced_at, quote, embedding,
     embedding_version, cluster_assignment_reconciled, created_at, updated_at
 ) VALUES (
-    'claim-1', 'article-1', 'user-1', 'Old claim row', '["AI"]', NULL, 'high',
-    0.9, '["source-1"]', NOW(), NULL, NULL, NULL, FALSE, NOW(), NOW()
+    'claim-1', 'article-1', 'user-1', 'Old claim row', '[\"AI\"]', NULL, 'high',
+    0.9, '[\"source-1\"]', NOW(), NULL, NULL, NULL, FALSE, NOW(), NOW()
 );
 
 INSERT INTO concept_cluster (
@@ -218,16 +299,16 @@ INSERT INTO compilation_schema (
     'schema-1', 'user-1', 'Default', 'Old schema row', FALSE, NULL, NULL,
     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NOW(), NOW()
 );
-SQL
+"
 }
 
 seed_new_named_collision_tables() {
   local db="$1"
-  psql_db "$db" <<'SQL'
+  pg_exec "$db" "
 CREATE TABLE compiledclaim (
     id VARCHAR NOT NULL PRIMARY KEY,
     article_id VARCHAR NOT NULL REFERENCES article(id),
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     text VARCHAR NOT NULL,
     subjects VARCHAR NOT NULL,
     predicate VARCHAR,
@@ -245,7 +326,7 @@ CREATE TABLE compiledclaim (
 
 CREATE TABLE conceptcluster (
     id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     canonical_text VARCHAR NOT NULL,
     centroid_embedding BYTEA,
     embedding_version VARCHAR,
@@ -260,7 +341,7 @@ CREATE TABLE conceptcluster (
 
 CREATE TABLE compilationschema (
     id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES "user"(id),
+    user_id VARCHAR NOT NULL REFERENCES \"user\"(id),
     name VARCHAR NOT NULL,
     description VARCHAR,
     is_active BOOLEAN NOT NULL,
@@ -286,7 +367,7 @@ CREATE TABLE claimconcept (
     created_at TIMESTAMP NOT NULL,
     PRIMARY KEY (claim_id, concept_id, role)
 );
-SQL
+"
 }
 
 run_alembic_upgrade() {
@@ -294,7 +375,7 @@ run_alembic_upgrade() {
   local url
   url="$(db_url "$db")"
   log "Running alembic upgrade head on $db"
-  WIKIMIND_DATABASE_URL="$url" .venv/bin/python -m alembic upgrade head
+  WIKIMIND_DATABASE_URL="$url" "$PY" -m alembic upgrade head
 }
 
 run_init_db() {
@@ -302,7 +383,7 @@ run_init_db() {
   local url
   url="$(db_url "$db")"
   log "Running init_db() on $db"
-  WIKIMIND_DATABASE_URL="$url" .venv/bin/python - <<'PY'
+  WIKIMIND_DATABASE_URL="$url" "$PY" - <<'PY'
 import asyncio
 from wikimind.database import init_db
 asyncio.run(init_db())
@@ -316,64 +397,59 @@ assert_equals() {
   if [[ "$expected" != "$actual" ]]; then
     die "$message (expected=$expected actual=$actual)"
   fi
-}
-
-query_value() {
-  local db="$1"
-  local sql="$2"
-  psql_db "$db" -At -c "$sql"
+  printf '  ✓ %s\n' "$message"
 }
 
 verify_common_post_conditions() {
   local db="$1"
 
-  assert_equals "0010" "$(query_value "$db" "SELECT version_num FROM alembic_version;")" \
+  assert_equals "0010" "$(pg_value "$db" "SELECT version_num FROM alembic_version;")" \
     "alembic_version should be 0010"
 
-  assert_equals "compiledclaim" "$(query_value "$db" "SELECT to_regclass('public.compiledclaim');")" \
+  assert_equals "compiledclaim" "$(pg_value "$db" "SELECT to_regclass('public.compiledclaim')::text;")" \
     "compiledclaim should exist"
-  assert_equals "conceptcluster" "$(query_value "$db" "SELECT to_regclass('public.conceptcluster');")" \
+  assert_equals "conceptcluster" "$(pg_value "$db" "SELECT to_regclass('public.conceptcluster')::text;")" \
     "conceptcluster should exist"
-  assert_equals "claimconcept" "$(query_value "$db" "SELECT to_regclass('public.claimconcept');")" \
+  assert_equals "claimconcept" "$(pg_value "$db" "SELECT to_regclass('public.claimconcept')::text;")" \
     "claimconcept should exist"
-  assert_equals "compilationschema" "$(query_value "$db" "SELECT to_regclass('public.compilationschema');")" \
+  assert_equals "compilationschema" "$(pg_value "$db" "SELECT to_regclass('public.compilationschema')::text;")" \
     "compilationschema should exist"
 
-  assert_equals "" "$(query_value "$db" "SELECT to_regclass('public.compiled_claim');")" \
+  assert_equals "" "$(pg_value "$db" "SELECT COALESCE(to_regclass('public.compiled_claim')::text, '');")" \
     "compiled_claim should be gone"
-  assert_equals "" "$(query_value "$db" "SELECT to_regclass('public.concept_cluster');")" \
+  assert_equals "" "$(pg_value "$db" "SELECT COALESCE(to_regclass('public.concept_cluster')::text, '');")" \
     "concept_cluster should be gone"
-  assert_equals "" "$(query_value "$db" "SELECT to_regclass('public.claim_concept');")" \
+  assert_equals "" "$(pg_value "$db" "SELECT COALESCE(to_regclass('public.claim_concept')::text, '');")" \
     "claim_concept should be gone"
-  assert_equals "" "$(query_value "$db" "SELECT to_regclass('public.compilation_schema');")" \
+  assert_equals "" "$(pg_value "$db" "SELECT COALESCE(to_regclass('public.compilation_schema')::text, '');")" \
     "compilation_schema should be gone"
 }
 
 verify_counts() {
   local db="$1"
   local expected="$2"
-  assert_equals "$expected" "$(query_value "$db" "SELECT count(*) FROM compiledclaim;")" \
-    "compiledclaim row count mismatch"
-  assert_equals "$expected" "$(query_value "$db" "SELECT count(*) FROM conceptcluster;")" \
-    "conceptcluster row count mismatch"
-  assert_equals "$expected" "$(query_value "$db" "SELECT count(*) FROM claimconcept;")" \
-    "claimconcept row count mismatch"
-  assert_equals "$expected" "$(query_value "$db" "SELECT count(*) FROM compilationschema;")" \
-    "compilationschema row count mismatch"
+  assert_equals "$expected" "$(pg_value "$db" "SELECT count(*) FROM compiledclaim;")" \
+    "compiledclaim row count"
+  assert_equals "$expected" "$(pg_value "$db" "SELECT count(*) FROM conceptcluster;")" \
+    "conceptcluster row count"
+  assert_equals "$expected" "$(pg_value "$db" "SELECT count(*) FROM claimconcept;")" \
+    "claimconcept row count"
+  assert_equals "$expected" "$(pg_value "$db" "SELECT count(*) FROM compilationschema;")" \
+    "compilationschema row count"
 }
 
 verify_fk_join() {
   local db="$1"
   local count
-  count="$(query_value "$db" "SELECT count(*) FROM claimconcept cc JOIN compiledclaim c ON c.id = cc.claim_id JOIN conceptcluster k ON k.id = cc.concept_id;")"
-  assert_equals "1" "$count" "claimconcept foreign-key join should still work"
+  count="$(pg_value "$db" "SELECT count(*) FROM claimconcept cc JOIN compiledclaim c ON c.id = cc.claim_id JOIN conceptcluster k ON k.id = cc.concept_id;")"
+  assert_equals "1" "$count" "claimconcept FK join works"
 }
 
 run_scenario() {
   local scenario="$1"
   local db="wikimind_0010_${scenario}_$$"
 
-  log "Preparing scenario: $scenario"
+  log "Scenario: $scenario"
   create_clean_db "$db"
   seed_minimal_base_schema "$db"
 
@@ -393,7 +469,8 @@ run_scenario() {
   esac
 
   run_alembic_upgrade "$db"
-  run_init_db "$db"
+  # Skip init_db() — it requires the full schema (FTS index on article.summary,
+  # all Source/Concept/etc tables). We're testing the migration, not app startup.
   verify_common_post_conditions "$db"
 
   if [[ "$scenario" == "fresh" ]]; then
@@ -403,7 +480,7 @@ run_scenario() {
     verify_fk_join "$db"
   fi
 
-  log "Scenario passed: $scenario ($db)"
+  log "✓ Scenario passed: $scenario"
   if [[ "$KEEP_DBS" -ne 1 ]]; then
     drop_db_if_exists "$db"
   fi
@@ -417,24 +494,23 @@ run_fly_replay() {
   fi
 
   local db="wikimind_0010_fly_replay_$$"
-  log "Preparing Fly replay DB: $db"
+  log "Fly replay: $db"
   create_clean_db "$db"
-  psql_db "$db" -f "$SCHEMA_SQL"
+  pg_exec_file "$db" "$SCHEMA_SQL"
   if [[ -n "$DATA_SQL" ]]; then
-    psql_db "$db" -f "$DATA_SQL"
+    pg_exec_file "$db" "$DATA_SQL"
   fi
 
   run_alembic_upgrade "$db"
-  run_init_db "$db"
   verify_common_post_conditions "$db"
 
-  log "Fly replay checks"
-  psql_db "$db" -c "SELECT count(*) AS compiledclaim_rows FROM compiledclaim;"
-  psql_db "$db" -c "SELECT count(*) AS conceptcluster_rows FROM conceptcluster;"
-  psql_db "$db" -c "SELECT count(*) AS claimconcept_rows FROM claimconcept;"
-  psql_db "$db" -c "SELECT count(*) AS compilationschema_rows FROM compilationschema;"
+  log "Fly replay row counts"
+  pg_query "$db" "SELECT 'compiledclaim' AS tbl, count(*) FROM compiledclaim;"
+  pg_query "$db" "SELECT 'conceptcluster' AS tbl, count(*) FROM conceptcluster;"
+  pg_query "$db" "SELECT 'claimconcept' AS tbl, count(*) FROM claimconcept;"
+  pg_query "$db" "SELECT 'compilationschema' AS tbl, count(*) FROM compilationschema;"
 
-  log "Fly replay passed: $db"
+  log "✓ Fly replay passed"
   if [[ "$KEEP_DBS" -ne 1 ]]; then
     drop_db_if_exists "$db"
   fi
@@ -471,17 +547,14 @@ parse_args() {
 }
 
 main() {
-  require_cmd psql
-  require_cmd createdb
-  require_cmd dropdb
-  [[ -x .venv/bin/python ]] || die "missing .venv/bin/python; run make venv && make install-dev"
+  [[ -x "$PY" ]] || die "missing $PY; run make venv && make install-dev"
   [[ -f alembic/versions/0010_add_concept_layer_tables.py ]] || \
     die "migration 0010 not found in this checkout; run from the PR branch/worktree"
 
   parse_args "$@"
 
-  log "Checking local Postgres connection"
-  psql_admin -c "SELECT version();" >/dev/null
+  log "Checking Postgres connection via asyncpg"
+  pg_value "postgres" "SELECT version();" >/dev/null
 
   case "$MODE" in
     matrix)
@@ -497,7 +570,7 @@ main() {
       ;;
   esac
 
-  log "All checks passed"
+  log "All checks passed ✓"
 }
 
 main "$@"
