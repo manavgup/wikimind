@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 from tests.conftest import TEST_USER_ID
-from wikimind.models import Article, Concept, PageType, Source, SourceType, User
+from wikimind.models import Article, Concept, IngestStatus, PageType, Source, SourceType, User
 from wikimind.services import admin as admin_mod
 from wikimind.services.admin import AdminService, get_admin_service
 
@@ -172,3 +172,21 @@ async def test_get_stats_stuck_sources_count(db_session: AsyncSession) -> None:
     service = AdminService()
     stats = await service.get_stats(db_session)
     assert stats.stuck_sources == 0
+
+
+async def test_retry_stuck_source_rejects_zombie(db_session: AsyncSession) -> None:
+    """Sources without a file_path should not be requeued."""
+    source = Source(
+        source_type=SourceType.URL,
+        title="zombie",
+        user_id=TEST_USER_ID,
+        status=IngestStatus.PROCESSING,
+        file_path=None,
+    )
+    db_session.add(source)
+    await db_session.commit()
+
+    service = AdminService()
+    result = await service.retry_stuck_source(db_session, str(source.id), TEST_USER_ID)
+    assert result.action == "retry_stuck"
+    assert result.status == "not_retryable"
