@@ -11,6 +11,7 @@ PIP := $(BIN)/pip
 # Build-time overrides (container runtime, compose command).
 # Create .env.make from .env.make.example to customize.
 -include .env.make
+-include .env
 COMPOSE_CMD ?= docker compose
 COMPOSE_PROD_FILE ?= docker-compose.prod.yml
 
@@ -127,8 +128,8 @@ DEV_PG_URL := postgresql+asyncpg://wikimind:wikimind@localhost:5433/wikimind
 FLY_DB_APP ?= wikimind-db
 FLY_PROXY_PORT ?= 6543
 FLY_DB_USER ?= wikimind
-FLY_DB_PASSWORD ?= $(PGPASSWORD)
-FLY_DB_NAME ?= wikimind
+FLY_DB_PASSWORD ?= $(POSTGRES_PASSWORD)
+FLY_DB_NAME ?= $(POSTGRES_DB)
 FLY_SCHEMA_SQL ?= /tmp/fly-schema.sql
 FLY_DATA_SQL ?= /tmp/fly-data.sql
 
