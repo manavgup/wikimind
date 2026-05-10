@@ -160,6 +160,20 @@ jobs:
               exit 1
             fi
           }
+
+          # Redis (Upstash) — created if missing
+          if ! flyctl redis status wikimind-redis 2>/dev/null; then
+            echo "Creating Redis instance..."
+            flyctl redis create --name wikimind-redis --region ord --no-eviction --plan free
+            # Get the private URL and set as secret
+            REDIS_URL=$(flyctl redis status wikimind-redis --json 2>/dev/null | jq -r '.private_url // empty')
+            if [ -n "$REDIS_URL" ]; then
+              flyctl secrets set --stage --app wikimind-staging WIKIMIND_REDIS_URL="$REDIS_URL"
+              echo "Redis provisioned and secret staged"
+            else
+              echo "::warning::Redis created but could not retrieve URL — set WIKIMIND_REDIS_URL manually"
+            fi
+          fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -291,6 +305,19 @@ jobs:
               exit 1
             fi
           }
+
+          # Redis (Upstash) — reuse staging Redis or create if missing
+          if ! flyctl redis status wikimind-redis 2>/dev/null; then
+            echo "Creating Redis instance..."
+            flyctl redis create --name wikimind-redis --region ord --no-eviction --plan free
+          fi
+          REDIS_URL=$(flyctl redis status wikimind-redis --json 2>/dev/null | jq -r '.private_url // empty')
+          if [ -n "$REDIS_URL" ]; then
+            flyctl secrets set --stage --app wikimind WIKIMIND_REDIS_URL="$REDIS_URL"
+            echo "Redis secret staged for production"
+          else
+            echo "::warning::Could not retrieve Redis URL — set WIKIMIND_REDIS_URL manually"
+          fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
