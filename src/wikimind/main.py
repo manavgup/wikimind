@@ -275,7 +275,9 @@ async def wikimind_error_handler(request: Request, exc: WikiMindError) -> JSONRe
 @app.get("/health")
 async def health():
     """Health check — used by Electron to confirm daemon is ready."""
-    return {"status": "ok", "version": "0.1.0"}
+    settings = get_settings()
+    background_mode = "arq" if settings.redis_url else "in-process"
+    return {"status": "ok", "version": "0.1.0", "background_mode": background_mode}
 
 
 # ---------------------------------------------------------------------------
