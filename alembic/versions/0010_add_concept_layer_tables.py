@@ -12,10 +12,13 @@ own migration:
 - ``claimconcept``      (was ``claim_concept``)
 - ``compilationschema`` (was ``compilation_schema`` in #521)
 
-Handles three deployment scenarios:
+Handles four deployment scenarios:
 1. **Fresh DB** — tables don't exist yet: create them.
-2. **Old names** (``compiled_claim`` etc.) — rename to ORM-expected names.
-3. **New names already present** — no-op.
+2. **Old names only** (``compiled_claim`` etc.) — rename to ORM-expected names.
+3. **Both old and new exist** — ``create_all()`` created empty new-name tables
+   alongside populated old-name tables. Drop the empty new tables, then rename
+   old tables to new names (preserving data).
+4. **New names already present, old names gone** — no-op.
 """
 
 from collections.abc import Sequence
@@ -190,14 +193,23 @@ def upgrade() -> None:
     ]
 
     for new_name, old_name in ordered:
-        if _table_exists(conn, new_name):
-            # Already migrated — nothing to do.
+        has_new = _table_exists(conn, new_name)
+        has_old = _table_exists(conn, old_name)
+
+        if has_new and has_old:
+            # Scenario 3: create_all() created empty new-name tables alongside
+            # populated old-name tables. Drop the empty new table, then rename
+            # the old one to preserve data.
+            op.drop_table(new_name)
+            op.rename_table(old_name, new_name)
+        elif has_new:
+            # Scenario 4: already migrated — nothing to do.
             continue
-        if _table_exists(conn, old_name):
-            # Deployed DB has old name — rename it.
+        elif has_old:
+            # Scenario 2: deployed DB has old name only — rename it.
             op.rename_table(old_name, new_name)
         else:
-            # Fresh deploy — create from scratch.
+            # Scenario 1: fresh deploy — create from scratch.
             _CREATORS[new_name]()
 
 
