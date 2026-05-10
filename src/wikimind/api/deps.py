@@ -12,7 +12,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.database import get_session
-from wikimind.models import User
 
 ANONYMOUS_USER_ID = "anonymous"
 
@@ -52,6 +51,8 @@ async def require_admin(
             status_code=403,
             detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
         )
+
+    from wikimind.models import User  # noqa: PLC0415 — deferred to avoid circular import
 
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
