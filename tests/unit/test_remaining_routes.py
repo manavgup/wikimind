@@ -79,6 +79,22 @@ class TestJobsRoutes:
 
     @pytest.mark.asyncio
     async def test_trigger_compile(self, client: AsyncClient):
+        from wikimind.database import get_session
+        from wikimind.main import app
+
+        # Create a source with file_path so the endpoint doesn't reject it
+        async for session in app.dependency_overrides[get_session]():
+            session.add(
+                Source(
+                    id="some-source-id",
+                    source_type=SourceType.TEXT,
+                    title="Test",
+                    file_path="some-source-id.txt",
+                    user_id=ANONYMOUS_USER_ID,
+                )
+            )
+            await session.commit()
+
         mock_bg = MagicMock()
         mock_bg.schedule_compile = AsyncMock(return_value="job-123")
         with patch("wikimind.services.compiler.get_background_compiler", return_value=mock_bg):

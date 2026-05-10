@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import Job, JobTriggerResponse
+from wikimind.models import Job, JobTriggerResponse, Source
 from wikimind.services.compiler import CompilerService, get_compiler_service
 from wikimind.services.linter import LinterService, get_linter_service
 
@@ -44,10 +44,20 @@ async def get_job(
 @router.post("/compile/{source_id}", response_model=JobTriggerResponse)
 async def trigger_compile(
     source_id: str,
+    session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Trigger compilation for a source."""
+    source = await session.get(Source, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not source.file_path:
+        raise HTTPException(
+            status_code=422,
+            detail="Source has no content file — ingestion may have failed after "
+            "creating the database record. Re-ingest the source to fix this.",
+        )
     return await service.trigger_compile(source_id, user_id=user_id)
 
 

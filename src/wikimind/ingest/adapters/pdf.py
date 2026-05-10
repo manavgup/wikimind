@@ -141,7 +141,7 @@ class PDFAdapter:
     with ``Source.file_path`` pointing at the latter.
     """
 
-    async def ingest(
+    async def ingest(  # noqa: PLR0915
         self,
         file_bytes: bytes,
         filename: str,
@@ -194,8 +194,20 @@ class PDFAdapter:
         # worker only ever reads the .txt file (see issue #59), so file_path
         # always points at the cleaned text. The raw .pdf is kept for lineage
         # and future re-extraction (e.g. Docling — see issue #57).
-        raw_storage = get_raw_storage(user_id)
-        await raw_storage.write_bytes(f"{source.id}.pdf", file_bytes)
+        try:
+            raw_storage = get_raw_storage(user_id)
+            await raw_storage.write_bytes(f"{source.id}.pdf", file_bytes)
+        except Exception as exc:
+            log.error(
+                "File write failed after source commit — marking as failed",
+                source_id=source.id,
+                error=str(exc),
+            )
+            source.status = IngestStatus.FAILED
+            source.error_message = f"File write failed: {exc}"
+            session.add(source)
+            await session.commit()
+            raise
         # Docling and fitz need a filesystem Path to open the PDF.
         raw_pdf_path = raw_storage.resolve_path(f"{source.id}.pdf")
 
@@ -224,8 +236,20 @@ class PDFAdapter:
         except _LLM_PROVIDER_ERRORS:
             log.warning("Vision enhancement failed — using extracted text as-is", source_id=source.id)
 
-        await raw_storage.write(f"{source.id}.txt", clean_text)
-        source.file_path = f"{source.id}.txt"
+        try:
+            await raw_storage.write(f"{source.id}.txt", clean_text)
+            source.file_path = f"{source.id}.txt"
+        except Exception as exc:
+            log.error(
+                "File write failed after source commit — marking as failed",
+                source_id=source.id,
+                error=str(exc),
+            )
+            source.status = IngestStatus.FAILED
+            source.error_message = f"File write failed: {exc}"
+            session.add(source)
+            await session.commit()
+            raise
 
         # Image extraction (issue #378): extract embedded images from the
         # PDF and save them to a user-scoped directory. This runs after text

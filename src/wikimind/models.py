@@ -1506,6 +1506,15 @@ class OrphanArticle(BaseModel):
     file_path: str
 
 
+class ZombieSource(BaseModel):
+    """Source stuck in processing with no content file (zombie)."""
+
+    id: str
+    title: str | None
+    source_type: str
+    ingested_at: datetime
+
+
 class EligibleConcept(BaseModel):
     """Concept eligible for concept-page generation."""
 

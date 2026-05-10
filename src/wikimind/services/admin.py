@@ -27,6 +27,7 @@ from wikimind.models import (
     StuckSource,
     SystemStats,
     User,
+    ZombieSource,
 )
 from wikimind.storage import get_wiki_storage
 
@@ -335,6 +336,47 @@ class AdminService:
                 )
             )
         return eligible
+
+    async def find_zombie_sources(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        stuck_minutes: int = 10,
+    ) -> list[ZombieSource]:
+        """Find sources stuck in processing with no file_path (zombies).
+
+        A zombie source is one that has been in ``processing`` status for longer
+        than *stuck_minutes* AND has a null ``file_path``. This indicates the
+        ingest adapter committed the Source row but failed before writing the
+        content file.
+
+        Args:
+            session: Async database session.
+            user_id: User ID filter.
+            stuck_minutes: Minimum minutes in processing before a source is
+                considered stuck. Defaults to 10.
+
+        Returns:
+            List of ZombieSource descriptors.
+        """
+        cutoff = utcnow_naive() - timedelta(minutes=stuck_minutes)
+        stmt = select(Source).where(
+            Source.status == IngestStatus.PROCESSING,
+            Source.file_path.is_(None),  # type: ignore[union-attr]
+            Source.ingested_at < cutoff,
+        )
+        if user_id:
+            stmt = stmt.where(Source.user_id == user_id)
+        result = await session.execute(stmt)
+        return [
+            ZombieSource(
+                id=s.id,
+                title=s.title,
+                source_type=s.source_type,
+                ingested_at=s.ingested_at,
+            )
+            for s in result.scalars().all()
+        ]
 
     async def trigger_sweep(
         self,
