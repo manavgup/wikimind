@@ -189,6 +189,7 @@ class User(SQLModel, table=True):
     avatar_url: str | None = None
     auth_provider: str  # "google" | "github"
     auth_provider_id: str  # provider's unique user ID
+    is_admin: bool = Field(default=False)
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)
 
@@ -1465,8 +1466,14 @@ class StuckSource(BaseModel):
 
 
 class SystemStats(BaseModel):
-    """Aggregate system statistics."""
+    """Aggregate system-wide statistics (admin dashboard)."""
 
+    total_users: int = 0
+    total_sources: int = 0
+    total_articles: int = 0
+    total_compiled_claims: int = 0
+
+    # Legacy aliases for backward compat
     article_count: int = 0
     source_count: int = 0
     concept_count: int = 0
@@ -1483,7 +1490,9 @@ class SystemStats(BaseModel):
 
     # Operational health
     sources_stuck_processing: list[StuckSource] = []
+    stuck_sources: int = 0
     compilation_queue_depth: int = 0
+    compilation_success_rate: float | None = None
     avg_compilation_time_ms: float | None = None
     last_compilation_at: str | None = None
 

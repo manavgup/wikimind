@@ -7,8 +7,12 @@ When auth is disabled (single-user mode), user_id defaults to
 
 import jwt
 from fastapi import Depends, HTTPException, Request, WebSocket
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
+from wikimind.database import get_session
+from wikimind.models import User
 
 ANONYMOUS_USER_ID = "anonymous"
 
@@ -26,6 +30,36 @@ async def require_user_id(user_id: str = Depends(get_current_user_id)) -> str:
     settings = get_settings()
     if settings.auth.enabled and user_id == ANONYMOUS_USER_ID:
         raise HTTPException(status_code=401, detail="Authentication required")
+    return user_id
+
+
+async def require_admin(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+) -> str:
+    """Require the current user to have admin privileges.
+
+    Raises HTTP 403 if the user is not an admin.
+    Returns the user_id if admin check passes.
+    """
+    settings = get_settings()
+    # In single-user mode (auth disabled), allow access
+    if not settings.auth.enabled:
+        return user_id
+
+    if user_id == ANONYMOUS_USER_ID:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
+        )
+
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
+        )
     return user_id
 
 

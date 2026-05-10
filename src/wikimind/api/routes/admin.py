@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import require_admin
 from wikimind.database import get_session
 from wikimind.services.admin import AdminService, get_admin_service
 
@@ -20,40 +20,40 @@ router = APIRouter()
 async def get_stats(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    _admin_user_id: str = Depends(require_admin),
 ):
-    """Aggregate system statistics."""
-    return await service.get_stats(session, user_id=user_id)
+    """Aggregate system-wide statistics (admin only)."""
+    return await service.get_stats(session)
 
 
 @router.get("/orphans")
 async def get_orphans(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    _admin_user_id: str = Depends(require_admin),
 ):
     """Articles with missing wiki files."""
-    return await service.get_orphan_articles(session, user_id=user_id)
+    return await service.get_orphan_articles(session)
 
 
 @router.get("/concepts/eligible")
 async def get_eligible_concepts(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    _admin_user_id: str = Depends(require_admin),
 ):
     """Concepts eligible for page generation."""
-    return await service.get_eligible_concepts(session, user_id=user_id)
+    return await service.get_eligible_concepts(session)
 
 
 @router.get("/stuck-sources")
 async def get_stuck_sources(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    _admin_user_id: str = Depends(require_admin),
 ):
     """Sources stuck in processing for >10 minutes."""
-    return await service.get_stuck_sources(session, user_id=user_id)
+    return await service.get_stuck_sources(session)
 
 
 @router.post("/retry-stuck/{source_id}")
@@ -61,24 +61,25 @@ async def retry_stuck_source(
     source_id: str,
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    admin_user_id: str = Depends(require_admin),
 ):
     """Reset a stuck source to pending and re-queue compilation."""
-    return await service.retry_stuck_source(session, source_id=source_id, user_id=user_id)
+    return await service.retry_stuck_source(session, source_id=source_id, user_id=admin_user_id)
 
 
 @router.post("/sweep")
 async def trigger_sweep(
     service: AdminService = Depends(get_admin_service),
-    user_id: str = Depends(get_current_user_id),
+    admin_user_id: str = Depends(require_admin),
 ):
     """Trigger wikilink sweep manually."""
-    return await service.trigger_sweep(user_id=user_id)
+    return await service.trigger_sweep(user_id=admin_user_id)
 
 
 @router.post("/reindex")
 async def trigger_reindex(
     service: AdminService = Depends(get_admin_service),
+    _admin_user_id: str = Depends(require_admin),
 ):
     """Rebuild search index."""
     return await service.trigger_reindex()
