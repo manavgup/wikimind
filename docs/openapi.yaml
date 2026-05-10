@@ -2414,7 +2414,7 @@ paths:
       tags:
       - Admin
       summary: Get Stats
-      description: Aggregate system statistics.
+      description: Aggregate system-wide statistics (admin only).
       operationId: get_stats_api_admin_stats_get
       responses:
         '200':
