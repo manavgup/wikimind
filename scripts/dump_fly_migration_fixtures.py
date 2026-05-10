@@ -3,6 +3,7 @@
 This avoids a local ``pg_dump`` dependency by introspecting the source database
 via asyncpg and writing schema/data SQL files for the migration-replay harness.
 """
+# ruff: noqa: D103, PLR0911, PERF401, TC003
 
 from __future__ import annotations
 
@@ -16,7 +17,6 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-
 
 SUPPORT_TABLES = ["alembic_version", "user", "article"]
 MIGRATION_TABLES = [

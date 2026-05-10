@@ -292,6 +292,7 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make pg-down` | Stop local Postgres |
 | `make dev-postgres` | Run dev server against local Postgres (make pg-up first) |
 | `make test-postgres` | Run tests against local Postgres (make pg-up first) |
+| `make dump-fly-migration-fixtures` | Dump Fly Postgres schema + migration-table data for local replay |
 | `make worker` | Start ARQ background job worker |
 
 ### 🔍 QUALITY
@@ -370,6 +371,8 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make test-unit` | Run unit tests only |
 | `make test-integration` | Run integration tests only |
 | `make test-postgres-ci` | Run Postgres-only integration tests (requires WIKIMIND_TEST_POSTGRES_URL) |
+| `make test-schema-migration` | Replay schema migration scenarios on local Postgres (use ARGS='fly-replay --schema-sql ...') |
+| `make test-fly-schema-migration` | Dump current Fly Postgres schema/data and replay migration locally |
 | `make test-auth-multiuser` | Run auth + multi-user isolation regression tests |
 | `make coverage` | Run tests with coverage report and HTML output |
 | `make test-matrix` | Show how to run the LLM × document type benchmark |
