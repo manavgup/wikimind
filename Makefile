@@ -127,6 +127,8 @@ DEV_PG_URL := postgresql+asyncpg://wikimind:wikimind@localhost:5433/wikimind
 FLY_DB_APP ?= wikimind-db
 FLY_PROXY_PORT ?= 6543
 FLY_DB_USER ?= wikimind
+FLY_DB_PASSWORD ?= $(PGPASSWORD)
+FLY_DB_NAME ?= wikimind
 FLY_SCHEMA_SQL ?= /tmp/fly-schema.sql
 FLY_DATA_SQL ?= /tmp/fly-data.sql
 
@@ -155,7 +157,7 @@ test-postgres: ## Run tests against local Postgres (make pg-up first)
 .PHONY: dump-fly-migration-fixtures
 dump-fly-migration-fixtures: ## Dump Fly Postgres schema + migration-table data for local replay
 	@command -v fly >/dev/null 2>&1 || (echo "fly CLI is required" && exit 1)
-	@command -v pg_dump >/dev/null 2>&1 || (echo "pg_dump is required" && exit 1)
+	@test -n "$(FLY_DB_PASSWORD)" || (echo "set FLY_DB_PASSWORD (or PGPASSWORD) first" && exit 1)
 	@set -euo pipefail; \
 	rm -f "$(FLY_SCHEMA_SQL)" "$(FLY_DATA_SQL)"; \
 	echo "Starting fly proxy on localhost:$(FLY_PROXY_PORT) for app $(FLY_DB_APP)"; \
@@ -163,10 +165,14 @@ dump-fly-migration-fixtures: ## Dump Fly Postgres schema + migration-table data 
 	proxy_pid=$$!; \
 	trap 'kill $$proxy_pid >/dev/null 2>&1 || true' EXIT; \
 	sleep 3; \
-	pg_dump -h localhost -p $(FLY_PROXY_PORT) -U $(FLY_DB_USER) --schema-only > "$(FLY_SCHEMA_SQL)"; \
-	pg_dump -h localhost -p $(FLY_PROXY_PORT) -U $(FLY_DB_USER) \
-		-t compiled_claim -t concept_cluster -t claim_concept -t compilation_schema \
-		--data-only > "$(FLY_DATA_SQL)"; \
+	$(PYTHON) scripts/dump_fly_migration_fixtures.py \
+		--host localhost \
+		--port $(FLY_PROXY_PORT) \
+		--user $(FLY_DB_USER) \
+		--password "$(FLY_DB_PASSWORD)" \
+		--database $(FLY_DB_NAME) \
+		--schema-sql "$(FLY_SCHEMA_SQL)" \
+		--data-sql "$(FLY_DATA_SQL)"; \
 	kill $$proxy_pid >/dev/null 2>&1 || true; \
 	trap - EXIT; \
 	echo "Wrote $(FLY_SCHEMA_SQL)"; \
