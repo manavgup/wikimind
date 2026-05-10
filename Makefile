@@ -165,7 +165,16 @@ dump-fly-migration-fixtures: ## Dump Fly Postgres schema + migration-table data 
 	fly proxy $(FLY_PROXY_PORT):5432 -a $(FLY_DB_APP) >/tmp/wikimind-fly-proxy.log 2>&1 & \
 	proxy_pid=$$!; \
 	trap 'kill $$proxy_pid >/dev/null 2>&1 || true' EXIT; \
-	sleep 3; \
+	$(PYTHON) - <<'PY' \
+import socket, sys, time
+for _ in range(60):
+    try:
+        with socket.create_connection(('127.0.0.1', $(FLY_PROXY_PORT)), timeout=1):
+            sys.exit(0)
+    except OSError:
+        time.sleep(1)
+sys.exit('fly proxy did not become ready on localhost:$(FLY_PROXY_PORT)')
+PY
 	$(PYTHON) scripts/dump_fly_migration_fixtures.py \
 		--host localhost \
 		--port $(FLY_PROXY_PORT) \
