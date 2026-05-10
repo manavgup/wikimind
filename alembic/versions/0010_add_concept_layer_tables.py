@@ -48,6 +48,31 @@ def _table_exists(conn: sa.engine.Connection, table: str) -> bool:
     return table in inspector.get_table_names()
 
 
+def _repair_concept_layer_name_collisions(conn: sa.engine.Connection) -> None:
+    """Repair the old+new table-name collision for the concept-layer tables.
+
+    ``claimconcept`` depends on both parent tables, so its new-name copy must be
+    dropped before replacing ``compiledclaim`` / ``conceptcluster``.
+    """
+    if _table_exists(conn, "claimconcept") and _table_exists(conn, "claim_concept"):
+        op.drop_table("claimconcept")
+
+    for new_name, old_name in [
+        ("compiledclaim", "compiled_claim"),
+        ("conceptcluster", "concept_cluster"),
+    ]:
+        has_new = _table_exists(conn, new_name)
+        has_old = _table_exists(conn, old_name)
+        if has_new and has_old:
+            op.drop_table(new_name)
+            op.rename_table(old_name, new_name)
+        elif not has_new and has_old:
+            op.rename_table(old_name, new_name)
+
+    if not _table_exists(conn, "claimconcept") and _table_exists(conn, "claim_concept"):
+        op.rename_table("claim_concept", "claimconcept")
+
+
 def _create_compiledclaim() -> None:
     op.create_table(
         "compiledclaim",
@@ -184,22 +209,22 @@ def upgrade() -> None:
     """
     conn = op.get_bind()
 
-    # Process tables in dependency order.
+    _repair_concept_layer_name_collisions(conn)
+
+    # Process any remaining independent cases after collision repair.
     ordered = [
         ("compiledclaim", "compiled_claim"),
         ("conceptcluster", "concept_cluster"),
         ("compilationschema", "compilation_schema"),
         ("claimconcept", "claim_concept"),
     ]
-
     for new_name, old_name in ordered:
         has_new = _table_exists(conn, new_name)
         has_old = _table_exists(conn, old_name)
 
         if has_new and has_old:
-            # Scenario 3: create_all() created empty new-name tables alongside
-            # populated old-name tables. Drop the empty new table, then rename
-            # the old one to preserve data.
+            # Only ``compilationschema`` can still reach this path. The
+            # concept-layer collision is handled above to respect FK ordering.
             op.drop_table(new_name)
             op.rename_table(old_name, new_name)
         elif has_new:
