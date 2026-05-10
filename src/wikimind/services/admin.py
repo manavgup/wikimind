@@ -251,6 +251,9 @@ class AdminService:
         if source is None:
             return AdminActionResult(action="retry_stuck", status="not_found")
 
+        if not source.file_path:
+            return AdminActionResult(action="retry_stuck", status="not_retryable")
+
         source.status = IngestStatus.PENDING
         source.error_message = None
         await session.commit()
