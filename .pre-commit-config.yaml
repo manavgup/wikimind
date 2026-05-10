@@ -38,14 +38,14 @@ repos:
     hooks:
       - id: update-secrets-baseline
         name: Update detect-secrets baseline
-        entry: python scripts/update_secrets_baseline.py
+        entry: uv run python scripts/update_secrets_baseline.py
         language: system
         pass_filenames: false
         always_run: true
 
       - id: regenerate-adr-index
         name: ADR index — regenerate docs/adr/README.md
-        entry: python scripts/regenerate_adr_index.py
+        entry: uv run python scripts/regenerate_adr_index.py
         language: system
         pass_filenames: false
         always_run: true
@@ -53,7 +53,7 @@ repos:
 
       - id: regenerate-readme-targets
         name: README make-targets section — regenerate
-        entry: python scripts/regenerate_readme_targets.py
+        entry: uv run python scripts/regenerate_readme_targets.py
         language: system
         pass_filenames: false
         always_run: true
@@ -61,38 +61,40 @@ repos:
 
       - id: check-openapi
         name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
-        entry: python scripts/export_openapi.py --check
+        entry: uv run python scripts/export_openapi.py --check
         language: system
         pass_filenames: false
         files: ^(src/wikimind/api/|src/wikimind/models\.py)
 
   # ── Secret detection (validate, after baseline is updated) ───────────────
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
+  - repo: local
     hooks:
       - id: detect-secrets
-        args: ["--baseline", ".secrets.baseline"]
+        name: detect-secrets — scan for secrets
+        entry: uv run detect-secrets-hook --baseline .secrets.baseline
+        language: system
+        pass_filenames: true
 
   # ── Doc sync validation (runs after OpenAPI is regenerated) ──────────────
   - repo: local
     hooks:
       - id: check-doc-sync
         name: Doc sync — verify docs are updated alongside code
-        entry: python scripts/check_doc_sync.py
+        entry: uv run python scripts/check_doc_sync.py
         language: system
         pass_filenames: false
         always_run: true
 
       - id: check-docker-bloat
         name: Docker bloat guard — no GPU deps in core
-        entry: python scripts/check_docker_bloat.py
+        entry: uv run python scripts/check_docker_bloat.py
         language: system
         pass_filenames: false
         files: ^pyproject\.toml$
 
       - id: check-noqa
         name: Flag new # noqa suppressions (informational)
-        entry: python scripts/check_noqa.py
+        entry: uv run python scripts/check_noqa.py
         language: system
         pass_filenames: false
         always_run: true

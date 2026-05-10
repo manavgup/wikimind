@@ -195,11 +195,7 @@ worker: ## Start ARQ background job worker
 
 .PHONY: pre-commit
 pre-commit: ## Run all pre-commit hooks + mypy + tests (matches CI)
-	@# Prepend the venv bin to PATH so the local hooks (which use `python`
-	@# as their entry point) resolve to the venv's Python — needed because
-	@# pre-commit's `language: system` subprocesses inherit the parent shell's
-	@# PATH, and the user may not have the venv activated.
-	@PATH="$(abspath $(BIN)):$$PATH" $(BIN)/pre-commit run --all-files
+	@uv run pre-commit run --all-files
 	$(BIN)/mypy src/wikimind
 	$(BIN)/pytest tests/unit -x -q
 
@@ -259,7 +255,7 @@ security: bandit vulture ## Run security and dead-code checks
 
 .PHONY: update-secrets-baseline
 update-secrets-baseline: ## Update detect-secrets baseline (keeps line numbers in sync)
-	@$(PYTHON) scripts/update_secrets_baseline.py
+	@uv run python scripts/update_secrets_baseline.py
 
 .PHONY: verify
 verify: update-secrets-baseline export-openapi check-docs check-doc-sync lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension + doc-sync)
@@ -446,27 +442,27 @@ test-matrix: ## Show how to run the LLM × document type benchmark
 
 .PHONY: export-openapi
 export-openapi: ## Regenerate docs/openapi.yaml from the FastAPI app
-	$(PYTHON) scripts/export_openapi.py
+	uv run python scripts/export_openapi.py
 
 .PHONY: check-openapi
 check-openapi: ## Verify docs/openapi.yaml matches the FastAPI app
-	$(PYTHON) scripts/export_openapi.py --check
+	uv run python scripts/export_openapi.py --check
 
 .PHONY: regenerate-adr-index
 regenerate-adr-index: ## Regenerate docs/adr/README.md from ADR files
-	$(PYTHON) scripts/regenerate_adr_index.py
+	uv run python scripts/regenerate_adr_index.py
 
 .PHONY: check-adr-index
 check-adr-index: ## Verify docs/adr/README.md is in sync with ADR files
-	$(PYTHON) scripts/regenerate_adr_index.py --check
+	uv run python scripts/regenerate_adr_index.py --check
 
 .PHONY: regenerate-readme-targets
 regenerate-readme-targets: ## Regenerate README make-targets section from Makefile
-	$(PYTHON) scripts/regenerate_readme_targets.py
+	uv run python scripts/regenerate_readme_targets.py
 
 .PHONY: check-readme-targets
 check-readme-targets: ## Verify README make-targets section is in sync with Makefile
-	$(PYTHON) scripts/regenerate_readme_targets.py --check
+	uv run python scripts/regenerate_readme_targets.py --check
 
 .PHONY: regenerate-docs
 regenerate-docs: export-openapi regenerate-adr-index regenerate-readme-targets ## Regenerate all auto-generated docs
@@ -476,7 +472,7 @@ check-docs: check-openapi check-adr-index check-readme-targets ## Verify all aut
 
 .PHONY: check-doc-sync
 check-doc-sync: ## Run the co-change rule engine against the staged diff
-	$(PYTHON) scripts/check_doc_sync.py
+	uv run python scripts/check_doc_sync.py
 
 .PHONY: backfill-images
 backfill-images: ## Extract images from existing PDFs that were ingested before image extraction
