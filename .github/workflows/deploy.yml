@@ -291,6 +291,15 @@ jobs:
                   echo "  poll $i: status=$STATUS"
                   if [ "$STATUS" = "compiled" ] || [ "$STATUS" = "done" ]; then
                     echo "PASS: E2E compile completed via ARQ/Redis"
+                    # Verify side effects: article was created for this source
+                    ARTICLES=$(curl -sf "$BASE/api/wiki/articles" \
+                      -H "Authorization: Bearer $TOKEN" 2>/dev/null | \
+                      jq -r --arg sid "$SOURCE_ID" '[.[] | select(.source_ids // "" | contains($sid))] | length')
+                    if [ "$ARTICLES" -gt 0 ] 2>/dev/null; then
+                      echo "PASS: E2E article created from compiled source ($ARTICLES article(s))"
+                    else
+                      echo "WARN: compile completed but no article found for source"
+                    fi
                     break
                   fi
                   if [ "$STATUS" = "failed" ]; then
