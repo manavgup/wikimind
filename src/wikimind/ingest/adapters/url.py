@@ -91,10 +91,22 @@ class URLAdapter:
 
         # Save clean extracted text (used by the compiler worker) and
         # keep the raw HTML alongside it for reference/reprocessing.
-        raw_storage = get_raw_storage(user_id)
-        await raw_storage.write(f"{source.id}.html", html)
-        await raw_storage.write(f"{source.id}.txt", downloaded)
-        source.file_path = f"{source.id}.txt"
+        try:
+            raw_storage = get_raw_storage(user_id)
+            await raw_storage.write(f"{source.id}.html", html)
+            await raw_storage.write(f"{source.id}.txt", downloaded)
+            source.file_path = f"{source.id}.txt"
+        except Exception as exc:
+            log.error(
+                "File write failed after source commit — marking as failed",
+                source_id=source.id,
+                error=str(exc),
+            )
+            source.status = IngestStatus.FAILED
+            source.error_message = f"File write failed: {exc}"
+            session.add(source)
+            await session.commit()
+            raise
 
         # Normalize
         clean_text = downloaded
