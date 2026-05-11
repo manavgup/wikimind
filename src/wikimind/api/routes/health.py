@@ -29,8 +29,8 @@ log = structlog.get_logger()
 def _get_alembic_head() -> str:
     """Read the latest revision from alembic's script directory."""
     try:
-        from alembic.config import Config
-        from alembic.script import ScriptDirectory
+        from alembic.config import Config  # noqa: PLC0415
+        from alembic.script import ScriptDirectory  # noqa: PLC0415
 
         cfg = Config("alembic.ini")
         script = ScriptDirectory.from_config(cfg)
