@@ -12,9 +12,13 @@
 #   SEMANTIC_RELEASE_GITHUB_TOKEN to a PAT (contents:write, bypass if needed)
 #   or add a ruleset exception for GitHub Actions.
 #
-#   GH_TOKEN alone is not enough: actions/checkout configures git with
-#   GITHUB_TOKEN, so git push must use the PAT on the remote URL (see step
-#   "Configure git remote for semantic-release push").
+#   GH_TOKEN alone is not enough: python-semantic-release calls git push with
+#   https://github.com/OWNER/REPO.git (not origin), so the checkout credential
+#   helper still sent GITHUB_TOKEN. Use url.insteadOf to rewrite github.com to
+#   x-access-token PAT URLs for every HTTPS push in this job.
+#
+#   If you still see GH013 / "must be made through a pull request", the PAT
+#   owner must be allowed to bypass that ruleset (or use a bot with bypass).
 # ---------------------------------------------------------------
 
 name: Release
@@ -53,17 +57,17 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
-      # checkout leaves origin using GITHUB_TOKEN; semantic-release uses git push.
-      # Re-point origin so pushes use the PAT when the secret is set.
-      - name: Configure git remote for semantic-release push
+      # semantic-release pushes to https://github.com/OWNER/REPO.git, not origin.
+      - name: Configure git to use PAT for all github.com HTTPS pushes
         env:
           SEMANTIC_RELEASE_GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
         run: |
           if [ -n "${SEMANTIC_RELEASE_GITHUB_TOKEN}" ]; then
+            git config --global url."https://x-access-token:${SEMANTIC_RELEASE_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
             git remote set-url origin "https://x-access-token:${SEMANTIC_RELEASE_GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-            echo "origin now uses SEMANTIC_RELEASE_GITHUB_TOKEN for HTTPS pushes"
+            echo "github.com HTTPS uses SEMANTIC_RELEASE_GITHUB_TOKEN (insteadOf + origin)"
           else
-            echo "SEMANTIC_RELEASE_GITHUB_TOKEN unset — push uses checkout credentials (GITHUB_TOKEN)"
+            echo "SEMANTIC_RELEASE_GITHUB_TOKEN unset — pushes use checkout credentials only"
           fi
 
       - name: Semantic Release — version + publish
