@@ -6,7 +6,7 @@
 # First-time setup:
 #   fly apps create wikimind-staging
 #   fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
-#   fly postgres attach wikimind-db --app wikimind-staging   # or a separate staging DB
+#   fly postgres attach wikimind-staging-db --app wikimind-staging
 #   fly secrets set --app wikimind-staging \
 #     ANTHROPIC_API_KEY=... \
 #     WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32) \
@@ -34,12 +34,17 @@ primary_region = "ord"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 1
+  processes = ["web"]
 
   [http_service.concurrency]
     type = "connections"
     hard_limit = 50
     soft_limit = 25
 
+
+[processes]
+  web = "gunicorn wikimind.main:app -c gunicorn.conf.py"
+  worker = ".venv/bin/arq wikimind.jobs.worker.WorkerSettings"
 
 [deploy]
   strategy = "rolling"

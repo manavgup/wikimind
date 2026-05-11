@@ -30,12 +30,17 @@ primary_region = "ord"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+  processes = ["web"]
 
   [http_service.concurrency]
     type = "connections"
     hard_limit = 50
     soft_limit = 25
 
+
+[processes]
+  web = "gunicorn wikimind.main:app -c gunicorn.conf.py"
+  worker = ".venv/bin/arq wikimind.jobs.worker.WorkerSettings"
 
 [deploy]
   strategy = "rolling"

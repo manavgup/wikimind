@@ -11,11 +11,10 @@ if [ "$(id -u)" = "0" ]; then
     exec gosu wikimind "$0" "$@"
 fi
 
-# Run Alembic migrations when using PostgreSQL.
-# SQLite uses create_all() at startup — no Alembic needed.
-# Check both WIKIMIND_DATABASE_URL (explicit) and DATABASE_URL (Fly.io/Railway auto-set).
+# Run Alembic migrations when using PostgreSQL — but only for the web process.
+# The ARQ worker should not race the web process for migrations.
 _db_url="${WIKIMIND_DATABASE_URL:-${DATABASE_URL:-}}"
-if [[ "$_db_url" == postgres* ]]; then
+if [[ "$_db_url" == postgres* ]] && [[ "${1:-}" != *"arq"* ]]; then
     echo "Running Alembic migrations..."
     .venv/bin/python -m alembic upgrade head
     echo "Migrations complete."
