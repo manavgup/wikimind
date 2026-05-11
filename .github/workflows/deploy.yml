@@ -77,12 +77,13 @@
 # Fly.io apps managed by this workflow
 # ---------------------------------------------------------------
 #
-#   App               │ Config             │ Purpose
-#   ──────────────────┼────────────────────┼──────────────────
-#   wikimind-staging  │ fly.staging.toml   │ Pre-prod gate
-#   wikimind          │ fly.toml           │ Production
-#   wikimind-docling  │ fly.docling.toml   │ PDF sidecar
-#   wikimind-db       │ (Postgres cluster) │ Shared database
+#   App                 │ Config             │ Purpose
+#   ────────────────────┼────────────────────┼──────────────────────────
+#   wikimind-staging    │ fly.staging.toml   │ Pre-prod gate
+#   wikimind            │ fly.toml           │ Production
+#   wikimind-docling    │ fly.docling.toml   │ PDF sidecar (production)
+#   wikimind-staging-db │ (Postgres cluster) │ Staging database
+#   wikimind-db         │ (Postgres cluster) │ Production database
 #
 # ---------------------------------------------------------------
 
@@ -150,15 +151,15 @@ jobs:
             flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
           fi
 
-          # Postgres cluster — created if missing, with loud warning
-          if ! flyctl status --app wikimind-db 2>/dev/null; then
-            echo "::warning::Creating NEW Postgres cluster — database will be empty!"
-            flyctl postgres create --name wikimind-db --org personal --region ord \
+          # Staging Postgres — separate from production
+          if ! flyctl status --app wikimind-staging-db 2>/dev/null; then
+            echo "::warning::Creating NEW staging Postgres cluster"
+            flyctl postgres create --name wikimind-staging-db --org personal --region ord \
               --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
           fi
 
           # Attach — idempotent; only suppress "already attached" errors
-          output=$(flyctl postgres attach wikimind-db --app wikimind-staging 2>&1) || {
+          output=$(flyctl postgres attach wikimind-staging-db --app wikimind-staging 2>&1) || {
             if echo "$output" | grep -qi "already attached\|already exists\|already contains"; then
               echo "Postgres already attached to staging"
             else
