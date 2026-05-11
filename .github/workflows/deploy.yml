@@ -128,7 +128,9 @@ jobs:
       - name: 🔐  Validate required secrets
         run: |
           missing=0
-          for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET WIKIMIND_REDIS_URL; do
+          # WIKIMIND_REDIS_URL is NOT checked here — it is auto-provisioned
+          # by the infrastructure step below via `flyctl redis create`.
+          for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
             if [ -z "${!var}" ]; then
               echo "::error::Required secret ${var} is empty or not configured"
               missing=1
@@ -140,7 +142,6 @@ jobs:
           JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
-          WIKIMIND_REDIS_URL: ${{ secrets.WIKIMIND_REDIS_URL }}
 
       # 1️⃣  Ensure staging infrastructure exists
       - name: 🏗️  Ensure staging app exists
