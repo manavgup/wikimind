@@ -13,56 +13,45 @@ dependencies = [
     # Web framework
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.6",
-    "python-multipart>=0.0.27",  # CVE-2026-42561 — DoS via unbounded multipart headers
-
+    "python-multipart>=0.0.27", # CVE-2026-42561 — DoS via unbounded multipart headers
     # Data validation
     "pydantic>=2.9.2",
     "pydantic-settings>=2.5.2",
-
     # Database
     "sqlmodel>=0.0.21",
     "aiosqlite>=0.20.0",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
-    "mako>=1.3.12",  # CVE-2026-44307 — path traversal via backslash URI
-
+    "mako>=1.3.12", # CVE-2026-44307 — path traversal via backslash URI
     # Job queue + cross-replica pub/sub
     "arq>=0.26.1",
     "fakeredis>=2.26.0",
     "redis>=5.0.0",
-
     # LLM providers
     "anthropic>=0.40.0",
     "openai>=1.54.3",
     "google-genai>=1.0.0",
     "ollama>=0.3.3",
-
     # Document processing (docling is in [pdf] extra — see below)
     "defusedxml>=0.7.1",
-    "lxml>=6.1.0",  # CVE-2026-41066 — transitive dep, pinned to force safe version
+    "lxml>=6.1.0", # CVE-2026-41066 — transitive dep, pinned to force safe version
     "trafilatura>=1.12.2",
     "pymupdf>=1.24.13",
     "youtube-transcript-api>=0.6.3",
     "feedparser>=6.0.11",
-
     # Security / keychain
     "keyring>=25.4.1",
     "PyJWT>=2.8.0",
     "cryptography>=42.0.0",
-
     # Sync
     "boto3>=1.35.49",
     "httpx>=0.27.2",
-
     # Production server
     "gunicorn>=22.0.0",
-
     # Monitoring
     "prometheus-fastapi-instrumentator>=7.0.0",
-
     # MCP (Model Context Protocol)
     "fastmcp>=3.0.2",
-
     # Utilities
     "python-slugify>=8.0.4",
     "python-dateutil>=2.9.0",
@@ -70,6 +59,7 @@ dependencies = [
     "pyyaml>=6.0",
     "structlog>=24.4.0",
     "click>=8.1.0",
+    "urllib3>=2.7.0",
 ]
 
 [project.scripts]

@@ -6,6 +6,12 @@
 #   - determines version bump from conventional commits (feat/fix)
 #   - updates version in pyproject.toml, creates git tag + GitHub release
 #   - skips if no releasable commits since last tag
+#
+#   Branch protection: pushes to main from the default GITHUB_TOKEN are
+#   rejected when rules require pull requests. Set repository secret
+#   SEMANTIC_RELEASE_GITHUB_TOKEN to a PAT (contents:write, bypass if needed)
+#   or add a ruleset exception for GitHub Actions. The step below prefers
+#   the PAT when present and falls back to GITHUB_TOKEN.
 # ---------------------------------------------------------------
 
 name: Release
@@ -46,7 +52,9 @@ jobs:
 
       - name: Semantic Release — version + publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SEMANTIC_RELEASE_GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          export GH_TOKEN="${SEMANTIC_RELEASE_GITHUB_TOKEN:-$GITHUB_TOKEN}"
           semantic-release version
           semantic-release publish
