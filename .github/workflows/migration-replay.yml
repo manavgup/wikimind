@@ -102,7 +102,7 @@ jobs:
           echo "All migrations applied successfully"
 
       # -----------------------------------------------------------
-      # 4. Verify all ORM tables exist and are queryable
+      # 4. Hard-assert ALL ORM tables exist and are queryable
       # -----------------------------------------------------------
       - name: Verify all ORM tables exist and are queryable
         run: |
@@ -110,6 +110,45 @@ jobs:
           import asyncio
           from sqlalchemy.ext.asyncio import create_async_engine
           from sqlalchemy import text
+
+          REQUIRED_TABLES = sorted([
+              'alembic_version',
+              'article',
+              'articleconcept',
+              'articlesource',
+              'articletag',
+              'backlink',
+              'capturesource',
+              'claimconcept',
+              'compilationdraft',
+              'compilationschema',
+              'compiledclaim',
+              'concept',
+              'conceptcluster',
+              'conceptkinddef',
+              'contradiction',
+              'contradictionfinding',
+              'conversation',
+              'costlog',
+              'dismissedfinding',
+              'job',
+              'lintpaircache',
+              'lintreport',
+              'migrationhistory',
+              'orphanfinding',
+              'query',
+              'reinforcementevent',
+              'rssfeed',
+              'savedsearch',
+              'sharelink',
+              'source',
+              'structuralfinding',
+              'synclog',
+              'tag',
+              'user',
+              'userapikey',
+              'userpreference',
+          ])
 
           async def verify():
               engine = create_async_engine(
@@ -120,26 +159,20 @@ jobs:
                       \"SELECT table_name FROM information_schema.tables \"
                       \"WHERE table_schema = 'public'\"
                   ))
-                  tables = [row[0] for row in result.fetchall()]
-                  print(f'Tables after migration: {sorted(tables)}')
+                  actual = sorted(row[0] for row in result.fetchall())
+                  print(f'Tables after migration: {actual}')
 
-                  # Verify critical tables exist
-                  required = ['user', 'article', 'source', 'alembic_version']
-                  for t in required:
-                      assert t in tables, f'Missing required table: {t}'
+                  missing = set(REQUIRED_TABLES) - set(actual)
+                  unexpected = set(actual) - set(REQUIRED_TABLES)
+                  if missing:
+                      raise AssertionError(f'Missing tables: {sorted(missing)}')
+                  if unexpected:
+                      print(f'WARNING: unexpected extra tables: {sorted(unexpected)}')
+
+                  for t in REQUIRED_TABLES:
                       await conn.execute(text(f'SELECT count(*) FROM \"{t}\"'))
 
-                  # Verify concept-layer tables if migrations created them
-                  concept_tables = [
-                      'compiledclaim', 'conceptcluster',
-                      'claimconcept', 'compilationschema',
-                  ]
-                  for t in concept_tables:
-                      if t in tables:
-                          await conn.execute(text(f'SELECT count(*) FROM \"{t}\"'))
-                          print(f'  {t} queryable')
-
-                  print(f'All {len(tables)} tables verified')
+                  print(f'All {len(REQUIRED_TABLES)} required tables present and queryable')
 
               await engine.dispose()
 
@@ -160,3 +193,133 @@ jobs:
             exit 1
           fi
           echo "Migration state is at head"
+
+      # -----------------------------------------------------------
+      # 6. Upgrade-path test: N-1 -> seed data -> head (no data loss)
+      # -----------------------------------------------------------
+      - name: Create second database for upgrade-path test
+        run: |
+          PGPASSWORD=wikimind psql -h 127.0.0.1 -U wikimind -d wikimind_replay \
+            -c "CREATE DATABASE wikimind_upgrade_test;"
+
+      - name: "Upgrade-path: migrate to N-1, seed, upgrade to head, verify"
+        env:
+          WIKIMIND_DATABASE_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_upgrade_test # pragma: allowlist secret
+        run: |
+          set -euo pipefail
+
+          # Determine head and its parent (N-1)
+          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          PREV=$(uv run alembic history 2>/dev/null \
+            | grep -oP '^\w+' | head -2 | tail -1)
+          echo "HEAD=$HEAD  PREV=$PREV"
+
+          if [ "$HEAD" = "$PREV" ] || [ -z "$PREV" ]; then
+            echo "Only one migration exists — skipping upgrade-path test"
+            exit 0
+          fi
+
+          # Step 1: migrate to N-1
+          uv run alembic upgrade "$PREV"
+          echo "Migrated to $PREV"
+
+          # Step 2: seed a row into the user table
+          uv run python -c "
+          import asyncio
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from sqlalchemy import text
+
+          async def seed():
+              engine = create_async_engine(
+                  'postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_upgrade_test'
+              )
+              async with engine.begin() as conn:
+                  await conn.execute(text(
+                      \"INSERT INTO \\\"user\\\" (id, email, auth_provider, auth_provider_id, created_at, updated_at) \"
+                      \"VALUES ('seed-user-001', 'seed@test.local', 'google', 'seed-ext-id', now(), now())\"
+                  ))
+              await engine.dispose()
+              print('Seed row inserted into user table')
+
+          asyncio.run(seed())
+          "
+
+          # Step 3: upgrade to head
+          uv run alembic upgrade head
+          echo "Upgraded to head"
+
+          # Step 4: verify seed row survives + all tables exist
+          uv run python -c "
+          import asyncio
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from sqlalchemy import text
+
+          REQUIRED_TABLES = sorted([
+              'alembic_version',
+              'article',
+              'articleconcept',
+              'articlesource',
+              'articletag',
+              'backlink',
+              'capturesource',
+              'claimconcept',
+              'compilationdraft',
+              'compilationschema',
+              'compiledclaim',
+              'concept',
+              'conceptcluster',
+              'conceptkinddef',
+              'contradiction',
+              'contradictionfinding',
+              'conversation',
+              'costlog',
+              'dismissedfinding',
+              'job',
+              'lintpaircache',
+              'lintreport',
+              'migrationhistory',
+              'orphanfinding',
+              'query',
+              'reinforcementevent',
+              'rssfeed',
+              'savedsearch',
+              'sharelink',
+              'source',
+              'structuralfinding',
+              'synclog',
+              'tag',
+              'user',
+              'userapikey',
+              'userpreference',
+          ])
+
+          async def verify():
+              engine = create_async_engine(
+                  'postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_upgrade_test'
+              )
+              async with engine.connect() as conn:
+                  # Verify seed row survived
+                  result = await conn.execute(text(
+                      \"SELECT email FROM \\\"user\\\" WHERE id = 'seed-user-001'\"
+                  ))
+                  row = result.fetchone()
+                  assert row is not None, 'Seed user row lost during upgrade!'
+                  assert row[0] == 'seed@test.local', f'Seed email mismatch: {row[0]}'
+                  print('Seed row survived upgrade')
+
+                  # Verify all tables exist
+                  result = await conn.execute(text(
+                      \"SELECT table_name FROM information_schema.tables \"
+                      \"WHERE table_schema = 'public'\"
+                  ))
+                  actual = sorted(row[0] for row in result.fetchall())
+                  missing = set(REQUIRED_TABLES) - set(actual)
+                  if missing:
+                      raise AssertionError(f'Missing tables after upgrade: {sorted(missing)}')
+                  print(f'All {len(REQUIRED_TABLES)} required tables present after upgrade-path test')
+
+              await engine.dispose()
+
+          asyncio.run(verify())
+          "
+          echo "Upgrade-path test passed"
