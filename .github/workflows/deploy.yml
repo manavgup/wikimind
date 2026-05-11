@@ -513,6 +513,18 @@ jobs:
           curl -sf "$BASE/api/ingest/sources" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
           echo "PASS: sources endpoint returns array"
 
+          # 7. Concepts endpoint (new tables from #546)
+          curl -sf "$BASE/api/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts failed"; exit 1; }
+          echo "PASS: concepts"
+
+          # 8. Compilation schemas
+          curl -sf "$BASE/api/compilation-schemas" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/compilation-schemas failed"; exit 1; }
+          echo "PASS: compilation-schemas"
+
+          # 9. Admin stats responds (may be 403 if token user is not admin — that's OK)
+          ADMIN=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/admin/stats" -H "Authorization: Bearer $TOKEN")
+          echo "INFO: admin stats responded $ADMIN"
+
           echo "Production functional verification complete"
 
   # -----------------------------------------------------------
