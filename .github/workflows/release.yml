@@ -10,8 +10,11 @@
 #   Branch protection: pushes to main from the default GITHUB_TOKEN are
 #   rejected when rules require pull requests. Set repository secret
 #   SEMANTIC_RELEASE_GITHUB_TOKEN to a PAT (contents:write, bypass if needed)
-#   or add a ruleset exception for GitHub Actions. The step below prefers
-#   the PAT when present and falls back to GITHUB_TOKEN.
+#   or add a ruleset exception for GitHub Actions.
+#
+#   GH_TOKEN alone is not enough: actions/checkout configures git with
+#   GITHUB_TOKEN, so git push must use the PAT on the remote URL (see step
+#   "Configure git remote for semantic-release push").
 # ---------------------------------------------------------------
 
 name: Release
@@ -49,6 +52,19 @@ jobs:
 
       - name: Install python-semantic-release
         run: pip install python-semantic-release
+
+      # checkout leaves origin using GITHUB_TOKEN; semantic-release uses git push.
+      # Re-point origin so pushes use the PAT when the secret is set.
+      - name: Configure git remote for semantic-release push
+        env:
+          SEMANTIC_RELEASE_GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
+        run: |
+          if [ -n "${SEMANTIC_RELEASE_GITHUB_TOKEN}" ]; then
+            git remote set-url origin "https://x-access-token:${SEMANTIC_RELEASE_GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            echo "origin now uses SEMANTIC_RELEASE_GITHUB_TOKEN for HTTPS pushes"
+          else
+            echo "SEMANTIC_RELEASE_GITHUB_TOKEN unset — push uses checkout credentials (GITHUB_TOKEN)"
+          fi
 
       - name: Semantic Release — version + publish
         env:
