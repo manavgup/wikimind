@@ -256,13 +256,13 @@ jobs:
           echo "PASS: health"
 
           # 2. Deep health — DB, migrations, LLM, stuck sources
-          DEEP=$(curl -sf "$BASE/health/deep" 2>/dev/null) && {
-            echo "$DEEP" | jq -e '.status != "unhealthy"'
-            echo "PASS: deep health"
-          } || echo "SKIP: /health/deep not available yet"
+          DEEP=$(curl -sf "$BASE/health/deep") || { echo "::error::/health/deep request failed"; exit 1; }
+          echo "$DEEP" | jq -e '.status != "unhealthy"' || { echo "::error::/health/deep returned unhealthy"; exit 1; }
+          echo "PASS: deep health"
 
-          # 3. Background mode check
-          curl -sf "$BASE/health" | jq -e '.background_mode == "arq"' || echo "WARN: background_mode not arq"
+          # 3. Background mode MUST be arq (Redis worker)
+          curl -sf "$BASE/health" | jq -e '.background_mode == "arq"' || { echo "::error::background_mode is not arq — Redis/ARQ not configured"; exit 1; }
+          echo "PASS: background_mode is arq"
 
           # 4. Swagger docs load
           curl -sf "$BASE/docs" | grep -q "swagger"
@@ -273,71 +273,80 @@ jobs:
           [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]
           echo "PASS: auth ($STATUS)"
 
-          # 6. API returns data (not just 200)
-          if [ -n "$TOKEN" ]; then
-            curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
-            echo "PASS: articles endpoint returns array"
+          # 6. Authenticated smoke tests (STAGING_DEV_TOKEN is required)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::STAGING_DEV_TOKEN secret required for functional smoke tests"
+            exit 1
+          fi
 
-            # 7. Sources endpoint
-            curl -sf "$BASE/api/ingest/sources" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
-            echo "PASS: sources endpoint returns array"
+          curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
+          echo "PASS: articles endpoint returns array"
 
-            # 8. Admin stats (if available)
-            ADMIN=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/admin/stats" -H "Authorization: Bearer $TOKEN")
-            echo "INFO: admin stats responded $ADMIN"
+          # 7. Sources endpoint
+          curl -sf "$BASE/api/ingest/sources" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
+          echo "PASS: sources endpoint returns array"
 
-            # 9. Concepts endpoint (tests new tables from #546)
-            curl -sf "$BASE/api/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' 2>/dev/null && echo "PASS: concepts" || echo "SKIP: concepts endpoint not available"
+          # 8. Admin stats (if available)
+          ADMIN=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/admin/stats" -H "Authorization: Bearer $TOKEN")
+          echo "INFO: admin stats responded $ADMIN"
 
-            # 10. Compilation schemas
-            curl -sf "$BASE/api/compilation-schemas" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' 2>/dev/null && echo "PASS: compilation-schemas" || echo "SKIP: compilation-schemas endpoint not available"
+          # 9. Concepts endpoint — MUST return array
+          curl -sf "$BASE/api/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts did not return array"; exit 1; }
+          echo "PASS: concepts"
 
-            # 11. End-to-end: ingest text → compile → verify article created
-            echo "--- E2E: ingest + compile round-trip ---"
-            INGEST=$(curl -sf -X POST "$BASE/api/ingest/text" \
-              -H "Authorization: Bearer $TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{"content":"Staging smoke test: the pipeline works.","title":"Smoke Test E2E"}' 2>/dev/null) && {
-              SOURCE_ID=$(echo "$INGEST" | jq -r '.id // empty')
-              if [ -n "$SOURCE_ID" ]; then
-                echo "PASS: ingest created source $SOURCE_ID"
-                # Trigger compile
-                curl -sf -X POST "$BASE/api/jobs/compile/$SOURCE_ID" \
-                  -H "Authorization: Bearer $TOKEN" > /dev/null 2>&1 && echo "PASS: compile triggered" || echo "WARN: compile trigger failed"
-                # Poll for completion (max 60s)
-                for i in $(seq 1 12); do
-                  sleep 5
-                  STATUS=$(curl -sf "$BASE/api/ingest/sources/$SOURCE_ID" \
-                    -H "Authorization: Bearer $TOKEN" 2>/dev/null | jq -r '.status // empty')
-                  echo "  poll $i: status=$STATUS"
-                  if [ "$STATUS" = "compiled" ] || [ "$STATUS" = "done" ]; then
-                    echo "PASS: E2E compile completed via ARQ/Redis"
-                    # Verify side effects: article was created for this source
-                    ARTICLES=$(curl -sf "$BASE/api/wiki/articles" \
-                      -H "Authorization: Bearer $TOKEN" 2>/dev/null | \
-                      jq -r --arg sid "$SOURCE_ID" '[.[] | select(.source_ids // "" | contains($sid))] | length')
-                    if [ "$ARTICLES" -gt 0 ] 2>/dev/null; then
-                      echo "PASS: E2E article created from compiled source ($ARTICLES article(s))"
-                    else
-                      echo "WARN: compile completed but no article found for source"
-                    fi
-                    break
-                  fi
-                  if [ "$STATUS" = "failed" ]; then
-                    echo "WARN: E2E compile failed (may be expected in staging)"
-                    break
-                  fi
-                  if [ "$i" -eq 12 ]; then
-                    echo "WARN: E2E compile did not complete in 60s"
-                  fi
-                done
-              else
-                echo "WARN: ingest returned no source ID"
-              fi
-            } || echo "SKIP: ingest endpoint not available"
+          # 10. Compilation schemas — MUST return array
+          curl -sf "$BASE/api/compilation-schemas" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/compilation-schemas did not return array"; exit 1; }
+          echo "PASS: compilation-schemas"
+
+          # 11. End-to-end: ingest text → compile → verify article created
+          echo "--- E2E: ingest + compile round-trip ---"
+          INGEST=$(curl -sf -X POST "$BASE/api/ingest/text" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"content":"Staging smoke test: the pipeline works.","title":"Smoke Test E2E"}') || { echo "::error::ingest endpoint not available"; exit 1; }
+          SOURCE_ID=$(echo "$INGEST" | jq -r '.id // empty')
+          if [ -z "$SOURCE_ID" ]; then
+            echo "::error::ingest returned no source ID"
+            exit 1
+          fi
+          echo "PASS: ingest created source $SOURCE_ID"
+
+          # Trigger compile
+          curl -sf -X POST "$BASE/api/jobs/compile/$SOURCE_ID" \
+            -H "Authorization: Bearer $TOKEN" > /dev/null || { echo "::error::compile trigger failed for source $SOURCE_ID"; exit 1; }
+          echo "PASS: compile triggered"
+
+          # Poll for completion (max 60s)
+          E2E_DONE=false
+          for i in $(seq 1 12); do
+            sleep 5
+            STATUS=$(curl -sf "$BASE/api/ingest/sources/$SOURCE_ID" \
+              -H "Authorization: Bearer $TOKEN" | jq -r '.status // empty')
+            echo "  poll $i: status=$STATUS"
+            if [ "$STATUS" = "compiled" ] || [ "$STATUS" = "done" ]; then
+              echo "PASS: E2E compile completed via ARQ/Redis"
+              E2E_DONE=true
+              break
+            fi
+            if [ "$STATUS" = "failed" ]; then
+              echo "::error::E2E compile failed"
+              exit 1
+            fi
+          done
+          if [ "$E2E_DONE" != "true" ]; then
+            echo "::error::E2E compile did not reach terminal status in 60s"
+            exit 1
+          fi
+
+          # Verify side effects: article was created for this source
+          ARTICLES=$(curl -sf "$BASE/api/wiki/articles" \
+            -H "Authorization: Bearer $TOKEN" | \
+            jq -r --arg sid "$SOURCE_ID" '[.[] | select(.source_ids // "" | contains($sid))] | length')
+          if [ "$ARTICLES" -gt 0 ] 2>/dev/null; then
+            echo "PASS: E2E article created from compiled source ($ARTICLES article(s))"
           else
-            echo "WARN: STAGING_DEV_TOKEN not set — skipping authenticated smoke tests"
-            echo "::warning::Set STAGING_DEV_TOKEN secret for full functional smoke coverage"
+            echo "::error::compile completed but no article found for source $SOURCE_ID"
+            exit 1
           fi
 
           echo "Staging smoke tests complete"
@@ -475,13 +484,13 @@ jobs:
           echo "PASS: health"
 
           # 2. Deep health
-          DEEP=$(curl -sf "$BASE/health/deep" 2>/dev/null) && {
-            echo "$DEEP" | jq -e '.status != "unhealthy"'
-            echo "PASS: deep health"
-          } || echo "SKIP: /health/deep not available yet"
+          DEEP=$(curl -sf "$BASE/health/deep") || { echo "::error::/health/deep request failed"; exit 1; }
+          echo "$DEEP" | jq -e '.status != "unhealthy"' || { echo "::error::/health/deep returned unhealthy"; exit 1; }
+          echo "PASS: deep health"
 
-          # 3. Background mode check
-          curl -sf "$BASE/health" | jq -e '.background_mode == "arq"' || echo "WARN: background_mode not arq"
+          # 3. Background mode MUST be arq (Redis worker)
+          curl -sf "$BASE/health" | jq -e '.background_mode == "arq"' || { echo "::error::background_mode is not arq — Redis/ARQ not configured"; exit 1; }
+          echo "PASS: background_mode is arq"
 
           # 4. Swagger docs load
           curl -sf "$BASE/docs" | grep -q "swagger"
@@ -492,16 +501,17 @@ jobs:
           [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]
           echo "PASS: auth ($STATUS)"
 
-          # 6. Authenticated checks
-          if [ -n "$TOKEN" ]; then
-            curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
-            echo "PASS: articles endpoint returns array"
-
-            curl -sf "$BASE/api/ingest/sources" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
-            echo "PASS: sources endpoint returns array"
-          else
-            echo "WARN: STAGING_DEV_TOKEN not set — skipping authenticated checks"
+          # 6. Authenticated checks (STAGING_DEV_TOKEN is required)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::STAGING_DEV_TOKEN secret required for production verification"
+            exit 1
           fi
+
+          curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
+          echo "PASS: articles endpoint returns array"
+
+          curl -sf "$BASE/api/ingest/sources" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
+          echo "PASS: sources endpoint returns array"
 
           echo "Production functional verification complete"
 
