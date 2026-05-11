@@ -173,7 +173,7 @@ jobs:
 
           # Redis (Upstash) — provisioned manually (flyctl redis create requires
           # interactive prompts). Verify it exists and stage the URL as a secret.
-          REDIS_URL=$(flyctl redis status wikimind-staging-redis --json 2>/dev/null | jq -r '.private_url // empty')
+          REDIS_URL=$(flyctl redis status wikimind-staging-redis 2>/dev/null | grep "Private URL" | awk -F'│' '{print $2}' | tr -d ' ')
           if [ -n "$REDIS_URL" ]; then
             flyctl secrets set --stage --app wikimind-staging WIKIMIND_REDIS_URL="$REDIS_URL"
             echo "Staging Redis URL staged"
@@ -401,7 +401,7 @@ jobs:
 
           # Redis (Upstash) — provisioned manually (flyctl redis create requires
           # interactive prompts). Verify it exists and stage the URL as a secret.
-          REDIS_URL=$(flyctl redis status wikimind-redis --json 2>/dev/null | jq -r '.private_url // empty')
+          REDIS_URL=$(flyctl redis status wikimind-redis 2>/dev/null | grep "Private URL" | awk -F'│' '{print $2}' | tr -d ' ')
           if [ -n "$REDIS_URL" ]; then
             flyctl secrets set --stage --app wikimind WIKIMIND_REDIS_URL="$REDIS_URL"
             echo "Production Redis URL staged"
