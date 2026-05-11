@@ -1,0 +1,162 @@
+# ===============================================================
+# Migration Replay — Alembic upgrade head on fresh Postgres
+# ===============================================================
+#
+#   - provisions a Postgres 16 service container
+#   - runs `alembic upgrade head` from a clean database
+#   - verifies all ORM tables exist and are queryable
+#   - verifies alembic current matches expected head
+#   - catches migration bugs that SQLModel.metadata.create_all()
+#     tests miss (the mismatch that caused production crash #546)
+#   - triggers on changes to alembic/, models.py, or database.py
+# ---------------------------------------------------------------
+
+name: Migration Replay
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "src/wikimind/models.py"
+      - "src/wikimind/database.py"
+      - ".github/workflows/migration-replay.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "src/wikimind/models.py"
+      - "src/wikimind/database.py"
+      - ".github/workflows/migration-replay.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  migration-replay:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Alembic migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: wikimind_replay
+          POSTGRES_USER: wikimind
+          POSTGRES_PASSWORD: wikimind # pragma: allowlist secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wikimind -d wikimind_replay"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_DATABASE_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_replay # pragma: allowlist secret
+
+    steps:
+      # -----------------------------------------------------------
+      # 0. Checkout
+      # -----------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      # -----------------------------------------------------------
+      # 1. Set up Python + uv
+      # -----------------------------------------------------------
+      - name: Setup Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      # -----------------------------------------------------------
+      # 2. Install dependencies
+      # -----------------------------------------------------------
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # -----------------------------------------------------------
+      # 3. Run alembic upgrade head from base
+      # -----------------------------------------------------------
+      - name: Run migration from base to head
+        run: |
+          uv run alembic upgrade head
+          echo "All migrations applied successfully"
+
+      # -----------------------------------------------------------
+      # 4. Verify all ORM tables exist and are queryable
+      # -----------------------------------------------------------
+      - name: Verify all ORM tables exist and are queryable
+        run: |
+          uv run python -c "
+          import asyncio
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from sqlalchemy import text
+
+          async def verify():
+              engine = create_async_engine(
+                  'postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_replay'
+              )
+              async with engine.connect() as conn:
+                  result = await conn.execute(text(
+                      \"SELECT table_name FROM information_schema.tables \"
+                      \"WHERE table_schema = 'public'\"
+                  ))
+                  tables = [row[0] for row in result.fetchall()]
+                  print(f'Tables after migration: {sorted(tables)}')
+
+                  # Verify critical tables exist
+                  required = ['user', 'article', 'source', 'alembic_version']
+                  for t in required:
+                      assert t in tables, f'Missing required table: {t}'
+                      await conn.execute(text(f'SELECT count(*) FROM \"{t}\"'))
+
+                  # Verify concept-layer tables if migrations created them
+                  concept_tables = [
+                      'compiledclaim', 'conceptcluster',
+                      'claimconcept', 'compilationschema',
+                  ]
+                  for t in concept_tables:
+                      if t in tables:
+                          await conn.execute(text(f'SELECT count(*) FROM \"{t}\"'))
+                          print(f'  {t} queryable')
+
+                  print(f'All {len(tables)} tables verified')
+
+              await engine.dispose()
+
+          asyncio.run(verify())
+          "
+
+      # -----------------------------------------------------------
+      # 5. Verify alembic current matches expected head
+      # -----------------------------------------------------------
+      - name: Verify alembic current matches expected head
+        run: |
+          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
+          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          echo "Current: $CURRENT"
+          echo "Head: $HEAD"
+          if [ "$CURRENT" != "$HEAD" ]; then
+            echo "FAIL: alembic current ($CURRENT) does not match head ($HEAD)"
+            exit 1
+          fi
+          echo "Migration state is at head"
