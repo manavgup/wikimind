@@ -281,6 +281,8 @@ class TestReplaceArticleTriggersConceptPages:
         compiler.user_id = TEST_USER_ID
         compiler._last_provider_used = Provider.MOCK
         compiler._last_typed_suggestions = {}
+        compiler._last_compilation_duration_ms = None
+        compiler._last_compilation_tokens = None
 
         with (
             patch(

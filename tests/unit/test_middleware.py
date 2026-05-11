@@ -39,13 +39,13 @@ _INDEX_CONTENT = "<html><body>SPA</body></html>"
 
 @pytest.fixture
 def spa_app(tmp_path: Path) -> FastAPI:
-    """Minimal FastAPI app with SPAFallbackMiddleware and a /health route."""
+    """Minimal FastAPI app with SPAFallbackMiddleware and a test route."""
     index = tmp_path / "index.html"
     index.write_text(_INDEX_CONTENT)
 
     inner_app = FastAPI()
 
-    @inner_app.get("/health")
+    @inner_app.get("/test-health")
     async def health():
         return JSONResponse({"status": "ok"})
 
@@ -67,8 +67,8 @@ async def spa_client(spa_app: FastAPI):
 
 @pytest.mark.asyncio
 async def test_spa_html_request_serves_index(spa_client: AsyncClient):
-    """Browser navigation (Accept: text/html) to /health should return the SPA."""
-    resp = await spa_client.get("/health", headers={"Accept": "text/html"})
+    """Browser navigation (Accept: text/html) to a known route should return the SPA."""
+    resp = await spa_client.get("/test-health", headers={"Accept": "text/html"})
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
     assert "SPA" in resp.text
@@ -76,8 +76,8 @@ async def test_spa_html_request_serves_index(spa_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_spa_json_request_passes_through(spa_client: AsyncClient):
-    """API call (Accept: application/json) to /health should return JSON."""
-    resp = await spa_client.get("/health", headers={"Accept": "application/json"})
+    """API call (Accept: application/json) to a known route should return JSON."""
+    resp = await spa_client.get("/test-health", headers={"Accept": "application/json"})
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -102,7 +102,7 @@ async def test_spa_settings_json_passes_through(spa_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_spa_no_accept_header_passes_through(spa_client: AsyncClient):
     """Request with no Accept header should reach the API handler."""
-    resp = await spa_client.get("/health")
+    resp = await spa_client.get("/test-health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 

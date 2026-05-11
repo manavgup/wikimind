@@ -273,6 +273,11 @@ class Article(SQLModel, table=True):
     # placeholder pages for concepts that have no source coverage yet.
     # They appear in article lists but are visually differentiated.
     is_stub: bool = False
+    # Compilation monitoring fields (issue #547). Track when and how
+    # long compilation took, plus total LLM tokens consumed.
+    compiled_at: datetime | None = None
+    compilation_duration_ms: int | None = None
+    compilation_tokens: int | None = None
 
     # ORM relationships — used for eager-loading backlinks
     backlinks_out: list["Backlink"] = Relationship(

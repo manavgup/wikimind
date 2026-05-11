@@ -4,6 +4,17 @@ info:
   description: Local LLM Knowledge OS — Personal API
   version: 0.1.0
 paths:
+  /metrics:
+    get:
+      summary: Metrics
+      description: Endpoint that serves Prometheus metrics.
+      operationId: metrics_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /api/ingest/url:
     post:
       tags:
@@ -3139,6 +3150,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /health/deep:
+    get:
+      tags:
+      - Admin
+      summary: Deep Health Check
+      description: Deep health check — verifies database, migrations, LLM provider,
+        and stuck sources.
+      operationId: deep_health_check_health_deep_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Deep Health Check Health Deep Get
   /auth/login/{provider}:
     get:
       tags:
@@ -3366,9 +3394,9 @@ paths:
                 $ref: '#/components/schemas/DeleteAccountResponse'
   /health:
     get:
-      summary: Health
+      summary: Health Check
       description: Health check — used by Electron to confirm daemon is ready.
-      operationId: health_health_get
+      operationId: health_check_health_get
       responses:
         '200':
           description: Successful Response
