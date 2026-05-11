@@ -24,8 +24,23 @@ from wikimind.models import IngestStatus, Source
 router = APIRouter()
 log = structlog.get_logger()
 
-# Alembic head revision — update when new migrations are added.
-_EXPECTED_ALEMBIC_HEAD = "0009"
+# Alembic head revision — derived from the migration files at import time
+# so it never goes stale when new migrations are added.
+def _get_alembic_head() -> str:
+    """Read the latest revision from alembic's script directory."""
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        cfg = Config("alembic.ini")
+        script = ScriptDirectory.from_config(cfg)
+        heads = script.get_heads()
+        return heads[0] if heads else "unknown"
+    except Exception:
+        return "unknown"
+
+
+_EXPECTED_ALEMBIC_HEAD = _get_alembic_head()
 
 # Sources stuck in PROCESSING for longer than this are considered unhealthy.
 _STUCK_SOURCE_THRESHOLD = timedelta(minutes=10)
