@@ -185,21 +185,21 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # 2️⃣  Stage secrets (--stage avoids double-restart before deploy)
+      # WIKIMIND_REDIS_URL is staged only from Fly Redis status above — do not pass
+      # GitHub secrets.WIKIMIND_REDIS_URL here (empty secret would overwrite the Fly URL).
       - name: 🔑  Stage secrets for staging
         run: |
           flyctl secrets set --stage --app wikimind-staging \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            WIKIMIND_REDIS_URL="${WIKIMIND_REDIS_URL}"
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
-          WIKIMIND_REDIS_URL: ${{ secrets.WIKIMIND_REDIS_URL }}
 
       # 3️⃣  Deploy sidecar + app
       - name: 🧠  Deploy docling-serve sidecar
@@ -220,7 +220,7 @@ jobs:
   smoke-test-staging:
     name: smoke-test staging
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     needs: deploy-staging
 
     steps:
@@ -313,9 +313,9 @@ jobs:
             -H "Authorization: Bearer $TOKEN" > /dev/null || { echo "::error::compile trigger failed for source $SOURCE_ID"; exit 1; }
           echo "PASS: compile triggered"
 
-          # Poll for completion (max 60s)
+          # Poll for completion (max 120s — cold LLM + ARQ can exceed 60s on staging)
           E2E_DONE=false
-          for i in $(seq 1 12); do
+          for i in $(seq 1 24); do
             sleep 5
             STATUS=$(curl -sf "$BASE/api/ingest/sources/$SOURCE_ID" \
               -H "Authorization: Bearer $TOKEN" | jq -r '.status // empty')
@@ -331,7 +331,7 @@ jobs:
             fi
           done
           if [ "$E2E_DONE" != "true" ]; then
-            echo "::error::E2E compile did not reach terminal status in 60s"
+            echo "::error::E2E compile did not reach terminal status in 120s"
             exit 1
           fi
 
@@ -412,21 +412,20 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      # WIKIMIND_REDIS_URL comes only from Fly Redis status above (same overwrite risk as staging).
       - name: 🔑  Stage secrets for production
         run: |
           flyctl secrets set --stage --app wikimind \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            WIKIMIND_REDIS_URL="${WIKIMIND_REDIS_URL}"
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
-          WIKIMIND_REDIS_URL: ${{ secrets.WIKIMIND_REDIS_URL }}
 
       - name: 🧠  Deploy docling-serve sidecar
         run: |
