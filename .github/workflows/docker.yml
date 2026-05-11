@@ -35,19 +35,36 @@ on:
     branches: ["main"]
     paths:
       - "Dockerfile"
+      - "docker/**"
       - "docker-compose.yml"
+      - "docker-entrypoint.sh"
       - ".dockerignore"
       - "pyproject.toml"
+      - "uv.lock"
       - "src/**"
+      - "apps/web/**"
+      - "fly.toml"
+      - "fly.staging.toml"
+      - "fly.docling.toml"
+      - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: ["main"]
     paths:
       - "Dockerfile"
+      - "docker/**"
       - "docker-compose.yml"
+      - "docker-entrypoint.sh"
       - ".dockerignore"
       - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - "apps/web/**"
+      - "fly.toml"
+      - "fly.staging.toml"
+      - "fly.docling.toml"
+      - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
   schedule:
     # Weekly rebuild against the latest base image — catches bit-rot.
