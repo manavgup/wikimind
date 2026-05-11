@@ -24,15 +24,30 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+function PercentCard({ label, value }: { label: string; value: number }) {
+  const pct = Math.round(value * 100);
+  const color = pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-rose-600";
+  return (
+    <Card className="flex flex-col items-center justify-center gap-1 px-4 py-5">
+      <span className={`text-2xl font-bold ${color}`}>{pct}%</span>
+      <span className="text-xs font-medium text-slate-500">{label}</span>
+    </Card>
+  );
+}
+
 function OverviewSection({ stats }: { stats: SystemStats }) {
   return (
     <section>
       <h2 className="mb-3 text-lg font-semibold text-slate-700">Overview</h2>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+        <StatCard label="Users" value={stats.total_users} />
         <StatCard label="Articles" value={stats.article_count} />
         <StatCard label="Sources" value={stats.source_count} />
         <StatCard label="Concepts" value={stats.concept_count} />
-        <StatCard label="Conversations" value={stats.conversation_count} />
+        <StatCard label="Claims" value={stats.total_compiled_claims} />
+        <StatCard label="Backlinks" value={stats.backlink_count} />
+        <StatCard label="Orphans" value={stats.orphan_count} />
+        <PercentCard label="Compile Rate" value={stats.compilation_success_rate} />
       </div>
     </section>
   );
@@ -86,11 +101,18 @@ function statusColor(key: string): string {
   return STATUS_COLORS[key] ?? "bg-slate-400";
 }
 
+const CONFIDENCE_COLORS: Record<string, string> = {
+  sourced: "bg-emerald-500",
+  inferred: "bg-sky-500",
+  mixed: "bg-amber-500",
+  unknown: "bg-slate-400",
+};
+
 function ContentBreakdownSection({ stats }: { stats: SystemStats }) {
   return (
     <section>
       <h2 className="mb-3 text-lg font-semibold text-slate-700">Content Breakdown</h2>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <h3 className="mb-2 text-sm font-semibold text-slate-600">
             Articles by Page Type
@@ -108,6 +130,15 @@ function ContentBreakdownSection({ stats }: { stats: SystemStats }) {
             Sources by Status
           </h3>
           <BreakdownBar data={stats.sources_by_status} colorFn={statusColor} />
+        </Card>
+        <Card className="p-4">
+          <h3 className="mb-2 text-sm font-semibold text-slate-600">
+            Articles by Confidence
+          </h3>
+          <BreakdownBar
+            data={stats.articles_by_confidence}
+            colorFn={(k) => CONFIDENCE_COLORS[k] ?? "bg-slate-400"}
+          />
         </Card>
       </div>
     </section>
