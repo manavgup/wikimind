@@ -11,12 +11,18 @@ export interface StuckSource {
 }
 
 export interface SystemStats {
+  total_users: number;
+  total_sources: number;
+  total_articles: number;
+  total_compiled_claims: number;
   article_count: number;
   source_count: number;
   concept_count: number;
   backlink_count: number;
   orphan_count: number;
   conversation_count: number;
+  stuck_sources: number;
+  compilation_success_rate: number;
   articles_by_type: Record<string, number>;
   articles_by_page_type: Record<string, number>;
   articles_by_confidence: Record<string, number>;
