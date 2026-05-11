@@ -365,6 +365,9 @@ class Settings(BaseSettings):
         # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
+        # Upstash requires TLS — auto-upgrade redis:// to rediss://
+        if self.redis_url and "upstash.io" in self.redis_url and self.redis_url.startswith("redis://"):
+            self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
         return self
 
     @property
