@@ -174,7 +174,7 @@ jobs:
           # Redis (Upstash) — staging-specific instance
           if ! flyctl redis status wikimind-staging-redis 2>/dev/null; then
             echo "Creating staging Redis instance..."
-            flyctl redis create --name wikimind-staging-redis --region ord --no-eviction --plan free
+            flyctl redis create --name wikimind-staging-redis --region ord --disable-eviction --no-replicas -o personal
             # Get the private URL and set as secret
             REDIS_URL=$(flyctl redis status wikimind-staging-redis --json 2>/dev/null | jq -r '.private_url // empty')
             if [ -n "$REDIS_URL" ]; then
@@ -405,7 +405,7 @@ jobs:
           # Redis (Upstash) — production-specific instance
           if ! flyctl redis status wikimind-redis 2>/dev/null; then
             echo "Creating production Redis instance..."
-            flyctl redis create --name wikimind-redis --region ord --no-eviction --plan free
+            flyctl redis create --name wikimind-redis --region ord --disable-eviction --no-replicas -o personal
           fi
           REDIS_URL=$(flyctl redis status wikimind-redis --json 2>/dev/null | jq -r '.private_url // empty')
           if [ -n "$REDIS_URL" ]; then
