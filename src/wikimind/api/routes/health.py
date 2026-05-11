@@ -24,6 +24,7 @@ from wikimind.models import IngestStatus, Source
 router = APIRouter()
 log = structlog.get_logger()
 
+
 # Alembic head revision — derived from the migration files at import time
 # so it never goes stale when new migrations are added.
 def _get_alembic_head() -> str:
