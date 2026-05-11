@@ -235,8 +235,8 @@ jobs:
               )
               async with engine.begin() as conn:
                   await conn.execute(text(
-                      \"INSERT INTO \\\"user\\\" (id, email, auth_provider, auth_provider_id, created_at, updated_at) \"
-                      \"VALUES ('seed-user-001', 'seed@test.local', 'google', 'seed-ext-id', now(), now())\"
+                      \"INSERT INTO \\\"user\\\" (id, email, auth_provider, auth_provider_id, is_admin, created_at, updated_at) \"
+                      \"VALUES ('seed-user-001', 'seed@test.local', 'google', 'seed-ext-id', false, now(), now())\"
                   ))
               await engine.dispose()
               print('Seed row inserted into user table')
