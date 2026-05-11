@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import os
 import uuid
 from typing import TYPE_CHECKING
 
@@ -30,10 +31,33 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+class ProductionConfigError(RuntimeError):
+    """Raised when production environment is missing required configuration."""
+
+
+def _check_production_redis_guard() -> None:
+    """Raise if running on Fly.io without Redis configured.
+
+    On Fly.io (FLY_APP_NAME is set), Redis is required for the ARQ job
+    queue. In-process fallback is only allowed for local development.
+    """
+    on_fly = bool(os.environ.get("FLY_APP_NAME"))
+    redis_url = get_settings().redis_url
+    if on_fly and not redis_url:
+        msg = (
+            "Production environment (FLY_APP_NAME set) requires Redis. "
+            "Set WIKIMIND_REDIS_URL or REDIS_URL to a valid Redis URL. "
+            "Refusing to start with in-process fallback on Fly.io."
+        )
+        log.error("production_config_error", error=msg)
+        raise ProductionConfigError(msg)
+
+
 class BackgroundCompiler:
     """Schedule compilation and lint jobs in dev (in-process) or prod (ARQ/Redis) mode."""
 
     def __init__(self) -> None:
+        _check_production_redis_guard()
         self._redis_url: str | None = get_settings().redis_url
 
     @property
