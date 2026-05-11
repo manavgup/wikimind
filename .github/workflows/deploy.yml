@@ -171,18 +171,15 @@ jobs:
             fi
           }
 
-          # Redis (Upstash) — staging-specific instance
-          if ! flyctl redis status wikimind-staging-redis 2>/dev/null; then
-            echo "Creating staging Redis instance..."
-            flyctl redis create --name wikimind-staging-redis --region ord --disable-eviction --no-replicas -o personal
-            # Get the private URL and set as secret
-            REDIS_URL=$(flyctl redis status wikimind-staging-redis --json 2>/dev/null | jq -r '.private_url // empty')
-            if [ -n "$REDIS_URL" ]; then
-              flyctl secrets set --stage --app wikimind-staging WIKIMIND_REDIS_URL="$REDIS_URL"
-              echo "Staging Redis provisioned and secret staged"
-            else
-              echo "::warning::Staging Redis created but could not retrieve URL — set WIKIMIND_REDIS_URL manually"
-            fi
+          # Redis (Upstash) — provisioned manually (flyctl redis create requires
+          # interactive prompts). Verify it exists and stage the URL as a secret.
+          REDIS_URL=$(flyctl redis status wikimind-staging-redis --json 2>/dev/null | jq -r '.private_url // empty')
+          if [ -n "$REDIS_URL" ]; then
+            flyctl secrets set --stage --app wikimind-staging WIKIMIND_REDIS_URL="$REDIS_URL"
+            echo "Staging Redis URL staged"
+          else
+            echo "::error::wikimind-staging-redis not found — provision manually: flyctl redis create --name wikimind-staging-redis --region ord"
+            exit 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -402,17 +399,15 @@ jobs:
             fi
           }
 
-          # Redis (Upstash) — production-specific instance
-          if ! flyctl redis status wikimind-redis 2>/dev/null; then
-            echo "Creating production Redis instance..."
-            flyctl redis create --name wikimind-redis --region ord --disable-eviction --no-replicas -o personal
-          fi
+          # Redis (Upstash) — provisioned manually (flyctl redis create requires
+          # interactive prompts). Verify it exists and stage the URL as a secret.
           REDIS_URL=$(flyctl redis status wikimind-redis --json 2>/dev/null | jq -r '.private_url // empty')
           if [ -n "$REDIS_URL" ]; then
             flyctl secrets set --stage --app wikimind WIKIMIND_REDIS_URL="$REDIS_URL"
-            echo "Production Redis secret staged"
+            echo "Production Redis URL staged"
           else
-            echo "::warning::Could not retrieve production Redis URL — set WIKIMIND_REDIS_URL manually"
+            echo "::error::wikimind-redis not found — provision manually: flyctl redis create --name wikimind-redis --region ord"
+            exit 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
