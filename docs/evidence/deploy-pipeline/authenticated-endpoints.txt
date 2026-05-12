@@ -1,0 +1,5 @@
+api/wiki/articles: 500
+api/ingest/sources: 200
+api/wiki/concepts: 200
+api/compilation-schemas: 200
+api/admin/stats: 403

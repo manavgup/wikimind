@@ -1,0 +1,30 @@
+[
+  {
+    "id": "48e07d7a715e68",
+    "state": "stopped",
+    "process_group": "worker",
+    "region": "ord",
+    "restart": {
+      "policy": "always"
+    }
+  },
+  {
+    "id": "2869302ae507e8",
+    "state": "started",
+    "process_group": "web",
+    "region": "ord",
+    "restart": {
+      "policy": "on-failure",
+      "max_retries": 10
+    }
+  },
+  {
+    "id": "6e820210f21358",
+    "state": "started",
+    "process_group": "worker",
+    "region": "ord",
+    "restart": {
+      "policy": "always"
+    }
+  }
+]

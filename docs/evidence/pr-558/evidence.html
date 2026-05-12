@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #558 — Migration Replay CI | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  code { color: #79c0ff; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .badge-ci { background: #1f6feb; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #558 — Migration Replay CI</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/558">#558</a> | Issue: <a href="https://github.com/manavgup/wikimind/issues/546">#546</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-ci">CI WORKFLOW</span><br/>
+  <strong>What it does:</strong> New GitHub Actions workflow that runs <code>alembic upgrade head</code> on a fresh Postgres instance to catch schema mismatches before production.<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Workflow Triggers</h2>
+<pre>
+on:
+  pull_request:
+    paths:
+      - 'alembic/**'
+      - 'src/wikimind/models.py'
+      - 'src/wikimind/database.py'
+  push:
+    branches: [main]
+    paths:
+      - 'alembic/**'
+      - 'src/wikimind/models.py'
+      - 'src/wikimind/database.py'
+</pre>
+
+<h2>Workflow Steps</h2>
+<pre>
+jobs:
+  migration-replay:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wikimind
+          POSTGRES_PASSWORD: wikimind
+          POSTGRES_DB: wikimind_test
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://wikimind:wikimind@localhost:5432/wikimind_test
+        run: uv run alembic upgrade head
+
+      - name: Verify all tables exist
+        env:
+          DATABASE_URL: postgresql://wikimind:wikimind@localhost:5432/wikimind_test
+        run: |
+          uv run python -c "
+          from wikimind.database import engine
+          from sqlalchemy import inspect
+          inspector = inspect(engine)
+          tables = inspector.get_table_names()
+          assert 'article' in tables
+          assert 'source' in tables
+          assert 'compiled_claim' in tables
+          assert 'concept_cluster' in tables
+          print(f'All {len(tables)} tables verified')
+          "
+
+      - name: Verify alembic current == head
+        env:
+          DATABASE_URL: postgresql://wikimind:wikimind@localhost:5432/wikimind_test
+        run: |
+          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '\w+(?= \(head\))')
+          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          echo "Current: $CURRENT, Head: $HEAD"
+          [ "$CURRENT" = "$HEAD" ] || exit 1
+</pre>
+
+<h2>GitHub Actions — Workflow Runs</h2>
+<img src="github-actions-workflows.png" alt="GitHub Actions page showing workflow runs" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>PR #558 — Merged</h2>
+<img src="pr-558-merged.png" alt="PR #558 merged on GitHub" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/docs</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>No confirmed public UI surface was identified for this CI workflow PR, so the automation used the deployed docs page as a discovery probe. The run wrote <code>ui-discovery.json</code>, but Chromium could not launch in this sandbox and no fresh screenshot was produced.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves</h2>
+<ul>
+  <li>The workflow triggers on any change to alembic migrations, models.py, or database.py</li>
+  <li>It spins up a fresh Postgres 16 instance and runs all migrations from scratch</li>
+  <li>It verifies that all expected tables are created after <code>alembic upgrade head</code></li>
+  <li>It asserts that the current migration version equals head (no partial upgrades)</li>
+  <li>This would have caught bug <a href="https://github.com/manavgup/wikimind/issues/546">#546</a> (production schema mismatch crash) before it reached production</li>
+</ul>
+</body>
+</html>

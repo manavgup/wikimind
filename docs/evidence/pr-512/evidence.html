@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #512 Evidence - MCP Server</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { color: #79c0ff; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #512 &mdash; MCP Server</h1>
+<p class="subtitle">Real evidence: WikiMind MCP server responding to JSON-RPC requests over HTTP</p>
+
+<h2>1. Start MCP Server</h2>
+<pre><span class="cmd">$ .venv/bin/wikimind mcp serve --transport http --port 9100</span>
+
+WikiMind MCP server started    data_dir=/Users/mg/.wikimind mcp_spec_version=2025-03-26
+Starting MCP server 'wikimind' with transport 'http' on http://127.0.0.1:9100/mcp
+Uvicorn running on http://127.0.0.1:9100</pre>
+
+<h2>2. MCP Initialize</h2>
+<p>Sending the <code>initialize</code> JSON-RPC method with protocol version 2025-03-26.</p>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:9100/mcp \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}'</span>
+
+<span style="color:#8b949e;">HTTP/1.1 200 OK
+content-type: text/event-stream
+mcp-session-id: 0b409d5babf74d63b53dc31f5b1a0faa</span>
+
+event: message
+data: {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "protocolVersion": "2025-03-26",
+        "capabilities": {
+            "experimental": {},
+            "logging": {},
+            "prompts": {"listChanged": true},
+            "resources": {"subscribe": false, "listChanged": true},
+            "tools": {"listChanged": true}
+        },
+        "serverInfo": {
+            "name": "wikimind",
+            "version": "3.2.4"
+        },
+        "instructions": "WikiMind is a personal LLM-powered knowledge OS. Use these tools to search the wiki, read articles, ask questions, and browse ingested sources."
+    }
+}</pre>
+
+<h2>3. MCP tools/list</h2>
+<p>Listing all available tools the MCP server exposes to AI clients.</p>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:9100/mcp \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Mcp-Session-Id: 0b409d5babf74d63b53dc31f5b1a0faa" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'</span>
+
+event: message
+data: {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+        "tools": [
+            {
+                "name": "wiki_search",
+                "description": "Search wiki articles by keyword. Returns article titles, summaries, and IDs ranked by relevance.",
+                "inputSchema": {
+                    "properties": {
+                        "query": {"description": "Search query string (minimum 2 characters)", "type": "string"},
+                        "limit": {"default": 10, "description": "Maximum results to return (max 50)", "type": "integer"}
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "wiki_get_article",
+                "description": "Retrieve the full content of a wiki article by its ID or slug.",
+                "inputSchema": {
+                    "properties": {
+                        "id_or_slug": {"description": "Article UUID or URL slug", "type": "string"}
+                    },
+                    "required": ["id_or_slug"]
+                }
+            },
+            {
+                "name": "wiki_ask",
+                "description": "Ask a question against the WikiMind knowledge base. The Q&A agent searches relevant articles and synthesizes an answer with citations.",
+                "inputSchema": {
+                    "properties": {
+                        "question": {"description": "The question to ask", "type": "string"}
+                    },
+                    "required": ["question"]
+                }
+            },
+            {
+                "name": "wiki_list_sources",
+                "description": "List ingested sources in the WikiMind knowledge base.",
+                "inputSchema": {
+                    "properties": {
+                        "status": {"default": null, "description": "Optional status filter"},
+                        "limit": {"default": 20, "description": "Maximum number of results"}
+                    }
+                }
+            }
+        ]
+    }
+}</pre>
+
+<h2>4. CLI Configuration</h2>
+<pre><span class="cmd">$ .venv/bin/wikimind mcp config</span>
+<span style="color:#8b949e;"># Prints Claude Desktop configuration snippet for integrating WikiMind as an MCP server</span></pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind MCP server. All JSON-RPC responses are real.
+</p>
+</body>
+</html>

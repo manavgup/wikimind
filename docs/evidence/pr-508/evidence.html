@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #508 Evidence - CI Workflow Automation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #508 &mdash; CI Workflow Automation</h1>
+<p class="subtitle">Real evidence: GitHub Actions workflow files for auto-rebase, review addressing, post-merge sweep, and stale branch pruning</p>
+
+<h2>1. Workflow Files</h2>
+<pre><span class="cmd">$ ls -la .github/workflows/{auto-rebase,claude-review-address,post-merge-sweep,prune-stale}.yml</span>
+
+-rw-r--r--  2.6k  .github/workflows/auto-rebase.yml
+-rw-r--r--  1.4k  .github/workflows/claude-review-address.yml
+-rw-r--r--  2.9k  .github/workflows/post-merge-sweep.yml
+-rw-r--r--  3.4k  .github/workflows/prune-stale.yml</pre>
+
+<h2>2. Workflow Descriptions</h2>
+<ul style="margin: 1rem 0; padding-left: 2rem; line-height: 2;">
+  <li><strong>auto-rebase.yml</strong> (2.6k) &mdash; Automatically rebases PRs on top of main when base branch is updated</li>
+  <li><strong>claude-review-address.yml</strong> (1.4k) &mdash; Auto-addresses review comments from Claude code review</li>
+  <li><strong>post-merge-sweep.yml</strong> (2.9k) &mdash; Runs cleanup tasks after PRs are merged to main</li>
+  <li><strong>prune-stale.yml</strong> (3.4k) &mdash; Prunes stale branches and closes stale PRs</li>
+</ul>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09. File listing is real ls output.
+</p>
+</body>
+</html>

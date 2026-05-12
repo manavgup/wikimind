@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #515 Evidence - Faceted Browse &amp; Search</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 {
+    color: #58a6ff;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    color: #8b949e;
+    font-size: 1rem;
+    font-weight: normal;
+    margin-bottom: 1.5rem;
+  }
+  h3 {
+    color: #58a6ff;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .description {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+  }
+  .evidence-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .cmd {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.5rem 0;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.85rem;
+    color: #7ee787;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .response {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.8rem;
+    color: #e6edf3;
+    overflow-x: auto;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre;
+    line-height: 1.4;
+  }
+  .label {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+  .label-get { background: #1f6feb; color: #fff; }
+  .label-status { background: #238636; color: #fff; }
+  .label-count { background: #8957e5; color: #fff; }
+  code { color: #e6edf3; font-family: 'SF Mono', Consolas, monospace; font-size: 0.9em; }
+  .badge {
+    display: inline-block;
+    background: #238636;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .nav { margin-bottom: 1.5rem; }
+  .summary-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+  .summary-table th { text-align: left; color: #8b949e; font-weight: 600; font-size: 0.8rem; padding: 0.4rem 0.6rem; border-bottom: 1px solid #30363d; }
+  .summary-table td { padding: 0.4rem 0.6rem; font-size: 0.85rem; border-bottom: 1px solid #21262d; }
+  .facet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 0.75rem; }
+  .facet-bucket { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; }
+  .facet-bucket h4 { color: #58a6ff; font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .facet-item { display: flex; justify-content: space-between; padding: 0.2rem 0; font-size: 0.8rem; }
+  .facet-item .count { color: #8b949e; }
+</style>
+</head>
+<body>
+<div class="nav"><a href="../index.html">&larr; Back to Evidence Index</a></div>
+<h1>PR #515: Faceted Browse &amp; Search <span class="badge">MERGED</span></h1>
+<h2>API Evidence Report &mdash; Live server responses captured 2026-05-09</h2>
+
+<div class="description">
+  Faceted search adds structured filtering to WikiMind's full-text search. Users can filter results by
+  <strong>page type</strong> (source, concept, synthesis), <strong>source kind</strong> (text, pdf, url),
+  <strong>concepts</strong>, <strong>date range</strong>, and <strong>staleness</strong>.
+  The <code>/api/wiki/search/facets</code> endpoint returns bucket counts for each facet dimension.
+  All responses below are real, captured from the running server authenticated as <code>dev@wikimind.dev</code>.
+</div>
+
+<!-- Test 1: Full-text search -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Full-Text Search: <code>q=machine</code></h3>
+  <div class="cmd">curl -s "http://127.0.0.1:7842/api/wiki/search?q=machine" -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> <span class="label label-count">10 results</span> Results ranked by FTS relevance with <code>&lt;mark&gt;</code> highlights in snippets.</p>
+
+  <table class="summary-table">
+    <thead><tr><th>#</th><th>Title</th><th>Page Type</th><th>Rank</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Machine Learning Fundamentals</td><td>source</td><td>-1.224</td></tr>
+      <tr><td>2</td><td>Neural Networks in the Context of Machine Learning</td><td>synthesis</td><td>-1.217</td></tr>
+      <tr><td>3</td><td>Support Vector Machines (SVMs)</td><td>concept</td><td>-1.217</td></tr>
+      <tr><td>4</td><td>Machine Learning Fundamentals</td><td>source</td><td>-1.214</td></tr>
+      <tr><td>5</td><td>Gradient Descent in Machine Learning</td><td>concept</td><td>-1.203</td></tr>
+      <tr><td>6</td><td>Deep Learning</td><td>concept</td><td>-1.192</td></tr>
+      <tr><td>7</td><td>Artificial Intelligence</td><td>concept</td><td>-1.188</td></tr>
+      <tr><td>8</td><td>Neural Networks</td><td>concept</td><td>-1.120</td></tr>
+      <tr><td>9</td><td>GlazyBench: Ceramic Glaze Prediction...</td><td>source</td><td>-1.087</td></tr>
+      <tr><td>10</td><td>Theoretical Computer Science</td><td>concept</td><td>-0.630</td></tr>
+    </tbody>
+  </table>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show full JSON response</summary>
+  <div class="response">{
+  "results": [
+    {
+      "article_id": "20f1868e-1300-4bfc-806e-410538744bff",
+      "slug": "machine-learning-fundamentals-2",
+      "title": "Machine Learning Fundamentals",
+      "snippet": "---\ntitle: \"&lt;mark&gt;Machine&lt;/mark&gt; Learning Fundamentals\"\nslug: &lt;mark&gt;machine&lt;/mark&gt;-learning-fundamentals-2\npage_type: source\nsource_id: 48f14d02-2ea3-4ecb-b010-38ce034ac5b3\nsource_url: \nsource_type: text\ncompiled: 2026-05-09T16:12:33.260862\nconcepts: [artificial-intelligence, neural-networks, deep-learning, gradient-descent...",
+      "rank": -1.2236541300099306
+    },
+    {
+      "article_id": "31acb111-be9c-48eb-b87f-30eba8d52a7a",
+      "slug": "synthesis-neural-networks-in-the-context-of-machine-learning",
+      "title": "Neural Networks in the Context of Machine Learning",
+      "snippet": "...synthesis\ntitle: \"Neural Networks in the Context of &lt;mark&gt;Machine&lt;/mark&gt; Learning\"\nslug: synthesis-neural-networks-in-the-context-of-&lt;mark&gt;machine&lt;/mark&gt;-learning\nquery: \"How do neural networks relate to &lt;mark&gt;machine&lt;/mark&gt; learning?\"...",
+      "rank": -1.2174250256776746
+    },
+    {
+      "article_id": "5c996740-67d0-4da4-afc6-d853e082927d",
+      "slug": "concept-support-vector-machines",
+      "title": "Support Vector Machines (SVMs)",
+      "snippet": "...the role and application of SVMs in &lt;mark&gt;machine&lt;/mark&gt; learning.\n\n## Open Questions\n\n- How do different &lt;mark&gt;machine&lt;/mark&gt; learning algorithms compare...",
+      "rank": -1.2170246299728482
+    },
+    {
+      "article_id": "83434b7d-ea00-4ae1-8ad3-3d0c8bc1683e",
+      "slug": "machine-learning-fundamentals-3",
+      "title": "Machine Learning Fundamentals",
+      "snippet": "---\ntitle: \"&lt;mark&gt;Machine&lt;/mark&gt; Learning Fundamentals\"\nslug: &lt;mark&gt;machine&lt;/mark&gt;-learning-fundamentals-3\npage_type: source...",
+      "rank": -1.2139959025095655
+    },
+    {
+      "article_id": "d15cf4ab-8329-4228-9633-e60feac33833",
+      "slug": "concept-gradient-descent",
+      "title": "Gradient Descent in Machine Learning",
+      "snippet": "...applied in various &lt;mark&gt;machine&lt;/mark&gt; learning tasks, including regression, classification, and clustering...",
+      "rank": -1.2033745300980705
+    },
+    {
+      "article_id": "8e26d79f-c9b7-4de6-90f9-204ca7345373",
+      "slug": "concept-deep-learning",
+      "title": "Deep Learning",
+      "snippet": "...effective &lt;mark&gt;machine&lt;/mark&gt; learning applications.\n\n## Related Concepts\n\n- [[neural-networks]]\n- [[gradient-descent]]\n- [[support-vector-&lt;mark&gt;machines&lt;/mark&gt;]]...",
+      "rank": -1.1922355289742657
+    },
+    {
+      "article_id": "efc0579c-fd98-4e0d-ab77-aac402b9b7e4",
+      "slug": "concept-artificial-intelligence",
+      "title": "Artificial Intelligence",
+      "snippet": "...traditional &lt;mark&gt;machine&lt;/mark&gt; learning models are effective in certain tasks...",
+      "rank": -1.1879482564805086
+    },
+    {
+      "article_id": "6a114245-8057-434d-8232-52791132e522",
+      "slug": "concept-neural-networks",
+      "title": "Neural Networks",
+      "snippet": "...## Related Concepts\n\n- [[artificial-intelligence]]\n- [[deep-learning]]\n- [[gradient-descent]]\n- [[support-vector-&lt;mark&gt;machines&lt;/mark&gt;]]...",
+      "rank": -1.120343403498038
+    },
+    {
+      "article_id": "bccdf20c-652e-4194-bcfb-21b1910b75fe",
+      "slug": "glazybench-a-benchmark-for-ceramic-glaze-property-prediction-and-image-generatio-2",
+      "title": "GlazyBench: A Benchmark for Ceramic Glaze Property Prediction and Image Generation",
+      "snippet": "...supports the development of &lt;mark&gt;machine&lt;/mark&gt; learning models...",
+      "rank": -1.0865032418805487
+    },
+    {
+      "article_id": "5c73993b-67f7-42e5-a63d-b4e411ae77cd",
+      "slug": "concept-theoretical-computer-science",
+      "title": "Theoretical Computer Science",
+      "snippet": "...The development of the Turing &lt;mark&gt;machine&lt;/mark&gt; laid the groundwork for modern computing...",
+      "rank": -0.6299048325979666
+    }
+  ],
+  "total": 10,
+  "query": "machine"
+}</div>
+  </details>
+</div>
+
+<!-- Test 2: Facets endpoint -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Search Facets: <code>q=machine</code></h3>
+  <div class="cmd">curl -s "http://127.0.0.1:7842/api/wiki/search/facets?q=machine" -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> Returns 5 facet dimensions with bucket counts across 10 matching articles.</p>
+
+  <div class="facet-grid">
+    <div class="facet-bucket">
+      <h4>page_type</h4>
+      <div class="facet-item"><span>concept</span><span class="count">6</span></div>
+      <div class="facet-item"><span>source</span><span class="count">3</span></div>
+      <div class="facet-item"><span>synthesis</span><span class="count">1</span></div>
+    </div>
+    <div class="facet-bucket">
+      <h4>source_kind</h4>
+      <div class="facet-item"><span>text</span><span class="count">2</span></div>
+      <div class="facet-item"><span>pdf</span><span class="count">1</span></div>
+    </div>
+    <div class="facet-bucket">
+      <h4>staleness</h4>
+      <div class="facet-item"><span>low</span><span class="count">3</span></div>
+      <div class="facet-item"><span>high</span><span class="count">7</span></div>
+    </div>
+    <div class="facet-bucket">
+      <h4>date</h4>
+      <div class="facet-item"><span>7d</span><span class="count">10</span></div>
+      <div class="facet-item"><span>30d</span><span class="count">10</span></div>
+      <div class="facet-item"><span>365d</span><span class="count">10</span></div>
+    </div>
+    <div class="facet-bucket" style="grid-column: span 2;">
+      <h4>concept (top tags)</h4>
+      <div class="facet-item"><span>neural-networks</span><span class="count">4</span></div>
+      <div class="facet-item"><span>artificial-intelligence</span><span class="count">3</span></div>
+      <div class="facet-item"><span>deep-learning</span><span class="count">3</span></div>
+      <div class="facet-item"><span>gradient-descent</span><span class="count">3</span></div>
+      <div class="facet-item"><span>support-vector-machines</span><span class="count">3</span></div>
+      <div class="facet-item"><span>machine-learning</span><span class="count">1</span></div>
+      <div class="facet-item"><span>theoretical-computer-science</span><span class="count">1</span></div>
+      <div class="facet-item"><span>pattern-matching</span><span class="count">1</span></div>
+      <div class="facet-item"><span>benchmark-design</span><span class="count">1</span></div>
+      <div class="facet-item"><span>large-language-models</span><span class="count">1</span></div>
+      <div class="facet-item"><span>multimodal-reasoning</span><span class="count">1</span></div>
+    </div>
+  </div>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show full JSON response</summary>
+  <div class="response">{
+  "facets": [
+    {
+      "name": "page_type",
+      "buckets": [
+        { "value": "concept", "count": 6 },
+        { "value": "source", "count": 3 },
+        { "value": "synthesis", "count": 1 }
+      ]
+    },
+    {
+      "name": "source_kind",
+      "buckets": [
+        { "value": "text", "count": 2 },
+        { "value": "pdf", "count": 1 }
+      ]
+    },
+    {
+      "name": "concept",
+      "buckets": [
+        { "value": "neural-networks", "count": 4 },
+        { "value": "artificial-intelligence", "count": 3 },
+        { "value": "deep-learning", "count": 3 },
+        { "value": "gradient-descent", "count": 3 },
+        { "value": "support-vector-machines", "count": 3 },
+        { "value": "machine-learning", "count": 1 },
+        { "value": "theoretical-computer-science", "count": 1 },
+        { "value": "pattern-matching", "count": 1 },
+        { "value": "benchmark-design", "count": 1 },
+        { "value": "large-language-models", "count": 1 },
+        { "value": "multimodal-reasoning", "count": 1 }
+      ]
+    },
+    {
+      "name": "date",
+      "buckets": [
+        { "value": "7d", "count": 10 },
+        { "value": "30d", "count": 10 },
+        { "value": "365d", "count": 10 }
+      ]
+    },
+    {
+      "name": "staleness",
+      "buckets": [
+        { "value": "low", "count": 3 },
+        { "value": "high", "count": 7 }
+      ]
+    }
+  ],
+  "total": 10,
+  "query": "machine"
+}</div>
+  </details>
+</div>
+
+<!-- Test 3: Filtered search by page_type -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Filtered Search: <code>q=machine&amp;page_type=source</code></h3>
+  <div class="cmd">curl -s "http://127.0.0.1:7842/api/wiki/search?q=machine&amp;page_type=source" -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> <span class="label label-count">3 results</span> Filtered from 10 total down to 3 source-type articles only. Matches the facet count of <code>page_type: source = 3</code>.</p>
+
+  <table class="summary-table">
+    <thead><tr><th>#</th><th>Title</th><th>Slug</th><th>Rank</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Machine Learning Fundamentals</td><td>machine-learning-fundamentals-2</td><td>-1.224</td></tr>
+      <tr><td>2</td><td>Machine Learning Fundamentals</td><td>machine-learning-fundamentals-3</td><td>-1.214</td></tr>
+      <tr><td>3</td><td>GlazyBench: Ceramic Glaze Prediction...</td><td>glazybench-a-benchmark-for-ceramic-...</td><td>-1.087</td></tr>
+    </tbody>
+  </table>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show full JSON response</summary>
+  <div class="response">{
+  "results": [
+    {
+      "article_id": "20f1868e-1300-4bfc-806e-410538744bff",
+      "slug": "machine-learning-fundamentals-2",
+      "title": "Machine Learning Fundamentals",
+      "snippet": "---\ntitle: \"&lt;mark&gt;Machine&lt;/mark&gt; Learning Fundamentals\"\nslug: &lt;mark&gt;machine&lt;/mark&gt;-learning-fundamentals-2\npage_type: source\nsource_id: 48f14d02-2ea3-4ecb-b010-38ce034ac5b3\nsource_url: \nsource_type: text\ncompiled: 2026-05-09T16:12:33.260862\nconcepts: [artificial-intelligence, neural-networks, deep-learning, gradient-descent...",
+      "rank": -1.2236541300099306
+    },
+    {
+      "article_id": "83434b7d-ea00-4ae1-8ad3-3d0c8bc1683e",
+      "slug": "machine-learning-fundamentals-3",
+      "title": "Machine Learning Fundamentals",
+      "snippet": "---\ntitle: \"&lt;mark&gt;Machine&lt;/mark&gt; Learning Fundamentals\"\nslug: &lt;mark&gt;machine&lt;/mark&gt;-learning-fundamentals-3\npage_type: source...",
+      "rank": -1.2139959025095655
+    },
+    {
+      "article_id": "bccdf20c-652e-4194-bcfb-21b1910b75fe",
+      "slug": "glazybench-a-benchmark-for-ceramic-glaze-property-prediction-and-image-generatio-2",
+      "title": "GlazyBench: A Benchmark for Ceramic Glaze Property Prediction and Image Generation",
+      "snippet": "...supports the development of &lt;mark&gt;machine&lt;/mark&gt; learning models...",
+      "rank": -1.0865032418805487
+    }
+  ],
+  "total": 3,
+  "query": "machine"
+}</div>
+  </details>
+</div>
+
+<!-- Verification summary -->
+<div class="evidence-card" style="border-color:#238636;">
+  <h3 style="color:#3fb950;">Verification Summary</h3>
+  <table class="summary-table">
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Full-text search returns ranked results with <code>&lt;mark&gt;</code> highlights</td><td style="color:#3fb950;">PASS -- 10 results returned</td></tr>
+      <tr><td>Facets endpoint returns 5 dimensions (page_type, source_kind, concept, date, staleness)</td><td style="color:#3fb950;">PASS -- all 5 facets present</td></tr>
+      <tr><td>Facet counts are consistent (page_type: 6+3+1 = 10 = total)</td><td style="color:#3fb950;">PASS -- sums match total</td></tr>
+      <tr><td>Filtered search <code>page_type=source</code> narrows results correctly</td><td style="color:#3fb950;">PASS -- 3 results (matches facet bucket)</td></tr>
+      <tr><td>All requests authenticated with Bearer token</td><td style="color:#3fb950;">PASS -- 200 OK on all</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Screenshots</h2>
+
+<div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:1rem; margin-bottom:1.5rem;">
+  <h3 style="color:#79c0ff; margin-bottom:0.5rem;">Faceted Search with All 5 Filter Dimensions</h3>
+  <p style="color:#8b949e; margin-bottom:0.5rem;">Search for "machine" showing: Page Type, Source Kind, Concept (5 concepts), Date Range, Staleness filters. Results highlighted with &lt;mark&gt; tags.</p>
+  <img src="faceted-search-with-results.png" alt="Faceted search with 5 filter dimensions and highlighted results" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:1rem; margin-bottom:1.5rem;">
+  <h3 style="color:#79c0ff; margin-bottom:0.5rem;">Search Autocomplete with Article Cards</h3>
+  <p style="color:#8b949e; margin-bottom:0.5rem;">Typing "machine learning" shows autocomplete dropdown with matching articles, plus card grid behind with Source/Concept badges.</p>
+  <img src="search-results.png" alt="Search autocomplete dropdown with article cards" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div style="background:#161b22; border:1px solid #30363d; border-radius:6px; padding:1rem; margin-bottom:1.5rem;">
+  <h3 style="color:#79c0ff; margin-bottom:0.5rem;">Faceted Search Model View</h3>
+  <img src="faceted-search-model.png" alt="Faceted search model" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<p style="color:#484f58; margin-top:2rem; font-size:0.8rem;">
+  Captured 2026-05-09 from live server at 127.0.0.1:7842 with auth enabled (dev@wikimind.dev).
+  All responses are real API output, not fabricated.
+</p>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-wiki-prod.png" alt="Wiki browse on wikimind.fly.dev — topic sidebar with concept hierarchy" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>

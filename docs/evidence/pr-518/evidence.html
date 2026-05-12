@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #518 Evidence - Public Share</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .comment { color: #8b949e; }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #518 &mdash; Public Share</h1>
+<p class="subtitle">Real evidence: creating share links and accessing articles anonymously</p>
+
+<h2>1. Create Share Link</h2>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/wiki/share-links \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"article_id":"a5e7b02e-7c6c-44b2-a15e-b6625d878254"}'</span>
+
+{
+    "id": "7a2d3ef6-7b1a-4955-b53e-ab88d5f0df11",
+    "article_id": "a5e7b02e-7c6c-44b2-a15e-b6625d878254",
+    "token": "MUPG8110jbY3T1bjDJoJd-jQKri6qNx5D1skVa9ElI4",
+    "created_at": "2026-05-09T17:04:02.159419",
+    "expires_at": null,
+    "revoked": false,
+    "view_count": 0,
+    "last_viewed_at": null,
+    "article_title": "Redis Architecture Deep Dive"
+}</pre>
+
+<h2>2. List Share Links</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/wiki/share-links?article_id=a5e7b02e-7c6c-44b2-a15e-b6625d878254 \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+[
+    {
+        "id": "7a2d3ef6-7b1a-4955-b53e-ab88d5f0df11",
+        "article_id": "a5e7b02e-...",
+        "token": "MUPG8110jbY3T1bjDJoJd-jQKri6qNx5D1skVa9ElI4",
+        "created_at": "2026-05-09T17:04:02.159419",
+        "expires_at": null,
+        "revoked": false,
+        "view_count": 0,
+        "article_title": "Redis Architecture Deep Dive"
+    },
+    {
+        "id": "e203153d-...",
+        "token": "4Ikf4GsrLGojlxGoGii-N60XLBjGdHq8O8bHnL9tEJg",
+        "expires_at": null,
+        "view_count": 1,
+        "last_viewed_at": "2026-05-09T16:16:23.342746",
+        "article_title": "Redis Architecture Deep Dive"
+    },
+    {
+        "id": "05d6a871-...",
+        "token": "w2OGc6qWV356c6W7lhpqWWRE2bJVt4RkSoBqTW_K1Po",
+        "expires_at": "2026-05-16T13:52:31.926713",
+        "view_count": 1,
+        "article_title": "Redis Architecture Deep Dive"
+    }
+    <span class="comment">... (2 more share links with 7-day expiration)</span>
+]</pre>
+
+<h2>3. Access Public Article WITHOUT Authentication</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/public/articles/MUPG8110jbY3T1bjDJoJd-jQKri6qNx5D1skVa9ElI4/json</span>
+<span class="comment"># No Authorization header!</span>
+
+{
+    "title": "Redis Architecture Deep Dive",
+    "content_html": "&lt;h2&gt;Summary&lt;/h2&gt;\n&lt;p&gt;Redis is a high-performance in-memory data store known for its sub-millisecond latency and versatile data structures...&lt;/p&gt;\n&lt;h2&gt;Key Claims&lt;/h2&gt;\n&lt;ul&gt;\n&lt;li&gt;&lt;strong&gt;Redis achieves sub-millisecond latency for most operations.&lt;/strong&gt; &lt;em&gt;(sourced)&lt;/em&gt;&lt;/li&gt;\n...",
+    "summary": "Redis is a high-performance in-memory data store known for its sub-millisecond latency and versatile data structures...",
+    "sources": [
+        {
+            "id": "116623fa-6c14-4956-bfa6-0e4794496fd5",
+            "source_type": "text",
+            "title": "Redis Architecture Deep Dive",
+            "source_url": null,
+            "ingested_at": "2026-05-09T13:43:56.562981"
+        }
+    ],
+    "created_at": "2026-05-09T13:44:04.993364",
+    "updated_at": "2026-05-09T13:44:04.993373"
+}</pre>
+
+<h2>4. Public Article in Browser (No Login)</h2>
+<p>Playwright screenshot (1280x900 viewport, fresh context with no cookies or auth) of the public article page:</p>
+<img src="public-article.png" alt="Public article rendered without login"/>
+<p style="color: #8b949e; font-size: 0.85rem;">The page renders title, summary, Key Claims, Analysis sections, Open Questions, Related concepts, Sources, and a "Shared from WikiMind" footer -- all without authentication.</p>
+
+<h2>5. API Surface</h2>
+<pre>POST   /api/wiki/share-links              Create share link (auth required)
+GET    /api/wiki/share-links              List share links (auth required, ?article_id filter)
+DELETE /api/wiki/share-links/{id}         Revoke share link (auth required)
+GET    /public/articles/{token}           Public HTML article (NO auth)
+GET    /public/articles/{token}/json      Public JSON article (NO auth)</pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance. All API responses and screenshots are real.
+</p>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #509 Evidence - PDF Image Extraction</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { color: #79c0ff; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .comment { color: #8b949e; }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  .evidence-block {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+  }
+  .badge-green { background: #238636; color: #fff; }
+  .badge-blue { background: #1f6feb; color: #fff; }
+  a { color: #58a6ff; }
+  .image-meta {
+    color: #8b949e;
+    font-size: 0.8rem;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>PR #509 &mdash; PDF Image Extraction</h1>
+<p class="subtitle">Real evidence: figures and tables extracted from an arxiv PDF via the WikiMind API</p>
+
+<h2>1. PDF Ingestion</h2>
+<p>Downloaded and ingested a 9-page arxiv paper (<a href="https://arxiv.org/abs/2605.06641">GlazyBench</a>) containing figures and tables.</p>
+<pre><span class="cmd">$ curl -sL "https://arxiv.org/pdf/2605.06641" -o /tmp/glazybench.pdf
+$ file /tmp/glazybench.pdf</span>
+/tmp/glazybench.pdf: PDF document, version 1.7, 9 pages
+
+<span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/ingest/pdf \
+    -H "Authorization: Bearer $TOKEN" \
+    -F "file=@/tmp/glazybench.pdf"</span>
+
+{
+    "title": "GlazyBench: A Benchmark for Ceramic Glaze Property Prediction and Image Generation",
+    "user_id": "dev@wikimind.dev",
+    "source_type": "pdf",
+    "published_date": null,
+    "ingested_at": "2026-05-09T16:49:21.263109",
+    "token_count": 16393,
+    "file_path": "e1c572ce-22e0-4965-9f95-aa96b232a573.txt",
+    "content_hash": "b0278309b3b2a23c6a9ae43153be1002fd8e1c7d3af232d67cefd345d0909cac",
+    "source_url": null,
+    "id": "e1c572ce-22e0-4965-9f95-aa96b232a573",
+    "author": "Ziyu Zhai; Siyou Li; Juexi Shao; Juntao Yu",
+    "status": "compiled",
+    "compiled_at": "2026-05-09T16:49:28.993133",
+    "error_message": null,
+    "has_original": true
+}</pre>
+<p><span class="badge badge-green">PASS</span> PDF ingested and compiled successfully. Author metadata extracted. 16,393 tokens.</p>
+
+<h2>2. List Extracted Images</h2>
+<p>The <code>/images</code> endpoint returns metadata for each figure and table extracted from the PDF.</p>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/e1c572ce-22e0-4965-9f95-aa96b232a573/images \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+[
+    {
+        "filename": "picture-1.png",
+        "kind": "figure",
+        "label": "Figure 1"
+    },
+    {
+        "filename": "picture-2.png",
+        "kind": "figure",
+        "label": "Figure 2"
+    },
+    {
+        "filename": "table-1.png",
+        "kind": "table",
+        "label": "Table 1"
+    }
+]</pre>
+<p><span class="badge badge-green">PASS</span> 3 images extracted: 2 figures + 1 table. Each entry includes filename, kind, and label.</p>
+
+<h2>3. Download Extracted Images</h2>
+<p>Each image is served individually via <code>/images/{filename}</code>.</p>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/{source_id}/images/picture-1.png \
+    -H "Authorization: Bearer $TOKEN" \
+    -o extracted-figure.png
+$ file extracted-figure.png</span>
+extracted-figure.png: PNG image data, 4800 x 2700, 8-bit/color RGB, non-interlaced</pre>
+<p><span class="badge badge-green">PASS</span> Image downloaded as a real PNG file (1.6 MB, 4800x2700).</p>
+
+<h2>4. Actual Extracted Images</h2>
+<p>These are the real images extracted from the GlazyBench PDF by WikiMind's PDF adapter:</p>
+
+<h3>Figure 1 &mdash; Benchmark Pipeline Overview</h3>
+<img src="extracted-figure.png" alt="Figure 1: GlazyBench pipeline overview showing raw data, features, property prediction, and image generation tasks" style="max-height: 500px;"/>
+<p class="image-meta">picture-1.png &middot; 4800x2700 &middot; 1.6 MB &middot; kind: figure</p>
+
+<h3>Figure 2 &mdash; Experimental Results</h3>
+<img src="extracted-figure2.png" alt="Figure 2: Experimental results from GlazyBench showing model comparisons" style="max-height: 500px;"/>
+<p class="image-meta">picture-2.png &middot; 4800x2700 &middot; 3.4 MB &middot; kind: figure</p>
+
+<h3>Table 1 &mdash; Dataset Statistics</h3>
+<img src="extracted-table.png" alt="Table 1: Dataset statistics from GlazyBench" style="max-height: 500px;"/>
+<p class="image-meta">table-1.png &middot; 4568x1600 &middot; 3.4 MB &middot; kind: table</p>
+
+<h2>5. Source Detail After Compilation</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/e1c572ce-22e0-4965-9f95-aa96b232a573 \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    "title": "GlazyBench: A Benchmark for Ceramic Glaze Property Prediction and Image Generation",
+    "user_id": "dev@wikimind.dev",
+    "source_type": "pdf",
+    "published_date": null,
+    "ingested_at": "2026-05-09T16:49:21.263109",
+    "token_count": 16393,
+    "file_path": "e1c572ce-22e0-4965-9f95-aa96b232a573.txt",
+    "content_hash": "b0278309b3b2a23c6a9ae43153be1002fd8e1c7d3af232d67cefd345d0909cac",
+    "source_url": null,
+    "id": "e1c572ce-22e0-4965-9f95-aa96b232a573",
+    "author": "Ziyu Zhai; Siyou Li; Juexi Shao; Juntao Yu",
+    "status": "compiled",
+    "compiled_at": "2026-05-09T16:49:28.993133",
+    "error_message": null,
+    "has_original": true
+}</pre>
+<p><span class="badge badge-green">PASS</span> Source fully compiled with original PDF preserved (<code>has_original: true</code>).</p>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance (port 7842, auth enabled).
+All API responses are real curl output. Images are actual PNGs extracted from
+<a href="https://arxiv.org/abs/2605.06641">arxiv:2605.06641</a> (GlazyBench).
+</p>
+</body>
+</html>

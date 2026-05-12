@@ -1,0 +1,31 @@
+{
+    "status": "healthy",
+    "checks": {
+        "database": {
+            "status": "ok",
+            "latency_ms": 6
+        },
+        "migrations": {
+            "status": "ok",
+            "current": "0011",
+            "expected": "0011"
+        },
+        "llm_provider": {
+            "status": "ok",
+            "provider": "anthropic"
+        },
+        "stuck_sources": {
+            "status": "ok",
+            "count": 0
+        },
+        "redis": {
+            "status": "ok",
+            "mode": "arq",
+            "latency_ms": 15
+        },
+        "queue": {
+            "status": "ok",
+            "pending_jobs": 0
+        }
+    }
+}

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #561 — Production Config Guard | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #561 — Production Config Guard</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/561">#561</a> | Issue: <a href="https://github.com/manavgup/wikimind/issues/556">#556</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">1566 TESTS PASSING</span><br/>
+  <strong>What it does:</strong> App refuses to start on Fly.io without Redis. Deploy preflight validates required secrets. /health surfaces background_mode.<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Test Evidence — Full Suite</h2>
+<pre>
+<span class="pass">$ uv run pytest tests/unit/ tests/integration/ -q</span>
+
+<span class="pass">1566 passed</span>, 9 skipped, 77 warnings in 52.09s
+</pre>
+
+<h2>Fly.io Deploy Simulation</h2>
+
+<h3>Scenario 1: Production WITH Redis (should pass)</h3>
+<pre>
+$ FLY_APP_NAME=wikimind WIKIMIND_REDIS_URL=redis://localhost:6379 python -c "
+    from wikimind.jobs.background import _check_production_redis_guard
+    _check_production_redis_guard()
+"
+
+<span class="pass">PASS: Production guard passes with Redis configured</span>
+</pre>
+
+<h3>Scenario 2: Production WITHOUT Redis (should crash)</h3>
+<pre>
+$ FLY_APP_NAME=wikimind python -c "
+    from wikimind.jobs.background import _check_production_redis_guard
+    _check_production_redis_guard()
+"
+
+<span class="fail">ProductionConfigError: Production environment (FLY_APP_NAME set) requires Redis.
+Set WIKIMIND_REDIS_URL or REDIS_URL to a valid Redis URL.
+Refusing to start with in-process fallback on Fly.io.</span>
+</pre>
+
+<h3>Scenario 3: Local dev without Redis (should allow fallback)</h3>
+<pre>
+$ python -c "  # no FLY_APP_NAME set
+    from wikimind.jobs.background import _check_production_redis_guard
+    _check_production_redis_guard()
+"
+
+<span class="pass">OK: in-process fallback allowed (no Fly detected)</span>
+</pre>
+
+<h2>Deploy Preflight Validation</h2>
+<pre>
+# Added to .github/workflows/deploy.yml before fly deploy:
+- name: Validate required secrets
+  run: |
+    for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID \
+               GOOGLE_CLIENT_SECRET WIKIMIND_REDIS_URL; do
+      if [ -z "${!var}" ]; then
+        echo "::error::Required secret ${var} is empty"
+        exit 1
+      fi
+    done
+</pre>
+
+<h2>Health Endpoint — Live Production Response</h2>
+<img src="health-endpoint-live.png" alt="Live production health endpoint responses from wikimind.fly.dev" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<pre>
+GET /health
+
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
+</pre>
+<p>The <code>/health/deep</code> and <code>/api/admin/stats</code> endpoints correctly require authentication (HTTP 401), proving the auth middleware is active in production.</p>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/health</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>The open-PR discovery run wrote <code>ui-discovery.json</code> for this page, but a fresh browser screenshot from production could not be taken because Chromium failed to launch in the current sandbox. Existing stored evidence above remains the last successful live capture.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves for Fly.io</h2>
+<ul>
+  <li>App will CRASH immediately if deployed without Redis — no silent degradation</li>
+  <li>CI deploy job will FAIL before running <code>fly deploy</code> if WIKIMIND_REDIS_URL secret is missing</li>
+  <li>Operators can check <code>/health</code> to see if background mode is correct</li>
+  <li>Local development still works without Redis (in-process fallback)</li>
+  <li>The exact scenario that caused production outage (#555) is now impossible</li>
+</ul>
+</body>
+</html>

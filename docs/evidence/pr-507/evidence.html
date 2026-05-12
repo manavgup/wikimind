@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #507 Evidence - Snapshot Tests</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .pass { color: #3fb950; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #507 &mdash; Snapshot Tests</h1>
+<p class="subtitle">Real evidence: snapshot tests validating API response shapes</p>
+
+<h2>1. Test Run</h2>
+<pre><span class="cmd">$ .venv/bin/pytest tests/unit/test_snapshot_responses.py -v</span>
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: /Users/mg/mg-work/manav/work/ai-experiments/wikimind
+configfile: pyproject.toml
+plugins: cov-7.1.0, timeout-2.4.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO
+collected 6 items
+
+<span class="pass">tests/unit/test_snapshot_responses.py::test_health_response_snapshot PASSED       [ 16%]
+tests/unit/test_snapshot_responses.py::test_error_envelope_not_found_snapshot PASSED [ 33%]
+tests/unit/test_snapshot_responses.py::test_error_envelope_validation_snapshot PASSED [ 50%]
+tests/unit/test_snapshot_responses.py::test_articles_list_empty_snapshot PASSED    [ 66%]
+tests/unit/test_snapshot_responses.py::test_articles_list_populated_snapshot PASSED [ 83%]
+tests/unit/test_snapshot_responses.py::test_ingest_text_response_snapshot PASSED   [100%]</span>
+
+============================== <span class="pass">6 passed</span> in 0.26s ===============================</pre>
+
+<h2>2. Tests Covered</h2>
+<ul style="margin: 1rem 0; padding-left: 2rem;">
+  <li><code>test_health_response_snapshot</code> &mdash; validates /health JSON shape</li>
+  <li><code>test_error_envelope_not_found_snapshot</code> &mdash; validates 404 error envelope</li>
+  <li><code>test_error_envelope_validation_snapshot</code> &mdash; validates 422 validation error shape</li>
+  <li><code>test_articles_list_empty_snapshot</code> &mdash; validates empty article list</li>
+  <li><code>test_articles_list_populated_snapshot</code> &mdash; validates populated article list with all fields</li>
+  <li><code>test_ingest_text_response_snapshot</code> &mdash; validates text ingestion response</li>
+</ul>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09. Test output is real pytest output.
+</p>
+</body>
+</html>

@@ -195,6 +195,15 @@ jobs:
           echo "Migration state is at head"
 
       # -----------------------------------------------------------
+      # 5a. Schema-drift check: compare Alembic schema vs model metadata
+      # -----------------------------------------------------------
+      - name: "Schema-drift check: Alembic vs models.py"
+        env:
+          DATABASE_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_replay
+        run: |
+          uv run python scripts/check_schema_drift.py
+
+      # -----------------------------------------------------------
       # 5b. Downgrade test: head -> N-1 -> head (round-trip)
       # -----------------------------------------------------------
       - name: "Downgrade test: head → N-1 → head"

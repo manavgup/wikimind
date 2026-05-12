@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #516 Evidence - Human-in-the-Loop Drafts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { color: #c9d1d9; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .comment { color: #8b949e; }
+  .key { color: #79c0ff; }
+  .str { color: #a5d6ff; }
+  .num { color: #ffa657; }
+  .bool { color: #ff7b72; }
+  .null { color: #8b949e; font-style: italic; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+  }
+  .pass { background: #238636; color: #ffffff; }
+  .info { background: #1f6feb; color: #ffffff; }
+  .summary-box {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-left: 3px solid #58a6ff;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  a { color: #58a6ff; }
+  .timestamp { color: #8b949e; font-size: 0.85rem; margin-top: 2rem; }
+</style>
+</head>
+<body>
+
+<h1>PR #516 &mdash; Human-in-the-Loop Drafts</h1>
+<p class="subtitle">
+  <span class="badge pass">PASS</span>
+  <span class="badge info">Feature</span>
+  Real evidence: draft review, approval, and rejection workflows
+</p>
+
+<div class="summary-box">
+  <strong>What shipped:</strong> When <code>compilation.interactive</code> mode is enabled, the compiler creates
+  a <code>CompilationDraft</code> with key takeaways for human review instead of saving directly to the wiki.
+  Three endpoints &mdash; <code>GET /draft</code>, <code>POST /draft/approve</code>, <code>POST /draft/reject</code> &mdash;
+  let the user review, guide, and approve or reject the LLM output before it becomes an article.
+  All responses below are real, captured from a live WikiMind instance on 2026-05-09.
+</div>
+
+<h2>1. Source in Review-Pending Status</h2>
+<p>When interactive compilation creates a draft, the source enters <code>review_pending</code> status.</p>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/72476975-94af-4fa9-801b-5d8ab5369c0c \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    <span class="key">"title"</span>: <span class="str">"Neural Networks Overview"</span>,
+    <span class="key">"user_id"</span>: <span class="str">"dev@wikimind.dev"</span>,
+    <span class="key">"source_type"</span>: <span class="str">"text"</span>,
+    <span class="key">"published_date"</span>: <span class="null">null</span>,
+    <span class="key">"ingested_at"</span>: <span class="str">"2026-05-09T17:06:51.802168"</span>,
+    <span class="key">"token_count"</span>: <span class="num">134</span>,
+    <span class="key">"id"</span>: <span class="str">"72476975-94af-4fa9-801b-5d8ab5369c0c"</span>,
+    <span class="key">"status"</span>: <span class="str">"review_pending"</span>,
+    <span class="key">"compiled_at"</span>: <span class="str">"2026-05-09T17:06:58.359721"</span>,
+    <span class="key">"error_message"</span>: <span class="null">null</span>,
+    <span class="key">"has_original"</span>: <span class="bool">false</span>
+}</pre>
+
+<h2>2. Get Pending Draft</h2>
+<p>Retrieve the compilation draft with key takeaways and the full draft body for review.</p>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/72476975-94af-4fa9-801b-5d8ab5369c0c/draft \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    <span class="key">"id"</span>: <span class="str">"ce66f3b4-bbf9-41bb-b434-040a4a567d52"</span>,
+    <span class="key">"source_id"</span>: <span class="str">"72476975-94af-4fa9-801b-5d8ab5369c0c"</span>,
+    <span class="key">"title"</span>: <span class="str">"Neural Networks Overview"</span>,
+    <span class="key">"summary"</span>: <span class="str">"Neural networks are computational models inspired by biological neural networks, consisting of interconnected nodes. They are foundational to deep learning, enabling the processing of complex data through hierarchical representations."</span>,
+    <span class="key">"key_takeaways"</span>: [
+        <span class="str">"Neural networks use layers of interconnected neurons to process information"</span>,
+        <span class="str">"Deep learning extends neural networks with many hidden layers for hierarchical representations"</span>,
+        <span class="str">"Key architectures: CNNs (images), RNNs (sequences), Transformers (attention)"</span>,
+        <span class="str">"Training relies on backpropagation and gradient descent optimization"</span>
+    ],
+    <span class="key">"draft_body"</span>: <span class="str">"---\ntitle: \"Neural Networks Overview\"\nslug: neural-networks-overview\n..."</span>,
+    <span class="key">"status"</span>: <span class="str">"pending"</span>,
+    <span class="key">"created_at"</span>: <span class="str">"2026-05-09T17:07:41.515711"</span>,
+    <span class="key">"reviewed_at"</span>: <span class="null">null</span>
+}</pre>
+
+<h2>3. Approve Draft</h2>
+<p>Approve a draft to save it as a wiki article. Optionally provide <code>guidance</code> to re-compile with focus direction.</p>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/ingest/sources/e934b2e7-6bde-4ec2-88c7-7d27b7b8b2f5/draft/approve \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json"</span>
+
+{
+    <span class="key">"status"</span>: <span class="str">"approved"</span>,
+    <span class="key">"article_slug"</span>: <span class="str">"consensus-algorithms-in-distributed-systems"</span>,
+    <span class="key">"article_title"</span>: <span class="str">"Consensus Algorithms in Distributed Systems"</span>
+}</pre>
+
+<h3>Approve with Guidance (re-compile)</h3>
+<pre><span class="comment"># When guidance is provided, the source is re-compiled with the user's focus direction</span>
+<span class="cmd">$ curl -s -X POST .../draft/approve \
+    -H "Content-Type: application/json" \
+    -d '{"guidance": "Focus on practical applications and scalability"}'</span>
+
+<span class="comment"># The system re-compiles the source with the user's direction,
+# then saves the new result as the wiki article.</span></pre>
+
+<h2>4. Reject Draft</h2>
+<p>Reject a draft to reset the source to <code>pending</code> status for re-ingestion or retry.</p>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/ingest/sources/a3d6297a-8616-4934-9836-adc59277f792/draft/reject \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    <span class="key">"status"</span>: <span class="str">"rejected"</span>,
+    <span class="key">"source_id"</span>: <span class="str">"a3d6297a-8616-4934-9836-adc59277f792"</span>
+}</pre>
+
+<h2>5. No Pending Draft (404 Guard)</h2>
+<p>After approval or rejection, the draft endpoint correctly returns 404.</p>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/ingest/sources/a3d6297a-8616-4934-9836-adc59277f792/draft \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    <span class="key">"error"</span>: {
+        <span class="key">"code"</span>: <span class="str">"not_found"</span>,
+        <span class="key">"message"</span>: <span class="str">"No pending draft for this source"</span>,
+        <span class="key">"request_id"</span>: <span class="str">"27ab786b-727c-4613-b36f-ddf776564c7d"</span>
+    }
+}</pre>
+
+<h2>6. Endpoint Registration</h2>
+<pre><span class="comment"># OpenAPI paths registered:</span>
+GET  /api/ingest/sources/{source_id}/draft           <span class="comment"># View pending draft with takeaways</span>
+POST /api/ingest/sources/{source_id}/draft/approve    <span class="comment"># Approve (optionally with guidance)</span>
+POST /api/ingest/sources/{source_id}/draft/reject     <span class="comment"># Reject and reset to pending</span></pre>
+
+<h2>7. Data Model</h2>
+<pre><span class="comment"># CompilationDraft table (compilationdraft):</span>
+<span class="key">id</span>                VARCHAR PK    <span class="comment"># UUID</span>
+<span class="key">user_id</span>           VARCHAR FK    <span class="comment"># Scoped to authenticated user</span>
+<span class="key">source_id</span>         VARCHAR FK    <span class="comment"># FK to source table</span>
+<span class="key">title</span>             VARCHAR       <span class="comment"># Draft article title</span>
+<span class="key">summary</span>           VARCHAR       <span class="comment"># Draft summary</span>
+<span class="key">key_takeaways</span>     VARCHAR       <span class="comment"># JSON array of takeaway strings</span>
+<span class="key">draft_result_json</span> VARCHAR       <span class="comment"># Full CompilationResult JSON</span>
+<span class="key">user_guidance</span>     VARCHAR       <span class="comment"># User's optional focus direction</span>
+<span class="key">status</span>            VARCHAR       <span class="comment"># pending | approved | rejected</span>
+<span class="key">created_at</span>        DATETIME      <span class="comment"># When draft was created</span>
+<span class="key">reviewed_at</span>       DATETIME      <span class="comment"># When draft was approved/rejected</span></pre>
+
+<h2>Swagger UI</h2>
+<img src="swagger-drafts.png" alt="Swagger UI showing draft endpoints"/>
+<img src="swagger-drafts-detail.png" alt="Swagger UI showing draft endpoint details"/>
+
+<p class="timestamp">
+  Evidence generated 2026-05-09 from a live WikiMind instance (port 7842). All API responses are real.
+  Draft workflow tested end-to-end: source ingested, draft created, reviewed, approved, and rejected.
+</p>
+</body>
+</html>

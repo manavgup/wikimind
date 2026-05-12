@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #506 + #510 Evidence - Test Infrastructure</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .pass { color: #3fb950; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #506 + #510 &mdash; Test Infrastructure</h1>
+<p class="subtitle">Real evidence: test suite count and coverage metrics</p>
+
+<h2>1. Test Collection</h2>
+<pre><span class="cmd">$ .venv/bin/pytest --co -q | tail -5</span>
+
+tests/unit/test_wikilink_user_scoping.py::test_resolver_same_user_resolves_own_articles
+tests/unit/test_wikilink_user_scoping.py::test_resolver_user_id_with_exclude
+tests/unit/test_wikilink_user_scoping.py::test_ensure_bidirectional_propagates_user_id
+
+<span class="pass">1590 tests collected in 0.57s</span></pre>
+
+<h2>2. Coverage Summary</h2>
+<pre><span class="cmd">$ .venv/bin/pytest tests/unit/ --cov=wikimind --cov-report=term-missing -q</span>
+
+TOTAL                 8770    736   1854    254    <span class="pass">89%</span>
+Required test coverage of 85.0% reached. Total coverage: <span class="pass">88.97%</span>
+<span class="pass">1526 passed</span>, 5 skipped, 74 warnings in 94.15s (0:01:34)</pre>
+
+<h2>3. Coverage Highlights</h2>
+<table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+  <thead>
+    <tr style="border-bottom: 1px solid #30363d;">
+      <th style="text-align: left; padding: 0.5rem; color: #8b949e;">Module</th>
+      <th style="text-align: right; padding: 0.5rem; color: #8b949e;">Coverage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/api_keys.py</td><td style="text-align: right; padding: 0.4rem;">100%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/tags.py</td><td style="text-align: right; padding: 0.4rem;">100%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/capture.py</td><td style="text-align: right; padding: 0.4rem;">98%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/export.py</td><td style="text-align: right; padding: 0.4rem;">98%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/wiki_index.py</td><td style="text-align: right; padding: 0.4rem;">98%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/compiler.py</td><td style="text-align: right; padding: 0.4rem;">97%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">storage.py</td><td style="text-align: right; padding: 0.4rem;">96%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/compilation_schema.py</td><td style="text-align: right; padding: 0.4rem;">96%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/contradiction.py</td><td style="text-align: right; padding: 0.4rem;">96%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/crystallization.py</td><td style="text-align: right; padding: 0.4rem;">95%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/ingest.py</td><td style="text-align: right; padding: 0.4rem;">93%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/user.py</td><td style="text-align: right; padding: 0.4rem;">92%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/sharing.py</td><td style="text-align: right; padding: 0.4rem;">92%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/query.py</td><td style="text-align: right; padding: 0.4rem;">91%</td></tr>
+    <tr style="border-bottom: 1px solid #21262d;"><td style="padding: 0.4rem;">services/admin.py</td><td style="text-align: right; padding: 0.4rem;">90%</td></tr>
+  </tbody>
+</table>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09. All test output is real pytest output.
+</p>
+</body>
+</html>

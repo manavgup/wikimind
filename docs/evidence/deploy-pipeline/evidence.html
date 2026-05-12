@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WikiMind - Deploy Pipeline Evidence</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; font-size: 2rem; margin-bottom: 0.25rem; }
+  h2 { color: #f0883e; font-size: 1.3rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #21262d; }
+  h3 { color: #58a6ff; font-size: 1.1rem; margin: 1.5rem 0 0.75rem 0; }
+  .subtitle {
+    color: #8b949e; font-size: 1rem; margin-bottom: 2rem;
+    border-bottom: 1px solid #21262d; padding-bottom: 1rem;
+  }
+  .stats {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 1.25rem; margin-bottom: 2rem; display: flex; gap: 2rem; flex-wrap: wrap;
+  }
+  .stat { text-align: center; }
+  .stat-value { color: #58a6ff; font-size: 2rem; font-weight: 700; }
+  .stat-value.green { color: #3fb950; }
+  .stat-value.red { color: #f85149; }
+  .stat-value.orange { color: #f0883e; }
+  .stat-label { color: #8b949e; font-size: 0.8rem; margin-top: 0.25rem; }
+  .section { margin-bottom: 2.5rem; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 1.25rem; display: block;
+  }
+  .card-title { color: #58a6ff; font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .card-pr { color: #8b949e; font-size: 0.8rem; margin-bottom: 0.5rem; }
+  .card-description { color: #c9d1d9; font-size: 0.875rem; line-height: 1.5; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; vertical-align: middle;
+  }
+  .badge-pass { background: #238636; color: #fff; }
+  .badge-fail { background: #da3633; color: #fff; }
+  .badge-warn { background: #bf8700; color: #fff; }
+  .badge-info { background: #1f6feb; color: #fff; }
+  .screenshot {
+    width: 100%; border-radius: 8px; border: 1px solid #30363d;
+    margin: 0.75rem 0; cursor: pointer; transition: transform 0.2s;
+  }
+  .screenshot:hover { transform: scale(1.02); }
+  .screenshot-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 1rem;
+  }
+  .screenshot-item { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; }
+  .screenshot-item h4 { color: #58a6ff; font-size: 0.9rem; margin-bottom: 0.5rem; }
+  .screenshot-item p { color: #8b949e; font-size: 0.8rem; margin-bottom: 0.5rem; }
+  pre {
+    background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+    padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.5;
+    color: #c9d1d9; margin: 0.75rem 0;
+  }
+  code { color: #79c0ff; }
+  .ok { color: #3fb950; }
+  .err { color: #f85149; }
+  .warn { color: #d29922; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td {
+    text-align: left; padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #21262d; font-size: 0.85rem;
+  }
+  th { color: #8b949e; font-weight: 600; }
+  .chain { background: #1c1206; border: 1px solid #3b2300; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; }
+  .chain-title { color: #f0883e; font-weight: 600; margin-bottom: 0.5rem; }
+  .chain-arrow { color: #484f58; }
+  footer { color: #484f58; font-size: 0.8rem; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+
+<h1>Deploy Pipeline Evidence</h1>
+<p class="subtitle">
+  Evidence collection for WikiMind deploy pipeline hardening (PRs #521&ndash;#623).
+  40 PRs merged May 9&ndash;12, 2026. Production at <code>wikimind.fly.dev</code>.
+</p>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat"><div class="stat-value green">6/6</div><div class="stat-label">Health Checks Passing</div></div>
+  <div class="stat"><div class="stat-value green">4/4</div><div class="stat-label">Deploy Jobs Green</div></div>
+  <div class="stat"><div class="stat-value">40</div><div class="stat-label">PRs Merged</div></div>
+  <div class="stat"><div class="stat-value orange">24</div><div class="stat-label">Deploy/Infra Fixes (60%)</div></div>
+  <div class="stat"><div class="stat-value">5</div><div class="stat-label">Features Shipped</div></div>
+  <div class="stat"><div class="stat-value">11</div><div class="stat-label">Prod Screenshots</div></div>
+  <div class="stat"><div class="stat-value red">1</div><div class="stat-label">Known Issue</div></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 1: Production Health -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>1. Production Health Status</h2>
+  <p style="color:#8b949e; margin-bottom:1rem;">Captured 2026-05-12 from <code>wikimind.fly.dev</code>. All 6 subsystem checks healthy.</p>
+
+  <div class="screenshot-grid">
+    <div class="screenshot-item">
+      <h4>Health Endpoint <span class="badge badge-pass">PASS</span></h4>
+      <p><code>GET /health</code> &mdash; status ok, ARQ background mode, version 0.1.0</p>
+      <img class="screenshot" src="health.png" alt="Health endpoint"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Deep Health <span class="badge badge-pass">PASS</span></h4>
+      <p><code>GET /health/deep</code> &mdash; Database 5ms, Redis 46ms, migrations 0011, LLM anthropic, 0 stuck sources, 0 pending jobs</p>
+      <img class="screenshot" src="deep-health.png" alt="Deep health endpoint"/>
+    </div>
+  </div>
+
+  <h3>Deep Health Response</h3>
+  <pre>{
+  "status": "<span class="ok">healthy</span>",
+  "checks": {
+    "database":      { "status": "<span class="ok">ok</span>", "latency_ms": 5 },
+    "migrations":    { "status": "<span class="ok">ok</span>", "current": "0011", "expected": "0011" },
+    "llm_provider":  { "status": "<span class="ok">ok</span>", "provider": "anthropic" },
+    "stuck_sources": { "status": "<span class="ok">ok</span>", "count": 0 },
+    "redis":         { "status": "<span class="ok">ok</span>", "mode": "arq", "latency_ms": 46 },
+    "queue":         { "status": "<span class="ok">ok</span>", "pending_jobs": 0 }
+  }
+}</pre>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 2: Deploy Pipeline -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>2. Deploy Pipeline &mdash; First Green Run</h2>
+  <p style="color:#8b949e; margin-bottom:1rem;">
+    GitHub Actions run <a href="https://github.com/manavgup/wikimind/actions/runs/25750913930" style="color:#58a6ff;">#25750913930</a>
+    &mdash; first fully green end-to-end deploy on 2026-05-12.
+  </p>
+
+  <table>
+    <tr><th>Job</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Deploy to staging</td><td><span class="ok">success</span></td><td>Image sha-87bf338, Docling sidecar deployed</td></tr>
+    <tr><td>Smoke-test staging</td><td><span class="ok">success</span></td><td>10/10 API checks passed</td></tr>
+    <tr><td>Deploy to production</td><td><span class="ok">success</span></td><td>Same image promoted</td></tr>
+    <tr><td>Verify production</td><td><span class="ok">success</span></td><td>Health + authenticated endpoints verified</td></tr>
+    <tr><td>Rollback production</td><td style="color:#484f58;">skipped</td><td>Not needed</td></tr>
+    <tr><td>Notify deploy failure</td><td style="color:#484f58;">skipped</td><td>Not needed</td></tr>
+  </table>
+
+  <h3>Machine Status</h3>
+  <table>
+    <tr><th>Machine</th><th>Process Group</th><th>State</th><th>Region</th><th>Restart Policy</th></tr>
+    <tr><td><code>2869302ae507e8</code></td><td>web</td><td><span class="ok">started</span></td><td>ord</td><td>on-failure (max 10)</td></tr>
+    <tr><td><code>6e820210f21358</code></td><td>worker</td><td><span class="ok">started</span></td><td>ord</td><td>always</td></tr>
+    <tr><td><code>48e07d7a715e68</code></td><td>worker</td><td style="color:#484f58;">stopped</td><td>ord</td><td>always</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 3: Production UI -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>3. Production UI Screenshots</h2>
+  <p style="color:#8b949e; margin-bottom:1rem;">
+    Captured via Playwright with JWT auth cookie on <code>wikimind.fly.dev</code>.
+    User: <code>test@wikimind.dev</code>.
+  </p>
+
+  <div class="screenshot-grid">
+    <div class="screenshot-item">
+      <h4>Landing / Inbox <span class="badge badge-pass">LIVE</span></h4>
+      <p>Authenticated landing page with sidebar navigation, onboarding modal</p>
+      <img class="screenshot" src="landing.png" alt="Landing page"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Swagger API Docs <span class="badge badge-pass">LIVE</span></h4>
+      <p><code>/docs</code> &mdash; Full OpenAPI documentation with all endpoints</p>
+      <img class="screenshot" src="swagger-docs.png" alt="Swagger docs"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Wiki Explorer / Sources <span class="badge badge-pass">LIVE</span></h4>
+      <p>Source listing and wiki navigation</p>
+      <img class="screenshot" src="sources.png" alt="Sources"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Knowledge Graph <span class="badge badge-pass">LIVE</span></h4>
+      <p>Concept graph visualization</p>
+      <img class="screenshot" src="concepts.png" alt="Concepts graph"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Admin Dashboard <span class="badge badge-pass">LIVE</span></h4>
+      <p>Admin stats, stuck sources, operational health</p>
+      <img class="screenshot" src="admin.png" alt="Admin dashboard"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Faceted Search <span class="badge badge-pass">LIVE</span></h4>
+      <p>Search with sidebar facets for type, concepts, date</p>
+      <img class="screenshot" src="faceted-search.png" alt="Faceted search"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Synthesis <span class="badge badge-pass">LIVE</span></h4>
+      <p>Cross-cutting synthesis creation</p>
+      <img class="screenshot" src="schemas.png" alt="Synthesis"/>
+    </div>
+    <div class="screenshot-item">
+      <h4>Settings <span class="badge badge-pass">LIVE</span></h4>
+      <p>User settings and configuration</p>
+      <img class="screenshot" src="settings.png" alt="Settings"/>
+    </div>
+  </div>
+
+  <h3>Authenticated API Endpoints</h3>
+  <table>
+    <tr><th>Endpoint</th><th>Status</th><th>Notes</th></tr>
+    <tr><td><code>/api/ingest/sources</code></td><td><span class="ok">200</span></td><td>Returns array</td></tr>
+    <tr><td><code>/api/wiki/concepts</code></td><td><span class="ok">200</span></td><td>Returns array</td></tr>
+    <tr><td><code>/api/compilation-schemas</code></td><td><span class="ok">200</span></td><td>Returns array</td></tr>
+    <tr><td><code>/api/admin/stats</code></td><td><span class="warn">403</span></td><td>Expected &mdash; test user is not admin</td></tr>
+    <tr><td><code>/api/wiki/articles</code></td><td><span class="err">500</span></td><td>Missing <code>compiled_at</code> column &mdash; needs Alembic migration</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 4: Known Issue -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>4. Known Issue: Missing <code>compiled_at</code> Column</h2>
+  <div class="card" style="border-color:#da3633;">
+    <div class="card-title" style="color:#f85149;">UndefinedColumnError on /api/wiki/articles</div>
+    <div class="card-description">
+      <p>The <code>article.compiled_at</code> column exists in the SQLModel definition (<code>models.py:209</code>) but has no Alembic migration.
+      It was added during development against SQLite (where <code>create_all()</code> handles it), but production Postgres only runs Alembic migrations.</p>
+      <p style="margin-top:0.5rem;"><strong>Fix:</strong> Create Alembic migration <code>0012_add_article_compiled_at.py</code> with <code>ALTER TABLE article ADD COLUMN compiled_at TIMESTAMP</code>.</p>
+      <pre style="color:#f85149; margin-top:0.5rem;">UndefinedColumnError: column article.compiled_at does not exist</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 5: PR Analysis -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>5. PR Analysis &mdash; Root Cause Report</h2>
+  <p style="color:#8b949e; margin-bottom:1rem;">40 PRs merged in 4 days. 60% were deploy/infra fixes. Analysis of why.</p>
+
+  <h3>PR Categorization</h3>
+  <table>
+    <tr><th>Category</th><th>Count</th><th>Percentage</th></tr>
+    <tr><td>Deploy / Infrastructure fixes</td><td><span class="warn">24</span></td><td>60%</td></tr>
+    <tr><td>Code / CI stabilization</td><td>7</td><td>17.5%</td></tr>
+    <tr><td>Feature work</td><td>5</td><td>12.5%</td></tr>
+    <tr><td>Broken merge cleanup</td><td>4</td><td>10%</td></tr>
+  </table>
+
+  <h3>Fix-the-Fix Chains</h3>
+
+  <div class="chain">
+    <div class="chain-title">Redis Connectivity Saga (9 PRs, 3 days)</div>
+    <p style="font-size:0.85rem;">
+      #561 <span class="chain-arrow">&rarr;</span> #566 <span class="chain-arrow">&rarr;</span> #572 <span class="chain-arrow">&rarr;</span> #575 <span class="chain-arrow">&rarr;</span> #577 <span class="chain-arrow">&rarr;</span> #579 <span class="chain-arrow">&rarr;</span> #583 <span class="chain-arrow">&rarr;</span> #611 <span class="chain-arrow">&rarr;</span> #612
+    </p>
+    <p style="font-size:0.8rem; color:#8b949e; margin-top:0.5rem;">
+      <strong>Root cause:</strong> Nobody ran <code>flyctl redis create</code> or tested Redis connectivity manually before writing CI. Every assumption about CLI flags, output format, and TLS requirements was guessed from docs and proved wrong. PRs #583, #611, #612 each contradicted the previous one's TLS assumption within 12 hours.
+    </p>
+  </div>
+
+  <div class="chain">
+    <div class="chain-title">PgBouncer / Postgres Surprise (4 PRs, 1 day)</div>
+    <p style="font-size:0.85rem;">
+      #583 <span class="chain-arrow">&rarr;</span> #606 <span class="chain-arrow">&rarr;</span> #618 <span class="chain-arrow">&rarr;</span> #622
+    </p>
+    <p style="font-size:0.8rem; color:#8b949e; margin-top:0.5rem;">
+      <strong>Root cause:</strong> Did not know Fly.io Postgres uses PgBouncer in transaction-pooling mode. This is the #1 documented gotcha in Fly Postgres docs. <code>statement_cache_size=0</code> and idle connection handling should have been configured from day one.
+    </p>
+  </div>
+
+  <div class="chain">
+    <div class="chain-title">Machine Lifecycle Misunderstanding (3 PRs, 1 day)</div>
+    <p style="font-size:0.85rem;">
+      #580 <span class="chain-arrow">&rarr;</span> #601 <span class="chain-arrow">&rarr;</span> #618
+    </p>
+    <p style="font-size:0.8rem; color:#8b949e; margin-top:0.5rem;">
+      <strong>Root cause:</strong> Fly.io auto-stops machines with no HTTP traffic. Workers don't serve HTTP. Smoke tests assumed machines stayed running between requests. All documented in Fly machine lifecycle docs.
+    </p>
+  </div>
+
+  <div class="chain">
+    <div class="chain-title">Smoke Test / Token Bootstrapping (3 PRs, 2 days)</div>
+    <p style="font-size:0.85rem;">
+      #563 <span class="chain-arrow">&rarr;</span> #573 <span class="chain-arrow">&rarr;</span> #623
+    </p>
+    <p style="font-size:0.8rem; color:#8b949e; margin-top:0.5rem;">
+      <strong>Root cause:</strong> Smoke tests built incrementally in response to failures. The auth token format mismatch (dev_token vs JWT) was written without understanding the auth flow.
+    </p>
+  </div>
+
+  <h3>Foreseeable vs Novel</h3>
+  <table>
+    <tr><th>Type</th><th>Issues</th><th>%</th></tr>
+    <tr><td><span class="err">Foreseeable</span> (in platform docs)</td><td>PgBouncer caching, idle timeouts, machine auto-stop, migration races, flyctl interactive prompts</td><td>~70%</td></tr>
+    <tr><td><span class="warn">Somewhat foreseeable</span></td><td>Staging/prod resource sharing, Upstash TLS on private endpoints</td><td>~20%</td></tr>
+    <tr><td>Genuinely novel</td><td>Specific flyctl flag names, output format quirks</td><td>~10%</td></tr>
+  </table>
+
+  <h3>Process Anti-Patterns Identified</h3>
+  <table>
+    <tr><th>#</th><th>Anti-Pattern</th><th>Impact</th></tr>
+    <tr><td>1</td><td><strong>Automate first, understand later</strong> &mdash; CI YAML written from doc assumptions without manual testing</td><td>9-PR Redis chain</td></tr>
+    <tr><td>2</td><td><strong>No manual staging walkthrough</strong> &mdash; nobody SSH'd into a VM before writing the pipeline</td><td>Every infra surprise</td></tr>
+    <tr><td>3</td><td><strong>Bundled fix PRs</strong> &mdash; multiple unrelated fixes per PR made isolation hard</td><td>Slower debugging</td></tr>
+    <tr><td>4</td><td><strong>Smoke test as only validation</strong> &mdash; E2E test instead of unit infra checks</td><td>Slow root cause diagnosis</td></tr>
+    <tr><td>5</td><td><strong>No infra dry-run</strong> &mdash; no local PgBouncer/Redis parity environment</td><td>PgBouncer issues only found in prod</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 6: Recommendations -->
+<!-- ============================================================ -->
+<div class="section">
+  <h2>6. Recommendations</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">R1: Pre-Automation Checklist</div>
+      <div class="card-description">Before writing CI for a new Fly.io service, manually verify from inside a VM: Redis connectivity (redis:// vs rediss://), PgBouncer behavior (statement_cache_size), machine lifecycle (auto-stop), flyctl CLI flags (--help first).</div>
+    </div>
+    <div class="card">
+      <div class="card-title">R2: Docker Compose Fly Parity</div>
+      <div class="card-description">Add <code>docker-compose.fly-parity.yml</code> with PgBouncer in transaction-pooling mode, Redis without TLS, multiple Gunicorn workers. Run in CI before deploy.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">R3: One Infra Change Per PR</div>
+      <div class="card-description">Each infrastructure PR must include manual verification evidence (terminal output from <code>flyctl ssh console</code>). No "should work" PRs.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">R4: Static Secrets, No CLI Scraping</div>
+      <div class="card-description">Provision Redis/Postgres once manually, store URLs as GitHub secrets. Deploy workflow verifies connectivity only, never discovers or creates resources.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">R5: Separate Provisioning from Deploy</div>
+      <div class="card-description">Split into <code>infra-provision.yml</code> (manual, rare) and <code>deploy.yml</code> (automatic, every push). Deploy assumes infra exists.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">R6: Fly-Specific Integration Tests</div>
+      <div class="card-description">Add tests for: asyncpg + PgBouncer compatibility, concurrent init_db(), long-running queries with idle connections. Run against local Postgres+PgBouncer in CI.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Evidence captured 2026-05-12 &bull; WikiMind v0.1.0 &bull; Production: <code>wikimind.fly.dev</code> &bull;
+  Screenshots via Playwright with JWT auth &bull;
+  <a href="../index.html" style="color:#58a6ff;">Back to Evidence Index</a>
+</footer>
+
+</body>
+</html>

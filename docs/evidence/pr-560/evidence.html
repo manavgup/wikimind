@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #560 — Zombie Source Guard | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  code { color: #79c0ff; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .badge-ci { background: #1f6feb; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #560 — Zombie Source Guard</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/560">#560</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">8 TESTS PASSING</span><br/>
+  <strong>What it does:</strong> Blocks compile retry for sources without <code>file_path</code> (zombie sources), marks failed sources to prevent infinite retry loops.<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Test Evidence</h2>
+<pre>
+<span class="pass">$ uv run pytest tests/unit/test_zombie_sources.py -v</span>
+
+tests/unit/test_zombie_sources.py::test_find_zombie_sources_empty <span class="pass">PASSED</span>       [ 12%]
+tests/unit/test_zombie_sources.py::test_find_zombie_sources_detects_stuck <span class="pass">PASSED</span> [ 25%]
+tests/unit/test_zombie_sources.py::test_find_zombie_sources_ignores_recent <span class="pass">PASSED</span> [ 37%]
+tests/unit/test_zombie_sources.py::test_find_zombie_sources_ignores_with_file_path <span class="pass">PASSED</span> [ 50%]
+tests/unit/test_zombie_sources.py::test_compile_route_rejects_zombie_source <span class="pass">PASSED</span> [ 62%]
+tests/unit/test_zombie_sources.py::test_compile_route_allows_valid_source <span class="pass">PASSED</span> [ 75%]
+tests/unit/test_zombie_sources.py::test_compile_route_returns_404_for_missing_source <span class="pass">PASSED</span> [ 87%]
+tests/unit/test_zombie_sources.py::test_compile_route_hides_other_users_source <span class="pass">PASSED</span> [100%]
+
+<span class="pass">8 passed</span> in 0.38s
+</pre>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>No dedicated public UI affordance for zombie-source handling was identified from the deployed site, so the root app route was used as a discovery probe. The automation wrote <code>ui-discovery.json</code>, but Chromium launch was blocked and no new screenshot was produced.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves</h2>
+<ul>
+  <li>Zombie detection correctly identifies sources stuck in "processing" without a <code>file_path</code></li>
+  <li>Recent sources (less than the threshold age) are not flagged as zombies</li>
+  <li>Sources with a valid <code>file_path</code> are never flagged as zombies regardless of status</li>
+  <li>The compile route rejects zombie sources with an appropriate error instead of entering an infinite retry loop</li>
+  <li>Valid sources with file paths can still be compiled normally</li>
+  <li>Missing sources return 404, and other users' sources are hidden (multi-tenant isolation)</li>
+</ul>
+</body>
+</html>

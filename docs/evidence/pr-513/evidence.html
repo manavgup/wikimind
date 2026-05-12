@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #513 Evidence - Synthesis</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #513 &mdash; Synthesis</h1>
+<p class="subtitle">Real evidence: cross-cutting synthesis of multiple articles via API and UI</p>
+
+<h2>1. Create Synthesis via API</h2>
+<p>Posted a synthesis query spanning Machine Learning and Quantum Computing articles. The LLM identified cross-cutting themes.</p>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/wiki/synthesize \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"query":"How do neural networks relate to machine learning?",
+         "article_ids":["83434b7d-...","bf036a56-..."]}'</span>
+
+{
+    "id": "31acb111-be9c-48eb-b87f-30eba8d52a7a",
+    "slug": "synthesis-neural-networks-in-the-context-of-machine-learning",
+    "title": "Neural Networks in the Context of Machine Learning",
+    "query": "How do neural networks relate to machine learning?",
+    "summary": "This synthesis explores the relationship between neural networks and machine learning by examining their roles, techniques, and applications. Key findings indicate that neural networks are a fundamental component of machine learning, particularly in deep learning, and are trained using methods like backpropagation and gradient descent.",
+    "themes": [
+        "Neural Networks as a Core Component of Machine Learning",
+        "Training Techniques and Applications"
+    ],
+    "source_count": 2,
+    "source_article_ids": [
+        "83434b7d-ea00-4ae1-8ad3-3d0c8bc1683e",
+        "bf036a56-e540-4c8e-8475-8b1c254c2699"
+    ],
+    "created_at": "2026-05-09T16:45:48.680368",
+    "page_type": "synthesis"
+}</pre>
+
+<h2>2. Knowledge Graph</h2>
+<p>The wiki graph shows 19 nodes and 87 edges connecting articles, concepts, and synthesis pages.</p>
+<img src="knowledge-graph.png" alt="WikiMind knowledge graph visualization"/>
+
+<h2>3. Synthesis Page UI</h2>
+<p>The synthesis page in the frontend shows the created synthesis article.</p>
+<img src="synthesis-page.png" alt="Synthesis page in WikiMind UI"/>
+
+<h2>4. Wiki Graph API</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/wiki/graph -H "Authorization: Bearer $TOKEN"</span>
+
+Nodes: 19, Edges: 87
+  - Test Staleness Article
+  - Redis Architecture Deep Dive
+  - Climate Science Overview
+  - Machine Learning Fundamentals
+  - Quantum Computing Algorithms and Applications
+  ... (14 more concept and synthesis nodes)</pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance. All API responses and screenshots are real.
+</p>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-synthesis-prod.png" alt="Synthesis page on wikimind.fly.dev — cross-cutting synthesis UI" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>

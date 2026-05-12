@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #565 — Separate Staging/Production Postgres | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #21262d; }
+  th { color: #58a6ff; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #565 — Separate Staging/Production Postgres</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/565">#565</a> | Issue: <a href="https://github.com/manavgup/wikimind/issues/564">#564</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">IMPLEMENTED</span><br/>
+  <strong>What it does:</strong> Staging uses its own Postgres cluster (<code>wikimind-staging-db</code>). Production keeps <code>wikimind-db</code>. Staging migrations can no longer corrupt production.<br/>
+  <strong>Verified:</strong> 2026-05-11
+</div>
+
+<h2>Before: Shared Database (live Fly.io output)</h2>
+<img src="fly-current-shared-db.png" alt="flyctl showing shared wikimind-db for both staging and production" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<pre>
+<span class="fail"># PROBLEM: Only ONE Postgres cluster (wikimind-db) for both environments
+# flyctl postgres list shows a single cluster
+# Both DATABASE_URL secrets point to the same cluster
+# Risk: staging runs alembic downgrade → production tables destroyed</span>
+</pre>
+
+<h2>After PR #565: Isolated Databases</h2>
+<img src="fly-after-separate-dbs.png" alt="Infrastructure map showing separate wikimind-staging-db and wikimind-db" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>Evidence: The Diff</h2>
+<pre>
+<span class="fail">- #   wikimind-db       | (Postgres cluster) | Shared database</span>
+<span class="pass">+ #   wikimind-staging-db | (Postgres cluster) | Staging database</span>
+<span class="pass">+ #   wikimind-db         | (Postgres cluster) | Production database</span>
+
+<span class="fail">- if ! flyctl status --app wikimind-db 2>/dev/null; then</span>
+<span class="fail">-   flyctl postgres create --name wikimind-db ...</span>
+<span class="pass">+ if ! flyctl status --app wikimind-staging-db 2>/dev/null; then</span>
+<span class="pass">+   flyctl postgres create --name wikimind-staging-db ...</span>
+
+<span class="fail">- flyctl postgres attach wikimind-db --app wikimind-staging</span>
+<span class="pass">+ flyctl postgres attach wikimind-staging-db --app wikimind-staging</span>
+</pre>
+
+<h2>What This Prevents</h2>
+<table>
+  <tr>
+    <th>Scenario</th>
+    <th>Before (shared DB)</th>
+    <th>After (separate DBs)</th>
+  </tr>
+  <tr>
+    <td>Staging migration has a bug</td>
+    <td><span class="fail">Corrupts production tables</span></td>
+    <td><span class="pass">Only staging affected</span></td>
+  </tr>
+  <tr>
+    <td>Testing destructive migration (drop table)</td>
+    <td><span class="fail">Drops production table</span></td>
+    <td><span class="pass">Safe — staging DB only</span></td>
+  </tr>
+  <tr>
+    <td>Staging test data (smoke test articles)</td>
+    <td><span class="fail">Visible in production</span></td>
+    <td><span class="pass">Isolated to staging</span></td>
+  </tr>
+  <tr>
+    <td>alembic downgrade in staging</td>
+    <td><span class="fail">Reverts production schema</span></td>
+    <td><span class="pass">Production untouched</span></td>
+  </tr>
+</table>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/docs</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>This PR changes deployment topology rather than the product UI, so the deployed docs page was used only as a discovery probe. The automation wrote <code>ui-discovery.json</code>, but Chromium could not launch from this sandbox and no fresh screenshot was produced.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+</body>
+</html>

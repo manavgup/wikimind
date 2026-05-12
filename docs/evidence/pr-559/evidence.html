@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #559 — Tooling Drift Fix | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  code { color: #79c0ff; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .badge-ci { background: #1f6feb; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #559 — Tooling Drift Fix</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/559">#559</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">ALL 19 HOOKS PASSING</span><br/>
+  <strong>What it does:</strong> Unifies pre-commit and CI Python environments. All hooks use <code>uv run python</code> for consistent dependency resolution.<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Test Evidence</h2>
+<pre>
+<span class="pass">$ uv run pre-commit run --all-files</span>
+
+trim trailing whitespace............................................................<span class="pass">Passed</span>
+fix end of files....................................................................<span class="pass">Passed</span>
+check yaml..........................................................................<span class="pass">Passed</span>
+check toml..........................................................................<span class="pass">Passed</span>
+check json..........................................................................<span class="pass">Passed</span>
+check for added large files.........................................................<span class="pass">Passed</span>
+check for merge conflicts...........................................................<span class="pass">Passed</span>
+detect private key..................................................................<span class="pass">Passed</span>
+ruff (legacy alias).................................................................<span class="pass">Passed</span>
+ruff format.........................................................................<span class="pass">Passed</span>
+Update detect-secrets baseline......................................................<span class="pass">Passed</span>
+ADR index — regenerate docs/adr/README.md...........................................<span class="pass">Passed</span>
+README make-targets section — regenerate............................................<span class="pass">Passed</span>
+OpenAPI schema — verify docs/openapi.yaml matches FastAPI app.......................<span class="pass">Passed</span>
+detect-secrets — scan for secrets...................................................<span class="pass">Passed</span>
+Doc sync — verify docs are updated alongside code...................................<span class="pass">Passed</span>
+Docker bloat guard — no GPU deps in core............................................<span class="pass">Passed</span>
+Flag new............................................................................<span class="pass">Passed</span>
+Forbid AI-generated artifacts.......................................................<span class="pass">Passed</span>
+</pre>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>This PR is primarily tooling-facing, so the automation used the deployed home page only as a discovery probe. The run wrote <code>ui-discovery.json</code>, but Chromium launch was denied by the sandbox and no fresh screenshot was captured.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves</h2>
+<ul>
+  <li>All 19 pre-commit hooks pass consistently with <code>uv run</code> as the Python runner</li>
+  <li>No more drift between pre-commit hook environments and CI environments</li>
+  <li>Hooks include linting (ruff), formatting (ruff format), secrets scanning, documentation sync, Docker bloat guards, and AI artifact detection</li>
+  <li>The unified environment eliminates "works on my machine" failures where hooks pass locally but fail in CI (or vice versa)</li>
+</ul>
+</body>
+</html>
