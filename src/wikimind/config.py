@@ -366,11 +366,11 @@ class Settings(BaseSettings):
         # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
-        # Upstash requires TLS — auto-upgrade redis:// to rediss://
-        if self.redis_url and self.redis_url.startswith("redis://"):
-            host = (urlparse(self.redis_url).hostname or "").lower()
-            if host == "upstash.io" or host.endswith(".upstash.io"):
-                self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
+        # Fly Upstash Redis uses a private URL (redis:// on port 6379) that
+        # works over Fly's internal WireGuard network WITHOUT TLS. Do NOT
+        # auto-upgrade to rediss:// — it breaks the internal connection.
+        # If TLS is needed (public endpoint), set WIKIMIND_REDIS_URL to
+        # rediss:// explicitly.
         return self
 
     @property
