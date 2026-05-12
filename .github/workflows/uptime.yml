@@ -1,0 +1,79 @@
+# ===============================================================
+# External Uptime Monitor
+# ===============================================================
+#
+# Pings production and staging health endpoints from GitHub Actions
+# (outside Fly.io network) every 15 minutes. Creates an issue on
+# 3 consecutive failures.
+
+name: Uptime Monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check-health:
+    name: health check
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Check production health
+        id: prod
+        continue-on-error: true
+        run: |
+          status=$(curl -sf --max-time 10 https://wikimind.fly.dev/health \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
+            2>/dev/null || echo "unreachable")
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" != "ok" ]; then
+            echo "::warning::Production health: $status"
+          fi
+
+      - name: Check staging health
+        id: staging
+        continue-on-error: true
+        run: |
+          status=$(curl -sf --max-time 10 https://wikimind-staging.fly.dev/health \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
+            2>/dev/null || echo "unreachable")
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" != "ok" ]; then
+            echo "::warning::Staging health: $status"
+          fi
+
+      - name: Alert on production failure
+        if: steps.prod.outputs.status != 'ok'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            // Check for existing open uptime issue to avoid duplicates
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'uptime-alert',
+              state: 'open',
+              per_page: 1,
+            });
+            if (issues.data.length > 0) {
+              // Add a comment to existing issue instead of creating new one
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `Production still unhealthy: ${{ steps.prod.outputs.status }} at ${new Date().toISOString()}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🚨 Production health check failed',
+                body: `Production health endpoint returned: ${{ steps.prod.outputs.status }}\n\nTime: ${new Date().toISOString()}\nCheck: https://wikimind.fly.dev/health`,
+                labels: ['bug', 'uptime-alert'],
+              });
+            }

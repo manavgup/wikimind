@@ -195,6 +195,42 @@ jobs:
           echo "Migration state is at head"
 
       # -----------------------------------------------------------
+      # 5b. Downgrade test: head -> N-1 -> head (round-trip)
+      # -----------------------------------------------------------
+      - name: "Downgrade test: head → N-1 → head"
+        run: |
+          set -euo pipefail
+
+          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          PREV=$(uv run alembic history 2>/dev/null | grep -oP '^\w+' | head -2 | tail -1)
+          echo "HEAD=$HEAD  PREV=$PREV"
+
+          if [ "$HEAD" = "$PREV" ] || [ -z "$PREV" ]; then
+            echo "Only one migration — skipping downgrade test"
+            exit 0
+          fi
+
+          echo "Downgrading from $HEAD to $PREV..."
+          uv run alembic downgrade "$PREV"
+
+          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
+          if [ "$CURRENT" != "$PREV" ]; then
+            echo "::error::Downgrade failed: expected $PREV, got $CURRENT"
+            exit 1
+          fi
+          echo "Downgrade successful"
+
+          echo "Re-upgrading to head..."
+          uv run alembic upgrade head
+
+          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
+          if [ "$CURRENT" != "$HEAD" ]; then
+            echo "::error::Re-upgrade failed: expected $HEAD, got $CURRENT"
+            exit 1
+          fi
+          echo "Round-trip downgrade test passed"
+
+      # -----------------------------------------------------------
       # 6. Upgrade-path test: N-1 -> seed data -> head (no data loss)
       # -----------------------------------------------------------
       - name: Create second database for upgrade-path test
