@@ -211,7 +211,7 @@ async def _run_versioned_migrations(engine, versioned_migrations, session_migrat
             async with get_session_factory()() as session:
                 await session_migrations[version](session)
         else:
-            await migration_fn(engine)  # type: ignore[operator]
+            await migration_fn(engine)
         await _record_migration(engine, version)
 
 
