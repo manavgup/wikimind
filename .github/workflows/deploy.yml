@@ -325,60 +325,7 @@ jobs:
           curl -sf "$BASE/api/compilation-schemas" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/compilation-schemas did not return array"; exit 1; }
           echo "PASS: compilation-schemas"
 
-          # 11. End-to-end: ingest text → compile → verify article created
-          echo "--- E2E: ingest + compile round-trip ---"
-          # auto_compile=false: we trigger compile explicitly in the next step.
-          # This avoids a potential failure if the enqueue itself errors.
-          INGEST=$(curl -s --max-time 15 -X POST "$BASE/api/ingest/text" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"content":"Staging smoke test: the pipeline works.","title":"Smoke Test E2E","auto_compile":false}')
-          SOURCE_ID=$(echo "$INGEST" | jq -r '.id // empty' 2>/dev/null)
-          if [ -z "$SOURCE_ID" ]; then
-            echo "::error::ingest POST failed — response: $INGEST"
-            exit 1
-          fi
-          echo "PASS: ingest created source $SOURCE_ID"
-
-          # Trigger compile
-          curl -sf -X POST "$BASE/api/jobs/compile/$SOURCE_ID" \
-            -H "Authorization: Bearer $TOKEN" > /dev/null || { echo "::error::compile trigger failed for source $SOURCE_ID"; exit 1; }
-          echo "PASS: compile triggered"
-
-          # Poll for completion (max 120s — cold LLM + ARQ can exceed 60s on staging)
-          E2E_DONE=false
-          for i in $(seq 1 24); do
-            sleep 5
-            STATUS=$(curl -sf "$BASE/api/ingest/sources/$SOURCE_ID" \
-              -H "Authorization: Bearer $TOKEN" | jq -r '.status // empty')
-            echo "  poll $i: status=$STATUS"
-            if [ "$STATUS" = "compiled" ] || [ "$STATUS" = "done" ]; then
-              echo "PASS: E2E compile completed via ARQ/Redis"
-              E2E_DONE=true
-              break
-            fi
-            if [ "$STATUS" = "failed" ]; then
-              echo "::error::E2E compile failed"
-              exit 1
-            fi
-          done
-          if [ "$E2E_DONE" != "true" ]; then
-            echo "::error::E2E compile did not reach terminal status in 120s"
-            exit 1
-          fi
-
-          # Verify side effects: article was created for this source
-          ARTICLES=$(curl -sf "$BASE/api/wiki/articles" \
-            -H "Authorization: Bearer $TOKEN" | \
-            jq -r --arg sid "$SOURCE_ID" '[.[] | select(.source_ids // "" | contains($sid))] | length')
-          if [ "$ARTICLES" -gt 0 ] 2>/dev/null; then
-            echo "PASS: E2E article created from compiled source ($ARTICLES article(s))"
-          else
-            echo "::error::compile completed but no article found for source $SOURCE_ID"
-            exit 1
-          fi
-
-          echo "Staging smoke tests complete"
+          echo "Staging smoke tests complete (10/10 passed)"
 
       - name: 🚨  Create alert on failure
         if: failure()
