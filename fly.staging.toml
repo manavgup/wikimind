@@ -26,7 +26,6 @@ primary_region = "ord"
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
-  WEB_CONCURRENCY = "4"
 
 [http_service]
   internal_port = 7842

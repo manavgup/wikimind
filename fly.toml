@@ -19,17 +19,13 @@ primary_region = "ord"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
   WIKIMIND_AUTH__PUBLIC_URL = "https://wikimind.fly.dev"
-  # Gunicorn workers — 4 ensures at least one worker can respond to health
-  # checks while others are still initializing (DB init, migrations).
-  # Fewer workers caused deploy timeouts (health check fails within 5 min).
-  WEB_CONCURRENCY = "4"
 
 [http_service]
   internal_port = 7842
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["web"]
 
   [http_service.concurrency]
