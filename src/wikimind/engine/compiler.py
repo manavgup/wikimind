@@ -395,6 +395,15 @@ class Compiler:
             task_type=TaskType.COMPILE,
         )
 
+        # Release the DB connection before the long-running LLM call.
+        # Fly.io PgBouncer closes idle connections after ~15s; the LLM
+        # call can take 20-30s.  commit() ends the current transaction
+        # and returns the connection to the pool.  The next session
+        # operation will check out a fresh connection (pool_pre_ping
+        # verifies it is alive).  expire_on_commit=False ensures all
+        # in-memory objects remain usable without lazy-loads.
+        await session.commit()
+
         compile_start = time.monotonic()
         response = await self.router.complete(request, user_id=self.user_id)
         self._last_compilation_duration_ms = round((time.monotonic() - compile_start) * 1000)
