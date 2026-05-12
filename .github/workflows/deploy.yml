@@ -139,31 +139,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          TAG="sha-${SHA::7}"
-          # On workflow_dispatch the current SHA may not have a Docker
-          # image (e.g. deploy-only changes).  Walk recent commits to
-          # find one that does.
-          FOUND=""
-          for sha in $(git log --format='%H' -20); do
-            short="${sha::7}"
-            candidate="sha-${short}"
-            # Check if the Docker workflow published this tag by looking
-            # for a successful "publish prod image to GHCR" job.
-            RUN_ID=$(gh run list --workflow=docker.yml --commit "$sha" \
-              --status=completed --json databaseId,conclusion \
-              --jq '.[] | select(.conclusion=="success") | .databaseId' \
-              | head -1)
-            if [ -n "$RUN_ID" ]; then
-              TAG="$candidate"
-              FOUND=1
-              break
-            fi
-          done
-          if [ -z "$FOUND" ]; then
-            echo "::error::No successful Docker build found in recent 20 commits"
+          # Prefer the triggering Docker workflow's SHA; fall back to
+          # the latest successful Docker build (handles workflow_dispatch
+          # where the current commit may lack a Docker image).
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ -z "$SHA" ]; then
+            SHA=$(gh run list --workflow=docker.yml --status=completed \
+              --json conclusion,headSha \
+              --jq '[.[] | select(.conclusion=="success")][0].headSha')
+          fi
+          if [ -z "$SHA" ]; then
+            echo "::error::No successful Docker build found"
             exit 1
           fi
+          TAG="sha-${SHA::7}"
           echo "Using image tag: ${TAG}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
