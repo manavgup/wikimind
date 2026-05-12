@@ -25,7 +25,9 @@ primary_region = "ord"
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
-  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
+  # Staging uses its own Docling sidecar (wikimind-staging-docling) to avoid
+  # affecting production during smoke tests.
+  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-staging-docling.internal:5001"
 
 [http_service]
   internal_port = 7842
