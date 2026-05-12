@@ -54,9 +54,14 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
-      - name: Semantic Release — version + publish
+      # python-semantic-release builds https://x-access-token:TOKEN@github.com/...
+      # and passes it to git push directly. The TOKEN@ prefix means a simple
+      # insteadOf for "https://github.com/" won't match. Instead, don't pass
+      # GH_TOKEN for the version step (push), only for publish (GitHub Release API).
+      - name: Semantic Release — version bump + push
+        run: semantic-release version
+
+      - name: Semantic Release — create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          semantic-release version
-          semantic-release publish
+        run: semantic-release publish
