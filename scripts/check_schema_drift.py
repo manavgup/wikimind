@@ -46,7 +46,6 @@ async def _check() -> int:
     engine = create_async_engine(db_url)
 
     async with engine.connect() as conn:
-        inspector = await conn.run_sync(lambda sync_conn: sa_inspect(sync_conn))
         actual_tables = await conn.run_sync(lambda sync_conn: sa_inspect(sync_conn).get_table_names())
 
     drift_found = False
@@ -81,6 +80,7 @@ async def _check() -> int:
 
 
 def main() -> int:
+    """Entry point for schema-drift detection."""
     return asyncio.run(_check())
 
 
