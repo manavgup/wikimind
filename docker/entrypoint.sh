@@ -11,14 +11,8 @@ if [ "$(id -u)" = "0" ]; then
     exec gosu wikimind "$0" "$@"
 fi
 
-# Run Alembic migrations when using PostgreSQL — but only for the web process.
-# The ARQ worker should not race the web process for migrations.
-_db_url="${WIKIMIND_DATABASE_URL:-${DATABASE_URL:-}}"
-if [[ "$_db_url" == postgres* ]] && [[ "${1:-}" != *"arq"* ]]; then
-    echo "Running Alembic migrations..."
-    .venv/bin/python -m alembic upgrade head
-    echo "Migrations complete."
-fi
+# Alembic migrations run via Fly.io release_command (see fly.toml [deploy] section).
+# This ensures migrations execute exactly once per deploy, before any process starts.
 
 # Gunicorn crashes on empty WEB_CONCURRENCY (int("") fails at import time).
 # Unset it so gunicorn falls through to gunicorn.conf.py auto-tuning.

@@ -202,6 +202,19 @@ async def _ensure_anonymous_user(engine) -> None:
             log.info("created anonymous user for no-auth mode")
 
 
+async def _run_versioned_migrations(engine, versioned_migrations, session_migrations) -> None:
+    """Execute versioned data migrations, skipping already-applied ones."""
+    for version, migration_fn in versioned_migrations:
+        if await _migration_applied(engine, version):
+            continue
+        if version in session_migrations:
+            async with get_session_factory()() as session:
+                await session_migrations[version](session)
+        else:
+            await migration_fn(engine)  # type: ignore[operator]
+        await _record_migration(engine, version)
+
+
 async def init_db():
     """Create all tables and run idempotent data migrations.
 
@@ -247,7 +260,8 @@ async def init_db():
                 )
                 await rebuild_fts_index(fts_session)
 
-    # Versioned data migrations — each runs at most once
+    # Versioned data migrations — each runs at most once.
+    # On Postgres, use an advisory lock to serialize concurrent workers.
     _versioned_migrations: list[tuple[str, object]] = [
         ("0001_backfill_conversations", _backfill_conversation_for_legacy_queries),
         ("0002_repair_json_arrays", _repair_malformed_json_arrays),
@@ -263,15 +277,16 @@ async def init_db():
         "0006_cleanup_orphan_concepts": _cleanup_orphan_concept_rows,
     }
 
-    for version, migration_fn in _versioned_migrations:
-        if await _migration_applied(engine, version):
-            continue
-        if version in _session_migrations:
-            async with get_session_factory()() as session:
-                await _session_migrations[version](session)
-        else:
-            await migration_fn(engine)  # type: ignore[operator]
-        await _record_migration(engine, version)
+    settings = get_settings()
+    if is_postgres(settings.database_url):
+        async with engine.begin() as lock_conn:
+            await lock_conn.execute(sa_text("SELECT pg_advisory_lock(737069)"))
+            try:
+                await _run_versioned_migrations(engine, _versioned_migrations, _session_migrations)
+            finally:
+                await lock_conn.execute(sa_text("SELECT pg_advisory_unlock(737069)"))
+    else:
+        await _run_versioned_migrations(engine, _versioned_migrations, _session_migrations)
 
 
 async def _backfill_conversation_for_legacy_queries(engine) -> None:

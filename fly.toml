@@ -44,6 +44,7 @@ primary_region = "ord"
 
 [deploy]
   strategy = "rolling"
+  release_command = ".venv/bin/python -m alembic upgrade head"
 
 [mounts]
   source = "wikimind_data"
