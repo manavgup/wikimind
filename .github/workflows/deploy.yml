@@ -19,7 +19,7 @@
 #     │  • ensure Postgres cluster + attach
 #     │  • stage secrets (--stage, no restart)
 #     │  • deploy docling-serve sidecar
-#     │  • deploy app from GHCR :latest
+#     │  • deploy app from GHCR sha-<commit>
 #     │
 #     ▼
 #   2️⃣  smoke-test-staging
@@ -32,7 +32,7 @@
 #     │  • environment: production (manual approval gate)
 #     │  • same provisioning as staging
 #     │  • deploy docling-serve sidecar
-#     │  • deploy app from GHCR :latest
+#     │  • deploy app from same GHCR sha-<commit> tag
 #     │
 #     ▼
 #   4️⃣  verify-production
@@ -42,6 +42,10 @@
 #     ▼
 #   5️⃣  rollback-production (on verify failure)
 #        • rolls back to previous Fly.io release
+#        • verifies rollback health
+#
+#   6️⃣  notify-failure (on any job failure)
+#        • creates GitHub issue for visibility
 #
 # ---------------------------------------------------------------
 # Auto-provisioning (both environments)
@@ -72,6 +76,7 @@
 #   WIKIMIND_AUTH__GOOGLE_CLIENT_ID      │ OAuth client ID
 #   WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET  │ OAuth client secret
 #   STAGING_DEV_TOKEN                   │ Bearer token for authenticated smoke tests
+#   PROD_DEV_TOKEN (optional)           │ Bearer token for prod verification (falls back to STAGING_DEV_TOKEN)
 #
 # ---------------------------------------------------------------
 # Fly.io apps managed by this workflow
@@ -113,6 +118,8 @@ jobs:
     name: deploy to staging
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      image_tag: ${{ steps.image.outputs.tag }}
     permissions:
       contents: read
     if: >-
@@ -127,12 +134,16 @@ jobs:
       - name: 🪁  Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 
+      - name: 📌 Resolve image tag
+        id: image
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       # 0️⃣  Pre-flight: ensure all secrets are configured
       - name: 🔐  Validate required secrets
         run: |
           missing=0
-          # WIKIMIND_REDIS_URL is NOT checked here — it is auto-provisioned
-          # by the infrastructure step below via `flyctl redis create`.
+          # WIKIMIND_REDIS_URL is verified separately in the infrastructure
+          # step below (must be set manually via `fly secrets set`).
           for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
             if [ -z "${!var}" ]; then
               echo "::error::Required secret ${var} is empty or not configured"
@@ -172,24 +183,19 @@ jobs:
             fi
           }
 
-          # Redis (Upstash) — provisioned manually (flyctl redis create requires
-          # interactive prompts). Verify it exists and stage the URL as a secret.
-          REDIS_URL=$(flyctl redis status wikimind-staging-redis 2>/dev/null | grep "Private URL" | awk -F'│' '{print $2}' | tr -d ' ')
-          # Upstash requires TLS — upgrade redis:// to rediss://
-          REDIS_URL="${REDIS_URL/redis:\/\//rediss:\/\/}"
-          if [ -n "$REDIS_URL" ]; then
-            flyctl secrets set --stage --app wikimind-staging WIKIMIND_REDIS_URL="$REDIS_URL"
-            echo "Staging Redis URL staged"
+          # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
+          REDIS_CHECK=$(flyctl secrets list --app wikimind-staging 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
+          if [ "$REDIS_CHECK" -gt 0 ]; then
+            echo "Redis URL secret exists"
           else
-            echo "::error::wikimind-staging-redis not found — provision manually: flyctl redis create --name wikimind-staging-redis --region ord"
+            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='rediss://...' --app wikimind-staging"
             exit 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # 2️⃣  Stage secrets (--stage avoids double-restart before deploy)
-      # WIKIMIND_REDIS_URL is staged only from Fly Redis status above — do not pass
-      # GitHub secrets.WIKIMIND_REDIS_URL here (empty secret would overwrite the Fly URL).
+      # WIKIMIND_REDIS_URL is managed manually via `fly secrets set` — not staged here.
       - name: 🔑  Stage secrets for staging
         run: |
           flyctl secrets set --stage --app wikimind-staging \
@@ -213,7 +219,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: 🚀  Deploy to staging
-        run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:latest --remote-only
+        run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }} --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -370,7 +376,7 @@ jobs:
     environment: production
     permissions:
       contents: read
-    needs: smoke-test-staging
+    needs: [smoke-test-staging, deploy-staging]
 
     steps:
       - name: ⬇️  Checkout code
@@ -402,22 +408,18 @@ jobs:
             fi
           }
 
-          # Redis (Upstash) — provisioned manually (flyctl redis create requires
-          # interactive prompts). Verify it exists and stage the URL as a secret.
-          REDIS_URL=$(flyctl redis status wikimind-redis 2>/dev/null | grep "Private URL" | awk -F'│' '{print $2}' | tr -d ' ')
-          # Upstash requires TLS — upgrade redis:// to rediss://
-          REDIS_URL="${REDIS_URL/redis:\/\//rediss:\/\/}"
-          if [ -n "$REDIS_URL" ]; then
-            flyctl secrets set --stage --app wikimind WIKIMIND_REDIS_URL="$REDIS_URL"
-            echo "Production Redis URL staged"
+          # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
+          REDIS_CHECK=$(flyctl secrets list --app wikimind 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
+          if [ "$REDIS_CHECK" -gt 0 ]; then
+            echo "Redis URL secret exists"
           else
-            echo "::error::wikimind-redis not found — provision manually: flyctl redis create --name wikimind-redis --region ord"
+            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='rediss://...' --app wikimind"
             exit 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      # WIKIMIND_REDIS_URL comes only from Fly Redis status above (same overwrite risk as staging).
+      # WIKIMIND_REDIS_URL is managed manually via `fly secrets set` — not staged here.
       - name: 🔑  Stage secrets for production
         run: |
           flyctl secrets set --stage --app wikimind \
@@ -440,7 +442,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: 🚀  Deploy to production
-        run: flyctl deploy --image ghcr.io/${{ github.repository }}:latest --remote-only
+        run: flyctl deploy --image ghcr.io/${{ github.repository }}:${{ needs.deploy-staging.outputs.image_tag }} --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -474,7 +476,9 @@ jobs:
 
       - name: Functional verification
         env:
-          TOKEN: ${{ secrets.STAGING_DEV_TOKEN }}
+          # Prefer dedicated PROD_DEV_TOKEN; fall back to STAGING_DEV_TOKEN
+          # until the production token is provisioned.
+          TOKEN: ${{ secrets.PROD_DEV_TOKEN || secrets.STAGING_DEV_TOKEN }}
         run: |
           BASE="https://wikimind.fly.dev"
 
@@ -500,9 +504,9 @@ jobs:
           [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]
           echo "PASS: auth ($STATUS)"
 
-          # 6. Authenticated checks (STAGING_DEV_TOKEN is required)
+          # 6. Authenticated checks
           if [ -z "$TOKEN" ]; then
-            echo "::error::STAGING_DEV_TOKEN secret required for production verification"
+            echo "::error::PROD_DEV_TOKEN or STAGING_DEV_TOKEN secret required for production verification"
             exit 1
           fi
 
@@ -552,3 +556,42 @@ jobs:
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: ✅ Verify rollback health
+        run: |
+          echo "Verifying rollback health..."
+          for i in $(seq 1 15); do
+            status=$(curl -sf https://wikimind.fly.dev/health \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
+              2>/dev/null || echo "")
+            if [ "$status" = "ok" ]; then
+              echo "Rollback healthy after $((i*2))s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Rollback health check failed after 30s — manual intervention required"
+          exit 1
+
+  # -----------------------------------------------------------
+  # 6️⃣  Notify on deploy failure
+  # -----------------------------------------------------------
+  notify-failure:
+    name: notify deploy failure
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, smoke-test-staging, deploy-production, verify-production]
+    if: failure()
+    permissions:
+      issues: write
+    steps:
+      - name: 🚨 Create failure issue
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Deploy failed: ${context.sha.substring(0, 7)}`,
+              body: `Deploy workflow failed for commit ${context.sha}.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['bug', 'deploy-blocked']
+            });
