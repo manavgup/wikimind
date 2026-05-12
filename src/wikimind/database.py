@@ -73,6 +73,12 @@ def _create_engine_from_url(url: str):
         return create_async_engine(url, echo=False, connect_args={"check_same_thread": False})
     if is_postgres(url):
         url, connect_args = _parse_ssl(url)
+        # Disable asyncpg's prepared-statement cache.  Fly.io Postgres
+        # uses PgBouncer in transaction-pooling mode, which can reassign
+        # backend connections between requests.  Cached statements from
+        # one backend are invalid on another, causing
+        # InvalidCachedStatementError.
+        connect_args["statement_cache_size"] = 0
         return create_async_engine(
             url,
             echo=False,
