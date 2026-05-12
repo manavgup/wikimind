@@ -299,7 +299,7 @@ jobs:
           echo "INFO: admin stats responded $ADMIN"
 
           # 9. Concepts endpoint — MUST return array
-          curl -sf "$BASE/api/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts did not return array"; exit 1; }
+          curl -sf "$BASE/api/wiki/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts did not return array"; exit 1; }
           echo "PASS: concepts"
 
           # 10. Compilation schemas — MUST return array
@@ -519,7 +519,7 @@ jobs:
           echo "PASS: sources endpoint returns array"
 
           # 7. Concepts endpoint (new tables from #546)
-          curl -sf "$BASE/api/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts failed"; exit 1; }
+          curl -sf "$BASE/api/wiki/concepts" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/concepts failed"; exit 1; }
           echo "PASS: concepts"
 
           # 8. Compilation schemas
