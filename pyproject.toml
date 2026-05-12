@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wikimind"
-version = "1.0.0"
+version = "0.1.0"
 description = "WikiMind Local Gateway — Personal LLM Knowledge OS"
 requires-python = ">=3.11"
 license = {text = "MIT"}

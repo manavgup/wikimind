@@ -1,20 +1,20 @@
 # ===============================================================
-#  Automated Release via python-semantic-release
+#  Automated Release via release-please
 # ===============================================================
 #
 #   - triggers on push to main
-#   - determines version bump from conventional commits (feat/fix)
-#   - updates version in pyproject.toml, creates git tag + GitHub release
-#   - skips if no releasable commits since last tag
+#   - analyzes conventional commits (feat/fix) since last release
+#   - opens/updates a "Release PR" with version bump + CHANGELOG
+#   - merging the Release PR creates the git tag + GitHub Release
+#   - no direct push to main required — works with branch protection
 #
-#   Branch protection: the repo's main branch ruleset requires PRs for
-#   all pushes. An SSH deploy key ("semantic-release") is added to the
-#   ruleset bypass list with Exempt mode, allowing this workflow to push
-#   the version-bump commit and tag directly to main.
+#   How it works:
+#     1. Push feat:/fix: commits to main (via merged PRs)
+#     2. release-please opens a PR titled "chore(main): release X.Y.Z"
+#     3. Subsequent pushes update that PR automatically
+#     4. When you merge the Release PR, it creates the tag + release
 #
-#   Secrets:
-#     DEPLOY_KEY — private SSH key matching the "semantic-release" deploy key
-#     GITHUB_TOKEN — used for creating GitHub Releases (automatic)
+#   Version source: pyproject.toml [project] version
 # ---------------------------------------------------------------
 
 name: Release
@@ -27,48 +27,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-permissions: {}
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release:
-    name: Semantic Release
+  release-please:
+    name: Release Please
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write   # create tags, push commits, create GitHub releases
-      id-token: write   # trusted publishing (future PyPI)
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89f5c29c4e4cae8aa2d7f # v4
         with:
-          fetch-depth: 0
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
-          persist-credentials: true
-
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-
-      - name: Install python-semantic-release
-        run: pip install python-semantic-release
-
-      # python-semantic-release embeds GH_TOKEN in the push URL:
-      #   https://x-access-token:TOKEN@github.com/OWNER/REPO.git
-      # A simple insteadOf for "https://github.com/" won't match because
-      # of the credentials prefix. Rewrite the token-embedded URL pattern
-      # so git push routes through SSH (deploy key with ruleset bypass).
-      - name: Force git push via SSH deploy key
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Rewrite the exact URL that semantic-release constructs
-          git config --global url."git@github.com:".insteadOf "https://x-access-token:${GH_TOKEN}@github.com/"
-
-      - name: Semantic Release — version + publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          semantic-release version
-          semantic-release publish
+          release-type: python
+          token: ${{ secrets.GITHUB_TOKEN }}
