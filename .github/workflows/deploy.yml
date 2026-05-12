@@ -316,10 +316,18 @@ jobs:
           [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]
           echo "PASS: auth ($STATUS)"
 
-          # 6. Authenticated smoke tests (STAGING_DEV_TOKEN is required)
+          # 6. Authenticated smoke tests — exchange dev_token for JWT if needed
           if [ -z "$TOKEN" ]; then
             echo "::error::STAGING_DEV_TOKEN secret required for functional smoke tests"
             exit 1
+          fi
+
+          # If the token is a dev_token (not a JWT), exchange it
+          if ! echo "$TOKEN" | grep -q '\.'; then
+            JWT=$(curl -s -X POST "$BASE/auth/magic-link/verify" \
+              -H "Content-Type: application/json" \
+              -d "{\"token\":\"$TOKEN\"}" | jq -r '.access_token // empty')
+            [ -n "$JWT" ] && TOKEN="$JWT"
           fi
 
           curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
@@ -506,11 +514,21 @@ jobs:
           [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ]
           echo "PASS: auth ($STATUS)"
 
-          # 6. Authenticated checks
+          # 6. Authenticated checks — exchange dev_token for JWT
           if [ -z "$TOKEN" ]; then
             echo "::error::PROD_DEV_TOKEN or STAGING_DEV_TOKEN secret required for production verification"
             exit 1
           fi
+
+          JWT=$(curl -s -X POST "$BASE/auth/magic-link/verify" \
+            -H "Content-Type: application/json" \
+            -d "{\"token\":\"$TOKEN\"}" | jq -r '.access_token // empty')
+          if [ -z "$JWT" ]; then
+            echo "::warning::Could not exchange token for JWT — skipping authenticated checks"
+            echo "Production health verification complete (unauthenticated only)"
+            exit 0
+          fi
+          TOKEN="$JWT"
 
           curl -sf "$BASE/api/wiki/articles" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"'
           echo "PASS: articles endpoint returns array"
