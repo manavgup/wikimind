@@ -369,3 +369,4 @@ changelog_file = "CHANGELOG.md"
 
 [tool.semantic_release.remote]
 type = "github"
+url = "git@github.com:manavgup/wikimind.git"
