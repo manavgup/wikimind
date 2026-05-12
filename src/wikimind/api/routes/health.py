@@ -126,7 +126,7 @@ async def _check_redis() -> dict[str, Any]:
         return {"status": "ok", "mode": "in_process"}
 
     start = time.monotonic()
-    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3)
+    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3, socket_timeout=3)
     try:
         await r.ping()
         latency_ms = round((time.monotonic() - start) * 1000)
@@ -144,7 +144,7 @@ async def _check_queue_depth() -> dict[str, Any]:
     if settings.redis_url is None:
         return {"status": "ok", "pending_jobs": 0}
 
-    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3)
+    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3, socket_timeout=3)
     try:
         depth = await r.zcard("arq:queue")
         status = "ok" if depth < 100 else "warning"
