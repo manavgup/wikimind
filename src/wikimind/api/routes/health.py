@@ -1,8 +1,9 @@
 """Deep health check endpoint for production monitoring.
 
 Checks database connectivity, Alembic migration version, LLM provider
-availability, and stuck source processing jobs. Returns a structured JSON
-response with per-check status and overall system health.
+availability, stuck source processing jobs, Redis connectivity, and ARQ
+queue depth. Returns a structured JSON response with per-check status
+and overall system health.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter
+from redis.asyncio import Redis
 from sqlalchemy import text as sa_text
 from sqlmodel import select
 
@@ -117,6 +119,43 @@ async def _check_stuck_sources() -> dict[str, Any]:
         return {"status": "error", "count": -1, "error": str(exc)}
 
 
+async def _check_redis() -> dict[str, Any]:
+    """Verify Redis connectivity via PING when redis_url is configured."""
+    settings = get_settings()
+    if settings.redis_url is None:
+        return {"status": "ok", "mode": "in_process"}
+
+    start = time.monotonic()
+    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3)
+    try:
+        await r.ping()
+        latency_ms = round((time.monotonic() - start) * 1000)
+        return {"status": "ok", "mode": "arq", "latency_ms": latency_ms}
+    except Exception as exc:
+        log.warning("health: redis check failed", error=str(exc))
+        return {"status": "error", "mode": "arq", "error": str(exc)}
+    finally:
+        await r.aclose()
+
+
+async def _check_queue_depth() -> dict[str, Any]:
+    """Check the ARQ pending job queue depth."""
+    settings = get_settings()
+    if settings.redis_url is None:
+        return {"status": "ok", "pending_jobs": 0}
+
+    r = Redis.from_url(settings.redis_url, socket_connect_timeout=3)
+    try:
+        depth = await r.zcard("arq:queue")
+        status = "ok" if depth < 100 else "warning"
+        return {"status": status, "pending_jobs": depth}
+    except Exception as exc:
+        log.warning("health: queue depth check failed", error=str(exc))
+        return {"status": "error", "error": str(exc)}
+    finally:
+        await r.aclose()
+
+
 def _overall_status(checks: dict[str, dict[str, Any]]) -> str:
     """Derive overall status from individual check results.
 
@@ -141,6 +180,8 @@ async def deep_health_check() -> dict[str, Any]:
     checks["migrations"] = await _check_migrations()
     checks["llm_provider"] = _check_llm_provider()
     checks["stuck_sources"] = await _check_stuck_sources()
+    checks["redis"] = await _check_redis()
+    checks["queue"] = await _check_queue_depth()
 
     return {
         "status": _overall_status(checks),
