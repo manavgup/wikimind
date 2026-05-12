@@ -263,16 +263,37 @@ async def compile_source(
         except Exception as e:  # Intentional broad catch — job runner must not crash
             log.error("compile_source failed", source_id=source_id, error=str(e))
 
-            source.status = IngestStatus.FAILED
-            source.error_message = str(e)
-            session.add(source)
+            # Record the failure using a fresh session — the original
+            # session's connection may have been killed by PgBouncer
+            # during the long LLM call, leaving it in
+            # PendingRollbackError state.
+            try:
+                async with get_session_factory()() as err_session:
+                    src = await err_session.get(Source, source_id)
+                    if src:
+                        src.status = IngestStatus.FAILED
+                        src.error_message = str(e)
 
-            job.status = JobStatus.FAILED
-            job.completed_at = utcnow_naive()
-            job.error = str(e)
-            session.add(job)
+                    err_job = (
+                        await err_session.execute(
+                            select(Job).where(
+                                Job.source_id == source_id,
+                                Job.status == JobStatus.RUNNING,
+                            )
+                        )
+                    ).scalar_one_or_none()
+                    if err_job:
+                        err_job.status = JobStatus.FAILED
+                        err_job.completed_at = utcnow_naive()
+                        err_job.error = str(e)
 
-            await session.commit()
+                    await err_session.commit()
+            except Exception:
+                log.exception(
+                    "Failed to record compile error in DB",
+                    source_id=source_id,
+                )
+
             await emit_compilation_failed(source_id, str(e), user_id=user_id)
 
 

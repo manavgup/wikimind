@@ -225,6 +225,25 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      - name: 🔧  Ensure worker machines are running
+        run: |
+          # Worker machines don't receive HTTP traffic so Fly auto-stops
+          # them.  Configure restart=always and start any stopped workers.
+          WORKER_IDS=$(flyctl machines list --app wikimind-staging -j \
+            | jq -r '.[] | select(.config.metadata.fly_process_group == "worker") | .id')
+          for id in $WORKER_IDS; do
+            echo "Configuring worker machine $id ..."
+            flyctl machine update "$id" --restart always --app wikimind-staging --yes 2>&1 || true
+            STATE=$(flyctl machines list --app wikimind-staging -j | jq -r ".[] | select(.id == \"$id\") | .state")
+            if [ "$STATE" != "started" ]; then
+              echo "Starting worker machine $id (was $STATE) ..."
+              flyctl machine start "$id" --app wikimind-staging 2>&1 || true
+            fi
+          done
+          echo "Worker machines configured."
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
   # -----------------------------------------------------------
   # 2️⃣  Smoke-test staging
   # -----------------------------------------------------------
@@ -308,13 +327,15 @@ jobs:
 
           # 11. End-to-end: ingest text → compile → verify article created
           echo "--- E2E: ingest + compile round-trip ---"
-          INGEST=$(curl -sf -X POST "$BASE/api/ingest/text" \
+          # auto_compile=false: we trigger compile explicitly in the next step.
+          # This avoids a potential failure if the enqueue itself errors.
+          INGEST=$(curl -s --max-time 15 -X POST "$BASE/api/ingest/text" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"content":"Staging smoke test: the pipeline works.","title":"Smoke Test E2E"}') || { echo "::error::ingest endpoint not available"; exit 1; }
-          SOURCE_ID=$(echo "$INGEST" | jq -r '.id // empty')
+            -d '{"content":"Staging smoke test: the pipeline works.","title":"Smoke Test E2E","auto_compile":false}')
+          SOURCE_ID=$(echo "$INGEST" | jq -r '.id // empty' 2>/dev/null)
           if [ -z "$SOURCE_ID" ]; then
-            echo "::error::ingest returned no source ID"
+            echo "::error::ingest POST failed — response: $INGEST"
             exit 1
           fi
           echo "PASS: ingest created source $SOURCE_ID"
@@ -445,6 +466,22 @@ jobs:
 
       - name: 🚀  Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:${{ needs.deploy-staging.outputs.image_tag }} --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: 🔧  Ensure worker machines are running
+        run: |
+          WORKER_IDS=$(flyctl machines list --app wikimind -j \
+            | jq -r '.[] | select(.config.metadata.fly_process_group == "worker") | .id')
+          for id in $WORKER_IDS; do
+            echo "Configuring worker machine $id ..."
+            flyctl machine update "$id" --restart always --app wikimind --yes 2>&1 || true
+            STATE=$(flyctl machines list --app wikimind -j | jq -r ".[] | select(.id == \"$id\") | .state")
+            if [ "$STATE" != "started" ]; then
+              echo "Starting worker machine $id (was $STATE) ..."
+              flyctl machine start "$id" --app wikimind 2>&1 || true
+            fi
+          done
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
