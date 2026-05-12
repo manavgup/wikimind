@@ -136,9 +136,36 @@ jobs:
 
       - name: 📌 Resolve image tag
         id: image
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          echo "tag=sha-${SHA::7}" >> "$GITHUB_OUTPUT"
+          TAG="sha-${SHA::7}"
+          # On workflow_dispatch the current SHA may not have a Docker
+          # image (e.g. deploy-only changes).  Walk recent commits to
+          # find one that does.
+          FOUND=""
+          for sha in $(git log --format='%H' -20); do
+            short="${sha::7}"
+            candidate="sha-${short}"
+            # Check if the Docker workflow published this tag by looking
+            # for a successful "publish prod image to GHCR" job.
+            RUN_ID=$(gh run list --workflow=docker.yml --commit "$sha" \
+              --status=completed --json databaseId,conclusion \
+              --jq '.[] | select(.conclusion=="success") | .databaseId' \
+              | head -1)
+            if [ -n "$RUN_ID" ]; then
+              TAG="$candidate"
+              FOUND=1
+              break
+            fi
+          done
+          if [ -z "$FOUND" ]; then
+            echo "::error::No successful Docker build found in recent 20 commits"
+            exit 1
+          fi
+          echo "Using image tag: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       # 0️⃣  Pre-flight: ensure all secrets are configured
       - name: 🔐  Validate required secrets
