@@ -27,8 +27,21 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
-# Register all models in metadata
-import wikimind.models  # noqa: F401
+import wikimind.models  # noqa: F401 — registers SQLModel tables in metadata
+
+
+def _get_table_names(sync_conn):
+    """Return all table names from the database."""
+    return sa_inspect(sync_conn).get_table_names()
+
+
+def _get_columns(table_name):
+    """Return a callable that fetches columns for the given table."""
+
+    def _inner(sync_conn):
+        return sa_inspect(sync_conn).get_columns(table_name)
+
+    return _inner
 
 
 async def _check() -> int:
@@ -46,7 +59,7 @@ async def _check() -> int:
     engine = create_async_engine(db_url)
 
     async with engine.connect() as conn:
-        actual_tables = await conn.run_sync(lambda sync_conn: sa_inspect(sync_conn).get_table_names())
+        actual_tables = await conn.run_sync(_get_table_names)
 
     drift_found = False
 
@@ -57,9 +70,7 @@ async def _check() -> int:
             continue
 
         async with engine.connect() as conn:
-            columns = await conn.run_sync(
-                lambda sync_conn, t=table_name: sa_inspect(sync_conn).get_columns(t)
-            )
+            columns = await conn.run_sync(_get_columns(table_name))
         actual_columns = {col["name"] for col in columns}
         model_columns = {col.name for col in table.columns}
         missing = model_columns - actual_columns
