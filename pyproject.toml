@@ -86,7 +86,6 @@ transcribe = [
 dev = [
     "wikimind[test,lint]",
     "honcho>=2.0.0",
-    "python-semantic-release>=9.0.0",
 ]
 test = [
     "pytest>=8.3.3",
@@ -334,7 +333,7 @@ DEP002 = [
     "feedparser",         # RSS/Atom feed ingestion adapter
     "boto3",              # S3 sync feature
     "gunicorn",           # production WSGI server (CLI tool)
-    "python-semantic-release",  # release automation CLI tool (not imported in app code)
+
     "python-dateutil",    # date parsing utility (used transitively)
     "toml",               # config file parsing utility
     "openai-whisper",     # Whisper CLI transcription tool (optional extra)
@@ -353,19 +352,3 @@ DEP003 = [
 # "unsafe-best-match" considers *all* indexes and picks the highest compatible
 # version, which mirrors pip's --extra-index-url semantics.
 index-strategy = "unsafe-best-match"
-
-# ---------- Semantic Release ----------
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-commit_message = "chore(release): v{version}"
-tag_format = "v{version}"
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
-
-[tool.semantic_release.changelog.default_templates]
-changelog_file = "CHANGELOG.md"
-
-[tool.semantic_release.remote]
-type = "github"
