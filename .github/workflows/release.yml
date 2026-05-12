@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: googleapis/release-please-action@a02a34c4d625f9be7cb89f5c29c4e4cae8aa2d7f # v4
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
           release-type: python
           token: ${{ secrets.GITHUB_TOKEN }}
