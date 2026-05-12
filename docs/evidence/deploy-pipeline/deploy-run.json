@@ -1,6 +1,32 @@
-{"conclusion":"success","name":"deploy to staging","status":"completed"}
-{"conclusion":"success","name":"smoke-test staging","status":"completed"}
-{"conclusion":"success","name":"deploy to production","status":"completed"}
-{"conclusion":"success","name":"verify production","status":"completed"}
-{"conclusion":"skipped","name":"notify deploy failure","status":"completed"}
-{"conclusion":"skipped","name":"rollback production","status":"completed"}
+[
+  {
+    "conclusion": "success",
+    "name": "deploy to staging",
+    "status": "completed"
+  },
+  {
+    "conclusion": "success",
+    "name": "smoke-test staging",
+    "status": "completed"
+  },
+  {
+    "conclusion": "success",
+    "name": "deploy to production",
+    "status": "completed"
+  },
+  {
+    "conclusion": "success",
+    "name": "verify production",
+    "status": "completed"
+  },
+  {
+    "conclusion": "skipped",
+    "name": "notify deploy failure",
+    "status": "completed"
+  },
+  {
+    "conclusion": "skipped",
+    "name": "rollback production",
+    "status": "completed"
+  }
+]
