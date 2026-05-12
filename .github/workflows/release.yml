@@ -53,6 +53,12 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
+      # python-semantic-release pushes to https://github.com/OWNER/REPO.git
+      # regardless of checkout method. Rewrite HTTPS to SSH so git uses the
+      # deploy key (which has ruleset bypass) instead of GITHUB_TOKEN.
+      - name: Rewrite HTTPS pushes to SSH
+        run: git config --global url."git@github.com:".insteadOf "https://github.com/"
+
       - name: Semantic Release — version + publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
