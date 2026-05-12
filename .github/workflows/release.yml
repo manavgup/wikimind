@@ -54,14 +54,21 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
-      # python-semantic-release builds https://x-access-token:TOKEN@github.com/...
-      # and passes it to git push directly. The TOKEN@ prefix means a simple
-      # insteadOf for "https://github.com/" won't match. Instead, don't pass
-      # GH_TOKEN for the version step (push), only for publish (GitHub Release API).
-      - name: Semantic Release — version bump + push
-        run: semantic-release version
-
-      - name: Semantic Release — create GitHub Release
+      # python-semantic-release embeds GH_TOKEN in the push URL:
+      #   https://x-access-token:TOKEN@github.com/OWNER/REPO.git
+      # A simple insteadOf for "https://github.com/" won't match because
+      # of the credentials prefix. Rewrite the token-embedded URL pattern
+      # so git push routes through SSH (deploy key with ruleset bypass).
+      - name: Force git push via SSH deploy key
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: semantic-release publish
+        run: |
+          # Rewrite the exact URL that semantic-release constructs
+          git config --global url."git@github.com:".insteadOf "https://x-access-token:${GH_TOKEN}@github.com/"
+
+      - name: Semantic Release — version + publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release version
+          semantic-release publish
