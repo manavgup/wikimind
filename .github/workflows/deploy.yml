@@ -136,7 +136,9 @@ jobs:
 
       - name: 📌 Resolve image tag
         id: image
-        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "tag=sha-${SHA::7}" >> "$GITHUB_OUTPUT"
 
       # 0️⃣  Pre-flight: ensure all secrets are configured
       - name: 🔐  Validate required secrets
@@ -588,10 +590,27 @@ jobs:
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
           script: |
-            await github.rest.issues.create({
+            // Check for existing open deploy-blocked issue
+            const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🚨 Deploy failed: ${context.sha.substring(0, 7)}`,
-              body: `Deploy workflow failed for commit ${context.sha}.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ['bug', 'deploy-blocked']
+              labels: 'deploy-blocked',
+              state: 'open',
+              per_page: 1,
             });
+            if (issues.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `Deploy failed again for commit ${context.sha.substring(0, 7)}.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 Deploy failed: ${context.sha.substring(0, 7)}`,
+                body: `Deploy workflow failed for commit ${context.sha}.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                labels: ['bug', 'deploy-blocked']
+              });
+            }
