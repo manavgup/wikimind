@@ -199,7 +199,7 @@ jobs:
       # -----------------------------------------------------------
       - name: "Schema-drift check: Alembic vs models.py"
         env:
-          DATABASE_URL: postgresql://wikimind:wikimind@127.0.0.1:5432/wikimind_replay
+          DATABASE_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_replay
         run: |
           uv run python scripts/check_schema_drift.py
 

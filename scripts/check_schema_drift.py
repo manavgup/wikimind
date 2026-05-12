@@ -19,30 +19,35 @@ Exit codes:
 
 from __future__ import annotations
 
+import asyncio
+import os
 import sys
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
 # Register all models in metadata
 import wikimind.models  # noqa: F401
 
 
-def main() -> int:
-    import os
-
+async def _check() -> int:
     db_url = os.environ.get("DATABASE_URL", "")
     if not db_url:
         print("ERROR: DATABASE_URL not set", file=sys.stderr)
         return 1
 
-    # Normalise scheme for SQLAlchemy
+    # Normalise scheme for async driver
     if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    engine = create_engine(db_url)
-    inspector = inspect(engine)
-    actual_tables = set(inspector.get_table_names())
+    engine = create_async_engine(db_url)
+
+    async with engine.connect() as conn:
+        inspector = await conn.run_sync(lambda sync_conn: sa_inspect(sync_conn))
+        actual_tables = await conn.run_sync(lambda sync_conn: sa_inspect(sync_conn).get_table_names())
 
     drift_found = False
 
@@ -52,7 +57,11 @@ def main() -> int:
             drift_found = True
             continue
 
-        actual_columns = {col["name"] for col in inspector.get_columns(table_name)}
+        async with engine.connect() as conn:
+            columns = await conn.run_sync(
+                lambda sync_conn, t=table_name: sa_inspect(sync_conn).get_columns(t)
+            )
+        actual_columns = {col["name"] for col in columns}
         model_columns = {col.name for col in table.columns}
         missing = model_columns - actual_columns
 
@@ -61,12 +70,18 @@ def main() -> int:
                 print(f"MISSING COLUMN: {table_name}.{col}", file=sys.stderr)
             drift_found = True
 
+    await engine.dispose()
+
     if drift_found:
         print("\nSchema drift detected! Add Alembic migrations for the above.", file=sys.stderr)
         return 1
 
     print(f"OK: All {len(SQLModel.metadata.tables)} model tables and columns present.")
     return 0
+
+
+def main() -> int:
+    return asyncio.run(_check())
 
 
 if __name__ == "__main__":

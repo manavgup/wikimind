@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #511 Evidence - Rich Content</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { color: #79c0ff; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #511 &mdash; Rich Content Rendering (Math, Code, Tables)</h1>
+<p class="subtitle">Real evidence: articles with rendered LaTeX math, syntax-highlighted code blocks, and structured sections</p>
+
+<h2>1. Full Article &mdash; Math, Code, and Structured Sections</h2>
+<p>An article ingested with LaTeX formulas, Python code, and a comparison table. The wiki renders:</p>
+<ul style="color:#8b949e; margin: 0.5rem 0 1rem 1.5rem;">
+  <li><strong>Rendered LaTeX math</strong> &mdash; &sigma;(x) = 1/(1+e<sup>-x</sup>) and softmax formulas displayed inline</li>
+  <li><strong>Syntax-highlighted Python code</strong> &mdash; gradient descent implementation with colored keywords</li>
+  <li><strong>Structured sections</strong> &mdash; Sigmoid Activation Function, Softmax Function, Gradient Descent Implementation, Performance Comparison</li>
+  <li><strong>Concept sidebar</strong> &mdash; auto-extracted concepts (deep-learning, gradient-descent, neural-networks)</li>
+  <li><strong>Backlinks</strong> &mdash; synthesized by Neural Networks and Deep Learning concept pages</li>
+</ul>
+<img src="rich-content-fullpage.png" alt="Full article with rendered math, code blocks, and structured sections"/>
+
+<h2>2. Detail &mdash; Math Rendering and Key Claims</h2>
+<p>Close-up showing the sigmoid formula rendered as LaTeX math inline within Key Claims, with (sourced) confidence badges.</p>
+<img src="rich-content-top.png" alt="Article showing rendered LaTeX math in Key Claims"/>
+
+<h2>3. Wiki Articles List</h2>
+<p>The wiki explorer showing all compiled articles with page type badges (Source, Concept, Synthesis), concept tags, and topic facets.</p>
+<img src="wiki-articles-list.png" alt="Wiki articles list"/>
+
+<h2>4. Article API Response</h2>
+<p>The article API returns structured content with markdown body, concepts, backlinks, and metadata.</p>
+<pre>{
+    "id": "83434b7d-ea00-4ae1-8ad3-3d0c8bc1683e",
+    "slug": "machine-learning-fundamentals-3",
+    "title": "Machine Learning Fundamentals",
+    "summary": "This article introduces key concepts in machine learning...",
+    "confidence": "sourced",
+    "confidence_score": 0.64,
+    "effective_confidence": 0.64,
+    "concepts": [
+        "deep-learning", "gradient-descent", "neural-networks",
+        "pattern-matching", "support-vector-machines"
+    ],
+    "backlinks_in": [
+        {
+            "title": "Neural Networks",
+            "slug": "concept-neural-networks",
+            "relation_type": "synthesizes"
+        },
+        {
+            "title": "Deep Learning",
+            "slug": "concept-deep-learning",
+            "relation_type": "synthesizes"
+        }
+    ],
+    "page_type": "source",
+    "sources": [{
+        "source_type": "text",
+        "title": "Machine Learning Fundamentals"
+    }],
+    "content": "## Summary\n\n...## Key Claims\n\n- **Machine learning uses neural networks...**\n..."
+}</pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance. All API responses and screenshots are real.
+</p>
+</body>
+</html>

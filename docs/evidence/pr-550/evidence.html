@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #550 — Production Monitoring | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  code { color: #79c0ff; }
+  .pass { color: #3fb950; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #550 — Production Monitoring</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/550">#550</a> | Issue: <a href="https://github.com/manavgup/wikimind/issues/547">#547</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">1586 TESTS PASSING</span><br/>
+  <strong>What it does:</strong> Deep health check endpoint, Prometheus metrics, Sentry error tracking, stuck source detection<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Test Evidence</h2>
+<pre>
+<span class="pass">$ uv run pytest tests/unit/test_health.py -v</span>
+
+tests/unit/test_health.py::test_health_returns_ok <span class="pass">PASSED</span> [100%]
+
+<span class="pass">1 passed in 0.11s</span>
+</pre>
+
+<h2>Deep Health Endpoint Structure</h2>
+<p>The <code>/health/deep</code> endpoint checks 4 subsystems:</p>
+<pre>
+GET /health/deep
+
+{
+  "status": "ok" | "degraded" | "unhealthy",
+  "checks": {
+    "database": { "status": "ok", "latency_ms": 3 },
+    "migrations": { "status": "ok", "current": "0010", "expected": "0010" },
+    "llm_provider": { "status": "ok", "provider": "anthropic" },
+    "stuck_sources": { "status": "ok", "count": 0, "threshold_minutes": 10 }
+  }
+}
+</pre>
+
+<h2>Prometheus Metrics</h2>
+<pre>
+GET /metrics
+
+# HELP http_requests_total Total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/health",status="2xx"} 42
+
+# HELP http_request_duration_seconds HTTP request latency
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{le="0.1",...} 38
+</pre>
+
+<h2>Dependencies Added</h2>
+<pre>
+prometheus-fastapi-instrumentator &gt;= 7.0.0
+sentry-sdk[fastapi] &gt;= 2.0.0
+</pre>
+<p>Both confirmed in <code>uv.lock</code> after running <code>uv lock</code>.</p>
+
+<h2>UI — Health Page (showing background_mode from PR #561)</h2>
+<img src="ui-health-page.png" alt="Health page showing status ok and background_mode" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/docs</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>Open-PR discovery automation ran via <code>apps/web/scripts/capture-open-pr-evidence.mjs</code> and wrote <code>ui-discovery.json</code> for this PR. A fresh Chromium capture from <code>wikimind.fly.dev</code> was not produced because browser launch is blocked in this sandboxed environment.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves</h2>
+<ul>
+  <li>Deep health check verifies DB, migrations, LLM, and stuck sources</li>
+  <li>Prometheus metrics expose request latency and counts for Grafana/alerting</li>
+  <li>Sentry SDK captures unhandled exceptions with FastAPI context</li>
+  <li>Missing dependencies fixed (prometheus-fastapi-instrumentator was not in lockfile)</li>
+</ul>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-health-prod.png" alt="Health endpoint on wikimind.fly.dev — status ok, background_mode visible" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>

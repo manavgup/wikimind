@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #521 Evidence - Compilation Schemas</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .comment { color: #8b949e; }
+  img {
+    max-width: 100%;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #521 &mdash; Compilation Schemas</h1>
+<p class="subtitle">Real evidence: user-defined schema CRUD for wiki compilation rules</p>
+
+<h2>1. Create Schema</h2>
+<pre><span class="cmd">$ curl -s -X POST http://127.0.0.1:7842/api/compilation-schemas \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Research Summary","description":"Focused on summarizing research papers",
+         "required_sections":["Abstract","Methodology","Key Findings","Limitations"],
+         "style":"academic","focus":"research methodology and empirical findings"}'</span>
+
+{
+    "id": "32702340-5410-470e-b1a6-5811651a5d11",
+    "name": "Research Summary",
+    "description": "Focused on summarizing research papers",
+    "is_active": false,
+    "article_max_length": null,
+    "required_sections": ["Abstract", "Methodology", "Key Findings", "Limitations"],
+    "style": "academic",
+    "focus": "research methodology and empirical findings",
+    "concept_max_depth": null,
+    "concept_naming": null,
+    "extraction_always_note": null,
+    "extraction_ignore": null,
+    "custom_directives": null,
+    "created_at": "2026-05-09T17:05:03.793740",
+    "updated_at": "2026-05-09T17:05:03.793750"
+}</pre>
+
+<h2>2. Update Schema (PATCH)</h2>
+<pre><span class="cmd">$ curl -s -X PATCH http://127.0.0.1:7842/api/compilation-schemas/a848bc7a-cb9c-4acf-8f67-959b14b21d88 \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"required_sections":["Summary","Architecture","Implementation","Trade-offs"],
+         "style":"technical","focus":"architecture and design decisions"}'</span>
+
+{
+    "id": "a848bc7a-cb9c-4acf-8f67-959b14b21d88",
+    "name": "Technical Deep Dive",
+    "description": null,
+    "is_active": false,
+    "article_max_length": null,
+    "required_sections": ["Summary", "Architecture", "Implementation", "Trade-offs"],
+    "style": "technical",
+    "focus": "architecture and design decisions",
+    "concept_max_depth": null,
+    "concept_naming": null,
+    "extraction_always_note": null,
+    "extraction_ignore": null,
+    "custom_directives": null,
+    "created_at": "2026-05-09T16:44:39.514540",
+    "updated_at": "2026-05-09T17:05:08.605913"
+}</pre>
+<p style="color: #8b949e; font-size: 0.85rem;">Partial update -- only provided fields changed; name and other fields preserved. updated_at reflects the modification time.</p>
+
+<h2>3. List Schemas</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/compilation-schemas \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+[
+    {
+        "id": "a848bc7a-cb9c-4acf-8f67-959b14b21d88",
+        "name": "Technical Deep Dive",
+        "required_sections": ["Summary", "Architecture", "Implementation", "Trade-offs"],
+        "style": "technical",
+        "focus": "architecture and design decisions",
+        "updated_at": "2026-05-09T17:05:08.605913"
+    },
+    {
+        "id": "32702340-5410-470e-b1a6-5811651a5d11",
+        "name": "Research Summary",
+        "description": "Focused on summarizing research papers",
+        "required_sections": ["Abstract", "Methodology", "Key Findings", "Limitations"],
+        "style": "academic",
+        "focus": "research methodology and empirical findings",
+        "updated_at": "2026-05-09T17:05:03.793750"
+    }
+]</pre>
+
+<h2>4. Schema Configuration Fields</h2>
+<pre>name                   - Schema display name (required, 1-200 chars)
+description            - Human-readable description
+is_active              - Whether this schema is the active default
+article_max_length     - Max length for compiled articles (100-50000)
+required_sections      - Sections the LLM must include in every article
+style                  - Writing style directive (max 500 chars)
+focus                  - Topic focus directive (max 500 chars)
+concept_max_depth      - Max depth for concept hierarchy (1-10)
+concept_naming         - Convention for concept slugs (max 200 chars)
+extraction_always_note - Topics to always extract and note
+extraction_ignore      - Patterns to skip during extraction
+custom_directives      - Free-form LLM instructions (max 2000 chars)</pre>
+
+<h2>5. API Surface</h2>
+<pre>POST    /api/compilation-schemas              Create schema
+GET     /api/compilation-schemas              List all schemas
+GET     /api/compilation-schemas/{id}         Get schema by ID
+PATCH   /api/compilation-schemas/{id}         Update schema (partial)
+DELETE  /api/compilation-schemas/{id}         Delete schema</pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance. All API responses are real.
+</p>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-settings-prod.png" alt="Settings on wikimind.fly.dev — compilation schema configuration" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>

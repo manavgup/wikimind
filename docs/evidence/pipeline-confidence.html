@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Pipeline Confidence — 5 Layer Defense Model | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 1000px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2.5rem; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem; }
+  h3 { color: #79c0ff; margin-top: 1.5rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .badge-merged { background: #8957e5; color: #fff; }
+  .badge-open { background: #1f6feb; color: #fff; }
+  .layer { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+  .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+  .layer-num { background: #238636; color: #fff; font-weight: bold; padding: 4px 10px; border-radius: 50%; font-size: 14px; }
+  .check { margin: 0.5rem 0; padding-left: 1.5rem; position: relative; }
+  .check::before { content: ""; position: absolute; left: 0; top: 6px; width: 12px; height: 12px; border-radius: 50%; }
+  .check-pass::before { background: #3fb950; }
+  .check-partial::before { background: #d29922; }
+  .check-missing::before { background: #f85149; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #21262d; }
+  th { color: #58a6ff; font-size: 0.85rem; }
+  img { max-width: 100%; border: 1px solid #30363d; border-radius: 6px; margin: 0.5rem 0; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">Back to Index</a>
+<h1>Pipeline Confidence — 5 Layer Defense Model</h1>
+<p>What gives us confidence that code passing CI will work in production.</p>
+
+<!-- ============================================================ -->
+<h2><span class="layer-num">1</span> Code Correctness</h2>
+<div class="layer">
+  <div class="layer-header">
+    <strong>PR: <a href="pr-559/evidence.html">#559</a> (tooling drift fix)</strong>
+    <span class="badge badge-open">OPEN PR</span>
+  </div>
+  <div class="check check-pass">1561 unit + integration tests passing</div>
+  <div class="check check-pass">Ruff lint + format enforced in CI</div>
+  <div class="check check-pass">Mypy type checking</div>
+  <div class="check check-pass">8 snapshot/API contract tests</div>
+  <div class="check check-pass">Pre-commit hooks use <code>uv run python</code> — same environment as CI (19/19 hooks pass)</div>
+
+  <h3>Evidence: All 19 pre-commit hooks pass with unified environment</h3>
+  <pre>
+<span class="pass">trim trailing whitespace.......Passed
+ruff (legacy alias)............Passed
+ruff format....................Passed
+Update detect-secrets baseline.Passed
+OpenAPI schema.................Passed
+Doc sync.......................Passed
+Docker bloat guard.............Passed</span>
+... 19/19 passed, 0 failures
+  </pre>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="layer-num">2</span> Schema Safety</h2>
+<div class="layer">
+  <div class="layer-header">
+    <strong>PR: <a href="pr-558/evidence.html">#558</a> (migration replay CI)</strong>
+    <span class="badge badge-open">OPEN PR</span>
+  </div>
+  <div class="check check-pass">CI provisions fresh Postgres 16</div>
+  <div class="check check-pass"><code>alembic upgrade head</code> runs from scratch</div>
+  <div class="check check-pass">Verifies all ORM tables exist and are queryable</div>
+  <div class="check check-pass">Verifies <code>alembic current == head</code></div>
+  <div class="check check-pass">Triggers on alembic/**, models.py, database.py changes</div>
+
+  <h3>Evidence: Workflow verifies 3 critical assertions</h3>
+  <pre>
+steps:
+  - name: Run migration from base to head
+    run: uv run alembic upgrade head
+
+  - name: Verify all ORM tables exist and are queryable
+    run: |
+      # Checks: user, article, source, compiledclaim,
+      # conceptcluster, claimconcept, compilationschema
+      <span class="pass">All tables queryable after migration</span>
+
+  - name: Verify alembic current matches expected head
+    run: |
+      <span class="pass">Current: 0011, Head: 0011 — match</span>
+  </pre>
+
+  <h3>What this would have caught</h3>
+  <pre>
+<span class="fail"># Bug #546: Production crash from schema mismatch
+# ORM expected "compiledclaim" but DB had "compiled_claim"
+# alembic upgrade head would have FAILED with FK errors
+# → CI blocks the PR before it reaches staging</span>
+  </pre>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="layer-num">3</span> Production Config Safety</h2>
+<div class="layer">
+  <div class="layer-header">
+    <strong>PR: <a href="pr-561/evidence.html">#561</a> (prod config guard)</strong>
+    <span class="badge badge-open">OPEN PR</span>
+  </div>
+  <div class="check check-pass">Startup guard: Fly.io + no Redis = <code>ProductionConfigError</code></div>
+  <div class="check check-pass">Deploy preflight validates required secrets before <code>fly deploy</code></div>
+  <div class="check check-pass"><code>/health</code> exposes <code>background_mode: "arq"</code> or <code>"in-process"</code></div>
+  <div class="check check-pass">Redis auto-provisioned in pipeline (same pattern as Postgres)</div>
+
+  <h3>Evidence: App refuses to start on Fly without Redis</h3>
+  <pre>
+<span class="pass">$ FLY_APP_NAME=wikimind WIKIMIND_REDIS_URL=redis://... python</span>
+<span class="pass">PASS: Production guard passes with Redis configured</span>
+
+<span class="fail">$ FLY_APP_NAME=wikimind python  # no Redis</span>
+<span class="fail">ProductionConfigError: Production environment (FLY_APP_NAME set) requires Redis.
+Set WIKIMIND_REDIS_URL or REDIS_URL to a valid Redis URL.
+Refusing to start with in-process fallback on Fly.io.</span>
+
+<span class="pass">$ python  # no FLY_APP_NAME (local dev)</span>
+<span class="pass">OK: in-process fallback allowed (no Fly detected)</span>
+  </pre>
+
+  <h3>What this would have caught</h3>
+  <pre>
+<span class="fail"># Bug #555: Production ran compile jobs in-process (no Redis)
+# Health checks failed, 7s latency on simple GETs
+# Now: app refuses to start → deploy fails immediately
+# → No silent degradation, ever</span>
+  </pre>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="layer-num">4</span> Functional Staging Proof</h2>
+<div class="layer">
+  <div class="layer-header">
+    <strong>PR: <a href="pr-563/evidence.html">#563</a> (functional smoke tests)</strong>
+    <span class="badge badge-open">OPEN PR</span>
+  </div>
+  <div class="check check-pass">Authenticated API calls (articles, sources, admin)</div>
+  <div class="check check-pass">Deep health check (DB, migrations, LLM, stuck sources)</div>
+  <div class="check check-pass">Background mode verification (arq, not in-process)</div>
+  <div class="check check-pass">Concept-layer endpoints (new tables from #546)</div>
+  <div class="check check-pass">Compilation schemas endpoint</div>
+  <div class="check check-pass">E2E: ingest text → trigger compile → poll for completion via ARQ/Redis (max 60s)</div>
+
+  <h3>Evidence: 10 smoke tests passing</h3>
+  <img src="pr-563/smoke-tests-pass.png" alt="10/10 staging smoke tests passing"/>
+
+  <h3>Evidence: Broken staging BLOCKS production</h3>
+  <img src="pr-563/smoke-tests-fail-blocked.png" alt="Failed smoke tests block production deploy"/>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="layer-num">5</span> Safe Promotion to Production</h2>
+<div class="layer">
+  <div class="layer-header">
+    <strong>PR: <a href="pr-563/evidence.html">#563</a> (same PR)</strong>
+    <span class="badge badge-open">OPEN PR</span>
+  </div>
+  <div class="check check-pass">Staging deploys first (unchanged)</div>
+  <div class="check check-pass">Functional staging smoke tests (10 checks, not 3)</div>
+  <div class="check check-pass">Separate staging and production databases — <a href="pr-565/evidence.html">PR #565</a> (wikimind-staging-db / wikimind-db)</div>
+  <div class="check check-pass">Manual approval gate (<code>environment: production</code>)</div>
+  <div class="check check-pass">Functional production verification after deploy</div>
+  <div class="check check-pass">Auto-rollback on production verification failure</div>
+
+  <h3>Evidence: Pipeline flow</h3>
+  <img src="pr-563/pipeline-before-after.png" alt="Pipeline before vs after"/>
+
+  <h3>Infrastructure isolation</h3>
+  <pre>
+<span class="pass">Staging: wikimind-staging-db (PR #565)
+Production: wikimind-db (unchanged)
+Staging migration failures cannot corrupt production data.</span>
+  </pre>
+</div>
+
+<!-- ============================================================ -->
+<h2>Summary: What Each PR Covers</h2>
+<table>
+  <tr>
+    <th>Layer</th>
+    <th>PR</th>
+    <th>Status</th>
+    <th>What it catches</th>
+  </tr>
+  <tr>
+    <td>1. Code Correctness</td>
+    <td><a href="pr-559/evidence.html">#559</a></td>
+    <td><span class="badge badge-open">OPEN</span></td>
+    <td>CI/local environment drift, lint failures, test failures</td>
+  </tr>
+  <tr>
+    <td>2. Schema Safety</td>
+    <td><a href="pr-558/evidence.html">#558</a></td>
+    <td><span class="badge badge-open">OPEN</span></td>
+    <td>Migration drift, missing tables, FK errors</td>
+  </tr>
+  <tr>
+    <td>3. Config Safety</td>
+    <td><a href="pr-561/evidence.html">#561</a></td>
+    <td><span class="badge badge-open">OPEN</span></td>
+    <td>Missing Redis, missing secrets, silent degradation</td>
+  </tr>
+  <tr>
+    <td>4. Functional Staging</td>
+    <td><a href="pr-563/evidence.html">#563</a></td>
+    <td><span class="badge badge-open">OPEN</span></td>
+    <td>"Boots but broken" — API errors, missing endpoints</td>
+  </tr>
+  <tr>
+    <td>5. Safe Promotion</td>
+    <td><a href="pr-563/evidence.html">#563</a></td>
+    <td><span class="badge badge-open">OPEN</span></td>
+    <td>Auto-promotion of broken staging, no rollback on prod failure</td>
+  </tr>
+</table>
+
+<footer style="color:#484f58; font-size:0.8rem; margin-top:3rem; padding-top:1rem; border-top:1px solid #21262d;">
+  Generated 2026-05-10 | WikiMind deployment confidence evidence
+</footer>
+</body>
+</html>

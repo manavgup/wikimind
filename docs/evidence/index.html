@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WikiMind - Feature Evidence Index</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 {
+    color: #58a6ff;
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 1rem;
+  }
+  .wave-section {
+    margin-bottom: 2.5rem;
+  }
+  .wave-header {
+    color: #f0883e;
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #21262d;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.1s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .card:hover {
+    border-color: #58a6ff;
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+  .card-title {
+    color: #58a6ff;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .card-pr {
+    color: #8b949e;
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  .card-description {
+    color: #c9d1d9;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  .badge-merged {
+    background: #238636;
+    color: #fff;
+  }
+  .badge-screenshot {
+    background: #1f6feb;
+    color: #fff;
+  }
+  .badge-cli {
+    background: #6e40c9;
+    color: #fff;
+  }
+  .badge-open {
+    background: #bf8700;
+    color: #fff;
+  }
+  .stats {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-value {
+    color: #58a6ff;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .stat-label {
+    color: #8b949e;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+  footer {
+    color: #484f58;
+    font-size: 0.8rem;
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #21262d;
+  }
+</style>
+</head>
+<body>
+
+<h1>WikiMind Feature Evidence</h1>
+<p class="subtitle">Comprehensive visual and test evidence for merged features and current in-flight PRs (auth enabled, dev@wikimind.dev)</p>
+
+<a class="card" href="pipeline-confidence.html" style="display:block; margin-bottom:2rem; border-color:#238636;">
+  <div class="card-title" style="color:#3fb950; font-size:1.1rem;">Pipeline Confidence — 5 Layer Defense Model</div>
+  <div class="card-description">How PRs #558, #559, #561, #563 together guarantee that code passing CI will work in production. Evidence for each layer: code correctness, schema safety, config safety, functional staging, safe promotion.</div>
+</a>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">29</div>
+    <div class="stat-label">PRs Documented</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">10</div>
+    <div class="stat-label">Live Prod Screenshots</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">8</div>
+    <div class="stat-label">Capabilities Found</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">2</div>
+    <div class="stat-label">Degraded</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">1590+</div>
+    <div class="stat-label">Tests Passing</div>
+  </div>
+</div>
+<p style="color:#8b949e; font-size:0.9rem; margin:-1rem 0 2rem 0;">Production UI screenshots captured 2026-05-11 from <code>wikimind.fly.dev</code> via authenticated Playwright (JWT cookie). 8 capabilities working, 2 degraded: wiki articles slow (no Redis, in-process mode), admin dashboard blocked (user not is_admin). Both resolve once Redis is provisioned and user is promoted.</p>
+
+<!-- Wave C/D: Earlier Features -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave C/D - Earlier Features</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-415/evidence.html">
+      <div class="card-title">Synthesis Pages UI <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #415</div>
+      <div class="card-description">Cross-cutting synthesis UI with form creation and previous synthesis listing.</div>
+    </a>
+    <a class="card" href="pr-418/evidence.html">
+      <div class="card-title">Draft Review Panel <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #418</div>
+      <div class="card-description">Human-in-the-loop draft review with approve/reject workflow in the inbox.</div>
+    </a>
+    <a class="card" href="pr-442/evidence.html">
+      <div class="card-title">CLI for Terminal Workflow <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #442</div>
+      <div class="card-description">WikiMind CLI for terminal-based workflow and automation.</div>
+    </a>
+    <a class="card" href="pr-447/evidence.html">
+      <div class="card-title">Tags &amp; Saved Searches <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #447</div>
+      <div class="card-description">User-created tags and saved searches for organization.</div>
+    </a>
+    <a class="card" href="pr-452/evidence.html">
+      <div class="card-title">Rich Content Rendering <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #452</div>
+      <div class="card-description">Math, code, tables, and image rendering with KaTeX and highlight.js.</div>
+    </a>
+    <a class="card" href="pr-455/evidence.html">
+      <div class="card-title">API Route Prefixing <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #455</div>
+      <div class="card-description">Added /api prefix to all API routes for clean SPA separation.</div>
+    </a>
+    <a class="card" href="pr-457/evidence.html">
+      <div class="card-title">Public Share Links <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #457</div>
+      <div class="card-description">Per-article share links with read-only public access tokens.</div>
+    </a>
+  </div>
+</div>
+
+<!-- Wave E: Infrastructure -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave E - Infrastructure &amp; Testing</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-infra/evidence.html">
+      <div class="card-title">Compiler Refactor + Coverage <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #506 + #510</div>
+      <div class="card-description">
+        Refactored LLM compilation engine for testability. 1590 tests collected, health endpoint verified.
+        <span class="badge badge-screenshot">Screenshots</span>
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-507/evidence.html">
+      <div class="card-title">Snapshot Response Testing <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #507</div>
+      <div class="card-description">
+        8 snapshot tests verifying API response shape stability. All passing.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-508/evidence.html">
+      <div class="card-title">PR Automation Workflows <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #508</div>
+      <div class="card-description">
+        4 GitHub Actions workflows: auto-rebase, review-address, post-merge sweep, stale pruning.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-520/evidence.html">
+      <div class="card-title">CI Auth &amp; Postgres Workflows <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #520</div>
+      <div class="card-description">
+        Dedicated CI for multi-user auth and PostgreSQL integration testing.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Wave E: Backend Features -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave E - Backend Features</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-512/evidence.html">
+      <div class="card-title">MCP Server Integration <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #512</div>
+      <div class="card-description">
+        Model Context Protocol server for Claude Desktop / Cursor integration. Stdio + HTTP transports.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-514/evidence.html">
+      <div class="card-title">Ambient Capture &amp; RSS <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #514</div>
+      <div class="card-description">
+        Inbox for quick notes/highlights/bookmarks, RSS feed subscription and polling.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-516/evidence.html">
+      <div class="card-title">Human-in-the-Loop Drafts <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #516</div>
+      <div class="card-description">
+        Draft review workflow with approve/reject before publication.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-518/evidence.html">
+      <div class="card-title">Public Share Links <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #518</div>
+      <div class="card-description">
+        Per-article share tokens for read-only public access. Create, list, revoke links.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-521/evidence.html">
+      <div class="card-title">Compilation Schemas <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #521</div>
+      <div class="card-description">
+        User-defined compilation rules for article structure and formatting.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Wave E: Knowledge Layer -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave E - Knowledge Layer</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-517/evidence.html">
+      <div class="card-title">Span-Level Citations <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #517</div>
+      <div class="card-description">
+        CompiledClaim + ConceptCluster models for per-claim source attribution and contradiction detection.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-522/evidence.html">
+      <div class="card-title">Concept-Layer Schema <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #522</div>
+      <div class="card-description">
+        First-class concept data model with claims, clusters, and cross-article linking. 119 concept tests.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Wave E: Frontend Features -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave E - Frontend Features</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-509/evidence.html">
+      <div class="card-title">PDF Image Extraction <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #509</div>
+      <div class="card-description">
+        Extract and render images from PDF sources using PyMuPDF. Image extraction API endpoints.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-511/evidence.html">
+      <div class="card-title">Rich Content Rendering <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #511</div>
+      <div class="card-description">
+        LaTeX math (KaTeX), syntax-highlighted code, GFM tables in article rendering.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-513/evidence.html">
+      <div class="card-title">Synthesis Pages <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #513</div>
+      <div class="card-description">
+        Cross-cutting synthesis UI with creation form and previous syntheses.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-515/evidence.html">
+      <div class="card-title">Faceted Browse &amp; Search <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #515</div>
+      <div class="card-description">
+        Sidebar facets for page type, concepts, date range, staleness. Highlighted search results.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Wave F: Operational & Admin -->
+<div class="wave-section">
+  <h2 class="wave-header">Wave F - Operational &amp; Admin</h2>
+  <div class="card-grid">
+    <a class="card" href="pr-549/evidence.html">
+      <div class="card-title">Alembic Schema Migration <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #549</div>
+      <div class="card-description">
+        Alembic migration for concept-layer tables (CompiledClaim, ConceptCluster).
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-550/evidence.html">
+      <div class="card-title">Production Monitoring <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #550</div>
+      <div class="card-description">
+        Health checks, metrics, and production monitoring infrastructure.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-551/evidence.html">
+      <div class="card-title">Admin Dashboard <span class="badge badge-merged">MERGED</span></div>
+      <div class="card-pr">PR #551</div>
+      <div class="card-description">
+        Admin-only dashboard with 8 stat cards, 4 breakdowns, stuck source monitoring. Real UI screenshots with auth.
+        <span class="badge badge-screenshot">Screenshots</span>
+      </div>
+    </a>
+    <a class="card" href="pr-558/evidence.html">
+      <div class="card-title">Migration Replay CI <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #558</div>
+      <div class="card-description">
+        CI workflow that runs alembic upgrade head on Postgres to catch schema mismatches before production.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-559/evidence.html">
+      <div class="card-title">Tooling Drift Fix <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #559</div>
+      <div class="card-description">
+        Unified pre-commit and CI Python environments. All 19 hooks pass with uv run python.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-560/evidence.html">
+      <div class="card-title">Zombie Source Guard <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #560</div>
+      <div class="card-description">
+        Blocks compile retry for zombie sources (no file_path). 8 dedicated tests passing.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-561/evidence.html">
+      <div class="card-title">Production Config Guard <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #561</div>
+      <div class="card-description">
+        Fails loudly on Fly when Redis is missing and adds deploy-time secret validation for staging and production.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-563/evidence.html">
+      <div class="card-title">Functional Staging Smoke Tests <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #563</div>
+      <div class="card-description">
+        10 functional smoke tests replacing 3 HTTP-only checks. Manual approval gate. Auto-rollback on production failure. The PR that prevents staging failures from reaching prod.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+    <a class="card" href="pr-565/evidence.html">
+      <div class="card-title">Staging/Prod DB Separation <span class="badge badge-open">OPEN PR</span></div>
+      <div class="card-pr">PR #565</div>
+      <div class="card-description">
+        Staging uses wikimind-staging-db, production uses wikimind-db. Staging migrations can no longer corrupt production.
+        <span class="badge badge-cli">CLI</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<footer>
+  Generated 2026-05-11 with auth enabled (dev@wikimind.dev) by WikiMind evidence automation | Merged features verified against main branch, open PR evidence tracked separately
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PR #563 — Functional Staging Smoke Tests | WikiMind Evidence</title>
+<style>
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #58a6ff; }
+  h2 { color: #f0883e; margin-top: 2rem; }
+  h3 { color: #79c0ff; margin-top: 1.5rem; }
+  a { color: #58a6ff; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  .pass { color: #3fb950; }
+  .fail { color: #f85149; }
+  .warn { color: #d29922; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pass { background: #238636; color: #fff; }
+  .summary { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .back { margin-bottom: 1rem; display: inline-block; }
+  .pipeline { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; font-family: monospace; font-size: 0.9rem; }
+  .pipeline .stage { margin: 0.5rem 0; padding: 0.5rem; border-left: 3px solid #30363d; padding-left: 1rem; }
+  .pipeline .stage-new { border-left-color: #3fb950; background: rgba(63,185,80,0.05); }
+  .pipeline .stage-old { border-left-color: #484f58; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">Back to Index</a>
+<h1>PR #563 — Functional Staging Smoke Tests</h1>
+<p>GitHub: <a href="https://github.com/manavgup/wikimind/pull/563">#563</a> | Issue: <a href="https://github.com/manavgup/wikimind/issues/553">#553</a></p>
+
+<div class="summary">
+  <strong>Status:</strong> <span class="badge badge-pass">IMPLEMENTED</span><br/>
+  <strong>What it does:</strong> Replaces 3 HTTP-only staging checks with 10 functional tests. Adds manual approval gate before production. Adds automatic rollback on production failure.<br/>
+  <strong>Why it matters:</strong> This is the PR that prevents staging failures from reaching production.<br/>
+  <strong>Verified:</strong> 2026-05-10
+</div>
+
+<h2>Pipeline — Before vs After</h2>
+<img src="pipeline-before-after.png" alt="Deploy pipeline before vs after PR 563" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>Smoke Tests Passing — Production Deploy Approved</h2>
+<img src="smoke-tests-pass.png" alt="10/10 staging smoke tests passing" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>Smoke Tests Failing — Production Deploy BLOCKED</h2>
+<p>Simulated scenario: schema mismatch (#546) where the app boots but API endpoints return 500 errors.</p>
+<img src="smoke-tests-fail-blocked.png" alt="Staging smoke tests failing and blocking production deploy" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+
+<h2>What the old smoke tests checked</h2>
+<pre>
+<span class="fail"># BEFORE: only proves the process started</span>
+curl -sf "$BASE/health"    # just HTTP 200
+curl -sf "$BASE/docs"      # just HTTP 200
+curl -sf "$BASE/auth/me"   # just HTTP 200 or 401
+
+<span class="fail"># Would NOT catch:</span>
+# - Schema mismatch (#546)
+# - Missing Redis (#555)
+# - Broken compilation pipeline
+# - Missing concept tables
+# - API endpoints returning errors instead of data
+</pre>
+
+<h2>What the new smoke tests check</h2>
+<pre>
+<span class="pass"># AFTER: proves the product works</span>
+
+<span class="pass">1. curl /health | jq '.status == "ok"'</span>                    # App responds
+<span class="pass">2. curl /health/deep | jq '.status != "unhealthy"'</span>        # DB + migrations + LLM OK
+<span class="pass">3. curl /health | jq '.background_mode == "arq"'</span>          # Redis working (not in-process)
+<span class="pass">4. curl /docs | grep swagger</span>                              # API docs load
+<span class="pass">5. curl /auth/me → 200 or 401</span>                             # Auth middleware works
+<span class="pass">6. curl /api/wiki/articles | jq 'type == "array"'</span>         # Articles endpoint returns DATA
+<span class="pass">7. curl /api/ingest/sources | jq 'type == "array"'</span>        # Sources endpoint returns DATA
+<span class="pass">8. curl /api/admin/stats → status code</span>                    # Admin endpoint responds
+<span class="pass">9. curl /api/concepts | jq 'type == "array"'</span>              # New tables accessible (#546)
+<span class="pass">10. curl /api/compilation-schemas | jq 'type == "array"'</span>  # Schema tables work (#521)
+</pre>
+
+<h2>Manual Approval Gate</h2>
+<pre>
+deploy-production:
+    <span class="pass">environment: production    # requires reviewer approval</span>
+    needs: [smoke-test-staging]
+</pre>
+<p>After staging smoke tests pass, a reviewer must approve before production deploys. This replaces the dangerous auto-promotion that sent broken staging straight to prod.</p>
+
+<h2>Automatic Rollback</h2>
+<pre>
+rollback-production:
+    needs: verify-production
+    <span class="pass">if: failure()</span>
+    steps:
+      - name: Rollback to previous release
+        run: |
+          PREV=$(flyctl releases -a wikimind --json | jq -r '.[1].ImageRef')
+          flyctl deploy -a wikimind --image "$PREV"
+</pre>
+<p>If production verification fails after deploy, the pipeline automatically rolls back to the previous working image. No manual intervention needed.</p>
+
+<h2>What Each Layer Catches</h2>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+  <tr style="border-bottom:1px solid #30363d;">
+    <th style="text-align:left; padding:0.5rem; color:#58a6ff;">Failure Type</th>
+    <th style="text-align:left; padding:0.5rem; color:#58a6ff;">Old Pipeline</th>
+    <th style="text-align:left; padding:0.5rem; color:#58a6ff;">New Pipeline</th>
+  </tr>
+  <tr style="border-bottom:1px solid #21262d;">
+    <td style="padding:0.5rem;">Schema mismatch (#546)</td>
+    <td style="padding:0.5rem;"><span class="fail">MISSED</span> — /health still returned 200</td>
+    <td style="padding:0.5rem;"><span class="pass">CAUGHT</span> — /health/deep checks migration version</td>
+  </tr>
+  <tr style="border-bottom:1px solid #21262d;">
+    <td style="padding:0.5rem;">Missing Redis (#555)</td>
+    <td style="padding:0.5rem;"><span class="fail">MISSED</span> — app silently degraded</td>
+    <td style="padding:0.5rem;"><span class="pass">CAUGHT</span> — background_mode != "arq" fails check</td>
+  </tr>
+  <tr style="border-bottom:1px solid #21262d;">
+    <td style="padding:0.5rem;">API returns errors</td>
+    <td style="padding:0.5rem;"><span class="fail">MISSED</span> — never tested API endpoints</td>
+    <td style="padding:0.5rem;"><span class="pass">CAUGHT</span> — jq validates response is array</td>
+  </tr>
+  <tr style="border-bottom:1px solid #21262d;">
+    <td style="padding:0.5rem;">Missing concept tables</td>
+    <td style="padding:0.5rem;"><span class="fail">MISSED</span> — never hit /api/concepts</td>
+    <td style="padding:0.5rem;"><span class="pass">CAUGHT</span> — checks 3 new endpoints</td>
+  </tr>
+  <tr style="border-bottom:1px solid #21262d;">
+    <td style="padding:0.5rem;">Broken staging auto-promotes</td>
+    <td style="padding:0.5rem;"><span class="fail">AUTO</span> — staging → prod in minutes</td>
+    <td style="padding:0.5rem;"><span class="pass">GATED</span> — manual approval required</td>
+  </tr>
+  <tr>
+    <td style="padding:0.5rem;">Production breaks after deploy</td>
+    <td style="padding:0.5rem;"><span class="fail">STUCK</span> — manual intervention</td>
+    <td style="padding:0.5rem;"><span class="pass">AUTO-ROLLBACK</span> — reverts to last image</td>
+  </tr>
+</table>
+
+<h2>Live UI Discovery Attempt — wikimind.fly.dev</h2>
+<div class="summary">
+  <strong>Attempted route:</strong> <code>https://wikimind.fly.dev/docs</code><br/>
+  <strong>Automation result:</strong> <code>blocked</code><br/>
+  <strong>Screenshots captured in this run:</strong> 0<br/>
+  <strong>Capability found in deployed UI:</strong> No
+</div>
+<p>This PR is deployment-pipeline infrastructure rather than a discrete end-user UI feature, so the live docs page was used only as a discovery probe. The automation wrote <code>ui-discovery.json</code>, but Chromium could not launch in this environment and no fresh screenshot was captured.</p>
+<pre>Playwright Chromium launch failed: bootstrap_check_in ... Permission denied (1100)</pre>
+
+<h2>What This Proves</h2>
+<ul>
+  <li>Every past production outage (#546, #555) would be caught by the new smoke tests</li>
+  <li>Broken staging can no longer auto-promote to production</li>
+  <li>Production failures trigger automatic rollback</li>
+  <li>The pipeline proves "the product works," not just "the process started"</li>
+</ul>
+</body>
+</html>

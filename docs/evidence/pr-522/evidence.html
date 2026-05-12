@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #522 Evidence - Concept Layer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+
+<h1>PR #522 &mdash; Concept Layer</h1>
+<p class="subtitle">Real evidence: concept CRUD API with article linkage and taxonomy</p>
+
+<h2>1. List Concepts</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/wiki/concepts -H "Authorization: Bearer $TOKEN"</span>
+
+[
+    {"name": "distributed-systems", "article_count": 1, "concept_kind": "topic"},
+    {"name": "software-architecture", "article_count": 1, "concept_kind": "topic"},
+    {"name": "memory-systems", "article_count": 1, "concept_kind": "topic"},
+    {"name": "state-management", "article_count": 1, "concept_kind": "topic"},
+    {"name": "streaming-execution", "article_count": 1, "concept_kind": "topic"},
+    {"name": "climate-change", "article_count": 2, "concept_kind": "topic"},
+    {"name": "greenhouse-gases", "article_count": 2, "concept_kind": "topic"},
+    {"name": "paris-agreement", "article_count": 2, "concept_kind": "topic"},
+    {"name": "renewable-energy", "article_count": 2, "concept_kind": "topic"},
+    {"name": "artificial-intelligence", "article_count": 1, "concept_kind": "topic"},
+    {"name": "neural-networks", "article_count": 2, "concept_kind": "topic"},
+    {"name": "deep-learning", "article_count": 2, "concept_kind": "topic"},
+    {"name": "gradient-descent", "article_count": 2, "concept_kind": "topic"},
+    {"name": "support-vector-machines", "article_count": 2, "concept_kind": "topic"},
+    {"name": "quantum-computing", "article_count": 2, "concept_kind": "topic"},
+    {"name": "theoretical-computer-science", "article_count": 2, "concept_kind": "topic"},
+    {"name": "cryptanalysis", "article_count": 2, "concept_kind": "topic"},
+    {"name": "pattern-matching", "article_count": 1, "concept_kind": "topic"}
+]</pre>
+
+<h2>2. Concept Detail</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/wiki/concepts/neural-networks \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+{
+    "id": "bc47dc0d-5d1c-41b6-871d-cb76c2e7de5b",
+    "name": "neural-networks",
+    "description": "neural-networks",
+    "article_count": 2,
+    "parent_id": null,
+    "concept_kind": "topic",
+    "created_at": "2026-05-09T16:12:33.284744",
+    "articles": [
+        {
+            "title": "Machine Learning Fundamentals",
+            "page_type": "source",
+            "confidence": "sourced",
+            "confidence_score": 0.64
+        },
+        {
+            "title": "Machine Learning Fundamentals",
+            "page_type": "source",
+            "confidence": "sourced",
+            "confidence_score": 0.64
+        },
+        {
+            "title": "Neural Networks",
+            "page_type": "concept",
+            "confidence_score": 0.5,
+            "backlink_count": 14
+        }
+    ]
+}</pre>
+
+<h2>3. Concept Articles</h2>
+<pre><span class="cmd">$ curl -s http://127.0.0.1:7842/api/wiki/concepts/neural-networks/articles \
+    -H "Authorization: Bearer $TOKEN"</span>
+
+[
+    {
+        "slug": "machine-learning-fundamentals-2",
+        "title": "Machine Learning Fundamentals",
+        "page_type": "source",
+        "concepts": ["artificial-intelligence", "deep-learning", "gradient-descent",
+                     "neural-networks", "support-vector-machines"],
+        "source_count": 1,
+        "backlink_count": 6
+    },
+    {
+        "slug": "machine-learning-fundamentals-3",
+        "title": "Machine Learning Fundamentals",
+        "page_type": "source",
+        "concepts": ["deep-learning", "gradient-descent", "neural-networks",
+                     "pattern-matching", "support-vector-machines"],
+        "source_count": 1,
+        "backlink_count": 6
+    },
+    {
+        "slug": "concept-neural-networks",
+        "title": "Neural Networks",
+        "page_type": "concept",
+        "concepts": ["neural-networks"],
+        "backlink_count": 14
+    }
+]</pre>
+
+<h2>4. Concept Taxonomy</h2>
+<p>18 concepts auto-extracted across all ingested sources, with article counts:</p>
+<pre>neural-networks          (2 articles)    quantum-computing       (2 articles)
+deep-learning            (2 articles)    theoretical-computer-science (2 articles)
+gradient-descent         (2 articles)    cryptanalysis           (2 articles)
+support-vector-machines  (2 articles)    climate-change          (2 articles)
+greenhouse-gases         (2 articles)    paris-agreement         (2 articles)
+renewable-energy         (2 articles)    artificial-intelligence (1 article)
+distributed-systems      (1 article)     software-architecture   (1 article)
+memory-systems           (1 article)     state-management        (1 article)
+streaming-execution      (1 article)     pattern-matching        (1 article)</pre>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+Evidence generated 2026-05-09 from a live WikiMind instance. All API responses are real.
+</p>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-graph-prod.png" alt="Knowledge graph on wikimind.fly.dev — concept nodes and relations" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>

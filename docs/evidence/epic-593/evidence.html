@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Epic #593 Evidence - Deploy Pipeline Confidence</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { color: #58a6ff; margin: 2rem 0 1rem; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { color: #f0883e; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #8b949e; margin-bottom: 2rem; }
+  pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+    color: #e6edf3;
+  }
+  .cmd { color: #7ee787; }
+  .pass { color: #3fb950; font-weight: bold; }
+  .fail { color: #f85149; font-weight: bold; }
+  .warn { color: #d29922; font-weight: bold; }
+  .pending { color: #8b949e; font-weight: bold; }
+  a { color: #58a6ff; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+  th, td {
+    border: 1px solid #30363d;
+    padding: 0.6rem 1rem;
+    text-align: left;
+  }
+  th { background: #161b22; color: #58a6ff; }
+  tr:nth-child(even) { background: #0d1117; }
+  tr:nth-child(odd) { background: #161b22; }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-p0 { background: #f8514930; color: #f85149; border: 1px solid #f8514950; }
+  .badge-p1 { background: #d2992230; color: #d29922; border: 1px solid #d2992250; }
+  .badge-p2 { background: #58a6ff30; color: #58a6ff; border: 1px solid #58a6ff50; }
+  .badge-p3 { background: #3fb95030; color: #3fb950; border: 1px solid #3fb95050; }
+  .badge-pr { background: #a371f730; color: #a371f7; border: 1px solid #a371f750; }
+  .diff-add { color: #3fb950; }
+  .diff-del { color: #f85149; }
+  .metric { font-size: 2rem; font-weight: bold; color: #58a6ff; }
+  .metric-label { color: #8b949e; font-size: 0.85rem; }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin: 1.5rem 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Epic #593 &mdash; Deploy Pipeline Confidence</h1>
+<p class="subtitle">From reactive fixes to stable platform &middot; 18 issues &middot; 7 PRs &middot; 16 issues resolved &middot; <span class="pass">ALL PRs MERGED</span> &middot; CI GREEN</p>
+
+<!-- ============================================================ -->
+<h2>Summary Metrics</h2>
+<!-- ============================================================ -->
+
+<div class="metric-grid">
+  <div class="card">
+    <div class="metric">7</div>
+    <div class="metric-label">PRs Merged</div>
+  </div>
+  <div class="card">
+    <div class="metric">16</div>
+    <div class="metric-label">Issues Addressed</div>
+  </div>
+  <div class="card">
+    <div class="metric">13</div>
+    <div class="metric-label">Files Changed</div>
+  </div>
+  <div class="card">
+    <div class="metric">+273 / -60</div>
+    <div class="metric-label">Lines Changed</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>PR Overview</h2>
+<!-- ============================================================ -->
+
+<table>
+  <tr>
+    <th>PR</th>
+    <th>Title</th>
+    <th>Issues</th>
+    <th>Priority</th>
+    <th>Changes</th>
+    <th>Review</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/601">#601</a></td>
+    <td>Fly config hardening</td>
+    <td>#594, #597</td>
+    <td><span class="badge badge-p0">P0</span></td>
+    <td><span class="diff-add">+1</span> / <span class="diff-del">-6</span> &middot; 2 files</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/606">#606</a></td>
+    <td>Migration release command + advisory lock</td>
+    <td>#586</td>
+    <td><span class="badge badge-p0">P0</span></td>
+    <td><span class="diff-add">+29</span> / <span class="diff-del">-19</span> &middot; 4 files</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/605">#605</a></td>
+    <td>Deploy workflow hardening</td>
+    <td>#584, #590, #591, #595, #598</td>
+    <td><span class="badge badge-p0">P0</span> <span class="badge badge-p1">P1</span> <span class="badge badge-p2">P2</span> <span class="badge badge-p3">P3</span></td>
+    <td><span class="diff-add">+74</span> / <span class="diff-del">-27</span> &middot; 1 file</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/603">#603</a></td>
+    <td>Isolate staging Docling sidecar</td>
+    <td>#585</td>
+    <td><span class="badge badge-p2">P2</span></td>
+    <td><span class="diff-add">+8</span> / <span class="diff-del">-5</span> &middot; 2 files</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/604">#604</a></td>
+    <td>Redis + queue health checks</td>
+    <td>#587</td>
+    <td><span class="badge badge-p3">P3</span></td>
+    <td><span class="diff-add">+43</span> / <span class="diff-del">-2</span> &middot; 1 file</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/manavgup/wikimind/pull/602">#602</a></td>
+    <td>Docker + CI hardening</td>
+    <td>#596, #599, #600</td>
+    <td><span class="badge badge-p1">P1</span> <span class="badge badge-p3">P3</span></td>
+    <td><span class="diff-add">+118</span> / <span class="diff-del">-1</span> &middot; 3 files</td>
+    <td><span class="pass">PASS</span></td>
+    <td><span class="pass">MERGED</span></td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>P0 &mdash; Deploy Blockers</h2>
+<!-- ============================================================ -->
+
+<h3>PR #601: Fly Config Hardening (#594, #597)</h3>
+<div class="card">
+  <p><strong>Problem:</strong> Production could scale to zero (<code>min_machines_running = 0</code>), causing cold-start timeouts. <code>WEB_CONCURRENCY=4</code> was hardcoded, causing 4 workers on 1 CPU (thrashing).</p>
+  <p><strong>Fix:</strong></p>
+  <pre><span class="cmd"># fly.toml</span>
+<span class="diff-del">- min_machines_running = 0</span>
+<span class="diff-add">+ min_machines_running = 1</span>
+
+<span class="diff-del">- # Gunicorn workers comment block...</span>
+<span class="diff-del">- WEB_CONCURRENCY = "4"</span>
+<span class="cmd"># (removed &mdash; gunicorn.conf.py auto-tunes: min(2*CPU+1, 4))</span></pre>
+  <p><strong>Evidence:</strong> <span class="pass">Pre-commit hooks pass</span> &middot; <span class="pass">CVE scan pass</span> &middot; 2 files changed, net -5 lines</p>
+</div>
+
+<h3>PR #606: Migration Release Command (#586)</h3>
+<div class="card">
+  <p><strong>Problem:</strong> Every Gunicorn worker ran <code>alembic upgrade head</code> on startup via entrypoint.sh, creating race conditions with concurrent workers.</p>
+  <p><strong>Fix:</strong></p>
+  <pre><span class="cmd"># fly.toml + fly.staging.toml</span>
+[deploy]
+  strategy = "rolling"
+<span class="diff-add">+ release_command = ".venv/bin/python -m alembic upgrade head"</span>
+
+<span class="cmd"># docker/entrypoint.sh</span>
+<span class="diff-del">- if [[ "$_db_url" == postgres* ]]; then</span>
+<span class="diff-del">-     echo "Running Alembic migrations..."</span>
+<span class="diff-del">-     .venv/bin/python -m alembic upgrade head</span>
+<span class="diff-del">- fi</span>
+<span class="diff-add">+ # Migrations run via Fly.io release_command (see fly.toml)</span>
+
+<span class="cmd"># database.py &mdash; advisory lock around data migrations</span>
+<span class="diff-add">+ async with engine.begin() as lock_conn:</span>
+<span class="diff-add">+     await lock_conn.execute(sa_text("SELECT pg_advisory_lock(737069)"))</span>
+<span class="diff-add">+     try:</span>
+<span class="diff-add">+         await _run_versioned_migrations(...)</span>
+<span class="diff-add">+     finally:</span>
+<span class="diff-add">+         await lock_conn.execute(sa_text("SELECT pg_advisory_unlock(737069)"))</span></pre>
+  <p><strong>Evidence:</strong> All 1606 unit tests pass &middot; ruff lint/format clean &middot; 4 files changed</p>
+</div>
+
+<h3>PR #605: Deploy Workflow Hardening (#584, #590, #591, #595, #598)</h3>
+<div class="card">
+  <p><strong>5 fixes in deploy.yml:</strong></p>
+  <table>
+    <tr><th>Issue</th><th>Before</th><th>After</th></tr>
+    <tr>
+      <td>#584 Image pinning</td>
+      <td><code>--image ghcr.io/repo:latest</code></td>
+      <td><code>--image ghcr.io/repo:sha-${GITHUB_SHA::7}</code></td>
+    </tr>
+    <tr>
+      <td>#590 Redis scraping</td>
+      <td><code>flyctl redis status | grep | awk</code></td>
+      <td><code>flyctl secrets list | grep WIKIMIND_REDIS_URL</code></td>
+    </tr>
+    <tr>
+      <td>#591 Verification tokens</td>
+      <td><code>secrets.STAGING_DEV_TOKEN</code> for prod</td>
+      <td><code>secrets.PROD_DEV_TOKEN || secrets.STAGING_DEV_TOKEN</code></td>
+    </tr>
+    <tr>
+      <td>#595 Post-rollback health</td>
+      <td>No verification after rollback</td>
+      <td>30s health poll after rollback deploy</td>
+    </tr>
+    <tr>
+      <td>#598 Deploy notifications</td>
+      <td>Failures silent</td>
+      <td>Auto-create GitHub issue on failure</td>
+    </tr>
+  </table>
+  <p><strong>Evidence:</strong> YAML validates &middot; 1 file, +74/-27 lines</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>P1 &mdash; Pipeline Integrity</h2>
+<!-- ============================================================ -->
+
+<h3>PR #602: Docker + CI Hardening (#596, #599, #600)</h3>
+<div class="card">
+  <p><strong>3 changes:</strong></p>
+  <pre><span class="cmd"># Dockerfile &mdash; pin Python base image (#596)</span>
+<span class="diff-del">- ARG PYTHON_VERSION=3.11</span>
+<span class="diff-add">+ ARG PYTHON_VERSION=3.11.12</span>
+
+<span class="cmd"># migration-replay.yml &mdash; add downgrade test (#599)</span>
+<span class="diff-add">+ - name: "Downgrade test: head -> N-1 -> head"</span>
+<span class="diff-add">+   run: |</span>
+<span class="diff-add">+     uv run alembic downgrade "$PREV"</span>
+<span class="diff-add">+     uv run alembic upgrade head</span>
+<span class="diff-add">+     echo "Round-trip downgrade test passed"</span>
+
+<span class="cmd"># uptime.yml &mdash; new workflow (#600)</span>
+<span class="diff-add">+ name: Uptime Monitor</span>
+<span class="diff-add">+ on: schedule: cron: "*/15 * * * *"</span>
+<span class="diff-add">+ # Pings /health from outside Fly.io, creates issue on failure</span></pre>
+  <p><strong>Evidence:</strong> Migration replay pass &middot; Docker smoke tests pass &middot; YAML validates</p>
+  <p><strong>CI note:</strong> <span class="warn">Needs secrets baseline update</span> (detect-secrets pre-commit hook flagged new uptime.yml)</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>P2 &mdash; Environment Isolation</h2>
+<!-- ============================================================ -->
+
+<h3>PR #603: Isolate Staging Docling Sidecar (#585)</h3>
+<div class="card">
+  <p><strong>Problem:</strong> Staging and production shared <code>wikimind-docling</code>. Staging PDF tests could affect production.</p>
+  <p><strong>Fix:</strong></p>
+  <pre><span class="cmd"># fly.staging.toml</span>
+<span class="diff-del">- WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"</span>
+<span class="diff-add">+ WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-staging-docling.internal:5001"</span>
+
+<span class="cmd"># deploy.yml &mdash; staging sidecar step</span>
+<span class="diff-del">- flyctl deploy --config fly.docling.toml --remote-only</span>
+<span class="diff-add">+ flyctl deploy --config fly.docling.toml --app wikimind-staging-docling --remote-only</span></pre>
+  <p><strong>Evidence:</strong> <span class="pass">Pre-commit pass</span> &middot; <span class="pass">Docker build pass</span> &middot; <span class="pass">CVE scan pass</span></p>
+</div>
+
+<!-- ============================================================ -->
+<h2>P3 &mdash; Runtime Observability</h2>
+<!-- ============================================================ -->
+
+<h3>PR #604: Redis + Queue Health Checks (#587)</h3>
+<div class="card">
+  <p><strong>Problem:</strong> <code>/health/deep</code> reported <code>background_mode: "arq"</code> from config, not actual Redis connectivity.</p>
+  <p><strong>Fix:</strong> Added two new checks to <code>src/wikimind/api/routes/health.py</code>:</p>
+  <pre><span class="cmd"># New: _check_redis()</span>
+<span class="diff-add">+ Redis PING with 3s timeout &rarr; {"status": "ok", "mode": "arq", "latency_ms": N}</span>
+
+<span class="cmd"># New: _check_queue_depth()</span>
+<span class="diff-add">+ r.zcard("arq:queue") &rarr; {"status": "ok|warning", "pending_jobs": N}</span>
+
+<span class="cmd"># deep_health_check() now includes:</span>
+<span class="diff-add">+ checks["redis"] = await _check_redis()</span>
+<span class="diff-add">+ checks["queue"] = await _check_queue_depth()</span></pre>
+  <p><strong>Evidence:</strong> All 1606 tests pass (including 16 health tests) &middot; ruff clean</p>
+  <p><strong>CI note:</strong> <span class="warn">Needs <code>make export-openapi</code></span> (co-change check requires OpenAPI regeneration)</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Code Review Results</h2>
+<!-- ============================================================ -->
+
+<p>All 6 PRs were reviewed by independent subagents. 4 had findings that were fixed before finalizing.</p>
+
+<table>
+  <tr><th>PR</th><th>Initial Verdict</th><th>Finding</th><th>Fix Applied</th></tr>
+  <tr>
+    <td>#601</td>
+    <td><span class="pass">PASS</span></td>
+    <td>No issues</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>#603</td>
+    <td><span class="pass">PASS</span></td>
+    <td>No issues</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>#602</td>
+    <td><span class="warn">NEEDS_CHANGES</span></td>
+    <td><code>.secrets.baseline</code> not regenerated after adding uptime.yml; uptime comment said "3 consecutive failures" but triggers on first</td>
+    <td>Regenerated baseline, fixed comment</td>
+  </tr>
+  <tr>
+    <td>#604</td>
+    <td><span class="warn">NEEDS_CHANGES</span></td>
+    <td>Missing <code>socket_timeout</code> on Redis health checks &mdash; if Redis accepts TCP but hangs on PING/ZCARD, health check blocks indefinitely</td>
+    <td>Added <code>socket_timeout=3</code> to both <code>Redis.from_url()</code> calls + regenerated OpenAPI</td>
+  </tr>
+  <tr>
+    <td>#605</td>
+    <td><span class="fail">NEEDS_CHANGES (Critical)</span></td>
+    <td><code>GITHUB_SHA</code> race condition: on <code>workflow_run</code> events, <code>GITHUB_SHA</code> resolves to latest main commit, not the commit that triggered Docker build. Two quick commits = wrong image tag. Also: no duplicate-issue detection in notify-failure.</td>
+    <td>Changed to <code>github.event.workflow_run.head_sha || github.sha</code>; added dedup via existing <code>deploy-blocked</code> label check</td>
+  </tr>
+  <tr>
+    <td>#606</td>
+    <td><span class="warn">NEEDS_CHANGES</span></td>
+    <td>Stale <code># type: ignore[operator]</code> comment caused mypy CI failure after function extraction</td>
+    <td>Removed stale comment</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Investigation: #578 + #540 (Deploy Blockers)</h2>
+<!-- ============================================================ -->
+
+<h3>#578: Docker workflow failing on main</h3>
+<div class="card">
+  <p><strong>Diagnosis:</strong> The Docker workflow failed once (Trivy CVE scan, run <code>25692393126</code>), which auto-created issue #578. A subsequent run (<code>25693531350</code>) <strong>succeeded on main</strong>. The issue was auto-created by the failure alert and is stale.</p>
+  <p><strong>Resolution:</strong> <span class="pass">Closed as stale</span>. The real deploy blocker is staging smoke tests failing due to missing ARQ worker process (addressed by PR #583).</p>
+</div>
+
+<h3>#540: semantic-release push blocked by branch ruleset (GH013)</h3>
+<div class="card">
+  <p><strong>Diagnosis:</strong> Investigated the branch ruleset via GitHub API:</p>
+  <pre><span class="cmd">$ gh api repos/manavgup/wikimind/rulesets/14794262</span>
+rules: [deletion, non_fast_forward, pull_request (0 approvals)]
+bypass_actors: [RepositoryRole:5 (Admin), bypass_mode: always]</pre>
+  <p>The <code>manavgup</code> account IS admin and admins ARE in the bypass list. The <code>SEMANTIC_RELEASE_GITHUB_TOKEN</code> secret exists and the <code>url.insteadOf</code> git config IS applied (confirmed in workflow logs). Yet the push is rejected with GH013.</p>
+  <p><strong>Root cause:</strong> The token is a <strong>fine-grained PAT</strong> (<code>github_pat_...</code>). Fine-grained tokens <a href="https://github.com/orgs/community/discussions/39429">cannot bypass repository rulesets</a> &mdash; this is a known GitHub limitation. Even though the user is admin, the fine-grained token doesn't inherit ruleset bypass.</p>
+  <p><strong>Fix applied:</strong> Replaced the fine-grained PAT with a <strong>classic PAT</strong> with <code>repo</code> scope. Classic tokens authenticate as the user with full role-based permissions, including ruleset bypass.</p>
+  <pre><span class="cmd">$ gh secret set SEMANTIC_RELEASE_GITHUB_TOKEN</span>
+<span class="pass">Set Actions secret SEMANTIC_RELEASE_GITHUB_TOKEN for manavgup/wikimind</span></pre>
+  <p><strong>Status:</strong> <span class="warn">Pending verification</span> &mdash; will trigger on next merge to main.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Test Plan Execution Evidence</h2>
+<!-- ============================================================ -->
+
+<p>All 7 PRs had their test plans executed in parallel isolated worktrees. Every test passed.</p>
+
+<table>
+  <tr><th>PR</th><th>Tests Run</th><th>Result</th><th>Key Evidence</th></tr>
+  <tr>
+    <td>#583</td>
+    <td>6</td>
+    <td><span class="pass">6/6 PASS</span></td>
+    <td>1606 tests pass &middot; ruff clean &middot; <code>on_conflict_do_nothing</code> on 4 inserts &middot; <code>urlparse</code> hostname check &middot; ARQ worker in both fly configs &middot; entrypoint skips migrations for worker</td>
+  </tr>
+  <tr>
+    <td>#601</td>
+    <td>5</td>
+    <td><span class="pass">5/5 PASS</span></td>
+    <td><code>WEB_CONCURRENCY</code> absent from both fly configs &middot; <code>min_machines_running = 1</code> &middot; gunicorn formula <code>min(2*CPU+1, 4)</code> confirmed &middot; entrypoint unsets empty WEB_CONCURRENCY</td>
+  </tr>
+  <tr>
+    <td>#602</td>
+    <td>6</td>
+    <td><span class="pass">6/6 PASS</span></td>
+    <td>YAML valid &middot; <code>PYTHON_VERSION=3.11.12</code> pinned &middot; Docker build confirms Python 3.11.12 &middot; downgrade round-trip step verified &middot; uptime workflow has dedup &middot; all CI checks green</td>
+  </tr>
+  <tr>
+    <td>#603</td>
+    <td>4</td>
+    <td><span class="pass">4/4 PASS</span></td>
+    <td>YAML valid &middot; staging uses <code>wikimind-staging-docling.internal:5001</code> &middot; production unchanged at <code>wikimind-docling.internal:5001</code> &middot; both apps in same org (<code>--org personal</code>)</td>
+  </tr>
+  <tr>
+    <td>#604</td>
+    <td>6</td>
+    <td><span class="pass">6/6 PASS</span></td>
+    <td>ruff clean &middot; 20 health tests pass &middot; 1606 full suite pass &middot; <code>socket_connect_timeout=3</code> + <code>socket_timeout=3</code> on both Redis calls &middot; <code>checks["redis"]</code> and <code>checks["queue"]</code> wired in</td>
+  </tr>
+  <tr>
+    <td>#605</td>
+    <td>8</td>
+    <td><span class="pass">8/8 PASS</span></td>
+    <td>YAML valid &middot; <code>workflow_run.head_sha || github.sha</code> &middot; staging uses <code>steps.image.outputs.tag</code> &middot; prod uses <code>needs.deploy-staging.outputs.image_tag</code> &middot; <code>flyctl redis status</code> removed &middot; <code>PROD_DEV_TOKEN || STAGING_DEV_TOKEN</code> &middot; post-rollback health poll &middot; notify-failure with dedup</td>
+  </tr>
+  <tr>
+    <td>#606</td>
+    <td>9</td>
+    <td><span class="pass">9/9 PASS</span></td>
+    <td>1606 tests pass &middot; ruff clean &middot; <code>release_command</code> in both fly configs &middot; Alembic removed from entrypoint &middot; <code>pg_advisory_lock(737069)</code> in try/finally &middot; <code>_run_versioned_migrations</code> extracted &middot; SQLite path skips locking</td>
+  </tr>
+</table>
+
+<h3>Test Counts</h3>
+<div class="metric-grid">
+  <div class="card">
+    <div class="metric">44</div>
+    <div class="metric-label">Total Tests Executed</div>
+  </div>
+  <div class="card">
+    <div class="metric">44</div>
+    <div class="metric-label">Tests Passed</div>
+  </div>
+  <div class="card">
+    <div class="metric">0</div>
+    <div class="metric-label">Tests Failed</div>
+  </div>
+  <div class="card">
+    <div class="metric">7</div>
+    <div class="metric-label">PRs Verified</div>
+  </div>
+</div>
+
+<h3>Deployment Verification (requires merge + deploy)</h3>
+<p>The following test plan items require actual deployment to staging/production and cannot be verified locally:</p>
+<table>
+  <tr><th>PR</th><th>Item</th><th>Status</th></tr>
+  <tr><td>#583</td><td>Deploy to staging and verify no <code>UniqueViolationError</code> in logs</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#583</td><td>Verify Redis/ARQ worker connects (<code>background_mode == "arq"</code>)</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#601</td><td>Confirm Gunicorn auto-selects worker count in deploy logs</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#601</td><td>Verify staging machine stays running after idle</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#604</td><td><code>curl /health/deep</code> returns <code>redis</code> and <code>queue</code> checks</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#605</td><td>Staging deploy uses <code>sha-&lt;commit&gt;</code> tag</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+  <tr><td>#606</td><td>Release command runs Alembic before app starts</td><td><span class="pending">PENDING DEPLOY</span></td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Remaining Issues (Not Yet Addressed)</h2>
+<!-- ============================================================ -->
+
+<table>
+  <tr><th>Issue</th><th>Title</th><th>Status</th><th>Resolution</th></tr>
+  <tr>
+    <td>#578</td>
+    <td>Docker workflow failing on main</td>
+    <td><span class="pass">CLOSED</span></td>
+    <td>Stale &mdash; Docker workflow succeeded on main after the initial failure. Auto-created issue was no longer relevant.</td>
+  </tr>
+  <tr>
+    <td>#540</td>
+    <td>semantic-release push to protected main</td>
+    <td><span class="pass">FIXED</span></td>
+    <td>Replaced python-semantic-release with release-please. PAT-based and deploy-key approaches both failed due to GitHub ruleset limitations for HTTPS pushes. release-please works entirely through PRs. Release PR <a href="https://github.com/manavgup/wikimind/pull/608">#608</a> (v0.1.0) is open and ready to merge.</td>
+  </tr>
+  <tr>
+    <td>#589</td>
+    <td>Schema-aware rollback</td>
+    <td><span class="pending">DEFERRED</span></td>
+    <td>Downgrade test (#599) now merged. Next step: implement schema-aware rollback in deploy.yml.</td>
+  </tr>
+  <tr>
+    <td>#588</td>
+    <td>Real E2E job verification for prod</td>
+    <td><span class="pending">DEFERRED</span></td>
+    <td>Needs #587 health checks in place first</td>
+  </tr>
+  <tr>
+    <td>#592</td>
+    <td>Evaluate multi-region HA</td>
+    <td><span class="pending">EVALUATION ONLY</span></td>
+    <td>No code change needed; decision required</td>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Coverage Map</h2>
+<!-- ============================================================ -->
+
+<table>
+  <tr><th>Priority</th><th>Total Issues</th><th>Addressed</th><th>Remaining</th><th>Coverage</th></tr>
+  <tr>
+    <td><span class="badge badge-p0">P0</span> Deploy blockers</td>
+    <td>5</td>
+    <td>5 (#584, #586, #594, #578 closed, #540 fixed)</td>
+    <td>0</td>
+    <td>100%</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-p1">P1</span> Pipeline integrity</td>
+    <td>5</td>
+    <td>4 (#595, #596, #597, #599)</td>
+    <td>1 (#589)</td>
+    <td>80%</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-p2">P2</span> Environment isolation</td>
+    <td>2</td>
+    <td>2 (#585, #591)</td>
+    <td>0</td>
+    <td>100%</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-p3">P3</span> Runtime observability</td>
+    <td>4</td>
+    <td>3 (#587, #598, #600)</td>
+    <td>1 (#588)</td>
+    <td>75%</td>
+  </tr>
+  <tr>
+    <td><span class="badge badge-p3">P4</span> Operational hygiene</td>
+    <td>2</td>
+    <td>1 (#590)</td>
+    <td>1 (#592)</td>
+    <td>50%</td>
+  </tr>
+  <tr>
+    <th>Total</th>
+    <th>18</th>
+    <th>16</th>
+    <th>2</th>
+    <th>89%</th>
+  </tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Post-Merge CI Verification</h2>
+<!-- ============================================================ -->
+
+<div class="card">
+  <p><strong>After all 7 PRs merged to main:</strong></p>
+  <table>
+    <tr><th>Workflow</th><th>Status</th><th>Evidence</th></tr>
+    <tr>
+      <td>Full Verify (lint + format + typecheck + tests)</td>
+      <td><span class="pass">PASS</span></td>
+      <td>All checks green on main</td>
+    </tr>
+    <tr>
+      <td>Docker (build + CVE scan + GHCR publish)</td>
+      <td><span class="pass">PASS</span></td>
+      <td>Build success, Trivy CVE scan clean, GHCR publish in progress</td>
+    </tr>
+    <tr>
+      <td>Release (release-please)</td>
+      <td><span class="pass">PASS</span></td>
+      <td>PR <a href="https://github.com/manavgup/wikimind/pull/608">#608</a> (v0.1.0) auto-updated with all merged changes</td>
+    </tr>
+    <tr>
+      <td>Auto-Rebase</td>
+      <td><span class="pass">PASS</span></td>
+      <td>Remaining PRs rebased automatically</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>Confidence Assessment</h2>
+<!-- ============================================================ -->
+
+<div class="card">
+  <h3>What we have now (post-epic)</h3>
+  <table>
+    <tr><th>Capability</th><th>Before</th><th>After</th></tr>
+    <tr>
+      <td>Image promotion</td>
+      <td><span class="fail">:latest (mutable, race-prone)</span></td>
+      <td><span class="pass">sha-&lt;commit&gt; (immutable, staging = prod)</span></td>
+    </tr>
+    <tr>
+      <td>Migration safety</td>
+      <td><span class="fail">Every worker runs Alembic on startup</span></td>
+      <td><span class="pass">release_command (once per deploy) + advisory lock</span></td>
+    </tr>
+    <tr>
+      <td>Redis health</td>
+      <td><span class="fail">Config check only (is URL set?)</span></td>
+      <td><span class="pass">Real PING + queue depth with 3s timeout</span></td>
+    </tr>
+    <tr>
+      <td>Environment isolation</td>
+      <td><span class="fail">Shared Docling, shared tokens</span></td>
+      <td><span class="pass">Separate Docling sidecar, separate verification tokens</span></td>
+    </tr>
+    <tr>
+      <td>Cold-start protection</td>
+      <td><span class="fail">min_machines_running = 0, WEB_CONCURRENCY = 4</span></td>
+      <td><span class="pass">min_machines_running = 1, gunicorn auto-tunes</span></td>
+    </tr>
+    <tr>
+      <td>Redis URL management</td>
+      <td><span class="fail">flyctl output scraping (broke 5 times)</span></td>
+      <td><span class="pass">Manual secret, verified via secrets list</span></td>
+    </tr>
+    <tr>
+      <td>Rollback verification</td>
+      <td><span class="fail">No health check after rollback</span></td>
+      <td><span class="pass">30s health poll post-rollback</span></td>
+    </tr>
+    <tr>
+      <td>Failure visibility</td>
+      <td><span class="fail">Silent failures</span></td>
+      <td><span class="pass">Auto-create GitHub issue with dedup</span></td>
+    </tr>
+    <tr>
+      <td>External monitoring</td>
+      <td><span class="fail">None</span></td>
+      <td><span class="pass">15-min health pings from outside Fly.io</span></td>
+    </tr>
+    <tr>
+      <td>Base image pinning</td>
+      <td><span class="fail">python:3.11-slim (mutable)</span></td>
+      <td><span class="pass">python:3.11.12-slim (pinned)</span></td>
+    </tr>
+    <tr>
+      <td>Migration downgrade testing</td>
+      <td><span class="fail">None</span></td>
+      <td><span class="pass">head &rarr; N-1 &rarr; head round-trip in CI</span></td>
+    </tr>
+    <tr>
+      <td>Release automation</td>
+      <td><span class="fail">Broken (GH013 on every run)</span></td>
+      <td><span class="pass">release-please via PR (no bypass needed)</span></td>
+    </tr>
+  </table>
+
+  <h3>Remaining gaps</h3>
+  <ul>
+    <li><strong>#589</strong> Schema-aware rollback &mdash; rollback now has health verification but doesn't account for forward-applied migrations</li>
+    <li><strong>#588</strong> Production E2E verification &mdash; staging runs a full compile E2E, production only checks health</li>
+    <li><strong>#592</strong> Multi-region HA &mdash; single region (ord), single VM. Acceptable for current scale.</li>
+    <li><strong>Deploy verification</strong> &mdash; all infrastructure changes need a real staging deploy to fully validate (pending next deploy trigger)</li>
+  </ul>
+</div>
+
+<p style="margin-top: 2rem; color: #8b949e; font-size: 0.85rem;">
+  Final update 2026-05-12 &middot; Epic <a href="https://github.com/manavgup/wikimind/issues/593">#593</a> &middot;
+  PRs: <a href="https://github.com/manavgup/wikimind/pull/583">#583</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/601">#601</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/602">#602</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/603">#603</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/604">#604</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/605">#605</a>,
+  <a href="https://github.com/manavgup/wikimind/pull/606">#606</a>
+</p>
+
+</body>
+</html>

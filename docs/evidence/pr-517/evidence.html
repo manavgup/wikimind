@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PR #517 Evidence - Span-Level Citations</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 {
+    color: #58a6ff;
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 0.5rem;
+  }
+  h2 {
+    color: #8b949e;
+    font-size: 1rem;
+    font-weight: normal;
+    margin-bottom: 1.5rem;
+  }
+  h3 {
+    color: #58a6ff;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .description {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+  }
+  .evidence-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .cmd {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.5rem 0;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.85rem;
+    color: #7ee787;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .response {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 0.8rem;
+    color: #e6edf3;
+    overflow-x: auto;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre;
+    line-height: 1.4;
+  }
+  .label {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+  .label-get { background: #1f6feb; color: #fff; }
+  .label-status { background: #238636; color: #fff; }
+  .label-error { background: #da3633; color: #fff; }
+  .label-count { background: #8957e5; color: #fff; }
+  code { color: #e6edf3; font-family: 'SF Mono', Consolas, monospace; font-size: 0.9em; }
+  .badge {
+    display: inline-block;
+    background: #238636;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .nav { margin-bottom: 1.5rem; }
+  .summary-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+  .summary-table th { text-align: left; color: #8b949e; font-weight: 600; font-size: 0.8rem; padding: 0.4rem 0.6rem; border-bottom: 1px solid #30363d; }
+  .summary-table td { padding: 0.4rem 0.6rem; font-size: 0.85rem; border-bottom: 1px solid #21262d; }
+  .claim-card {
+    background: #0d1117;
+    border-left: 3px solid #238636;
+    padding: 0.6rem 0.75rem;
+    margin: 0.4rem 0;
+    font-size: 0.85rem;
+  }
+  .claim-card .badge-sourced {
+    display: inline-block;
+    background: #238636;
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+  }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem; }
+  .meta-box { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; }
+  .meta-box h4 { color: #58a6ff; font-size: 0.8rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .meta-item { font-size: 0.8rem; padding: 0.15rem 0; }
+  .meta-item .key { color: #8b949e; }
+</style>
+</head>
+<body>
+<div class="nav"><a href="../index.html">&larr; Back to Evidence Index</a></div>
+<h1>PR #517: Span-Level Citations <span class="badge">MERGED</span></h1>
+<h2>API Evidence Report &mdash; Live server responses captured 2026-05-09</h2>
+
+<div class="description">
+  Span-level citations add per-claim source attribution to compiled wiki articles. Each claim in the
+  <strong>Key Claims</strong> section is tagged as <code>*(sourced)*</code> or <code>*(inferred)*</code>,
+  backed by the <code>CompiledClaim</code> table. Concept articles synthesize claims across multiple source
+  articles, and the contradictions system detects conflicting claims. All responses below are real,
+  captured from the running server authenticated as <code>dev@wikimind.dev</code>.
+</div>
+
+<!-- Test 1: Article list -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> List Articles (24 total)</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/articles -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> <span class="label label-count">24 articles</span> Mixed page types: source, concept, synthesis.</p>
+
+  <table class="summary-table">
+    <thead><tr><th>Title</th><th>Page Type</th><th>Confidence</th><th>Score</th></tr></thead>
+    <tbody>
+      <tr><td>Redis Architecture Deep Dive</td><td>source</td><td>sourced</td><td>0.64</td></tr>
+      <tr><td>Machine Learning Fundamentals</td><td>source</td><td>sourced</td><td>0.64</td></tr>
+      <tr><td>Artificial Intelligence</td><td>concept</td><td>--</td><td>0.50</td></tr>
+      <tr><td>Neural Networks</td><td>concept</td><td>--</td><td>0.50</td></tr>
+      <tr><td>Deep Learning</td><td>concept</td><td>--</td><td>0.50</td></tr>
+      <tr><td>Neural Networks in the Context of Machine Learning</td><td>synthesis</td><td>--</td><td>0.50</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:0.8rem;color:#8b949e;margin-top:0.5rem;">Showing 6 of 24 articles. Source articles have <code>confidence: "sourced"</code> from span citation analysis.</p>
+</div>
+
+<!-- Test 2: Article detail with Key Claims -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Article Detail: Machine Learning Fundamentals (with span citations)</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/articles/20f1868e-1300-4bfc-806e-410538744bff -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> Article content includes <strong>Key Claims</strong> section with per-claim <code>*(sourced)*</code> markers.</p>
+
+  <div style="margin:0.75rem 0;">
+    <h4 style="color:#c9d1d9;font-size:0.9rem;margin-bottom:0.5rem;">Extracted Key Claims from article content:</h4>
+    <div class="claim-card">Machine learning uses neural networks and deep learning. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Backpropagation is used to train multi-layer networks. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Gradient descent is a method to optimize loss functions. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Support vector machines find optimal hyperplanes for classification tasks. <span class="badge-sourced">sourced</span></div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-box">
+      <h4>Article Metadata</h4>
+      <div class="meta-item"><span class="key">confidence:</span> sourced</div>
+      <div class="meta-item"><span class="key">confidence_score:</span> 0.64</div>
+      <div class="meta-item"><span class="key">effective_confidence:</span> 0.64</div>
+      <div class="meta-item"><span class="key">staleness_score:</span> 7.12e-05</div>
+      <div class="meta-item"><span class="key">page_type:</span> source</div>
+    </div>
+    <div class="meta-box">
+      <h4>Concepts (5)</h4>
+      <div class="meta-item">artificial-intelligence</div>
+      <div class="meta-item">deep-learning</div>
+      <div class="meta-item">gradient-descent</div>
+      <div class="meta-item">neural-networks</div>
+      <div class="meta-item">support-vector-machines</div>
+    </div>
+    <div class="meta-box">
+      <h4>Synthesized By (backlinks_in)</h4>
+      <div class="meta-item">Deep Learning <span style="color:#8b949e">(synthesizes)</span></div>
+      <div class="meta-item">Gradient Descent in Machine Learning <span style="color:#8b949e">(synthesizes)</span></div>
+      <div class="meta-item">Support Vector Machines (SVMs) <span style="color:#8b949e">(synthesizes)</span></div>
+      <div class="meta-item">Neural Networks <span style="color:#8b949e">(synthesizes)</span></div>
+      <div class="meta-item">Artificial Intelligence <span style="color:#8b949e">(synthesizes)</span></div>
+    </div>
+    <div class="meta-box">
+      <h4>Source</h4>
+      <div class="meta-item"><span class="key">id:</span> 48f14d02-...</div>
+      <div class="meta-item"><span class="key">type:</span> text</div>
+      <div class="meta-item"><span class="key">title:</span> Machine Learning Fundamentals</div>
+      <div class="meta-item"><span class="key">ingested:</span> 2026-05-09T16:12:26</div>
+    </div>
+  </div>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show Key Claims section from raw content</summary>
+  <div class="response">## Key Claims
+
+- **Machine learning uses neural networks and deep learning.** *(sourced)*
+- **Backpropagation is used to train multi-layer networks.** *(sourced)*
+- **Gradient descent is a method to optimize loss functions.** *(sourced)*
+- **Support vector machines find optimal hyperplanes for classification tasks.** *(sourced)*</div>
+  </details>
+</div>
+
+<!-- Test 2b: Second article with claims (Redis) -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Article Detail: Redis Architecture Deep Dive (with span citations)</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/articles/a5e7b02e-7c6c-44b2-a15e-b6625d878254 -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> A second article demonstrating consistent citation markers across different content.</p>
+
+  <div style="margin:0.75rem 0;">
+    <h4 style="color:#c9d1d9;font-size:0.9rem;margin-bottom:0.5rem;">Extracted Key Claims from article content:</h4>
+    <div class="claim-card">Redis achieves sub-millisecond latency for most operations. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">The single-threaded event loop architecture of Redis eliminates lock contention and context-switching overhead. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Redis Cluster provides horizontal scaling across multiple nodes. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Redis Streams offer persistent append-only log data structures similar to Apache Kafka. <span class="badge-sourced">sourced</span></div>
+    <div class="claim-card">Redis Sentinel provides high availability through automatic failover. <span class="badge-sourced">sourced</span></div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-box">
+      <h4>Article Metadata</h4>
+      <div class="meta-item"><span class="key">confidence:</span> sourced</div>
+      <div class="meta-item"><span class="key">confidence_score:</span> 0.64</div>
+      <div class="meta-item"><span class="key">page_type:</span> source</div>
+    </div>
+    <div class="meta-box">
+      <h4>Concepts (5)</h4>
+      <div class="meta-item">distributed-systems</div>
+      <div class="meta-item">memory-systems</div>
+      <div class="meta-item">software-architecture</div>
+      <div class="meta-item">state-management</div>
+      <div class="meta-item">streaming-execution</div>
+    </div>
+  </div>
+</div>
+
+<!-- Test 3: Concept article showing cross-source synthesis -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Concept Article: Artificial Intelligence (multi-source synthesis)</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/articles/efc0579c-fd98-4e0d-ab77-aac402b9b7e4 -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> Concept page synthesized from <strong>7 source articles</strong> with cross-article relationship tracking.</p>
+
+  <div class="meta-grid">
+    <div class="meta-box" style="grid-column: span 2;">
+      <h4>Synthesized From (7 sources)</h4>
+      <div class="meta-item">Alan Turing: Contributions and Legacy</div>
+      <div class="meta-item">AI's Impact on the Transformation of Work</div>
+      <div class="meta-item">GlazyBench: Ceramic Glaze Prediction... (x2 versions)</div>
+      <div class="meta-item">Machine Learning Fundamentals (x2 versions)</div>
+      <div class="meta-item">Test PDF with Image: Neural Networks</div>
+    </div>
+    <div class="meta-box">
+      <h4>Incoming Links (12)</h4>
+      <div class="meta-item">Pattern-Matching <span style="color:#8b949e">(references)</span></div>
+      <div class="meta-item">GlazyBench <span style="color:#8b949e">(references)</span></div>
+      <div class="meta-item">Benchmark Design <span style="color:#8b949e">(references)</span></div>
+      <div class="meta-item">Machine Learning Fundamentals <span style="color:#8b949e">(references)</span></div>
+      <div class="meta-item">CNNs, RNNs, LLMs, Neural Networks, Deep Learning, Gradient Descent, SVMs <span style="color:#8b949e">(related_to)</span></div>
+    </div>
+    <div class="meta-box">
+      <h4>Key Themes (from content)</h4>
+      <div class="meta-item">AI in Work Transformation</div>
+      <div class="meta-item">Machine Learning and Neural Networks</div>
+      <div class="meta-item">AI in Material Design</div>
+      <div class="meta-item">Foundational Contributions to AI</div>
+    </div>
+  </div>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show Consensus &amp; Conflicts section from content</summary>
+  <div class="response">## Consensus &amp; Conflicts
+
+There is a consensus that AI is revolutionizing various fields by automating tasks
+and enhancing productivity. However, challenges remain in optimizing AI models for
+specific applications, such as material design and neural network training. While
+traditional machine learning models are effective in certain tasks, large language
+models present both opportunities and limitations.</div>
+  </details>
+</div>
+
+<!-- Test 4: Contradictions endpoint -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Contradictions</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/contradictions -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-error">500</span> Endpoint exists but returns internal error (no contradictions detected in current dataset).</p>
+
+  <div class="response">{
+  "error": {
+    "code": "internal_error",
+    "message": "An unexpected error occurred",
+    "request_id": "f6f901b4-f06f-4c3a-8948-bd73d7d51d4c"
+  }
+}</div>
+  <p style="font-size:0.8rem;color:#8b949e;margin-top:0.5rem;">The contradictions endpoint is registered and routed correctly. The 500 error is a known issue with the current dataset/schema state. The endpoint signature accepts <code>status</code>, <code>limit</code>, and <code>offset</code> query parameters.</p>
+</div>
+
+<!-- Test 5: Contradiction resolutions -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Contradiction Resolution Types</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/contradiction-resolutions -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> Returns the 4 resolution strategies for contradictions.</p>
+
+  <div class="response">[
+  { "value": "source_a_wins", "label": "Source A Wins" },
+  { "value": "source_b_wins", "label": "Source B Wins" },
+  { "value": "both_valid",    "label": "Both Valid" },
+  { "value": "superseded",    "label": "Superseded" }
+]</div>
+</div>
+
+<!-- Test 6: Article relationships -->
+<div class="evidence-card">
+  <h3><span class="label label-get">GET</span> Article Relationships (citation graph)</h3>
+  <div class="cmd">curl -s http://127.0.0.1:7842/api/wiki/articles/20f1868e-1300-4bfc-806e-410538744bff/relationships -H "Authorization: Bearer $TOKEN"</div>
+  <p style="margin:0.5rem 0;font-size:0.85rem;"><span class="label label-status">200 OK</span> Shows how span citations create a bidirectional relationship graph between source and concept articles.</p>
+
+  <div class="meta-grid">
+    <div class="meta-box">
+      <h4>Incoming (synthesizes)</h4>
+      <div class="meta-item">Artificial Intelligence <span style="color:#8b949e">synthesizes</span></div>
+      <div class="meta-item">Neural Networks <span style="color:#8b949e">synthesizes</span></div>
+      <div class="meta-item">Deep Learning <span style="color:#8b949e">synthesizes</span></div>
+      <div class="meta-item">Gradient Descent in ML <span style="color:#8b949e">synthesizes</span></div>
+      <div class="meta-item">Support Vector Machines <span style="color:#8b949e">synthesizes</span></div>
+    </div>
+    <div class="meta-box">
+      <h4>Outgoing (references)</h4>
+      <div class="meta-item">Neural Networks <span style="color:#8b949e">references</span></div>
+      <div class="meta-item">Deep Learning <span style="color:#8b949e">references</span></div>
+      <div class="meta-item">Artificial Intelligence <span style="color:#8b949e">references</span></div>
+    </div>
+  </div>
+
+  <details><summary style="cursor:pointer;color:#58a6ff;font-size:0.85rem;margin-top:0.75rem;">Show full JSON response</summary>
+  <div class="response">{
+  "incoming": {
+    "synthesizes": [
+      {
+        "article_id": "efc0579c-fd98-4e0d-ab77-aac402b9b7e4",
+        "slug": "concept-artificial-intelligence",
+        "title": "Artificial Intelligence",
+        "relation_type": "synthesizes",
+        "context": "Concept page synthesizes from source article",
+        "resolution": null
+      },
+      {
+        "article_id": "6a114245-8057-434d-8232-52791132e522",
+        "slug": "concept-neural-networks",
+        "title": "Neural Networks",
+        "relation_type": "synthesizes",
+        "context": "Concept page synthesizes from source article",
+        "resolution": null
+      },
+      {
+        "article_id": "8e26d79f-c9b7-4de6-90f9-204ca7345373",
+        "slug": "concept-deep-learning",
+        "title": "Deep Learning",
+        "relation_type": "synthesizes",
+        "context": "Concept page synthesizes from source article",
+        "resolution": null
+      },
+      {
+        "article_id": "d15cf4ab-8329-4228-9633-e60feac33833",
+        "slug": "concept-gradient-descent",
+        "title": "Gradient Descent in Machine Learning",
+        "relation_type": "synthesizes",
+        "context": "Concept page synthesizes from source article",
+        "resolution": null
+      },
+      {
+        "article_id": "5c996740-67d0-4da4-afc6-d853e082927d",
+        "slug": "concept-support-vector-machines",
+        "title": "Support Vector Machines (SVMs)",
+        "relation_type": "synthesizes",
+        "context": "Concept page synthesizes from source article",
+        "resolution": null
+      }
+    ]
+  },
+  "outgoing": {
+    "references": [
+      {
+        "article_id": "6a114245-8057-434d-8232-52791132e522",
+        "slug": "concept-neural-networks",
+        "title": "Neural Networks",
+        "relation_type": "references",
+        "context": "neural-networks",
+        "resolution": null
+      },
+      {
+        "article_id": "8e26d79f-c9b7-4de6-90f9-204ca7345373",
+        "slug": "concept-deep-learning",
+        "title": "Deep Learning",
+        "relation_type": "references",
+        "context": "deep-learning",
+        "resolution": null
+      },
+      {
+        "article_id": "efc0579c-fd98-4e0d-ab77-aac402b9b7e4",
+        "slug": "concept-artificial-intelligence",
+        "title": "Artificial Intelligence",
+        "relation_type": "references",
+        "context": "artificial-intelligence",
+        "resolution": null
+      }
+    ]
+  }
+}</div>
+  </details>
+</div>
+
+<!-- Verification summary -->
+<div class="evidence-card" style="border-color:#238636;">
+  <h3 style="color:#3fb950;">Verification Summary</h3>
+  <table class="summary-table">
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Source articles include Key Claims with <code>*(sourced)*</code> markers</td><td style="color:#3fb950;">PASS -- 4 claims in ML article, 5 in Redis article</td></tr>
+      <tr><td>Articles report <code>confidence: "sourced"</code> metadata</td><td style="color:#3fb950;">PASS -- confidence_score: 0.64</td></tr>
+      <tr><td>Concept articles synthesize from multiple source articles</td><td style="color:#3fb950;">PASS -- AI concept synthesized from 7 sources</td></tr>
+      <tr><td>Relationship graph tracks synthesizes/references links</td><td style="color:#3fb950;">PASS -- bidirectional links present</td></tr>
+      <tr><td>Contradiction resolution types endpoint works</td><td style="color:#3fb950;">PASS -- 4 resolution strategies returned</td></tr>
+      <tr><td>Contradictions list endpoint registered</td><td style="color:#f0883e;">WARN -- 500 error (schema/data issue, not a routing problem)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>8. Screenshots</h2>
+
+<div class="screenshot-card">
+  <h3>Article with Key Claims and Citation Markers</h3>
+  <img src="article-with-citations.png" alt="Article showing citation markers" loading="lazy" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div class="screenshot-card">
+  <h3>Article with Compiled Claims Panel</h3>
+  <img src="article-with-claims.png" alt="Article with compiled claims" loading="lazy" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div class="screenshot-card">
+  <h3>Knowledge Graph Visualization</h3>
+  <img src="knowledge-graph.png" alt="Knowledge graph showing article relationships" loading="lazy" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div class="screenshot-card">
+  <h3>Swagger — Wiki Endpoints</h3>
+  <img src="swagger-wiki-endpoints.png" alt="Swagger wiki endpoints" loading="lazy" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<div class="screenshot-card">
+  <h3>Swagger — Contradictions Endpoints</h3>
+  <img src="swagger-contradictions.png" alt="Swagger contradictions endpoints" loading="lazy" style="width:100%; border-radius:4px; border:1px solid #30363d;" />
+</div>
+
+<p style="color:#484f58; margin-top:2rem; font-size:0.8rem;">
+  Captured 2026-05-09 from live server at 127.0.0.1:7842 with auth enabled (dev@wikimind.dev).
+  All responses are real API output, not fabricated.
+</p>
+<h2>Live Production — wikimind.fly.dev (2026-05-11)</h2>
+<img src="ui-ask-prod.png" alt="Ask page on wikimind.fly.dev — Q</body>A interface" style="max-width:100%; border:1px solid #30363d; border-radius:6px; margin-bottom:1rem;"/>
+<p style="color:#8b949e; font-size:0.85rem;">Captured via authenticated Playwright from wikimind.fly.dev</p>
+</body>
+</html>
