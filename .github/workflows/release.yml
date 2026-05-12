@@ -7,18 +7,14 @@
 #   - updates version in pyproject.toml, creates git tag + GitHub release
 #   - skips if no releasable commits since last tag
 #
-#   Branch protection: pushes to main from the default GITHUB_TOKEN are
-#   rejected when rules require pull requests. Set repository secret
-#   SEMANTIC_RELEASE_GITHUB_TOKEN to a PAT (contents:write, bypass if needed)
-#   or add a ruleset exception for GitHub Actions.
+#   Branch protection: the repo's main branch ruleset requires PRs for
+#   all pushes. An SSH deploy key ("semantic-release") is added to the
+#   ruleset bypass list with Exempt mode, allowing this workflow to push
+#   the version-bump commit and tag directly to main.
 #
-#   GH_TOKEN alone is not enough: python-semantic-release calls git push with
-#   https://github.com/OWNER/REPO.git (not origin), so the checkout credential
-#   helper still sent GITHUB_TOKEN. Use url.insteadOf to rewrite github.com to
-#   x-access-token PAT URLs for every HTTPS push in this job.
-#
-#   If you still see GH013 / "must be made through a pull request", the PAT
-#   owner must be allowed to bypass that ruleset (or use a bot with bypass).
+#   Secrets:
+#     DEPLOY_KEY — private SSH key matching the "semantic-release" deploy key
+#     GITHUB_TOKEN — used for creating GitHub Releases (automatic)
 # ---------------------------------------------------------------
 
 name: Release
@@ -47,7 +43,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-          persist-credentials: true
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -57,24 +53,9 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
-      # semantic-release pushes to https://github.com/OWNER/REPO.git, not origin.
-      - name: Configure git to use PAT for all github.com HTTPS pushes
-        env:
-          SEMANTIC_RELEASE_GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
-        run: |
-          if [ -n "${SEMANTIC_RELEASE_GITHUB_TOKEN}" ]; then
-            git config --global url."https://x-access-token:${SEMANTIC_RELEASE_GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-            git remote set-url origin "https://x-access-token:${SEMANTIC_RELEASE_GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-            echo "github.com HTTPS uses SEMANTIC_RELEASE_GITHUB_TOKEN (insteadOf + origin)"
-          else
-            echo "SEMANTIC_RELEASE_GITHUB_TOKEN unset — pushes use checkout credentials only"
-          fi
-
       - name: Semantic Release — version + publish
         env:
-          SEMANTIC_RELEASE_GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          export GH_TOKEN="${SEMANTIC_RELEASE_GITHUB_TOKEN:-$GITHUB_TOKEN}"
           semantic-release version
           semantic-release publish
