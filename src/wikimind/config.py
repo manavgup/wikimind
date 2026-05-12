@@ -16,7 +16,6 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlparse
 
 import keyring
 import keyring.errors
