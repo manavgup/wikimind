@@ -4,7 +4,7 @@
 #
 # Pings production and staging health endpoints from GitHub Actions
 # (outside Fly.io network) every 15 minutes. Creates an issue on
-# 3 consecutive failures.
+# failure.
 
 name: Uptime Monitor
 
