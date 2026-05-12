@@ -158,12 +158,17 @@ async def _migration_applied(engine, version: str) -> bool:
 
 
 async def _record_migration(engine, version: str) -> None:
-    """Record a migration version as applied."""
+    """Record a migration version as applied (idempotent).
+
+    Uses INSERT ... ON CONFLICT DO NOTHING so concurrent Gunicorn workers
+    racing to record the same migration don't cause UniqueViolationError.
+    """
     from wikimind.models import MigrationHistory  # noqa: PLC0415
 
-    async with AsyncSession(engine) as session:
-        session.add(MigrationHistory(version=version, applied_at=utcnow_naive()))
-        await session.commit()
+    async with engine.begin() as conn:
+        _insert = _dialect_insert(conn)
+        stmt = _insert(MigrationHistory).values(version=version, applied_at=utcnow_naive()).on_conflict_do_nothing()
+        await conn.execute(stmt)
     log.info("migration applied", version=version)
 
 
@@ -172,24 +177,28 @@ async def _ensure_anonymous_user(engine) -> None:
 
     When auth is disabled, ``get_current_user_id()`` returns ``"anonymous"``.
     Tables with ``user_id`` FK constraints need this row to exist.
-    Idempotent — skips if the row is already present.
+
+    Uses INSERT ... ON CONFLICT DO NOTHING instead of check-then-insert
+    to avoid TOCTOU races when multiple Gunicorn workers start simultaneously.
     """
     from wikimind.api.deps import ANONYMOUS_USER_ID  # noqa: PLC0415
     from wikimind.models import User  # noqa: PLC0415
 
-    async with AsyncSession(engine) as session:
-        existing = await session.get(User, ANONYMOUS_USER_ID)
-        if existing is None:
-            session.add(
-                User(
-                    id=ANONYMOUS_USER_ID,
-                    email="anonymous@localhost",
-                    name="Anonymous",
-                    auth_provider="none",
-                    auth_provider_id="anonymous",
-                )
+    async with engine.begin() as conn:
+        _insert = _dialect_insert(conn)
+        stmt = (
+            _insert(User)
+            .values(
+                id=ANONYMOUS_USER_ID,
+                email="anonymous@localhost",
+                name="Anonymous",
+                auth_provider="none",
+                auth_provider_id="anonymous",
             )
-            await session.commit()
+            .on_conflict_do_nothing()
+        )
+        result = await conn.execute(stmt)
+        if result.rowcount:
             log.info("created anonymous user for no-auth mode")
 
 
