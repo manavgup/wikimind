@@ -1,2 +1,1 @@
 # WikiMind Gateway
-

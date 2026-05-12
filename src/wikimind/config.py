@@ -373,6 +373,13 @@ class Settings(BaseSettings):
             host = (urlparse(self.redis_url).hostname or "").lower()
             if host == "upstash.io" or host.endswith(".upstash.io"):
                 self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
+        # Upstash private certs are not publicly verifiable. Skip certificate
+        # verification for rediss:// URLs on *.upstash.io to avoid SSL errors.
+        if self.redis_url and self.redis_url.startswith("rediss://"):
+            host = (urlparse(self.redis_url).hostname or "").lower()
+            if (host == "upstash.io" or host.endswith(".upstash.io")) and "ssl_cert_reqs" not in self.redis_url:
+                sep = "&" if "?" in self.redis_url else "?"
+                self.redis_url += f"{sep}ssl_cert_reqs=none"
         return self
 
     @property
