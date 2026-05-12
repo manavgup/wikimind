@@ -366,20 +366,11 @@ class Settings(BaseSettings):
         # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
-        # Upstash requires TLS even on the Fly private network. The private
-        # URL from `flyctl redis status` uses redis:// but the server expects
-        # TLS. Auto-upgrade to rediss:// when the hostname is *.upstash.io.
-        if self.redis_url and self.redis_url.startswith("redis://"):
-            host = (urlparse(self.redis_url).hostname or "").lower()
-            if host == "upstash.io" or host.endswith(".upstash.io"):
-                self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
-        # Upstash private certs are not publicly verifiable. Skip certificate
-        # verification for rediss:// URLs on *.upstash.io to avoid SSL errors.
-        if self.redis_url and self.redis_url.startswith("rediss://"):
-            host = (urlparse(self.redis_url).hostname or "").lower()
-            if (host == "upstash.io" or host.endswith(".upstash.io")) and "ssl_cert_reqs" not in self.redis_url:
-                sep = "&" if "?" in self.redis_url else "?"
-                self.redis_url += f"{sep}ssl_cert_reqs=none"
+        # Upstash Fly Redis private endpoint uses plain redis:// (no TLS).
+        # Do NOT auto-upgrade to rediss:// — confirmed via manual testing
+        # that the private endpoint rejects TLS handshakes.
+        # If using a public Upstash endpoint, set WIKIMIND_REDIS_URL to
+        # rediss:// explicitly.
         return self
 
     @property

@@ -190,7 +190,7 @@ jobs:
           if [ "$REDIS_CHECK" -gt 0 ]; then
             echo "Redis URL secret exists"
           else
-            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='rediss://...' --app wikimind-staging"
+            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='redis://...' --app wikimind-staging"
             exit 1
           fi
         env:
@@ -415,7 +415,7 @@ jobs:
           if [ "$REDIS_CHECK" -gt 0 ]; then
             echo "Redis URL secret exists"
           else
-            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='rediss://...' --app wikimind"
+            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='redis://...' --app wikimind"
             exit 1
           fi
         env:
