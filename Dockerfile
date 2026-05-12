@@ -7,7 +7,9 @@
 #   prod   — slim runtime with only production dependencies
 
 # ---------------------------------------------------------------------------
-ARG PYTHON_VERSION=3.11
+# Pin to specific Python version to prevent upstream breakage.
+# Update deliberately via PR, not silently via :latest.
+ARG PYTHON_VERSION=3.11.12
 FROM python:${PYTHON_VERSION}-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
