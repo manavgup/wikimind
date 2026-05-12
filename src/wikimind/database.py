@@ -167,11 +167,7 @@ async def _record_migration(engine, version: str) -> None:
 
     async with engine.begin() as conn:
         _insert = _dialect_insert(conn)
-        stmt = (
-            _insert(MigrationHistory)
-            .values(version=version, applied_at=utcnow_naive())
-            .on_conflict_do_nothing()
-        )
+        stmt = _insert(MigrationHistory).values(version=version, applied_at=utcnow_naive()).on_conflict_do_nothing()
         await conn.execute(stmt)
     log.info("migration applied", version=version)
 

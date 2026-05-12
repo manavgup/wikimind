@@ -16,6 +16,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import keyring
 import keyring.errors
@@ -366,8 +367,10 @@ class Settings(BaseSettings):
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
         # Upstash requires TLS — auto-upgrade redis:// to rediss://
-        if self.redis_url and "upstash.io" in self.redis_url and self.redis_url.startswith("redis://"):
-            self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
+        if self.redis_url and self.redis_url.startswith("redis://"):
+            host = (urlparse(self.redis_url).hostname or "").lower()
+            if host == "upstash.io" or host.endswith(".upstash.io"):
+                self.redis_url = self.redis_url.replace("redis://", "rediss://", 1)
         return self
 
     @property
