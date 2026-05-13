@@ -270,7 +270,7 @@ class TestReconstructNormalizedDoc:
 
     async def test_raises_when_file_path_missing(self) -> None:
         source = Source(source_type=SourceType.TEXT, title="x", file_path=None, user_id=TEST_USER_ID)
-        with pytest.raises(ValueError, match="no file_path"):
+        with pytest.raises(ValueError, match="No content available"):
             await reconstruct_normalized_doc(source)
 
 
