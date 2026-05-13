@@ -169,11 +169,13 @@ class DraftService:
         if guidance:
             draft.user_guidance = guidance
             # Re-read the source and compile with guidance
-            raw_storage = get_raw_storage(user_id)
-            if not source.file_path:
+            content = source.clean_text
+            if content is None and source.file_path:
+                raw_storage = get_raw_storage(user_id)
+                content = await raw_storage.read(source.file_path)
+            if content is None:
                 msg = "Source has no content file"
                 raise NotFoundError(msg)
-            content = await raw_storage.read(source.file_path)
             from wikimind.ingest.service import (  # noqa: PLC0415
                 chunk_text,
                 estimate_tokens,

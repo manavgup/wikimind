@@ -239,6 +239,7 @@ class PDFAdapter:
         try:
             await raw_storage.write(f"{source.id}.txt", clean_text)
             source.file_path = f"{source.id}.txt"
+            source.clean_text = clean_text
         except Exception as exc:
             log.error(
                 "File write failed after source commit — marking as failed",

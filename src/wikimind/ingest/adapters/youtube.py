@@ -82,6 +82,7 @@ class YouTubeAdapter:
             raw_storage = get_raw_storage(user_id)
             await raw_storage.write(f"{source.id}.txt", transcript_text)
             source.file_path = f"{source.id}.txt"
+            source.clean_text = transcript_text
         except Exception as exc:
             log.error(
                 "File write failed after source commit — marking as failed",

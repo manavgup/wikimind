@@ -65,6 +65,7 @@ class TextAdapter:
             raw_storage = get_raw_storage(user_id)
             await raw_storage.write(f"{source.id}.txt", content)
             source.file_path = f"{source.id}.txt"
+            source.clean_text = content
         except Exception as exc:
             log.error(
                 "File write failed after source commit — marking as failed",

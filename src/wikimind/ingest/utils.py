@@ -330,11 +330,13 @@ async def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     Raises:
         ValueError: If the source has no `file_path` set.
     """
-    if not source.file_path:
-        msg = f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument"
+    clean_text = source.clean_text
+    if clean_text is None and source.file_path:
+        raw_storage = get_raw_storage(source.user_id)
+        clean_text = await raw_storage.read(source.file_path)
+    if clean_text is None:
+        msg = f"No content available for source {source.id}"
         raise ValueError(msg)
-    raw_storage = get_raw_storage(source.user_id)
-    clean_text = await raw_storage.read(source.file_path)
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,

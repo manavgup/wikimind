@@ -251,23 +251,26 @@ class IngestService:
                 or has no stored file.
         """
         source = await self.get_source(source_id, session, user_id=user_id)
-        if not source.file_path:
+
+        content = source.clean_text
+        if content is None and source.file_path:
+            raw_storage = get_raw_storage(user_id)
+
+            # Defense-in-depth: ensure the resolved path stays under the storage root.
+            resolved = raw_storage.resolve_path(source.file_path).resolve()
+            if not resolved.is_relative_to(raw_storage.resolve_path("").resolve()):
+                msg = "Source content file not found"
+                raise NotFoundError(msg)
+
+            try:
+                content = await raw_storage.read(source.file_path)
+            except OSError as exc:
+                msg = "Source content file not found"
+                raise NotFoundError(msg) from exc
+
+        if content is None:
             msg = "Source has no stored content"
             raise NotFoundError(msg)
-
-        raw_storage = get_raw_storage(user_id)
-
-        # Defense-in-depth: ensure the resolved path stays under the storage root.
-        resolved = raw_storage.resolve_path(source.file_path).resolve()
-        if not resolved.is_relative_to(raw_storage.resolve_path("").resolve()):
-            msg = "Source content file not found"
-            raise NotFoundError(msg)
-
-        try:
-            content = await raw_storage.read(source.file_path)
-        except OSError as exc:
-            msg = "Source content file not found"
-            raise NotFoundError(msg) from exc
 
         truncated = False
         max_chars = get_settings().compiler.source_text_max_chars

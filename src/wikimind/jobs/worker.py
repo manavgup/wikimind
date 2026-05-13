@@ -78,12 +78,13 @@ async def _build_normalized_doc(source: Source) -> NormalizedDocument:
     Raises:
         ValueError: If the source has no ``file_path``.
     """
-    if not source.file_path:
-        msg = "No cleaned text file path for source"
+    content = source.clean_text
+    if content is None and source.file_path:
+        raw_storage = get_raw_storage(source.user_id)
+        content = await raw_storage.read(source.file_path)
+    if content is None:
+        msg = f"No content available for source {source.id}"
         raise ValueError(msg)
-
-    raw_storage = get_raw_storage(source.user_id)
-    content = await raw_storage.read(source.file_path)
 
     return NormalizedDocument(
         raw_source_id=source.id,

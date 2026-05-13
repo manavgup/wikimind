@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, computed_field
-from sqlalchemy import Column, String, UniqueConstraint
+from sqlalchemy import Column, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -210,6 +210,7 @@ class Source(SQLModel, table=True):
     token_count: int | None = None
     error_message: str | None = None
     file_path: str | None = None  # Path in raw/ directory
+    clean_text: str | None = Field(default=None, sa_type=Text)  # DB-backed source content
     # SHA-256 hex digest of the raw payload (issue #67). Used by the ingest
     # layer to detect duplicates: re-ingesting the same content returns the
     # existing source instead of creating a second row.
