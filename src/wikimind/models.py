@@ -211,7 +211,9 @@ class Source(SQLModel, table=True):
     error_message: str | None = None
     file_path: str | None = None  # Path in raw/ directory
     clean_text: str | None = Field(
-        default=None, sa_type=Text, exclude=True,
+        default=None,
+        sa_type=Text,
+        exclude=True,
     )  # DB-backed source content; excluded from API responses
     # SHA-256 hex digest of the raw payload (issue #67). Used by the ingest
     # layer to detect duplicates: re-ingesting the same content returns the
