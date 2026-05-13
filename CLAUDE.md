@@ -16,6 +16,8 @@ make typecheck     # Run mypy
 make test          # Run pytest
 make coverage      # Run tests with coverage
 make verify        # Run all quality checks (lint + format + typecheck + test)
+make dev-parity    # Run dev server against production-parity stack (PgBouncer + Redis)
+make test-parity   # Run tests against production-parity stack
 ```
 
 ## Coding Standards

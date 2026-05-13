@@ -353,6 +353,16 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make docker-logs` | Tail logs from all dev stack services |
 | `make docker-down` | Stop and remove the dev stack |
 
+### 🔄 PRODUCTION PARITY
+
+| Target | Description |
+|--------|-------------|
+| `make parity-up` | Start production-parity stack (Postgres + PgBouncer + Redis) |
+| `make parity-down` | Stop production-parity stack |
+| `make parity-reset` | Stop production-parity stack and wipe all data |
+| `make dev-parity` | Run dev server against production-parity stack (PgBouncer + Redis) |
+| `make test-parity` | Run tests against production-parity stack |
+
 ### 🚀 DEPLOY
 
 | Target | Description |
