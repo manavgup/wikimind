@@ -397,6 +397,7 @@ dev-parity: check-venv parity-up ## Run dev server against production-parity sta
 .PHONY: test-parity
 test-parity: parity-up ## Run tests against production-parity stack
 	WIKIMIND_DATABASE_URL=$(PARITY_DB) \
+	WIKIMIND_TEST_POSTGRES_URL=$(PARITY_DB) \
 	WIKIMIND_REDIS_URL=$(PARITY_REDIS) \
 	$(BIN)/pytest $(ARGS)
 
