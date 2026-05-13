@@ -1,0 +1,44 @@
+# Production-parity stack: Postgres behind PgBouncer + Redis
+# Replicates the topology of Fly.io / Kubernetes production.
+#
+# Usage:
+#   make parity-up       # start the stack
+#   make dev-parity      # run the app against it
+#   make test-parity     # run tests against it
+#   make parity-down     # stop the stack
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wikimind
+      POSTGRES_PASSWORD: wikimind
+      POSTGRES_DB: wikimind
+    volumes:
+      - parity-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wikimind"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DATABASE_URL: postgres://wikimind:wikimind@postgres:5432/wikimind
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+    ports:
+      - "5434:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+volumes:
+  parity-pgdata:

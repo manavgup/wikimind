@@ -364,6 +364,37 @@ docker-down: ## Stop and remove the dev stack
 	docker compose down --remove-orphans
 	docker compose rm -f 2>/dev/null || true
 
+##@ 🔄 PRODUCTION PARITY
+
+PARITY_DB := postgresql+asyncpg://wikimind:wikimind@localhost:5434/wikimind
+PARITY_REDIS := redis://localhost:6380
+
+.PHONY: parity-up
+parity-up: ## Start production-parity stack (Postgres + PgBouncer + Redis)
+	$(COMPOSE_CMD) -f docker-compose.parity.yml up -d
+	@echo "Production-parity stack running:"
+	@echo "  Postgres (via PgBouncer): localhost:5434"
+	@echo "  Redis: localhost:6380"
+
+.PHONY: parity-down
+parity-down: ## Stop production-parity stack
+	$(COMPOSE_CMD) -f docker-compose.parity.yml down
+
+.PHONY: dev-parity
+dev-parity: check-venv parity-up ## Run dev server against production-parity stack (PgBouncer + Redis)
+	WIKIMIND_DATABASE_URL=$(PARITY_DB) \
+	WIKIMIND_REDIS_URL=$(PARITY_REDIS) \
+	$(BIN)/python -m alembic upgrade head
+	WIKIMIND_DATABASE_URL=$(PARITY_DB) \
+	WIKIMIND_REDIS_URL=$(PARITY_REDIS) \
+	$(BIN)/honcho start -f Procfile.dev
+
+.PHONY: test-parity
+test-parity: parity-up ## Run tests against production-parity stack
+	WIKIMIND_DATABASE_URL=$(PARITY_DB) \
+	WIKIMIND_REDIS_URL=$(PARITY_REDIS) \
+	$(BIN)/pytest $(ARGS)
+
 ##@ 🚀 DEPLOY
 
 .PHONY: deploy-up
