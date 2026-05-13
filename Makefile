@@ -371,7 +371,8 @@ PARITY_REDIS := redis://localhost:6380
 
 .PHONY: parity-up
 parity-up: ## Start production-parity stack (Postgres + PgBouncer + Redis)
-	$(COMPOSE_CMD) -f docker-compose.parity.yml up -d
+	@docker info >/dev/null 2>&1 || (echo "❌  Docker is not running" && exit 1)
+	$(COMPOSE_CMD) -f docker-compose.parity.yml up -d --wait
 	@echo "Production-parity stack running:"
 	@echo "  Postgres (via PgBouncer): localhost:5434"
 	@echo "  Redis: localhost:6380"
@@ -379,6 +380,10 @@ parity-up: ## Start production-parity stack (Postgres + PgBouncer + Redis)
 .PHONY: parity-down
 parity-down: ## Stop production-parity stack
 	$(COMPOSE_CMD) -f docker-compose.parity.yml down
+
+.PHONY: parity-reset
+parity-reset: ## Stop production-parity stack and wipe all data
+	$(COMPOSE_CMD) -f docker-compose.parity.yml down -v
 
 .PHONY: dev-parity
 dev-parity: check-venv parity-up ## Run dev server against production-parity stack (PgBouncer + Redis)
