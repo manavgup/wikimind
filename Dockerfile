@@ -29,6 +29,7 @@ RUN apt-get update \
         curl \
         gosu \
         libmupdf-dev \
+        libnghttp2-14 \
         libsqlite3-0 \
     && pip install --upgrade pip setuptools wheel \
     && rm -rf /var/lib/apt/lists/* /root/.cache/pip
