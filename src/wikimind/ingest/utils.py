@@ -30,21 +30,21 @@ log = structlog.get_logger()
 # SSRF protection: URL host validation (issue #657)
 # ---------------------------------------------------------------------------
 
-# IPv4 and IPv6 private/reserved networks that MUST be blocked.
-_BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),  # loopback
-    ipaddress.ip_network("10.0.0.0/8"),  # RFC 1918
-    ipaddress.ip_network("172.16.0.0/12"),  # RFC 1918
-    ipaddress.ip_network("192.168.0.0/16"),  # RFC 1918
-    ipaddress.ip_network("169.254.0.0/16"),  # link-local
-    ipaddress.ip_network("::1/128"),  # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),  # IPv6 unique-local
-    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
-]
-
 
 def validate_url_host(url: str) -> None:
     """Resolve the URL's hostname and reject private/loopback addresses.
+
+    Uses Python stdlib ``ipaddress.is_global`` instead of a hardcoded
+    CIDR blocklist.  This automatically covers all RFC-mandated
+    non-routable ranges for both IPv4 and IPv6, including carrier-grade
+    NAT (100.64.0.0/10).  Multicast addresses are blocked separately
+    since ``is_global`` returns ``True`` for some multicast ranges.
+
+    IPv4-mapped IPv6 addresses (e.g. ``::ffff:127.0.0.1``) are unwrapped
+    before the check so they cannot bypass the filter.
+
+    Note: This validates the initial URL only. DNS rebinding and HTTP redirects
+    to internal addresses are not yet mitigated (requires transport-level hooks).
 
     Raises:
         ValueError: If the hostname resolves to a private, loopback, or
@@ -64,10 +64,12 @@ def validate_url_host(url: str) -> None:
 
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip = ipaddress.ip_address(sockaddr[0])
-        for network in _BLOCKED_NETWORKS:
-            if ip in network:
-                msg = f"URL host {hostname!r} resolves to private/reserved address {ip} (blocked)"
-                raise ValueError(msg)
+        # Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1 -> 127.0.0.1)
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global or ip.is_multicast:
+            msg = f"URL host {hostname!r} resolves to blocked address {ip}"
+            raise ValueError(msg)
 
 
 def is_youtube_url(url: str) -> bool:

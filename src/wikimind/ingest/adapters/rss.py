@@ -15,6 +15,7 @@ import structlog
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.ingest.utils import validate_url_host
 from wikimind.models import (
     CaptureKind,
     CaptureSource,
@@ -137,6 +138,7 @@ class RssAdapter:
         max_entries = settings.capture.rss_max_entries_per_poll
 
         try:
+            validate_url_host(feed.feed_url)
             async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
                 response = await client.get(
                     feed.feed_url,
@@ -144,7 +146,7 @@ class RssAdapter:
                 )
                 response.raise_for_status()
                 xml_text = response.text
-        except (httpx.HTTPError, OSError) as e:
+        except (httpx.HTTPError, OSError, ValueError) as e:
             log.warning(
                 "RSS fetch failed",
                 feed_id=feed.id,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -593,28 +594,67 @@ class TestValidateUrlHost:
     """validate_url_host() rejects private and loopback resolved addresses."""
 
     def test_localhost_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://localhost/secret")
 
     def test_loopback_ip_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://127.0.0.1/secret")
 
     def test_link_local_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://169.254.169.254/latest/meta-data/")
 
     def test_private_10_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://10.0.0.1/internal")
 
     def test_private_192_168_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://192.168.1.1/admin")
 
     def test_private_172_16_rejected(self) -> None:
-        with pytest.raises(ValueError, match="private/reserved"):
+        with pytest.raises(ValueError, match="blocked address"):
             validate_url_host("http://172.16.0.1/internal")
+
+    def test_ipv4_mapped_ipv6_rejected(self) -> None:
+        """IPv4-mapped IPv6 addresses like ::ffff:127.0.0.1 must be blocked."""
+        with (
+            patch(
+                "wikimind.ingest.utils.socket.getaddrinfo",
+                return_value=[
+                    (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::ffff:127.0.0.1", 0, 0, 0)),
+                ],
+            ),
+            pytest.raises(ValueError, match="blocked address"),
+        ):
+            validate_url_host("http://evil.com/secret")
+
+    def test_carrier_grade_nat_rejected(self) -> None:
+        """100.64.0.0/10 (carrier-grade NAT, RFC 6598) must be blocked."""
+        with (
+            patch(
+                "wikimind.ingest.utils.socket.getaddrinfo",
+                return_value=[
+                    (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("100.64.0.1", 0)),
+                ],
+            ),
+            pytest.raises(ValueError, match="blocked address"),
+        ):
+            validate_url_host("http://carrier-nat.example.com")
+
+    def test_zero_address_rejected(self) -> None:
+        """0.0.0.0 must be blocked."""
+        with (
+            patch(
+                "wikimind.ingest.utils.socket.getaddrinfo",
+                return_value=[
+                    (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("0.0.0.0", 0)),
+                ],
+            ),
+            pytest.raises(ValueError, match="blocked address"),
+        ):
+            validate_url_host("http://zero.example.com")
 
     def test_public_url_passes(self) -> None:
         # Should not raise — example.com resolves to a public address
