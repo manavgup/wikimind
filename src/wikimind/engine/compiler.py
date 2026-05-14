@@ -186,18 +186,29 @@ def _safe_json_list(value: str | None) -> list[str] | None:
         return None
 
 
-_GUIDANCE_MAX_LENGTH = 2000
 _GUIDANCE_SENTINEL_RE = re.compile(r"-{3,}")
+_GUIDANCE_TAG_RE = re.compile(r"</?guidance>", re.IGNORECASE)
 
 
-def _sanitize_guidance(raw: str) -> str:
+def _sanitize_guidance(raw: str, max_length: int | None = None) -> str:
     """Sanitize user-supplied guidance to prevent prompt injection.
 
+    - Strips ``<guidance>`` / ``</guidance>`` XML tags that the prompt
+      uses as delimiters -- a user could otherwise close the tag early
+      and inject arbitrary instructions.
     - Strips sentinel sequences (``---``) the prompts rely on as delimiters.
-    - Caps length at :data:`_GUIDANCE_MAX_LENGTH` characters.
+    - Caps length at ``CompilerConfig.guidance_max_length`` characters.
+
+    Args:
+        raw: Raw user-supplied guidance string.
+        max_length: Override for the max character limit. When *None*,
+            reads ``settings.compiler.guidance_max_length``.
     """
-    cleaned = _GUIDANCE_SENTINEL_RE.sub("", raw)
-    return cleaned[:_GUIDANCE_MAX_LENGTH]
+    if max_length is None:
+        max_length = get_settings().compiler.guidance_max_length
+    cleaned = _GUIDANCE_TAG_RE.sub("", raw)
+    cleaned = _GUIDANCE_SENTINEL_RE.sub("", cleaned)
+    return cleaned[:max_length]
 
 
 def _build_schema_directives(schema: CompilationSchema) -> str:
@@ -333,6 +344,11 @@ class Compiler:
             user_prompt += "\n\nExisting concepts in this wiki (REUSE these before inventing new ones):\n" + ", ".join(
                 sorted(existing_concepts)
             )
+
+        # Release the DB connection before the long-running LLM call.
+        # Same pattern as compile() -- PgBouncer closes idle connections
+        # after ~15s; the LLM call can take 20-30s (issue #667).
+        await session.commit()
 
         settings = get_settings()
         request = CompletionRequest(
@@ -868,8 +884,6 @@ Compile this into a wiki article following the JSON schema exactly."""
             session.add(claim)
         await session.commit()
 
-    _SLUG_MAX_ATTEMPTS = 1000
-
     async def _generate_unique_slug(self, title: str, session: AsyncSession) -> str:
         """Generate a URL-safe slug from a title, avoiding collisions.
 
@@ -878,18 +892,19 @@ Compile this into a wiki article following the JSON schema exactly."""
 
         Raises:
             ValueError: If no unique slug is found within
-                :attr:`_SLUG_MAX_ATTEMPTS` iterations.
+                ``settings.compiler.slug_max_attempts`` iterations.
         """
+        max_attempts = self.settings.compiler.slug_max_attempts
         base = slugify(title, max_length=80)
         candidate = base
         suffix = 2
-        for _ in range(self._SLUG_MAX_ATTEMPTS):
+        for _ in range(max_attempts):
             existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
             if existing is None:
                 return candidate
             candidate = f"{base}-{suffix}"
             suffix += 1
-        msg = f"Could not generate unique slug for {title!r} after {self._SLUG_MAX_ATTEMPTS} attempts"
+        msg = f"Could not generate unique slug for {title!r} after {max_attempts} attempts"
         raise ValueError(msg)
 
     async def _write_article_file(

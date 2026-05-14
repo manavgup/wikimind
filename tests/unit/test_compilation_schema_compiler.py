@@ -32,13 +32,25 @@ def _doc() -> NormalizedDocument:
     )
 
 
+def _fake_settings(data_dir: str = "/tmp/wm-test") -> SimpleNamespace:
+    return SimpleNamespace(
+        data_dir=data_dir,
+        compiler=SimpleNamespace(
+            max_tokens=8192,
+            source_text_max_chars=60000,
+            guidance_max_length=2000,
+            slug_max_attempts=1000,
+        ),
+    )
+
+
 def _make_compiler() -> Compiler:
     with (
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(
             compiler_mod,
             "get_settings",
-            return_value=SimpleNamespace(data_dir="/tmp/wm-test"),
+            return_value=_fake_settings(),
         ),
     ):
         return Compiler(user_id=TEST_USER_ID)
