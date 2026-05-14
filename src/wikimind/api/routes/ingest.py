@@ -31,7 +31,7 @@ async def ingest_url(
     user_id: str = Depends(get_current_user_id),
 ):
     """Ingest a web URL or YouTube video."""
-    return await service.ingest_url(request.url, session, auto_compile=request.auto_compile, user_id=user_id)
+    return await service.ingest_url(str(request.url), session, auto_compile=request.auto_compile, user_id=user_id)
 
 
 @router.post("/pdf", response_model=Source)

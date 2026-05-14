@@ -22,6 +22,7 @@ from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.ingest.adapters.text import TextAdapter
 from wikimind.ingest.adapters.url import URLAdapter
 from wikimind.ingest.adapters.youtube import YouTubeAdapter
+from wikimind.ingest.utils import is_youtube_url, validate_url_host
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -58,7 +59,10 @@ class IngestService:
            ``application/pdf``) -> download bytes, delegate to PDFAdapter
         3. Everything else -> URLAdapter (trafilatura HTML extraction)
         """
-        if "youtube.com" in url or "youtu.be" in url:
+        # SSRF protection: reject URLs that resolve to private/loopback
+        validate_url_host(url)
+
+        if is_youtube_url(url):
             return await self.youtube_adapter.ingest(url, session, user_id=user_id)
 
         if self._looks_like_pdf_url(url):
@@ -205,5 +209,7 @@ __all__ = [
     "compute_hash",
     "estimate_tokens",
     "find_source_by_hash",
+    "is_youtube_url",
     "reconstruct_normalized_doc",
+    "validate_url_host",
 ]

@@ -5095,6 +5095,8 @@ components:
       properties:
         url:
           type: string
+          minLength: 1
+          format: uri
           title: Url
         auto_compile:
           type: boolean
@@ -5104,7 +5106,10 @@ components:
       required:
       - url
       title: IngestURLRequest
-      description: Request to ingest a URL.
+      description: 'Request to ingest a URL.
+
+
+        Only ``http`` and ``https`` schemes are accepted (enforced by ``AnyHttpUrl``).'
     Job:
       properties:
         id:
