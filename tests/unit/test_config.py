@@ -2,8 +2,9 @@
 
 import keyring
 import pytest
+from pydantic import ValidationError
 
-from wikimind.config import Settings, _reconcile_providers, get_settings
+from wikimind.config import AuthConfig, Settings, _reconcile_providers, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -265,3 +266,24 @@ class TestDatabaseUrlRewrite:
     def test_sqlite_default_when_no_env(self):
         s = Settings()
         assert "sqlite+aiosqlite" in s.database_url
+
+
+class TestAuthConfigJwtSecret:
+    """AuthConfig must reject empty jwt_secret_key when auth is enabled (#656)."""
+
+    def test_rejects_empty_secret_when_enabled(self):
+        """An empty secret with auth enabled is an auth bypass — must fail."""
+        with pytest.raises(ValidationError, match="jwt_secret_key must not be empty"):
+            AuthConfig(enabled=True, jwt_secret_key="")
+
+    def test_accepts_real_secret_when_enabled(self):
+        """A non-empty secret with auth enabled is valid."""
+        cfg = AuthConfig(enabled=True, jwt_secret_key="real-secret")
+        assert cfg.jwt_secret_key == "real-secret"
+        assert cfg.enabled is True
+
+    def test_allows_empty_secret_when_disabled(self):
+        """Auth disabled + empty secret is fine — no tokens are verified."""
+        cfg = AuthConfig(enabled=False, jwt_secret_key="")
+        assert cfg.enabled is False
+        assert cfg.jwt_secret_key == ""
