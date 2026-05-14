@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -216,14 +217,15 @@ async def test_ingest_service_get_source_ok(db_session) -> None:
 
 
 async def test_ingest_service_delete_source(db_session, tmp_path, monkeypatch) -> None:
+    from wikimind.config import get_settings as _gs
+
     svc = IngestService()
-    monkeypatch.setenv("WIKIMIND_DATA_DIR", str(tmp_path))
-    raw = tmp_path / "raw"
-    raw.mkdir()
-    s = Source(source_type=SourceType.PDF, title="t", file_path=str(raw / "x.txt"), user_id=TEST_USER_ID)
+    raw = Path(_gs().data_dir) / "raw" / TEST_USER_ID
+    raw.mkdir(parents=True, exist_ok=True)
+    s = Source(source_type=SourceType.PDF, title="t", file_path="placeholder.txt", user_id=TEST_USER_ID)
     (raw / f"{s.id}.txt").write_text("content")
     (raw / f"{s.id}.pdf").write_bytes(b"x")
-    s.file_path = str(raw / f"{s.id}.txt")
+    s.file_path = f"{s.id}.txt"
     db_session.add(s)
     await db_session.commit()
     result = await svc.delete_source(s.id, db_session, user_id=TEST_USER_ID)

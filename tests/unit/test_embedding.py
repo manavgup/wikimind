@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -120,13 +121,16 @@ class TestGracefulDegradation:
     @pytest.mark.asyncio
     async def test_wiki_search_works_without_search_extras(self, db_session, tmp_path):
         """WikiService.search falls back to keyword-only when extras are missing."""
-        fp = tmp_path / "test.md"
-        fp.write_text("# Deep Learning\n\nNeural network architectures.", encoding="utf-8")
+        from wikimind.config import get_settings as _gs
+
+        wiki = Path(_gs().data_dir) / "wiki" / TEST_USER_ID
+        wiki.mkdir(parents=True, exist_ok=True)
+        (wiki / "test.md").write_text("# Deep Learning\n\nNeural network architectures.", encoding="utf-8")
 
         article = Article(
             slug="deep-learning",
             title="Deep Learning",
-            file_path=str(fp),
+            file_path="test.md",
             summary="About deep learning.",
             user_id=TEST_USER_ID,
         )

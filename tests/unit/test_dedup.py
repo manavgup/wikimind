@@ -421,8 +421,9 @@ class TestServiceSkipsEnqueueOnDedupHit:
         # content we are about to ingest, so the adapter dedup hit path fires.
         body = "already compiled body"
         digest = compute_hash(body.encode("utf-8"))
-        text_path = isolated_data_dir / "raw" / "seed.txt"
-        text_path.write_text(body, encoding="utf-8")
+        raw_dir = isolated_data_dir / "raw" / TEST_USER_ID
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / "seed.txt").write_text(body, encoding="utf-8")
 
         existing = Source(
             source_type=SourceType.TEXT,
@@ -430,7 +431,7 @@ class TestServiceSkipsEnqueueOnDedupHit:
             content_hash=digest,
             status=IngestStatus.COMPILED,
             compiled_at=utcnow_naive(),
-            file_path=str(text_path),
+            file_path="seed.txt",
             user_id=TEST_USER_ID,
         )
         db_session.add(existing)

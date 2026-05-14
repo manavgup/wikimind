@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import TEST_USER_ID
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import (
     Article,
     CompletionResponse,
     Provider,
 )
 from wikimind.services.export import ExportService, _inline_format, _markdown_to_html
-
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
-from wikimind.api.deps import ANONYMOUS_USER_ID
 
 # ---------------------------------------------------------------------------
 # Unit tests — ExportService (no DB, no LLM)
@@ -173,10 +170,11 @@ class TestExportServiceSlides:
 
 async def _seed_article(db_session, tmp_path: Path) -> Article:
     """Create an article on disk and in the database."""
-    wiki_dir = tmp_path / "wikimind" / "wiki"
+    from wikimind.config import get_settings as _gs
+
+    wiki_dir = Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
-    md_path = wiki_dir / "test-export.md"
-    md_path.write_text(
+    (wiki_dir / "test-export.md").write_text(
         "# Test Export Article\n\n"
         "This article covers AI agents and their architecture.\n\n"
         "## Key Points\n\n"
@@ -188,7 +186,7 @@ async def _seed_article(db_session, tmp_path: Path) -> Article:
     article = Article(
         slug="test-export",
         title="Test Export Article",
-        file_path=str(md_path),
+        file_path="test-export.md",
         summary="An article about AI agents.",
         user_id=ANONYMOUS_USER_ID,
     )

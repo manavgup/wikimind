@@ -3,14 +3,37 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tests.conftest import TEST_USER_ID
+from wikimind.config import get_settings
 from wikimind.jobs import background as bg_mod
 from wikimind.jobs import worker as worker_mod
 from wikimind.jobs.background import BackgroundCompiler, get_background_compiler
-from wikimind.jobs.worker import _recompile_from_source, compile_source, get_redis_settings, lint_wiki
-from wikimind.models import Article, IngestStatus, LintReport, LintReportStatus, PageType, Source, SourceType
+from wikimind.jobs.worker import (
+    _recompile_from_source,
+    compile_source,
+    get_redis_settings,
+    lint_wiki,
+)
+from wikimind.models import (
+    Article,
+    IngestStatus,
+    LintReport,
+    LintReportStatus,
+    PageType,
+    Source,
+    SourceType,
+)
+
+
+def _raw_root() -> Path:
+    """Return the raw storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "raw" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 async def test_background_compiler_dev_mode_compile() -> None:
@@ -229,12 +252,12 @@ async def test_compile_source_compiler_returns_none(db_session, tmp_path) -> Non
 
 async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> None:
     """When compile_source starts, source.status must be PROCESSING and error_message cleared."""
-    text_file = tmp_path / "src.txt"
-    text_file.write_text("hello world", encoding="utf-8")
+    raw = _raw_root()
+    (raw / "src.txt").write_text("hello world", encoding="utf-8")
     src = Source(
         source_type=SourceType.TEXT,
         title="t",
-        file_path=str(text_file),
+        file_path="src.txt",
         status=IngestStatus.FAILED,
         error_message="previous error",
         user_id=TEST_USER_ID,
@@ -264,12 +287,12 @@ async def test_compile_source_sets_processing_on_start(db_session, tmp_path) -> 
 
 async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> None:
     """A previously-failed source should have error_message=None while compiling."""
-    text_file = tmp_path / "src.txt"
-    text_file.write_text("content", encoding="utf-8")
+    raw = _raw_root()
+    (raw / "src.txt").write_text("content", encoding="utf-8")
     src = Source(
         source_type=SourceType.TEXT,
         title="retry-me",
-        file_path=str(text_file),
+        file_path="src.txt",
         status=IngestStatus.FAILED,
         error_message="old boom",
         user_id=TEST_USER_ID,
@@ -306,12 +329,12 @@ async def test_compile_source_clears_error_on_retry(db_session, tmp_path) -> Non
 
 async def test_compile_source_failure_after_retry_sets_failed(db_session, tmp_path) -> None:
     """On failure the source must revert to FAILED with a new error_message."""
-    text_file = tmp_path / "src.txt"
-    text_file.write_text("content", encoding="utf-8")
+    raw = _raw_root()
+    (raw / "src.txt").write_text("content", encoding="utf-8")
     src = Source(
         source_type=SourceType.TEXT,
         title="fail-again",
-        file_path=str(text_file),
+        file_path="src.txt",
         status=IngestStatus.FAILED,
         error_message="old error",
         user_id=TEST_USER_ID,
@@ -371,12 +394,12 @@ async def test_lint_wiki_failure(db_session, tmp_path) -> None:
 
 async def test_recompile_from_source_calls_save_article_in_place(db_session, tmp_path) -> None:
     """_recompile_from_source must call save_article_in_place with the existing article."""
-    text_file = tmp_path / "src.txt"
-    text_file.write_text("hello world", encoding="utf-8")
+    raw = _raw_root()
+    (raw / "src.txt").write_text("hello world", encoding="utf-8")
     src = Source(
         source_type=SourceType.TEXT,
         title="t",
-        file_path=str(text_file),
+        file_path="src.txt",
         status=IngestStatus.COMPILED,
         user_id=TEST_USER_ID,
     )

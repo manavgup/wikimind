@@ -5,12 +5,14 @@ from __future__ import annotations
 import contextlib
 import json
 import uuid
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
+from wikimind.config import get_settings
 from wikimind.database import (
     _cleanup_orphan_concept_rows,
     _repair_json_array,
@@ -19,9 +21,13 @@ from wikimind.database import (
 )
 from wikimind.models import Article, Backlink, ConfidenceLevel, PageType, Source, SourceType
 
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
+
+def _wiki_root() -> Path:
+    """Return the wiki storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 @pytest.fixture
@@ -195,11 +201,12 @@ class TestRepairMalformedJsonArraysMigration:
 class TestCleanupOrphanConceptRows:
     async def test_deletes_concept_article_with_missing_file(self, db_session, tmp_path: Path):
         """Concept article whose .md file doesn't exist on disk is deleted."""
+        _wiki_root()
         article = Article(
             id=str(uuid.uuid4()),
             slug="concept-stale-topic",
             title="Stale Topic",
-            file_path=str(tmp_path / "concept-stale-topic" / "concept-stale-topic.md"),
+            file_path="concept-stale-topic/concept-stale-topic.md",
             page_type=PageType.CONCEPT,
             user_id=TEST_USER_ID,
         )
@@ -213,16 +220,16 @@ class TestCleanupOrphanConceptRows:
 
     async def test_keeps_concept_article_with_existing_file(self, db_session, tmp_path: Path):
         """Concept article whose .md file exists on disk is preserved."""
-        md_dir = tmp_path / "concept-active-topic"
-        md_dir.mkdir(parents=True)
-        md_file = md_dir / "concept-active-topic.md"
-        md_file.write_text("# Active Topic\n")
+        wiki = _wiki_root()
+        md_dir = wiki / "concept-active-topic"
+        md_dir.mkdir(parents=True, exist_ok=True)
+        (md_dir / "concept-active-topic.md").write_text("# Active Topic\n")
 
         article = Article(
             id=str(uuid.uuid4()),
             slug="concept-active-topic",
             title="Active Topic",
-            file_path=str(md_file),
+            file_path="concept-active-topic/concept-active-topic.md",
             page_type=PageType.CONCEPT,
             user_id=TEST_USER_ID,
         )
@@ -236,11 +243,12 @@ class TestCleanupOrphanConceptRows:
 
     async def test_leaves_source_articles_untouched(self, db_session, tmp_path: Path):
         """Source articles with missing files are NOT cleaned up (only concepts)."""
+        _wiki_root()
         article = Article(
             id=str(uuid.uuid4()),
             slug="some-source",
             title="Some Source",
-            file_path=str(tmp_path / "missing-source.md"),
+            file_path="missing-source.md",
             page_type=PageType.SOURCE,
             user_id=TEST_USER_ID,
         )
@@ -254,22 +262,22 @@ class TestCleanupOrphanConceptRows:
 
     async def test_deletes_associated_backlinks(self, db_session, tmp_path: Path):
         """Backlinks referencing an orphaned concept article are also deleted."""
+        wiki = _wiki_root()
         orphan = Article(
             id=str(uuid.uuid4()),
             slug="concept-orphan",
             title="Orphan Concept",
-            file_path=str(tmp_path / "concept-orphan" / "concept-orphan.md"),
+            file_path="concept-orphan/concept-orphan.md",
             page_type=PageType.CONCEPT,
             user_id=TEST_USER_ID,
         )
         # A surviving article that links to the orphan
-        md_file = tmp_path / "surviving.md"
-        md_file.write_text("# Surviving\n")
+        (wiki / "surviving.md").write_text("# Surviving\n")
         survivor = Article(
             id=str(uuid.uuid4()),
             slug="surviving-article",
             title="Surviving Article",
-            file_path=str(md_file),
+            file_path="surviving.md",
             page_type=PageType.SOURCE,
             user_id=TEST_USER_ID,
         )

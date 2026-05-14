@@ -256,15 +256,9 @@ class IngestService:
         if content is None and source.file_path:
             raw_storage = get_raw_storage(user_id)
 
-            # Defense-in-depth: ensure the resolved path stays under the storage root.
-            resolved = raw_storage.resolve_path(source.file_path).resolve()
-            if not resolved.is_relative_to(raw_storage.resolve_path("").resolve()):
-                msg = "Source content file not found"
-                raise NotFoundError(msg)
-
             try:
                 content = await raw_storage.read(source.file_path)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 msg = "Source content file not found"
                 raise NotFoundError(msg) from exc
 
@@ -335,17 +329,18 @@ class IngestService:
         """
         raw_storage = get_raw_storage(source.user_id)
         if source.file_path:
-            resolved = raw_storage.resolve_path(source.file_path)
-            with suppress(OSError):
+            with suppress(OSError, ValueError):
+                resolved = raw_storage.resolve_path(source.file_path)
                 resolved.unlink(missing_ok=True)
 
         # Use the storage root to find sibling files
-        raw_dir = raw_storage.resolve_path("")
-        if not raw_dir.is_dir():
-            return
-        for sibling in raw_dir.glob(f"{source.id}.*"):
-            with suppress(OSError):
-                sibling.unlink(missing_ok=True)
+        with suppress(ValueError):
+            raw_dir = raw_storage.resolve_path("")
+            if not raw_dir.is_dir():
+                return
+            for sibling in raw_dir.glob(f"{source.id}.*"):
+                with suppress(OSError):
+                    sibling.unlink(missing_ok=True)
 
 
 @functools.lru_cache(maxsize=1)
