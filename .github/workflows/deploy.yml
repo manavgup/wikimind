@@ -237,7 +237,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: 🚀  Deploy to staging
-        run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }} --remote-only
+        run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }} --remote-only --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -436,7 +436,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: 🚀  Deploy to production
-        run: flyctl deploy --image ghcr.io/${{ github.repository }}:${{ needs.deploy-staging.outputs.image_tag }} --remote-only
+        run: flyctl deploy --image ghcr.io/${{ github.repository }}:${{ needs.deploy-staging.outputs.image_tag }} --remote-only --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
