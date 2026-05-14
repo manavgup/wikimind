@@ -320,21 +320,26 @@ async def reconstruct_normalized_doc(source: Source) -> NormalizedDocument:
     (``tuple[Source, NormalizedDocument]``) stays consistent whether the
     source is new or replayed from the cache.
 
+    Reads from ``source.clean_text`` (Postgres) first, falling back to
+    the raw ``.txt`` file on disk for backward compatibility.
+
     Args:
-        source: A persisted Source whose ``file_path`` points at the
-            cached cleaned text on disk.
+        source: A persisted Source with ``clean_text`` set or a non-null
+            ``file_path`` pointing at the cached text on disk.
 
     Returns:
-        A NormalizedDocument loaded from the cached `.txt` file.
+        A NormalizedDocument built from the source content.
 
     Raises:
-        ValueError: If the source has no `file_path` set.
+        ValueError: If neither ``clean_text`` nor ``file_path`` provides content.
     """
-    if not source.file_path:
-        msg = f"Source {source.id} has no file_path; cannot reconstruct NormalizedDocument"
+    clean_text = source.clean_text
+    if clean_text is None and source.file_path:
+        raw_storage = get_raw_storage(source.user_id)
+        clean_text = await raw_storage.read(source.file_path)
+    if clean_text is None:
+        msg = f"No content available for source {source.id}"
         raise ValueError(msg)
-    raw_storage = get_raw_storage(source.user_id)
-    clean_text = await raw_storage.read(source.file_path)
     return NormalizedDocument(
         raw_source_id=source.id,
         clean_text=clean_text,

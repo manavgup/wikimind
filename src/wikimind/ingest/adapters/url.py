@@ -96,6 +96,7 @@ class URLAdapter:
             await raw_storage.write(f"{source.id}.html", html)
             await raw_storage.write(f"{source.id}.txt", downloaded)
             source.file_path = f"{source.id}.txt"
+            source.clean_text = downloaded
         except Exception as exc:
             log.error(
                 "File write failed after source commit — marking as failed",

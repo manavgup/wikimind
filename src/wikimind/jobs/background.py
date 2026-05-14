@@ -78,8 +78,9 @@ class BackgroundCompiler:
             user_id: Owner — scopes to this user's data.
             doc: Pre-built NormalizedDocument from the ingest adapter. Passed
                 to the in-process worker to avoid re-reading and re-chunking
-                the source file. Ignored in the ARQ (Redis) path because
-                Pydantic models are not ARQ-serializable.
+                the source file. Not passed in the ARQ (Redis) path — the
+                worker reads clean_text from the Source table instead of
+                needing the in-memory document.
 
         Returns:
             A placeholder job ID string.

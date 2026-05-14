@@ -63,27 +63,29 @@ log = structlog.get_logger()
 
 
 async def _build_normalized_doc(source: Source) -> NormalizedDocument:
-    """Read a source's cleaned text file and build a NormalizedDocument.
+    """Build a NormalizedDocument from a source's content.
 
-    Used as fallback when no pre-built document is passed (ARQ path or
-    recompilation). Every ingest adapter writes a cleaned ``.txt`` and
-    stores its path on the Source record (see issue #59).
+    Reads from ``source.clean_text`` (Postgres) first.  Falls back to
+    the raw ``.txt`` file on disk when ``clean_text`` is ``None``
+    (backward compat with sources ingested before migration 0013).
 
     Args:
-        source: The source record with a non-null ``file_path``.
+        source: The source record.  Must have ``clean_text`` set or a
+            non-null ``file_path`` pointing at the cached text on disk.
 
     Returns:
         A NormalizedDocument ready for compilation.
 
     Raises:
-        ValueError: If the source has no ``file_path``.
+        ValueError: If neither ``clean_text`` nor ``file_path`` provides content.
     """
-    if not source.file_path:
-        msg = "No cleaned text file path for source"
+    content = source.clean_text
+    if content is None and source.file_path:
+        raw_storage = get_raw_storage(source.user_id)
+        content = await raw_storage.read(source.file_path)
+    if content is None:
+        msg = f"No content available for source {source.id}"
         raise ValueError(msg)
-
-    raw_storage = get_raw_storage(source.user_id)
-    content = await raw_storage.read(source.file_path)
 
     return NormalizedDocument(
         raw_source_id=source.id,
