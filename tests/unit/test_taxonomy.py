@@ -93,6 +93,37 @@ class TestUpsertConcepts:
         concept = result.scalar_one()
         assert concept.description == "Machine Learning"
 
+    async def test_concurrent_upsert_no_integrity_error(self, async_engine):
+        """Two concurrent upserts for the same concept must not raise IntegrityError (#637)."""
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from wikimind.models import User
+
+        factory = async_sessionmaker(async_engine, expire_on_commit=False)
+
+        # Seed test user
+        async with factory() as s:
+            s.add(
+                User(
+                    id=TEST_USER_ID,
+                    email="t@t.com",
+                    name="T",
+                    auth_provider="none",
+                    auth_provider_id="t",
+                )
+            )
+            await s.commit()
+
+        # Run two upserts concurrently — both target the same concept name.
+        # Before the fix, the second would hit IntegrityError on the unique
+        # constraint (user_id, name).
+        async with factory() as s1, factory() as s2:
+            c1 = await upsert_concepts(["Machine Learning"], s1, user_id=TEST_USER_ID)
+            c2 = await upsert_concepts(["Machine Learning"], s2, user_id=TEST_USER_ID)
+            assert len(c1) == 1
+            assert len(c2) == 1
+            assert c1[0].name == c2[0].name == "machine-learning"
+
 
 # ---------------------------------------------------------------------------
 # update_article_counts

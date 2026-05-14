@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from wikimind.config import get_settings
+from wikimind.database import _dialect_insert
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
@@ -85,36 +86,59 @@ async def upsert_concepts(
     if not concept_names:
         return []
 
-    concepts: list[Concept] = []
+    # Use dialect-aware INSERT ... ON CONFLICT to avoid TOCTOU races when
+    # two concurrent compilations try to create the same concept (#637).
+    conn = await session.connection()
+    insert_fn = _dialect_insert(conn)
+
+    normalized_names: list[str] = []
     for raw_name in concept_names:
         normalized = slugify(raw_name)
         if not normalized:
             continue
-
-        stmt = select(Concept).where(Concept.name == normalized)
-        if user_id:
-            stmt = stmt.where(Concept.user_id == user_id)
-        result = await session.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        if existing is not None:
-            # Update description if it was previously empty
-            if not existing.description:
-                existing.description = raw_name
-                session.add(existing)
-            concepts.append(existing)
-        else:
-            concept = Concept(
+        normalized_names.append(normalized)
+        stmt = (
+            insert_fn(Concept)
+            .values(
                 name=normalized,
                 description=raw_name,
                 user_id=user_id,
             )
-            session.add(concept)
-            await session.flush()
-            concepts.append(concept)
+            .on_conflict_do_nothing(
+                index_elements=["user_id", "name"],
+            )
+        )
+        await session.execute(stmt)
+
+    # Update description for any rows that were previously empty.
+    for raw_name, normalized in zip(
+        concept_names,
+        [slugify(n) for n in concept_names],
+        strict=True,
+    ):
+        if not normalized:
+            continue
+        update_stmt = select(Concept).where(
+            Concept.name == normalized,
+            Concept.user_id == user_id,
+        )
+        result = await session.execute(update_stmt)
+        existing = result.scalar_one_or_none()
+        if existing is not None and not existing.description:
+            existing.description = raw_name
+            session.add(existing)
 
     await session.commit()
-    return concepts
+
+    # Fetch all concepts that were upserted to return them.
+    if not normalized_names:
+        return []
+    fetch_stmt = select(Concept).where(
+        Concept.name.in_(normalized_names),  # type: ignore[attr-defined]
+        Concept.user_id == user_id,
+    )
+    result = await session.execute(fetch_stmt)
+    return list(result.scalars().all())
 
 
 async def update_article_counts(
@@ -159,7 +183,7 @@ async def update_article_counts(
     await session.commit()
 
 
-async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -> bool:
+async def _concept_source_set_changed(concept: Concept, session: AsyncSession, user_id: str) -> bool:
     """Return True if the concept's current source articles differ from the last compilation.
 
     Compares sorted source article IDs from the database against the
@@ -174,7 +198,7 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession) -
         _collect_source_articles,
     )
 
-    source_articles = await _collect_source_articles(concept.name, session)
+    source_articles = await _collect_source_articles(concept.name, session, user_id=user_id)
     current_ids = sorted(a.id for a in source_articles)
 
     # Look up existing concept page.
@@ -227,7 +251,7 @@ async def maybe_trigger_concept_pages(
     compiled: list[str] = []
     for concept in eligible:
         try:
-            if not await _concept_source_set_changed(concept, session):
+            if not await _concept_source_set_changed(concept, session, user_id=user_id):
                 log.debug(
                     "Concept page source set unchanged, skipping recompilation",
                     concept=concept.name,

@@ -97,6 +97,9 @@ class TestPromptTemplates:
             assert "{concept_name}" in t and "{source_material}" in t
 
 
+OTHER_USER_ID = "other-user"
+
+
 @pytest.mark.asyncio
 class TestCollectSourceArticles:
     async def test_collects_matching(self, db_session, tmp_path):
@@ -128,6 +131,59 @@ class TestCollectSourceArticles:
     async def test_normalized(self, db_session, tmp_path):
         await _mk_art(db_session, tmp_path, "a1", "A1", ["Machine Learning"])
         assert len(await _collect_source_articles("machine-learning", db_session)) == 1
+
+    async def test_filters_by_user_id(self, db_session, tmp_path):
+        """_collect_source_articles with user_id only returns that user's articles (#662)."""
+        from wikimind.models import User
+
+        # Seed a second user so the FK constraint is satisfied.
+        db_session.add(
+            User(
+                id=OTHER_USER_ID,
+                email="other@test.com",
+                name="Other",
+                auth_provider="none",
+                auth_provider_id="other",
+            )
+        )
+        await db_session.commit()
+
+        # Create articles for the test user
+        a1 = await _mk_art(db_session, tmp_path, "a1", "A1", ["ml"])
+
+        # Create an article for the other user
+        d = tmp_path / "wiki" / "other"
+        d.mkdir(parents=True, exist_ok=True)
+        fp = d / "a2.md"
+        fp.write_text("# A2", encoding="utf-8")
+        a2 = Article(
+            slug="a2",
+            title="A2",
+            file_path=str(fp),
+            summary="Sum.",
+            concept_ids=json.dumps(["ml"]),
+            page_type=PageType.SOURCE,
+            user_id=OTHER_USER_ID,
+        )
+        db_session.add(a2)
+        await db_session.commit()
+        await db_session.refresh(a2)
+        db_session.add(ArticleConcept(article_id=a2.id, concept_name="ml"))
+        await db_session.commit()
+
+        # Without user_id filter, both articles appear
+        all_results = await _collect_source_articles("ml", db_session)
+        assert len(all_results) == 2
+
+        # With user_id filter, only the test user's article appears
+        filtered = await _collect_source_articles("ml", db_session, user_id=TEST_USER_ID)
+        assert len(filtered) == 1
+        assert filtered[0].id == a1.id
+
+        # The other user only sees their own article
+        other_filtered = await _collect_source_articles("ml", db_session, user_id=OTHER_USER_ID)
+        assert len(other_filtered) == 1
+        assert other_filtered[0].id == a2.id
 
 
 @pytest.mark.asyncio
