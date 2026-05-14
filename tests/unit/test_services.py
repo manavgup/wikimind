@@ -295,7 +295,7 @@ async def test_compiler_service_get_job(db_session) -> None:
     j = Job(job_type="compile_source", status="queued", user_id=TEST_USER_ID)
     db_session.add(j)
     await db_session.commit()
-    got = await svc.get_job(j.id, db_session)
+    got = await svc.get_job(j.id, db_session, user_id=TEST_USER_ID)
     assert got is not None
 
 

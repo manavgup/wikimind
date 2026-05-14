@@ -42,17 +42,20 @@ class CompilerService:
         result = await session.execute(query)
         return list(result.scalars().all())
 
-    async def get_job(self, job_id: str, session: AsyncSession) -> Job | None:
-        """Retrieve a single job by ID.
+    async def get_job(self, job_id: str, session: AsyncSession, *, user_id: str) -> Job | None:
+        """Retrieve a single job by ID, scoped to the requesting user.
 
         Args:
             job_id: The job UUID.
             session: Async database session.
+            user_id: Owner ID — only jobs belonging to this user are returned.
 
         Returns:
-            The Job record, or None if not found.
+            The Job record, or None if not found or not owned by user_id.
         """
-        return await session.get(Job, job_id)
+        query = select(Job).where(Job.id == job_id, Job.user_id == user_id)
+        result = await session.execute(query)
+        return result.scalar_one_or_none()
 
     async def trigger_compile(self, source_id: str, user_id: str) -> JobTriggerResponse:
         """Schedule a compilation job for a source.

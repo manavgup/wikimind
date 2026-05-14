@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import IngestStatus, Source, SourceType
 from wikimind.services.admin import AdminService
 
@@ -101,14 +102,13 @@ async def test_compile_route_rejects_zombie_source(client) -> None:
             title="Zombie",
             status=IngestStatus.PROCESSING,
             file_path=None,
-            user_id=TEST_USER_ID,
+            user_id=ANONYMOUS_USER_ID,
         )
         session.add(zombie)
         await session.commit()
 
     resp = await client.post(
         "/api/jobs/compile/zombie-123",
-        headers={"X-User-Id": TEST_USER_ID},
     )
     assert resp.status_code == 422
     assert "no content file" in resp.json()["detail"].lower()
@@ -126,7 +126,7 @@ async def test_compile_route_allows_valid_source(client) -> None:
             title="Valid",
             status=IngestStatus.PROCESSING,
             file_path="valid-123.txt",
-            user_id=TEST_USER_ID,
+            user_id=ANONYMOUS_USER_ID,
         )
         session.add(valid)
         await session.commit()
@@ -138,7 +138,6 @@ async def test_compile_route_allows_valid_source(client) -> None:
     ):
         resp = await client.post(
             "/api/jobs/compile/valid-123",
-            headers={"X-User-Id": TEST_USER_ID},
         )
     assert resp.status_code == 200
 
