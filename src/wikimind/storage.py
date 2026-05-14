@@ -67,7 +67,11 @@ class LocalFileStorage:
         self.root = root
 
     def _resolve(self, relative_path: str) -> Path:
-        return self.root / relative_path
+        resolved = (self.root / relative_path).resolve()
+        if not resolved.is_relative_to(self.root.resolve()):
+            msg = f"Path traversal detected: {relative_path!r}"
+            raise ValueError(msg)
+        return resolved
 
     def resolve_path(self, relative_path: str) -> Path:
         """Resolve a relative path to an absolute filesystem path.
@@ -170,7 +174,7 @@ async def read_article_content(file_path: str, user_id: str) -> str:
     try:
         storage = get_wiki_storage(user_id)
         return await storage.read(file_path)
-    except OSError:
+    except (OSError, ValueError):
         return ""
 
 

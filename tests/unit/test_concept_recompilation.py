@@ -9,13 +9,14 @@ Verifies that:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from slugify import slugify
 
+from tests.conftest import TEST_USER_ID
 from wikimind.engine.compiler import Compiler
 from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.models import (
@@ -31,10 +32,6 @@ from wikimind.models import (
     Source,
 )
 from wikimind.services.taxonomy import _concept_source_set_changed, maybe_trigger_concept_pages
-
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
 
 
 def _fake_concept_resp(name: str = "Test") -> str:
@@ -66,14 +63,15 @@ async def _seed_kind(session, name: str = "topic") -> ConceptKindDef:
 
 
 async def _mk_source_article(session, tmp_path: Path, slug: str, title: str, concepts: list[str]) -> Article:
-    d = tmp_path / "wiki" / "test"
-    d.mkdir(parents=True, exist_ok=True)
-    fp = d / f"{slug}.md"
-    fp.write_text(f"# {title}\nSummary text.", encoding="utf-8")
+    from wikimind.config import get_settings as _gs
+
+    wiki = Path(_gs().data_dir) / "wiki" / TEST_USER_ID
+    wiki.mkdir(parents=True, exist_ok=True)
+    (wiki / f"{slug}.md").write_text(f"# {title}\nSummary text.", encoding="utf-8")
     a = Article(
         slug=slug,
         title=title,
-        file_path=str(fp),
+        file_path=f"{slug}.md",
         summary="Sum.",
         concept_ids=json.dumps(concepts),
         page_type=PageType.SOURCE,
@@ -106,8 +104,10 @@ def _mock_router(name: str = "ML") -> MagicMock:
 
 
 def _settings(tmp_path: Path, min_sources: int = 2) -> SimpleNamespace:
+    from wikimind.config import get_settings as _gs
+
     return SimpleNamespace(
-        data_dir=str(tmp_path),
+        data_dir=_gs().data_dir,
         taxonomy=SimpleNamespace(concept_page_min_sources=min_sources),
         compiler=SimpleNamespace(max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000),
     )
@@ -223,6 +223,12 @@ class TestReplaceArticleTriggersConceptPages:
 
     async def test_replace_calls_maybe_trigger(self, db_session, tmp_path):
         """Verify that _upsert_article invokes maybe_trigger_concept_pages when replacing."""
+        from wikimind.config import get_settings as _gs
+
+        settings = _gs()
+        wiki = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+        wiki.mkdir(parents=True, exist_ok=True)
+
         # Create a source.
         source = Source(
             title="Test Source",
@@ -236,14 +242,11 @@ class TestReplaceArticleTriggersConceptPages:
         await db_session.refresh(source)
 
         # Create an existing article for this source.
-        d = tmp_path / "wiki" / "test"
-        d.mkdir(parents=True, exist_ok=True)
-        fp = d / "test-article.md"
-        fp.write_text("# Test\nOld content.", encoding="utf-8")
+        (wiki / "test-article.md").write_text("# Test\nOld content.", encoding="utf-8")
         existing = Article(
             slug="test-article",
             title="Test Article",
-            file_path=str(fp),
+            file_path="test-article.md",
             summary="Old summary.",
             source_ids=json.dumps([source.id]),
             concept_ids=json.dumps(["ml"]),

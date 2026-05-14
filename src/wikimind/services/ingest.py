@@ -256,15 +256,9 @@ class IngestService:
         if content is None and source.file_path:
             raw_storage = get_raw_storage(user_id)
 
-            # Defense-in-depth: ensure the resolved path stays under the storage root.
-            resolved = raw_storage.resolve_path(source.file_path).resolve()
-            if not resolved.is_relative_to(raw_storage.resolve_path("").resolve()):
-                msg = "Source content file not found"
-                raise NotFoundError(msg)
-
             try:
                 content = await raw_storage.read(source.file_path)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 msg = "Source content file not found"
                 raise NotFoundError(msg) from exc
 

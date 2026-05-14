@@ -64,15 +64,20 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     """
     # Seed an article so _retrieve_context returns a non-empty list and the
     # agent takes the _query_llm branch (not the empty-context shortcut).
-    article_md = tmp_path / "knowledge.md"
-    article_md.write_text(
+    from pathlib import Path as _Path
+
+    from wikimind.config import get_settings as _gs
+
+    wiki_dir = _Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    (wiki_dir / "knowledge.md").write_text(
         "# Knowledge\n\nThe wikimind project answers questions from sources.",
         encoding="utf-8",
     )
     seed = Article(
         slug="knowledge",
         title="Knowledge",
-        file_path=str(article_md),
+        file_path="knowledge.md",
         summary="seed article",
         user_id=ANONYMOUS_USER_ID,
     )
@@ -269,10 +274,9 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
         agent = QAAgent()
 
     # Seed a fixture article on disk so retrieval has something real to find
-    wiki_dir = data_dir / "wiki"
+    wiki_dir = data_dir / "wiki" / ANONYMOUS_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
-    fixture_path = wiki_dir / "fixture-source.md"
-    fixture_path.write_text(
+    (wiki_dir / "fixture-source.md").write_text(
         "# Fixture Source\n\nThe Karpathy loop is the core mechanism of WikiMind."
         " It compounds explorations into the wiki.\n",
         encoding="utf-8",
@@ -282,7 +286,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
             id="art-fixture",
             slug="fixture-source",
             title="Fixture Source",
-            file_path=str(fixture_path),
+            file_path="fixture-source.md",
             summary="A fixture article for the loop closure test.",
             created_at=utcnow_naive(),
             updated_at=utcnow_naive(),

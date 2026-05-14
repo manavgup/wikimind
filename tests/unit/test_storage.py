@@ -98,6 +98,49 @@ async def test_read_missing_raises(storage):
 
 
 # ---------------------------------------------------------------------------
+# Path traversal guard tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_normal_relative_path(tmp_path):
+    """Normal relative paths resolve correctly within root."""
+    storage = LocalFileStorage(root=tmp_path)
+    result = storage._resolve("articles/foo.md")
+    assert result == (tmp_path / "articles" / "foo.md").resolve()
+    assert result.is_relative_to(tmp_path.resolve())
+
+
+def test_resolve_rejects_parent_traversal(tmp_path):
+    """Paths containing ../ that escape root are rejected."""
+    storage = LocalFileStorage(root=tmp_path)
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        storage._resolve("../secret.txt")
+
+
+def test_resolve_rejects_deep_traversal(tmp_path):
+    """Deep traversal like ../../etc/passwd is rejected."""
+    storage = LocalFileStorage(root=tmp_path)
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        storage._resolve("../../etc/passwd")
+
+
+def test_resolve_rejects_absolute_path_escaping_root(tmp_path):
+    """Absolute paths that escape root are rejected."""
+    storage = LocalFileStorage(root=tmp_path)
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        storage._resolve("/etc/passwd")
+
+
+def test_resolve_allows_traversal_back_into_root(tmp_path):
+    """Paths that use ../ but resolve back inside root are allowed."""
+    storage = LocalFileStorage(root=tmp_path)
+    # subdir/../other/file.md resolves to tmp_path/other/file.md (still under root)
+    result = storage._resolve("subdir/../other/file.md")
+    assert result == (tmp_path / "other" / "file.md").resolve()
+    assert result.is_relative_to(tmp_path.resolve())
+
+
+# ---------------------------------------------------------------------------
 # Protocol and factory tests
 # ---------------------------------------------------------------------------
 

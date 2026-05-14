@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
+from wikimind.config import get_settings
 from wikimind.engine.linter.runner import run_lint
 from wikimind.models import Article, Backlink, LintReportStatus, PageType, RelationType, StructuralFinding
 from wikimind.services.linter import LinterService
 
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
+
+def _wiki_root() -> Path:
+    """Return the wiki storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def _make_article(
@@ -28,7 +34,8 @@ def _make_article(
     page_type: PageType = PageType.SOURCE,
     claims: list[str] | None = None,
 ) -> Article:
-    file_path = tmp_path / f"{slug}.md"
+    wiki = _wiki_root()
+    file_path = wiki / f"{slug}.md"
     body_lines = [f"# {title}", ""]
     if claims:
         body_lines.append("## Key Claims")
@@ -41,7 +48,7 @@ def _make_article(
         id=article_id,
         slug=slug,
         title=title,
-        file_path=str(file_path),
+        file_path=f"{slug}.md",
         concept_ids=json.dumps(concept_ids) if concept_ids else None,
         page_type=page_type,
         user_id=TEST_USER_ID,

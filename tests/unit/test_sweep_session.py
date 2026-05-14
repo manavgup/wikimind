@@ -11,20 +11,26 @@ Verifies that:
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
+from wikimind.config import get_settings
 from wikimind.jobs.sweep import _sweep_single_article, sweep_wikilinks
 from wikimind.models import Article, Backlink, ConfidenceLevel
 
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
+
+def _wiki_root() -> Path:
+    """Return the wiki storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 async def _make_article(
@@ -52,16 +58,16 @@ async def _make_article(
 @pytest.mark.asyncio
 async def test_sweep_creates_backlinks(db_session: AsyncSession, tmp_path: Path) -> None:
     """Sweep resolves [[brackets]] and creates corresponding Backlink rows."""
-    target = await _make_article(db_session, "Quantum Computing", str(tmp_path / "qc.md"))
+    wiki = _wiki_root()
+    target = await _make_article(db_session, "Quantum Computing", "qc.md")
 
-    md_path = tmp_path / "source.md"
-    md_path.write_text("Research on [[Quantum Computing]] is advancing.\n")
-    source = await _make_article(db_session, "Physics Overview", str(md_path))
+    (wiki / "source.md").write_text("Research on [[Quantum Computing]] is advancing.\n")
+    source = await _make_article(db_session, "Physics Overview", "source.md")
 
     changed = await _sweep_single_article(source.id, db_session)
 
     assert changed is True
-    content = md_path.read_text()
+    content = (wiki / "source.md").read_text()
     assert f"[Quantum Computing](/wiki/{target.id})" in content
 
     result = await db_session.execute(
@@ -83,15 +89,15 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
     for the sweep. This mirrors the real scenario where the compiler
     created the Backlink in a prior session.
     """
+    wiki = _wiki_root()
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
 
     # Setup: create articles and a pre-existing backlink.
     async with factory() as setup_session:
-        target = await _make_article(setup_session, "Machine Learning", str(tmp_path / "ml.md"))
+        target = await _make_article(setup_session, "Machine Learning", "ml.md")
 
-        md_path = tmp_path / "source.md"
-        md_path.write_text("Exploring [[Machine Learning]] techniques.\n")
-        source = await _make_article(setup_session, "AI Guide", str(md_path))
+        (wiki / "source.md").write_text("Exploring [[Machine Learning]] techniques.\n")
+        source = await _make_article(setup_session, "AI Guide", "source.md")
 
         # Pre-create the backlink (simulates prior compilation)
         existing_bl = Backlink(
@@ -111,7 +117,7 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
         changed = await _sweep_single_article(source_id, sweep_session)
 
     assert changed is True
-    content = md_path.read_text()
+    content = (wiki / "source.md").read_text()
     assert f"[Machine Learning](/wiki/{target_id})" in content
 
     # Verify exactly one backlink row exists (not two).
@@ -148,6 +154,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     We mock get_session_factory to return a counting wrapper, then verify
     multiple sessions are created (one for the job + one per article).
     """
+    wiki = _wiki_root()
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
 
     # Pre-populate: one article with an unresolved bracket, one target
@@ -156,18 +163,17 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
             id=str(uuid.uuid4()),
             slug="deep-learning",
             title="Deep Learning",
-            file_path=str(tmp_path / "dl.md"),
+            file_path="dl.md",
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
             user_id=TEST_USER_ID,
         )
-        md_path = tmp_path / "intro.md"
-        md_path.write_text("Introduction to [[Deep Learning]] methods.\n")
+        (wiki / "intro.md").write_text("Introduction to [[Deep Learning]] methods.\n")
         source = Article(
             id=str(uuid.uuid4()),
             slug="intro-ai",
             title="Intro to AI",
-            file_path=str(md_path),
+            file_path="intro.md",
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
             user_id=TEST_USER_ID,

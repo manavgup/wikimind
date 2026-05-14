@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import TEST_USER_ID
+from wikimind.config import get_settings
 from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
@@ -21,10 +22,18 @@ from wikimind.models import (
 from wikimind.services.wiki import WikiService
 
 
+def _wiki_root() -> Path:
+    """Return the wiki storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 async def _seed_article_with_sources(db_session, tmp_path: Path) -> tuple[Article, list[Source]]:
     """Create one article on disk and two persisted sources it references."""
-    file_path = tmp_path / "test-article.md"
-    file_path.write_text("# Test Article\n\nSome content about Langflow.", encoding="utf-8")
+    wiki = _wiki_root()
+    (wiki / "test-article.md").write_text("# Test Article\n\nSome content about Langflow.", encoding="utf-8")
 
     pdf_source = Source(
         source_type=SourceType.PDF,
@@ -45,7 +54,7 @@ async def _seed_article_with_sources(db_session, tmp_path: Path) -> tuple[Articl
     article = Article(
         slug="ibm-agentic-ai-labs",
         title="IBM Agentic AI Labs",
-        file_path=str(file_path),
+        file_path="test-article.md",
         summary="Summary about IBM Agentic AI Labs.",
         source_ids=json.dumps([pdf_source.id, url_source.id]),
         user_id=TEST_USER_ID,
@@ -108,12 +117,12 @@ class TestArticleProvenance:
 
     async def test_get_article_handles_missing_sources_gracefully(self, db_session, tmp_path):
         """An article that references a deleted source still returns successfully."""
-        file_path = tmp_path / "orphan.md"
-        file_path.write_text("# Orphan", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "orphan.md").write_text("# Orphan", encoding="utf-8")
         article = Article(
             slug="orphan-article",
             title="Orphan Article",
-            file_path=str(file_path),
+            file_path="orphan.md",
             source_ids=json.dumps(["does-not-exist-uuid"]),
             user_id=TEST_USER_ID,
         )
@@ -128,12 +137,12 @@ class TestArticleProvenance:
 
     async def test_get_article_handles_missing_source_ids_field(self, db_session, tmp_path):
         """An article with no source_ids JSON returns an empty sources list."""
-        file_path = tmp_path / "no-sources.md"
-        file_path.write_text("# No sources", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "no-sources.md").write_text("# No sources", encoding="utf-8")
         article = Article(
             slug="no-source-article",
             title="No Source Article",
-            file_path=str(file_path),
+            file_path="no-sources.md",
             source_ids=None,
             user_id=TEST_USER_ID,
         )
@@ -147,12 +156,12 @@ class TestArticleProvenance:
 
     async def test_get_article_by_id_returns_article(self, db_session, tmp_path):
         """Fetching an article by its UUID id returns it."""
-        file_path = tmp_path / "my-article.md"
-        file_path.write_text("# My Article", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "my-article.md").write_text("# My Article", encoding="utf-8")
         article = Article(
             slug="my-article",
             title="My Article",
-            file_path=str(file_path),
+            file_path="my-article.md",
             user_id=TEST_USER_ID,
         )
         db_session.add(article)
@@ -167,12 +176,12 @@ class TestArticleProvenance:
 
     async def test_get_article_by_slug_still_works(self, db_session, tmp_path):
         """Backward compat: slug lookup continues to work after the ID-first rewrite."""
-        file_path = tmp_path / "legacy.md"
-        file_path.write_text("# Legacy Bookmark", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "legacy.md").write_text("# Legacy Bookmark", encoding="utf-8")
         article = Article(
             slug="legacy-bookmark",
             title="Legacy Bookmark",
-            file_path=str(file_path),
+            file_path="legacy.md",
             user_id=TEST_USER_ID,
         )
         db_session.add(article)
@@ -189,17 +198,15 @@ class TestArticleProvenance:
 class TestBacklinkEntries:
     async def test_get_article_returns_backlink_entries_with_title_and_slug(self, db_session, tmp_path):
         """backlinks_in and backlinks_out are BacklinkEntry objects with id, title, slug."""
+        wiki = _wiki_root()
         # Create three articles: A links to B, C links to B
-        fp_a = tmp_path / "article-a.md"
-        fp_a.write_text("# Article A", encoding="utf-8")
-        fp_b = tmp_path / "article-b.md"
-        fp_b.write_text("# Article B", encoding="utf-8")
-        fp_c = tmp_path / "article-c.md"
-        fp_c.write_text("# Article C", encoding="utf-8")
+        (wiki / "article-a.md").write_text("# Article A", encoding="utf-8")
+        (wiki / "article-b.md").write_text("# Article B", encoding="utf-8")
+        (wiki / "article-c.md").write_text("# Article C", encoding="utf-8")
 
-        article_a = Article(slug="article-a", title="Article A", file_path=str(fp_a), user_id=TEST_USER_ID)
-        article_b = Article(slug="article-b", title="Article B", file_path=str(fp_b), user_id=TEST_USER_ID)
-        article_c = Article(slug="article-c", title="Article C", file_path=str(fp_c), user_id=TEST_USER_ID)
+        article_a = Article(slug="article-a", title="Article A", file_path="article-a.md", user_id=TEST_USER_ID)
+        article_b = Article(slug="article-b", title="Article B", file_path="article-b.md", user_id=TEST_USER_ID)
+        article_c = Article(slug="article-c", title="Article C", file_path="article-c.md", user_id=TEST_USER_ID)
         db_session.add_all([article_a, article_b, article_c])
         await db_session.flush()
 
@@ -231,10 +238,10 @@ class TestBacklinkEntries:
 
     async def test_get_article_skips_deleted_backlink_targets(self, db_session, tmp_path):
         """Backlinks referencing a deleted article are silently dropped."""
-        fp = tmp_path / "survivor.md"
-        fp.write_text("# Survivor", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "survivor.md").write_text("# Survivor", encoding="utf-8")
 
-        article = Article(slug="survivor", title="Survivor", file_path=str(fp), user_id=TEST_USER_ID)
+        article = Article(slug="survivor", title="Survivor", file_path="survivor.md", user_id=TEST_USER_ID)
         db_session.add(article)
         await db_session.flush()
 
@@ -253,10 +260,10 @@ class TestBacklinkEntries:
 
     async def test_get_article_empty_backlinks(self, db_session, tmp_path):
         """An article with no backlinks returns empty BacklinkEntry lists."""
-        fp = tmp_path / "lonely.md"
-        fp.write_text("# Lonely", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "lonely.md").write_text("# Lonely", encoding="utf-8")
 
-        article = Article(slug="lonely", title="Lonely", file_path=str(fp), user_id=TEST_USER_ID)
+        article = Article(slug="lonely", title="Lonely", file_path="lonely.md", user_id=TEST_USER_ID)
         db_session.add(article)
         await db_session.commit()
 
@@ -271,13 +278,13 @@ class TestBacklinkEntries:
 class TestConceptPopulation:
     async def test_get_article_populates_concepts_from_concept_ids(self, db_session, tmp_path):
         """ArticleResponse.concepts is populated from Article.concept_ids JSON."""
-        fp = tmp_path / "ml-article.md"
-        fp.write_text("# ML Article", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "ml-article.md").write_text("# ML Article", encoding="utf-8")
 
         article = Article(
             slug="ml-article",
             title="ML Article",
-            file_path=str(fp),
+            file_path="ml-article.md",
             concept_ids=json.dumps(["Machine Learning", "Deep Learning"]),
             user_id=TEST_USER_ID,
         )
@@ -291,13 +298,13 @@ class TestConceptPopulation:
 
     async def test_get_article_returns_empty_concepts_when_none(self, db_session, tmp_path):
         """ArticleResponse.concepts is [] when concept_ids is None."""
-        fp = tmp_path / "no-concepts.md"
-        fp.write_text("# No Concepts", encoding="utf-8")
+        wiki = _wiki_root()
+        (wiki / "no-concepts.md").write_text("# No Concepts", encoding="utf-8")
 
         article = Article(
             slug="no-concepts",
             title="No Concepts",
-            file_path=str(fp),
+            file_path="no-concepts.md",
             concept_ids=None,
             user_id=TEST_USER_ID,
         )

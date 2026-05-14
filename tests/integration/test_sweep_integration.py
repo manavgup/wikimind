@@ -10,20 +10,26 @@ Scenario:
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
 
+from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
+from wikimind.config import get_settings
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import Article, Backlink, ConfidenceLevel, Job, JobStatus, JobType
 
-if TYPE_CHECKING:
-    from pathlib import Path
-from tests.conftest import TEST_USER_ID
+
+def _wiki_root() -> Path:
+    """Return the wiki storage root for TEST_USER_ID and ensure it exists."""
+    settings = get_settings()
+    root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 async def _make_article(
@@ -51,17 +57,17 @@ async def _make_article(
 @pytest.mark.asyncio
 async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engine, tmp_path: Path) -> None:
     """Full sweep resolves brackets as target articles appear over time."""
+    wiki = _wiki_root()
     # --- Setup: article B exists, article C does not yet exist ---
-    article_b = await _make_article(db_session, "Machine Learning", str(tmp_path / "ml.md"), slug="machine-learning")
+    article_b = await _make_article(db_session, "Machine Learning", "ml.md", slug="machine-learning")
 
     # Article A has brackets for both B and C (C does not exist yet)
-    a_md = tmp_path / "overview.md"
-    a_md.write_text(
+    (wiki / "overview.md").write_text(
         "# AI Overview\n\n"
         "See [[Machine Learning]] for the basics.\n\n"
         "Also check [[Deep Learning]] for advanced topics.\n"
     )
-    article_a = await _make_article(db_session, "AI Overview", str(a_md), slug="ai-overview")
+    article_a = await _make_article(db_session, "AI Overview", "overview.md", slug="ai-overview")
 
     # Build a real session factory backed by the same in-memory engine
     factory = async_sessionmaker(async_engine, expire_on_commit=False)
@@ -71,7 +77,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
         await sweep_wikilinks({}, user_id=TEST_USER_ID)
 
     # Assert: Machine Learning bracket resolved
-    content_after_phase1 = a_md.read_text()
+    content_after_phase1 = (wiki / "overview.md").read_text()
     assert f"[Machine Learning](/wiki/{article_b.id})" in content_after_phase1
     assert "[[Machine Learning]]" not in content_after_phase1
 
@@ -100,7 +106,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
             id=str(uuid.uuid4()),
             slug="deep-learning",
             title="Deep Learning",
-            file_path=str(tmp_path / "dl.md"),
+            file_path="dl.md",
             confidence=ConfidenceLevel.SOURCED,
             created_at=utcnow_naive(),
             user_id=TEST_USER_ID,
@@ -113,7 +119,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
         await sweep_wikilinks({}, user_id=TEST_USER_ID)
 
     # Assert: Deep Learning bracket now resolved
-    content_after_phase2 = a_md.read_text()
+    content_after_phase2 = (wiki / "overview.md").read_text()
     assert f"[Deep Learning](/wiki/{article_c.id})" in content_after_phase2
     assert "[[Deep Learning]]" not in content_after_phase2
 
@@ -135,4 +141,4 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
         await sweep_wikilinks({}, user_id=TEST_USER_ID)
 
     # Content unchanged
-    assert a_md.read_text() == content_after_phase2
+    assert (wiki / "overview.md").read_text() == content_after_phase2
