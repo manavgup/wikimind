@@ -7,6 +7,7 @@ This is the core value-creation step.
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import TYPE_CHECKING
 
@@ -185,6 +186,20 @@ def _safe_json_list(value: str | None) -> list[str] | None:
         return None
 
 
+_GUIDANCE_MAX_LENGTH = 2000
+_GUIDANCE_SENTINEL_RE = re.compile(r"-{3,}")
+
+
+def _sanitize_guidance(raw: str) -> str:
+    """Sanitize user-supplied guidance to prevent prompt injection.
+
+    - Strips sentinel sequences (``---``) the prompts rely on as delimiters.
+    - Caps length at :data:`_GUIDANCE_MAX_LENGTH` characters.
+    """
+    cleaned = _GUIDANCE_SENTINEL_RE.sub("", raw)
+    return cleaned[:_GUIDANCE_MAX_LENGTH]
+
+
 def _build_schema_directives(schema: CompilationSchema) -> str:
     """Build a prompt supplement from a user-defined compilation schema.
 
@@ -302,10 +317,16 @@ class Compiler:
         )
 
         if doc.estimated_tokens > 80_000:
+            # Release the DB connection before the long-running chunked LLM
+            # calls to avoid PgBouncer idle-connection timeouts (issue #667).
+            await session.commit()
             return await self._compile_chunked(doc, session, progress_callback)
 
         user_prompt = self._build_user_prompt(doc)
-        user_prompt += "\n\nUSER GUIDANCE — weight the article toward these priorities:\n" + guidance
+        safe_guidance = _sanitize_guidance(guidance)
+        user_prompt += (
+            f"\n\nUSER GUIDANCE — weight the article toward these priorities:\n<guidance>{safe_guidance}</guidance>"
+        )
 
         existing_concepts = [c.name for c in (await session.execute(select(Concept))).scalars().all()]
         if existing_concepts:
@@ -847,21 +868,29 @@ Compile this into a wiki article following the JSON schema exactly."""
             session.add(claim)
         await session.commit()
 
+    _SLUG_MAX_ATTEMPTS = 1000
+
     async def _generate_unique_slug(self, title: str, session: AsyncSession) -> str:
         """Generate a URL-safe slug from a title, avoiding collisions.
 
         Tries the base slug first; if it already exists, appends ``-2``,
         ``-3``, etc. until a unique value is found.
+
+        Raises:
+            ValueError: If no unique slug is found within
+                :attr:`_SLUG_MAX_ATTEMPTS` iterations.
         """
         base = slugify(title, max_length=80)
         candidate = base
         suffix = 2
-        while True:
+        for _ in range(self._SLUG_MAX_ATTEMPTS):
             existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
             if existing is None:
                 return candidate
             candidate = f"{base}-{suffix}"
             suffix += 1
+        msg = f"Could not generate unique slug for {title!r} after {self._SLUG_MAX_ATTEMPTS} attempts"
+        raise ValueError(msg)
 
     async def _write_article_file(
         self,
