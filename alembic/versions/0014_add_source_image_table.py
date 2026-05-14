@@ -28,7 +28,7 @@ def upgrade() -> None:
         op.create_table(
             "sourceimage",
             sa.Column("id", sa.String(), primary_key=True),
-            sa.Column("source_id", sa.String(), sa.ForeignKey("source.id"), nullable=False),
+            sa.Column("source_id", sa.String(), sa.ForeignKey("source.id", ondelete="CASCADE"), nullable=False),
             sa.Column("user_id", sa.String(), sa.ForeignKey("user.id"), nullable=False),
             sa.Column("filename", sa.String(), nullable=False),
             sa.Column("kind", sa.String(), nullable=False),

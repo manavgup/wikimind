@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, computed_field
-from sqlalchemy import Column, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, LargeBinary, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -241,7 +241,9 @@ class SourceImage(SQLModel, table=True):
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    source_id: str = Field(foreign_key="source.id", index=True)
+    source_id: str = Field(
+        sa_column=Column(String, ForeignKey("source.id", ondelete="CASCADE"), index=True),
+    )
     user_id: str = Field(foreign_key="user.id", index=True)
     filename: str  # e.g. "picture-1.png", "table-2.png"
     kind: str  # "figure" or "table"

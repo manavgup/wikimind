@@ -37,7 +37,7 @@ from wikimind.ingest.utils import (
     compute_hash,
     estimate_tokens,
 )
-from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceType, TaskType
+from wikimind.models import IngestStatus, NormalizedDocument, Source, SourceImage, SourceType, TaskType
 from wikimind.storage import get_raw_storage
 
 if TYPE_CHECKING:
@@ -259,8 +259,6 @@ class PDFAdapter:
         # are kept as a best-effort cache.
         if settings.image_extraction_enabled:
             try:
-                from wikimind.models import SourceImage  # noqa: PLC0415
-
                 extracted = self._extract_images(
                     file_bytes,
                     source.id,
