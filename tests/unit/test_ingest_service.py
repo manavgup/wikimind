@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from tests.conftest import TEST_USER_ID
 from wikimind.ingest import service as svc_mod
@@ -24,8 +25,8 @@ from wikimind.ingest.adapters.text import TextAdapter
 from wikimind.ingest.adapters.url import URLAdapter
 from wikimind.ingest.adapters.youtube import YouTubeAdapter
 from wikimind.ingest.service import IngestService
-from wikimind.ingest.utils import chunk_text, estimate_tokens
-from wikimind.models import IngestStatus, Source, SourceType
+from wikimind.ingest.utils import chunk_text, estimate_tokens, is_youtube_url, validate_url_host
+from wikimind.models import IngestStatus, IngestURLRequest, Source, SourceType
 
 
 def test_estimate_tokens() -> None:
@@ -553,3 +554,99 @@ async def test_pdf_adapter_filename_fallback(db_session, monkeypatch) -> None:
         adapter = PDFAdapter()
         source, _ = await adapter.ingest(b"%PDF-1.4...", "report.pdf", db_session, user_id=TEST_USER_ID)
     assert source.title == "report"
+
+
+# ---------------------------------------------------------------------------
+# SSRF protection tests (issue #657)
+# ---------------------------------------------------------------------------
+
+
+class TestIngestURLRequestSchemeValidation:
+    """IngestURLRequest.url rejects non-HTTP(S) schemes via AnyHttpUrl."""
+
+    def test_http_url_accepted(self) -> None:
+        req = IngestURLRequest(url="http://example.com/page")
+        assert str(req.url) == "http://example.com/page"
+
+    def test_https_url_accepted(self) -> None:
+        req = IngestURLRequest(url="https://example.com/page")
+        assert str(req.url) == "https://example.com/page"
+
+    def test_file_scheme_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            IngestURLRequest(url="file:///etc/passwd")
+
+    def test_ftp_scheme_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            IngestURLRequest(url="ftp://internal.host/data")
+
+    def test_gopher_scheme_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            IngestURLRequest(url="gopher://internal.host/data")
+
+    def test_bare_string_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            IngestURLRequest(url="not-a-url")
+
+
+class TestValidateUrlHost:
+    """validate_url_host() rejects private and loopback resolved addresses."""
+
+    def test_localhost_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://localhost/secret")
+
+    def test_loopback_ip_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://127.0.0.1/secret")
+
+    def test_link_local_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://169.254.169.254/latest/meta-data/")
+
+    def test_private_10_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://10.0.0.1/internal")
+
+    def test_private_192_168_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://192.168.1.1/admin")
+
+    def test_private_172_16_rejected(self) -> None:
+        with pytest.raises(ValueError, match="private/reserved"):
+            validate_url_host("http://172.16.0.1/internal")
+
+    def test_public_url_passes(self) -> None:
+        # Should not raise — example.com resolves to a public address
+        validate_url_host("http://example.com")
+
+    def test_no_hostname_rejected(self) -> None:
+        with pytest.raises(ValueError, match="no hostname"):
+            validate_url_host("http://")
+
+    def test_unresolvable_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="Cannot resolve"):
+            validate_url_host("http://this-host-definitely-does-not-exist.invalid/x")
+
+
+class TestIsYoutubeUrl:
+    """is_youtube_url() uses hostname comparison, not string-contains."""
+
+    def test_standard_youtube(self) -> None:
+        assert is_youtube_url("https://www.youtube.com/watch?v=abc") is True
+
+    def test_short_youtube(self) -> None:
+        assert is_youtube_url("https://youtu.be/abc") is True
+
+    def test_mobile_youtube(self) -> None:
+        assert is_youtube_url("https://m.youtube.com/watch?v=abc") is True
+
+    def test_youtube_in_path_not_matched(self) -> None:
+        """URL with youtube.com in the *path* (not host) must NOT match."""
+        assert is_youtube_url("http://evil.com/youtube.com/watch?v=x") is False
+
+    def test_youtube_as_subdomain_not_matched(self) -> None:
+        assert is_youtube_url("http://youtube.com.evil.com/watch?v=x") is False
+
+    def test_plain_url_not_matched(self) -> None:
+        assert is_youtube_url("https://example.com/article") is False

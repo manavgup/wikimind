@@ -10,7 +10,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel, computed_field
+from pydantic import AnyHttpUrl, BaseModel, computed_field
 from sqlalchemy import Column, ForeignKey, LargeBinary, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -1164,9 +1164,12 @@ class ResolveContradictionRequest(BaseModel):
 
 
 class IngestURLRequest(BaseModel):
-    """Request to ingest a URL."""
+    """Request to ingest a URL.
 
-    url: str
+    Only ``http`` and ``https`` schemes are accepted (enforced by ``AnyHttpUrl``).
+    """
+
+    url: AnyHttpUrl
     auto_compile: bool = True
 
 
