@@ -370,9 +370,10 @@ class PDFAdapter:
         Returns:
             List of (filename, kind, image_bytes) tuples.
         """
-        # Also write to filesystem as a cache (best-effort)
+        # Best-effort filesystem cache directory (non-fatal if unavailable)
         out_dir = PDFAdapter.get_image_dir(user_id, source_id)
-        out_dir.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            out_dir.mkdir(parents=True, exist_ok=True)
 
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         results: list[tuple[str, str, bytes]] = []
