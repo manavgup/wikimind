@@ -265,6 +265,19 @@ class AuthConfig(BaseModel):
     magic_link_ttl_seconds: int = 600  # 10 minutes
     magic_link_token_length: int = 32  # bytes for secrets.token_urlsafe
 
+    @model_validator(mode="after")
+    def _reject_empty_secret_when_enabled(self) -> AuthConfig:
+        """Prevent auth bypass via empty HMAC secret.
+
+        PyJWT accepts an empty string as a valid HMAC key, so an attacker
+        could forge tokens if the operator enables auth without setting a
+        real secret.
+        """
+        if self.enabled and not self.jwt_secret_key:
+            msg = "jwt_secret_key must not be empty when auth is enabled — set WIKIMIND_AUTH__JWT_SECRET_KEY"
+            raise ValueError(msg)
+        return self
+
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
