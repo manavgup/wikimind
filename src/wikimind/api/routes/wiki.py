@@ -554,7 +554,8 @@ async def recompile_article(
             detail=f"mode must be one of {sorted(_VALID_RECOMPILE_MODES)} or null",
         )
 
-    article = await session.get(Article, article_id)
+    result = await session.execute(select(Article).where(Article.id == article_id, Article.user_id == user_id))
+    article = result.scalar_one_or_none()
     if article is None:
         raise HTTPException(status_code=404, detail="Article not found")
 
@@ -647,7 +648,7 @@ async def get_article_tags(
     article_id: str,
     session: AsyncSession = Depends(get_session),
     tag_service: TagService = Depends(get_tag_service),
-    _user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """Get all tags applied to an article."""
-    return await tag_service.get_tags_for_article(session, article_id=article_id)
+    return await tag_service.get_tags_for_article(session, article_id=article_id, user_id=user_id)
