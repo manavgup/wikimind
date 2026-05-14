@@ -274,10 +274,11 @@ class AuthConfig(BaseModel):
         real secret.
         """
         if self.enabled and not self.jwt_secret_key:
-            raise ValueError(
+            msg = (
                 "jwt_secret_key must not be empty when auth is enabled — "
                 "set WIKIMIND_AUTH__JWT_SECRET_KEY"
             )
+            raise ValueError(msg)
         return self
 
 
