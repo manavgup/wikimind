@@ -3,13 +3,20 @@
 import mimetypes
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
-from wikimind.models import IngestTextRequest, IngestURLRequest, Source, SourceContentResponse
+from wikimind.models import (
+    IngestTextRequest,
+    IngestURLRequest,
+    Source,
+    SourceContentResponse,
+    SourceImage,
+)
 from wikimind.services.ingest import IngestService, get_ingest_service
 from wikimind.storage import find_original_sibling, get_raw_storage
 
@@ -163,13 +170,29 @@ async def list_source_images(
 ):
     """List extracted images for a PDF source.
 
-    Returns a list of image entries with filename, kind (figure/table),
-    and label. The actual image bytes are served by the
-    ``/sources/{source_id}/images/{filename}`` endpoint.
+    Reads from the ``source_image`` table first (DB-backed storage),
+    falling back to the filesystem for pre-migration sources.
     """
-    # Verify source exists and belongs to user
     await service.get_source(source_id, session, user_id=user_id)
 
+    # DB-first: query source_image table
+    stmt = (
+        select(SourceImage.filename, SourceImage.kind)
+        .where(SourceImage.source_id == source_id, SourceImage.user_id == user_id)
+        .order_by(SourceImage.filename)
+    )
+    rows = (await session.exec(stmt)).all()
+    if rows:
+        entries = []
+        for filename, kind in rows:
+            stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+            parts = stem.rsplit("-", 1)
+            num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
+            label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
+            entries.append({"filename": filename, "kind": kind, "label": label})
+        return entries
+
+    # Filesystem fallback for pre-migration sources
     image_dir = PDFAdapter.get_image_dir(user_id, source_id)
     if not image_dir.is_dir():
         return []
@@ -180,7 +203,6 @@ async def list_source_images(
             continue
         stem = path.stem
         kind = "table" if stem.startswith("table-") else "figure"
-        # Extract the number from e.g. "picture-3" or "table-1"
         parts = stem.rsplit("-", 1)
         num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
         label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
@@ -202,26 +224,38 @@ async def get_source_image(
 ):
     """Serve an extracted image file for a PDF source.
 
-    Verifies the source belongs to the authenticated user before serving
-    the image. Path traversal is prevented by resolving the path and
-    checking it stays within the expected directory.
+    Reads from the ``source_image`` table first (DB-backed storage),
+    falling back to the filesystem for pre-migration sources.
     """
-    # Verify source exists and belongs to user
     await service.get_source(source_id, session, user_id=user_id)
 
+    content_type, _ = mimetypes.guess_type(filename)
+    if content_type is None:
+        content_type = "application/octet-stream"
+
+    # DB-first: query source_image table
+    stmt = select(SourceImage.image_data).where(
+        SourceImage.source_id == source_id,
+        SourceImage.user_id == user_id,
+        SourceImage.filename == filename,
+    )
+    row = (await session.exec(stmt)).first()
+    if row is not None:
+        return Response(
+            content=row,
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    # Filesystem fallback for pre-migration sources
     image_dir = PDFAdapter.get_image_dir(user_id, source_id)
     image_path = (image_dir / filename).resolve()
 
-    # Prevent path traversal
     if not image_path.is_relative_to(image_dir.resolve()):
         raise HTTPException(status_code=404, detail="Image not found")
 
     if not image_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
-
-    content_type, _ = mimetypes.guess_type(image_path.name)
-    if content_type is None:
-        content_type = "application/octet-stream"
 
     return FileResponse(
         path=str(image_path),

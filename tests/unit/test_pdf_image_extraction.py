@@ -122,17 +122,21 @@ class TestExtractImages:
         self,
         isolated_data_dir: Path,
     ) -> None:
-        """Images embedded in a PDF are extracted and saved as files."""
+        """Images embedded in a PDF are extracted and returned as tuples."""
         pdf_bytes = _build_pdf_with_images(["Page with images"], image_count=2)
         source_id = "src-img-001"
 
-        count = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
+        results = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
 
+        assert len(results) > 0
+        for filename, kind, image_bytes in results:
+            assert isinstance(filename, str)
+            assert kind in ("figure", "table")
+            assert len(image_bytes) > 0
+        # Filesystem cache should also exist
         image_dir = isolated_data_dir / "images" / TEST_USER_ID / source_id
         assert image_dir.exists()
-        assert count > 0
-        image_files = list(image_dir.iterdir())
-        assert len(image_files) == count
+        assert len(list(image_dir.iterdir())) == len(results)
 
     def test_respects_max_images_limit(
         self,
@@ -142,16 +146,15 @@ class TestExtractImages:
         pdf_bytes = _build_pdf_with_images(["Page with many images"], image_count=5)
         source_id = "src-img-002"
 
-        count = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=2)
+        results = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=2)
 
-        assert count <= 2
+        assert len(results) <= 2
 
     def test_skips_tiny_images(
         self,
         isolated_data_dir: Path,
     ) -> None:
         """Images smaller than 5KB (icons, bullets) are skipped."""
-        # Build PDF with a very small image (10x10 pixels -> tiny file)
         pdf_bytes = _build_pdf_with_images(
             ["Page with tiny image"],
             image_count=1,
@@ -160,16 +163,15 @@ class TestExtractImages:
         )
         source_id = "src-img-003"
 
-        count = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
+        results = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
 
-        # Tiny images should be filtered out
-        assert count == 0
+        assert len(results) == 0
 
-    def test_no_images_returns_zero(
+    def test_no_images_returns_empty(
         self,
         isolated_data_dir: Path,
     ) -> None:
-        """A text-only PDF produces zero extracted images."""
+        """A text-only PDF produces an empty list."""
         doc = fitz.open()
         page = doc.new_page()
         page.insert_text((72, 72), "Text only, no images")
@@ -178,9 +180,9 @@ class TestExtractImages:
 
         source_id = "src-img-004"
 
-        count = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
+        results = PDFAdapter._extract_images(pdf_bytes, source_id, TEST_USER_ID, max_images=30)
 
-        assert count == 0
+        assert len(results) == 0
 
     def test_user_scoped_directory(
         self,
@@ -228,7 +230,7 @@ class TestIngestWithImageExtraction:
         isolated_data_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """PDFAdapter.ingest extracts images when image_extraction_enabled=True."""
+        """PDFAdapter.ingest extracts images and stores them in the DB."""
         monkeypatch.setattr(
             ingest_service,
             "_convert_via_docling_serve",
@@ -241,10 +243,20 @@ class TestIngestWithImageExtraction:
 
         source, _doc = await adapter.ingest(pdf_bytes, "images.pdf", db_session, user_id=TEST_USER_ID)
 
+        # Images should be stored in the database
+        from sqlalchemy import select as sa_select
+
+        from wikimind.models import SourceImage
+
+        result = await db_session.execute(sa_select(SourceImage).where(SourceImage.source_id == source.id))
+        rows = result.scalars().all()
+        assert len(rows) > 0
+        assert rows[0].kind in ("figure", "table")
+        assert len(rows[0].image_data) > 0
+
+        # Filesystem cache should also exist
         image_dir = isolated_data_dir / "images" / TEST_USER_ID / source.id
         assert image_dir.exists()
-        image_files = list(image_dir.iterdir())
-        assert len(image_files) > 0
 
     async def test_ingest_succeeds_when_image_extraction_disabled(
         self,
