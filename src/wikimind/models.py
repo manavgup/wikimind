@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, computed_field
-from sqlalchemy import Column, String, Text, UniqueConstraint
+from sqlalchemy import Column, LargeBinary, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -231,6 +231,22 @@ class Source(SQLModel, table=True):
         raw_storage = get_raw_storage(self.user_id)
         txt_path = raw_storage.resolve_path(self.file_path)
         return find_original_sibling(txt_path) is not None
+
+
+class SourceImage(SQLModel, table=True):
+    """Image extracted from a PDF source, stored in Postgres.
+
+    Replaces filesystem storage so web and worker machines can both
+    access extracted images without shared volumes (issue #638).
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    source_id: str = Field(foreign_key="source.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    filename: str  # e.g. "picture-1.png", "table-2.png"
+    kind: str  # "figure" or "table"
+    image_data: bytes = Field(sa_type=LargeBinary, exclude=True)
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class Article(SQLModel, table=True):

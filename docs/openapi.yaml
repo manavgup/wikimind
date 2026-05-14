@@ -268,11 +268,9 @@ paths:
       description: 'List extracted images for a PDF source.
 
 
-        Returns a list of image entries with filename, kind (figure/table),
+        Reads from the ``source_image`` table first (DB-backed storage),
 
-        and label. The actual image bytes are served by the
-
-        ``/sources/{source_id}/images/{filename}`` endpoint.'
+        falling back to the filesystem for pre-migration sources.'
       operationId: list_source_images_api_ingest_sources__source_id__images_get
       parameters:
       - name: source_id
@@ -303,11 +301,9 @@ paths:
       description: 'Serve an extracted image file for a PDF source.
 
 
-        Verifies the source belongs to the authenticated user before serving
+        Reads from the ``source_image`` table first (DB-backed storage),
 
-        the image. Path traversal is prevented by resolving the path and
-
-        checking it stays within the expected directory.'
+        falling back to the filesystem for pre-migration sources.'
       operationId: get_source_image_api_ingest_sources__source_id__images__filename__get
       parameters:
       - name: source_id

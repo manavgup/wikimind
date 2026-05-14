@@ -10,13 +10,15 @@ extraction to ``~/.wikimind/raw/{source_id}.txt``, with ``Source.file_path``
 pointing at the latter.
 
 Image extraction (issue #378): embedded images are extracted from each page
-via fitz and saved to ``{data_dir}/images/{user_id}/{source_id}/``. The
-images are served by an authenticated API endpoint, not a static mount.
+via fitz and stored in Postgres (``source_image`` table) so both web and
+worker machines can access them without shared volumes (issue #638).
+Filesystem writes are kept as a cache but the DB is the source of truth.
 """
 
 from __future__ import annotations
 
 import base64
+import contextlib
 import re
 from datetime import date
 from pathlib import Path
@@ -253,20 +255,32 @@ class PDFAdapter:
             raise
 
         # Image extraction (issue #378): extract embedded images from the
-        # PDF and save them to a user-scoped directory. This runs after text
-        # extraction so failures don't block the rest of the pipeline.
+        # PDF and store them in Postgres (issue #638). Filesystem writes
+        # are kept as a best-effort cache.
         if settings.image_extraction_enabled:
             try:
-                image_count = self._extract_images(
+                from wikimind.models import SourceImage  # noqa: PLC0415
+
+                extracted = self._extract_images(
                     file_bytes,
                     source.id,
                     user_id,
                     max_images=settings.image_max_per_pdf,
                 )
+                for img_name, img_kind, img_bytes in extracted:
+                    session.add(
+                        SourceImage(
+                            source_id=source.id,
+                            user_id=user_id,
+                            filename=img_name,
+                            kind=img_kind,
+                            image_data=img_bytes,
+                        )
+                    )
                 log.info(
                     "PDF images extracted",
                     source_id=source.id,
-                    image_count=image_count,
+                    image_count=len(extracted),
                 )
             except Exception:
                 log.warning(
@@ -341,12 +355,13 @@ class PDFAdapter:
         source_id: str,
         user_id: str,
         max_images: int = 30,
-    ) -> int:
-        """Extract embedded images from a PDF and save as PNGs.
+    ) -> list[tuple[str, str, bytes]]:
+        """Extract embedded images from a PDF.
 
         Iterates over every page, extracting images via
-        ``page.get_images()`` and saving them to the user-scoped image
-        directory. Images smaller than 5KB are skipped (icons, bullets).
+        ``page.get_images()``. Images smaller than 5KB are skipped
+        (icons, bullets). Returns a list of (filename, kind, image_bytes)
+        tuples for the caller to persist.
 
         Args:
             file_bytes: Raw PDF binary contents.
@@ -355,28 +370,28 @@ class PDFAdapter:
             max_images: Maximum number of images to extract.
 
         Returns:
-            The number of images saved.
+            List of (filename, kind, image_bytes) tuples.
         """
+        # Also write to filesystem as a cache (best-effort)
         out_dir = PDFAdapter.get_image_dir(user_id, source_id)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-        count = 0
+        results: list[tuple[str, str, bytes]] = []
         pic_idx = 0
         tbl_idx = 0
         seen_xrefs: set[int] = set()
 
         for page_num in range(doc.page_count):
-            if count >= max_images:
+            if len(results) >= max_images:
                 break
             page = doc[page_num]
             image_list = page.get_images(full=True)
 
             for img_info in image_list:
-                if count >= max_images:
+                if len(results) >= max_images:
                     break
                 xref = img_info[0]
-                # Skip duplicate xrefs (same image referenced on multiple pages)
                 if xref in seen_xrefs:
                     continue
                 seen_xrefs.add(xref)
@@ -386,27 +401,29 @@ class PDFAdapter:
                     continue
 
                 image_bytes = base_image["image"]
-                # Skip tiny images (icons, bullets, decorations)
                 if len(image_bytes) < 5000:
                     continue
 
                 ext = base_image.get("ext", "png")
-                # Determine whether this looks like a table or picture
-                # based on aspect ratio: wide+short images are likely tables.
                 width = base_image.get("width", 0)
                 height = base_image.get("height", 0)
                 if width > 0 and height > 0 and width / height > 2.5:
                     tbl_idx += 1
                     filename = f"table-{tbl_idx}.{ext}"
+                    kind = "table"
                 else:
                     pic_idx += 1
                     filename = f"picture-{pic_idx}.{ext}"
+                    kind = "figure"
 
-                (out_dir / filename).write_bytes(image_bytes)
-                count += 1
+                # Best-effort filesystem cache
+                with contextlib.suppress(OSError):
+                    (out_dir / filename).write_bytes(image_bytes)
+
+                results.append((filename, kind, image_bytes))
 
         doc.close()
-        return count
+        return results
 
     async def _extract_via_docling(self, raw_pdf_path: Path, source_id: str, user_id: str) -> tuple[str, int]:
         """Extract PDF text via docling-serve HTTP API.
