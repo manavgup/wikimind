@@ -62,11 +62,14 @@ async def _sweep_single_article(
 
     uid = article.user_id
     wiki_storage = get_wiki_storage(uid)
-    if not await wiki_storage.exists(article.file_path):
+    try:
+        file_exists = await wiki_storage.exists(article.file_path)
+    except ValueError:
+        file_exists = False
+    if not file_exists:
         log.warning(
-            "sweep: file not found, skipping",
+            "sweep: file not found or invalid path, skipping",
             article_id=article.id,
-            path=str(wiki_storage.resolve_path(article.file_path)),
         )
         return False
 
@@ -161,7 +164,11 @@ async def _cleanup_orphaned_concept_pages(
     wiki_storage = get_wiki_storage(user_id)
     cleaned = 0
     for article in concept_articles:
-        if await wiki_storage.exists(article.file_path):
+        try:
+            exists = await wiki_storage.exists(article.file_path)
+        except ValueError:
+            exists = False
+        if exists:
             continue
 
         # Bulk-delete backlinks referencing the orphaned article to avoid

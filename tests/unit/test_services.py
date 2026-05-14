@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -216,8 +217,6 @@ async def test_ingest_service_get_source_ok(db_session) -> None:
 
 
 async def test_ingest_service_delete_source(db_session, tmp_path, monkeypatch) -> None:
-    from pathlib import Path
-
     from wikimind.config import get_settings as _gs
 
     svc = IngestService()

@@ -15,6 +15,7 @@ Article so retrieval has something to find, and runs the full
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -64,11 +65,9 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     """
     # Seed an article so _retrieve_context returns a non-empty list and the
     # agent takes the _query_llm branch (not the empty-context shortcut).
-    from pathlib import Path as _Path
-
     from wikimind.config import get_settings as _gs
 
-    wiki_dir = _Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir = Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     (wiki_dir / "knowledge.md").write_text(
         "# Knowledge\n\nThe wikimind project answers questions from sources.",

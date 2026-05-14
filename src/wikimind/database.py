@@ -656,7 +656,11 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
     cleaned = 0
     for article in concept_articles:
         wiki_storage = get_wiki_storage(article.user_id)
-        if await wiki_storage.exists(article.file_path):
+        try:
+            exists = await wiki_storage.exists(article.file_path)
+        except ValueError:
+            exists = False
+        if exists:
             continue
 
         # Remove backlinks referencing the orphaned article first.
@@ -678,7 +682,7 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
             "startup: removed orphaned concept page (file missing)",
             article_id=article.id,
             slug=article.slug,
-            path=str(wiki_storage.resolve_path(article.file_path)),
+            path=article.file_path,
         )
 
     if cleaned:

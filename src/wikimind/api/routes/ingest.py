@@ -137,7 +137,10 @@ async def get_source_original(
         raise HTTPException(status_code=404, detail="No original document available")
 
     raw_storage = get_raw_storage(user_id)
-    txt_path = raw_storage.resolve_path(source.file_path)
+    try:
+        txt_path = raw_storage.resolve_path(source.file_path)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="No original document available") from None
     original = find_original_sibling(txt_path)
     if original is None:
         raise HTTPException(status_code=404, detail="No original document available")
