@@ -198,6 +198,65 @@ async def test_middleware_skips_exempt_paths(client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Auth middleware — static extension bypass security (#544)
+# ---------------------------------------------------------------------------
+
+
+def test_png_not_in_static_extensions():
+    """`.png` must not be in _STATIC_EXTENSIONS — API-served images need auth (#544)."""
+    from wikimind.middleware.auth import _STATIC_EXTENSIONS
+
+    assert ".png" not in _STATIC_EXTENSIONS
+
+
+def test_svg_not_in_static_extensions():
+    """`.svg` must not be in _STATIC_EXTENSIONS — API-served SVGs need auth (#544)."""
+    from wikimind.middleware.auth import _STATIC_EXTENSIONS
+
+    assert ".svg" not in _STATIC_EXTENSIONS
+
+
+def test_static_extensions_include_js_css():
+    """Frontend build assets (.js, .css) should remain in _STATIC_EXTENSIONS."""
+    from wikimind.middleware.auth import _STATIC_EXTENSIONS
+
+    assert ".js" in _STATIC_EXTENSIONS
+    assert ".css" in _STATIC_EXTENSIONS
+
+
+def test_assets_prefix_is_exempt():
+    """The /assets/ prefix should be in EXEMPT_PREFIXES for static frontend files."""
+    from wikimind.middleware.auth import EXEMPT_PREFIXES
+
+    assert any(p == "/assets/" for p in EXEMPT_PREFIXES)
+
+
+def test_png_path_not_exempt_from_auth():
+    """An API path ending in .png must NOT match any extension or prefix exemption (#544).
+
+    This verifies the middleware exemption logic directly, independent of
+    HTTP transport and settings mocking.
+    """
+    from wikimind.middleware.auth import _STATIC_EXTENSIONS, EXEMPT_PATHS, EXEMPT_PREFIXES
+
+    path = "/api/ingest/sources/123/images/test.png"
+    is_exempt = (
+        path in EXEMPT_PATHS
+        or any(path.startswith(p) for p in EXEMPT_PREFIXES)
+        or any(path.endswith(ext) for ext in _STATIC_EXTENSIONS)
+    )
+    assert not is_exempt, f"{path} should not be exempt from auth"
+
+
+def test_assets_png_path_exempt_via_prefix():
+    """A .png under /assets/ is exempt via the prefix rule, not the extension rule."""
+    from wikimind.middleware.auth import EXEMPT_PREFIXES
+
+    path = "/assets/logo.png"
+    assert any(path.startswith(p) for p in EXEMPT_PREFIXES)
+
+
+# ---------------------------------------------------------------------------
 # /auth/me
 # ---------------------------------------------------------------------------
 
