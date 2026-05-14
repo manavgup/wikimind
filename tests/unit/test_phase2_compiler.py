@@ -54,10 +54,22 @@ def _doc(tokens=100):
     )
 
 
+def _fake_settings(data_dir: str = "/tmp/wm-test") -> SimpleNamespace:
+    return SimpleNamespace(
+        data_dir=data_dir,
+        compiler=SimpleNamespace(
+            max_tokens=8192,
+            source_text_max_chars=60000,
+            guidance_max_length=2000,
+            slug_max_attempts=1000,
+        ),
+    )
+
+
 def _compiler_for(tmp_path):
     with (
         patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         return Compiler(user_id=TEST_USER_ID)
 
@@ -284,7 +296,7 @@ def test_parse_frontmatter_extracts_yaml():
 async def test_write_article_file_includes_page_type(tmp_path):
     with (
         patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=SimpleNamespace(data_dir=str(tmp_path))),
+        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id=TEST_USER_ID)

@@ -190,6 +190,8 @@ class CompilerConfig(BaseModel):
     concept_source_max_chars: int = 5000
     synthesis_max_sources: int = 15
     interactive: bool = False
+    guidance_max_length: int = 2000
+    slug_max_attempts: int = 1000
 
 
 class StalenessConfig(BaseModel):

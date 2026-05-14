@@ -284,13 +284,25 @@ async def test_claim_concept_join(db_session) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _fake_settings(data_dir: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        data_dir=data_dir,
+        compiler=SimpleNamespace(
+            max_tokens=8192,
+            source_text_max_chars=60000,
+            guidance_max_length=2000,
+            slug_max_attempts=1000,
+        ),
+    )
+
+
 def _compiler_for(tmp_path: Path) -> Compiler:
     with (
         patch.object(compiler_mod, "get_llm_router"),
         patch.object(
             compiler_mod,
             "get_settings",
-            return_value=SimpleNamespace(data_dir=str(tmp_path)),
+            return_value=_fake_settings(str(tmp_path)),
         ),
     ):
         return Compiler(user_id=TEST_USER_ID)
