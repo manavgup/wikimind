@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 from sqlmodel import select
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
+from wikimind.errors import NotFoundError
 from wikimind.models import Article, ShareLink
 from wikimind.services.sharing import SharingService
 
@@ -94,7 +94,7 @@ class TestSharingServiceUnit:
     async def test_create_share_link_article_not_found(self, db_session):
         service = SharingService()
 
-        with pytest.raises(HTTPException, match="Article not found"):
+        with pytest.raises(NotFoundError, match="Article not found"):
             await service.create_share_link(
                 db_session,
                 article_id="nonexistent",
@@ -174,17 +174,15 @@ class TestSharingServiceUnit:
         await service.revoke_share_link(db_session, created.id, ANONYMOUS_USER_ID)
         await db_session.commit()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError):
             await service.get_public_article(db_session, created.token)
-        assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
     async def test_get_public_article_invalid_token(self, db_session):
         service = SharingService()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError):
             await service.get_public_article(db_session, "bogus-token")
-        assert exc_info.value.status_code == 404
 
 
 # ---------------------------------------------------------------------------

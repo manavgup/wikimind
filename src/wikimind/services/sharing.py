@@ -10,12 +10,12 @@ import secrets
 from datetime import timedelta
 
 import structlog
-from fastapi import HTTPException
 from sqlalchemy import desc
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
+from wikimind.errors import GoneError, NotFoundError
 from wikimind.models import (
     Article,
     PublicArticleResponse,
@@ -54,11 +54,12 @@ class SharingService:
             The created share link response.
 
         Raises:
-            HTTPException: If article not found or not owned by user.
+            NotFoundError: If article not found or not owned by user.
         """
         article = await session.get(Article, article_id)
         if article is None or article.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Article not found")
+            msg = "Article not found"
+            raise NotFoundError(msg)
 
         token = secrets.token_urlsafe(SHARE_TOKEN_BYTES)
         now = utcnow_naive()
@@ -101,11 +102,12 @@ class SharingService:
             user_id: Owner of the share link.
 
         Raises:
-            HTTPException: If link not found or not owned by user.
+            NotFoundError: If link not found or not owned by user.
         """
         link = await session.get(ShareLink, link_id)
         if link is None or link.user_id != user_id:
-            raise HTTPException(status_code=404, detail="Share link not found")
+            msg = "Share link not found"
+            raise NotFoundError(msg)
 
         link.revoked = True
         session.add(link)
@@ -176,21 +178,25 @@ class SharingService:
             Public article response with HTML content.
 
         Raises:
-            HTTPException: 404 if revoked/invalid, 410 if expired.
+            NotFoundError: If link is revoked, invalid, or article missing.
+            GoneError: If link has expired.
         """
         result = await session.execute(select(ShareLink).where(ShareLink.token == token))
         link = result.scalar_one_or_none()
 
         if link is None or link.revoked:
-            raise HTTPException(status_code=404, detail="Share link not found")
+            msg = "Share link not found"
+            raise NotFoundError(msg)
 
         now = utcnow_naive()
         if link.expires_at and link.expires_at < now:
-            raise HTTPException(status_code=410, detail="Share link has expired")
+            msg = "Share link has expired"
+            raise GoneError(msg)
 
         article = await session.get(Article, link.article_id)
         if article is None:
-            raise HTTPException(status_code=404, detail="Article not found")
+            msg = "Article not found"
+            raise NotFoundError(msg)
 
         # Update view count
         link.view_count += 1
