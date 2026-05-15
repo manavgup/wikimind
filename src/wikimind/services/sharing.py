@@ -18,9 +18,11 @@ from wikimind._datetime import utcnow_naive
 from wikimind.errors import GoneError, NotFoundError
 from wikimind.models import (
     Article,
+    ArticleSource,
     PublicArticleResponse,
     ShareLink,
     ShareLinkResponse,
+    Source,
     SourceResponse,
 )
 from wikimind.services.export import _markdown_to_html
@@ -208,8 +210,6 @@ class SharingService:
         content_html = _markdown_to_html(content) if content else ""
 
         # Build source list for attribution
-        from wikimind.models import ArticleSource, Source  # noqa: PLC0415
-
         source_stmt = (
             select(Source)
             .join(

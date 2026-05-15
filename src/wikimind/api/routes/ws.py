@@ -20,6 +20,7 @@ import json
 
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from redis.asyncio import Redis
 
 try:
     from redis.exceptions import RedisError
@@ -63,11 +64,9 @@ async def _get_redis():
         return None
 
     try:
-        from redis.asyncio import Redis  # noqa: PLC0415
-
         _redis_publish_pool = Redis.from_url(redis_url, decode_responses=True)
         return _redis_publish_pool
-    except (ImportError, RedisError, OSError):
+    except (RedisError, OSError):
         log.debug("Redis unavailable for WebSocket pub/sub — local-only mode")
         return None
 
@@ -107,10 +106,8 @@ async def _start_redis_subscriber() -> None:
         return
 
     try:
-        from redis.asyncio import Redis  # noqa: PLC0415
-
         subscriber_redis = Redis.from_url(redis_url, decode_responses=True)
-    except (ImportError, RedisError, OSError):
+    except (RedisError, OSError):
         log.debug("Redis unavailable — skipping WebSocket subscriber")
         return
 

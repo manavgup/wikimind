@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import hashlib
 from typing import TYPE_CHECKING
+from xml.etree.ElementTree import ParseError
 
 import defusedxml.ElementTree as DefusedET
 import httpx
 import structlog
+from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -40,8 +42,6 @@ def _parse_feed_entries(xml_text: str) -> list[dict[str, str]]:
     Each dict contains keys: guid, title, link, summary.
     Returns entries in document order (newest first for well-formed feeds).
     """
-    from xml.etree.ElementTree import ParseError  # noqa: PLC0415
-
     try:
         root = DefusedET.fromstring(xml_text)
     except ParseError:
@@ -176,8 +176,6 @@ class RssAdapter:
             content_hash = hashlib.sha256(guid.encode("utf-8")).hexdigest()
 
             # Dedup: skip if we already captured this guid for this user
-            from sqlmodel import select  # noqa: PLC0415
-
             existing = await session.execute(
                 select(CaptureSource).where(
                     CaptureSource.user_id == feed.user_id,

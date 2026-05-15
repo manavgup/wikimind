@@ -18,6 +18,7 @@ from wikimind.models import (
     ArticleTag,
     SavedSearch,
     SavedSearchResponse,
+    Tag,
 )
 
 log = structlog.get_logger()
@@ -154,8 +155,6 @@ class SavedSearchService:
 
         # Apply tag filter — articles must have ALL specified tags
         if tag_names:
-            from wikimind.models import Tag  # noqa: PLC0415
-
             tag_result = await session.execute(
                 select(Tag.id).where(
                     Tag.user_id == user_id,

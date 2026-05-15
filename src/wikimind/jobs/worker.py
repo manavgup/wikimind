@@ -51,6 +51,7 @@ from wikimind.models import (
     NormalizedDocument,
     Source,
 )
+from wikimind.services.draft import get_draft_service
 from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
 from wikimind.storage import get_raw_storage, get_wiki_storage
 
@@ -153,8 +154,6 @@ async def _compile_interactive(
         raise ValueError(msg)
 
     await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
-    from wikimind.services.draft import get_draft_service  # noqa: PLC0415
-
     draft_service = get_draft_service()
     draft = await draft_service.create_draft(source, doc, result, takeaways, session)
 

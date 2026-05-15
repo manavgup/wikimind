@@ -25,6 +25,7 @@ from wikimind.models import (
     CaptureSource,
     CaptureStatus,
 )
+from wikimind.services.ingest import get_ingest_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -229,8 +230,6 @@ class CaptureService:
             )
 
         # Use the ingest service to create a real Source from the capture content
-        from wikimind.services.ingest import get_ingest_service  # noqa: PLC0415
-
         ingest_svc = get_ingest_service()
 
         # If the capture has a URL, ingest as URL; otherwise ingest as text

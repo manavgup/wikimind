@@ -15,6 +15,7 @@ from sqlalchemy import Column, ForeignKey, LargeBinary, String, Text, UniqueCons
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
+from wikimind.storage import find_original_sibling, get_raw_storage
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -226,8 +227,6 @@ class Source(SQLModel, table=True):
         """Whether the original document (PDF, HTML) exists alongside the .txt."""
         if not self.file_path:
             return False
-        from wikimind.storage import find_original_sibling, get_raw_storage  # noqa: PLC0415
-
         raw_storage = get_raw_storage(self.user_id)
         try:
             txt_path = raw_storage.resolve_path(self.file_path)
