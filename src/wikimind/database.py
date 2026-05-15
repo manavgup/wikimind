@@ -265,18 +265,30 @@ async def init_db():
     settings = get_settings()
     if settings.is_dev and settings.auth.dev_auto_auth:
         dev_uid = f"dev-{settings.auth.dev_user_email}"
+        tables_with_user_id = (
+            "article",
+            "source",
+            "concept",
+            "query",
+            "conversation",
+            "backlink",
+            "share_link",
+            "lint_finding",
+            "cost_log",
+            "tag",
+            "user_preference",
+        )
         async with engine.begin() as conn:
-            for tbl in ("article", "source", "concept", "query", "conversation", "backlink",
-                        "share_link", "lint_finding", "cost_log", "tag", "user_preference"):
+            for tbl in tables_with_user_id:
+                stmt = sa_text(
+                    f"UPDATE {tbl} SET user_id = :new WHERE user_id = 'anonymous'"  # noqa: S608
+                )
                 try:
-                    result = await conn.execute(
-                        sa_text(f"UPDATE {tbl} SET user_id = :new WHERE user_id = 'anonymous'"),
-                        {"new": dev_uid},
-                    )
+                    result = await conn.execute(stmt, {"new": dev_uid})
                     if result.rowcount:
                         log.info("migrated anonymous rows", table=tbl, count=result.rowcount)
                 except Exception:
-                    pass  # table may not exist yet
+                    log.debug("skipping migration for non-existent table", table=tbl)
 
     # Create FTS virtual table for full-text search (idempotent).
     from wikimind.services.search import create_fts_table, rebuild_fts_index  # noqa: PLC0415
