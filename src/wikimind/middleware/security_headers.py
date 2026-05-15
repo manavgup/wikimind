@@ -41,7 +41,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
 
+        # Relax CSP for FastAPI's built-in docs pages (Swagger/ReDoc load CDN
+        # scripts and inline bootstrap JS that strict CSP blocks).
+        path = request.url.path
+        skip_csp = path in ("/docs", "/redoc", "/openapi.json")
+
         for name, value in _SECURITY_HEADERS.items():
+            if skip_csp and name == "Content-Security-Policy":
+                continue
             response.headers[name] = value
 
         # HSTS must only be sent over HTTPS. In development mode (HTTP)
