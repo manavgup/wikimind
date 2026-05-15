@@ -110,13 +110,21 @@ def get_prompt_template(template_key: str) -> str | None:
     return PROMPT_TEMPLATES.get(template_key)
 
 
-async def _collect_source_articles(concept_name: str, session: AsyncSession) -> list[Article]:
+async def _collect_source_articles(
+    concept_name: str,
+    session: AsyncSession,
+    *,
+    user_id: str | None = None,
+) -> list[Article]:
     normalized = slugify(concept_name)
-    result = await session.execute(
+    stmt = (
         select(Article)
         .join(ArticleConcept, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
         .where(ArticleConcept.concept_name == normalized, Article.page_type == PageType.SOURCE)
     )
+    if user_id:
+        stmt = stmt.where(Article.user_id == user_id)
+    result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
@@ -186,7 +194,7 @@ class ConceptCompiler:
         template = get_prompt_template(kind_def.prompt_template_key)
         if template is None:
             return None
-        source_articles = await _collect_source_articles(concept.name, session)
+        source_articles = await _collect_source_articles(concept.name, session, user_id=self.user_id)
         min_sources = self.settings.taxonomy.concept_page_min_sources
         if len(source_articles) < min_sources:
             return None
@@ -318,7 +326,11 @@ class ConceptCompiler:
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
         slug = f"concept-{slugify(concept_name)}"
         result = await session.execute(
-            select(Article).where(Article.slug == slug, Article.page_type == PageType.CONCEPT)
+            select(Article).where(
+                Article.slug == slug,
+                Article.page_type == PageType.CONCEPT,
+                Article.user_id == self.user_id,
+            )
         )
         return result.scalar_one_or_none()
 
@@ -431,7 +443,11 @@ provider: {self._last_provider_used or "unknown"}
                 continue
             target_slug = f"concept-{normalized}"
             result = await session.execute(
-                select(Article).where(Article.slug == target_slug, Article.page_type == PageType.CONCEPT)
+                select(Article).where(
+                    Article.slug == target_slug,
+                    Article.page_type == PageType.CONCEPT,
+                    Article.user_id == user_id,
+                )
             )
             target = result.scalar_one_or_none()
             if target is None:

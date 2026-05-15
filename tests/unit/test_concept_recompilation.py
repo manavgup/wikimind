@@ -139,7 +139,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
             assert mr.complete.call_count == 1
 
         # Now the source set is unchanged — change detection should return False.
-        assert not await _concept_source_set_changed(concept, db_session)
+        assert not await _concept_source_set_changed(concept, db_session, user_id=TEST_USER_ID)
 
     async def test_maybe_trigger_skips_unchanged(self, db_session, tmp_path):
         """maybe_trigger_concept_pages does NOT call compile when source set is unchanged."""
@@ -181,7 +181,7 @@ class TestSourceSetUnchangedSkipsRecompilation:
         db_session.add(concept)
         await db_session.commit()
 
-        assert await _concept_source_set_changed(concept, db_session)
+        assert await _concept_source_set_changed(concept, db_session, user_id=TEST_USER_ID)
 
 
 @pytest.mark.asyncio
@@ -208,13 +208,13 @@ class TestSourceSetChangedTriggersRecompilation:
             assert first is not None
 
         # Source set is unchanged.
-        assert not await _concept_source_set_changed(concept, db_session)
+        assert not await _concept_source_set_changed(concept, db_session, user_id=TEST_USER_ID)
 
         # Add a new source article.
         await _mk_source_article(db_session, tmp_path, "s3", "S3", ["ml"])
 
         # Source set has now changed.
-        assert await _concept_source_set_changed(concept, db_session)
+        assert await _concept_source_set_changed(concept, db_session, user_id=TEST_USER_ID)
 
 
 @pytest.mark.asyncio
