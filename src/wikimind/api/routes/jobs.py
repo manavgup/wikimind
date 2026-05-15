@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import select
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
@@ -35,10 +36,10 @@ async def get_job(
     job_id: str,
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
-    user_id: str = Depends(get_current_user_id),  # noqa: ARG001  — TODO(#344): add job ownership check
+    user_id: str = Depends(get_current_user_id),
 ):
     """Get job by ID."""
-    return await service.get_job(job_id, session)
+    return await service.get_job(job_id, session, user_id=user_id)
 
 
 @router.post("/compile/{source_id}", response_model=JobTriggerResponse)
@@ -49,7 +50,8 @@ async def trigger_compile(
     user_id: str = Depends(get_current_user_id),
 ):
     """Trigger compilation for a source."""
-    source = await session.get(Source, source_id)
+    result = await session.execute(select(Source).where(Source.id == source_id, Source.user_id == user_id))
+    source = result.scalar_one_or_none()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     if not source.file_path:
