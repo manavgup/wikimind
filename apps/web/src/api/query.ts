@@ -160,7 +160,8 @@ export async function* askQuestionStream(
     let detail = `Stream request failed: ${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      if (typeof body?.error?.message === "string") detail = body.error.message;
+      else if (typeof body?.detail === "string") detail = body.detail;
     } catch {
       // ignore parse failures
     }
