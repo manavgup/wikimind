@@ -349,6 +349,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Runtime environment — controls dev-only features like magic-link dev_token.
+    # Defaults to "production" (secure by default). Set WIKIMIND_ENV=development
+    # in local dev to enable dev shortcuts.
+    env: str = "production"
+
     data_dir: str = str(DEFAULT_DATA_DIR)
 
     # Database URL — defaults to SQLite in data_dir. Set to a Postgres URL
@@ -444,6 +449,11 @@ class Settings(BaseSettings):
         # If using a public Upstash endpoint, set WIKIMIND_REDIS_URL to
         # rediss:// explicitly.
         return self
+
+    @property
+    def is_dev(self) -> bool:
+        """Return True when running in development mode."""
+        return self.env.lower() == "development"
 
     @property
     def wiki_dir(self) -> Path:

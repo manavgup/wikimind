@@ -19,6 +19,7 @@ primary_region = "ord"
   WIKIMIND_SERVER__PORT = "7842"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
   WIKIMIND_AUTH__PUBLIC_URL = "https://wikimind.fly.dev"
+  WIKIMIND_ENV = "production"
 
 [http_service]
   internal_port = 7842
