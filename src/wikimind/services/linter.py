@@ -202,18 +202,15 @@ class LinterService:
             session: Async database session.
             kind: The finding kind (determines which table to query).
             finding_id: The finding UUID.
-            user_id: Optional user ID for auth enforcement (ownership
-                verification deferred to Issue #344).
+            user_id: User ID for ownership verification.
 
         Returns:
             DismissFindingResponse confirming dismissal.
 
         Raises:
             WikiMindError: If finding kind is unknown.
-            NotFoundError: If finding not found.
+            NotFoundError: If finding not found or not owned by user.
         """
-        _ = user_id  # TODO(#344): add finding ownership check
-
         now = utcnow_naive()
 
         finding: ContradictionFinding | OrphanFinding | StructuralFinding | None
@@ -227,8 +224,10 @@ class LinterService:
             msg = f"Unknown finding kind: {kind}"
             raise WikiMindError(msg)
 
+        msg = "Finding not found"
         if not finding:
-            msg = "Finding not found"
+            raise NotFoundError(msg)
+        if finding.user_id != user_id:
             raise NotFoundError(msg)
 
         finding.dismissed = True

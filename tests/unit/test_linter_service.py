@@ -293,3 +293,72 @@ async def test_list_reports_with_user_filter(db_session: AsyncSession):
 
     reports = await LinterService().list_reports(db_session, user_id="other-user")
     assert len(reports) == 0
+
+
+async def test_dismiss_own_finding_succeeds(db_session: AsyncSession):
+    """A user can dismiss a finding that belongs to them."""
+    report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=0,
+        orphans_count=1,
+        total_findings=1,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(report)
+    await db_session.commit()
+    await db_session.refresh(report)
+
+    finding = OrphanFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_id="a",
+        article_title="T",
+        description="desc",
+        content_hash="own-hash",
+    )
+    db_session.add(finding)
+    await db_session.commit()
+    await db_session.refresh(finding)
+
+    result = await LinterService().dismiss_finding(db_session, LintFindingKind.ORPHAN, finding.id, user_id=TEST_USER_ID)
+    assert result.dismissed is True
+    assert result.finding_id == finding.id
+
+
+async def test_dismiss_other_users_finding_raises_not_found(db_session: AsyncSession):
+    """A user cannot dismiss another user's finding — returns NotFoundError."""
+    report = LintReport(
+        status=LintReportStatus.COMPLETE,
+        contradictions_count=1,
+        orphans_count=0,
+        total_findings=1,
+        dismissed_count=0,
+        user_id=TEST_USER_ID,
+    )
+    db_session.add(report)
+    await db_session.commit()
+    await db_session.refresh(report)
+
+    finding = ContradictionFinding(
+        report_id=report.id,
+        user_id=TEST_USER_ID,
+        article_a_id="a",
+        article_b_id="b",
+        article_a_claim="X",
+        article_b_claim="Y",
+        llm_confidence="high",
+        description="desc",
+        content_hash="other-hash",
+    )
+    db_session.add(finding)
+    await db_session.commit()
+    await db_session.refresh(finding)
+
+    with pytest.raises(NotFoundError):
+        await LinterService().dismiss_finding(
+            db_session,
+            LintFindingKind.CONTRADICTION,
+            finding.id,
+            user_id="attacker-user",
+        )
