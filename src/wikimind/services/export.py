@@ -6,7 +6,6 @@ use the LLM router to rewrite content into the target format.
 """
 
 import functools
-import html
 import re
 
 import structlog
@@ -246,7 +245,10 @@ def _replace_link(match: re.Match[str]) -> str:
     """Regex replacement callback for markdown links with URL validation."""
     text, url = match.group(1), match.group(2)
     if _sanitize_url(url) is not None:
-        return f'<a href="{html.escape(url, quote=True)}">{text}</a>'
+        # URL is already &/</>-escaped by _escape_html; only escape quotes
+        # to prevent attribute breakout (html.escape would double-escape &amp;)
+        safe_url = url.replace('"', "&quot;")
+        return f'<a href="{safe_url}">{text}</a>'
     # Unsafe scheme — render as plain text
     return text
 
