@@ -492,11 +492,12 @@ class SearchService:
             staleness: Filter by staleness bucket (low, medium, high).
             sort: Sort order (relevance, recency).
         """
+        settings = get_settings()
         fts_response = await search_articles(
             session,
             query,
             user_id,
-            limit=1000,
+            limit=settings.search.fts_max_candidates,
             offset=0,
         )
         if not fts_response.results:
@@ -550,11 +551,12 @@ class SearchService:
             session: Database session.
             user_id: Current user.
         """
+        settings = get_settings()
         fts_response = await search_articles(
             session,
             query,
             user_id,
-            limit=1000,
+            limit=settings.search.fts_max_candidates,
             offset=0,
         )
         if not fts_response.results:
