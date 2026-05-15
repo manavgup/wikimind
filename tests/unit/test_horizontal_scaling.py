@@ -171,11 +171,12 @@ class TestBudgetFlagRedisDedup:
         mock_redis.set = AsyncMock()
 
         with patch.object(llm_router_mod, "_get_budget_redis", return_value=mock_redis):
-            await router._set_budget_flag("_budget_warning_sent", (2026, 4))
+            await router._set_budget_flag("_budget_warning_sent", (2026, 4), TEST_USER_ID)
 
         mock_redis.set.assert_awaited_once()
         call_args = mock_redis.set.call_args
         assert "2026:4" in call_args[0][0]
+        assert TEST_USER_ID in call_args[0][0]
         assert call_args[1]["ex"] == 35 * 86400
 
     async def test_budget_flag_is_set_checks_redis(self) -> None:
@@ -184,7 +185,7 @@ class TestBudgetFlagRedisDedup:
         mock_redis.exists = AsyncMock(return_value=1)
 
         with patch.object(llm_router_mod, "_get_budget_redis", return_value=mock_redis):
-            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4))
+            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4), TEST_USER_ID)
 
         assert result is True
         mock_redis.exists.assert_awaited_once()
@@ -193,18 +194,18 @@ class TestBudgetFlagRedisDedup:
         router = _make_router()
 
         with patch.object(llm_router_mod, "_get_budget_redis", return_value=None):
-            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4))
+            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4), TEST_USER_ID)
 
         # No local flag set, no Redis — should be False
         assert result is False
 
     async def test_budget_flag_local_cache_short_circuits(self) -> None:
         router = _make_router()
-        router._budget_warning_sent = (2026, 4)
+        router._budget_warning_sent[TEST_USER_ID] = (2026, 4)
 
         # Should return True without even checking Redis
         with patch.object(llm_router_mod, "_get_budget_redis", return_value=None):
-            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4))
+            result = await router._budget_flag_is_set("_budget_warning_sent", (2026, 4), TEST_USER_ID)
 
         assert result is True
 
