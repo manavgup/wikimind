@@ -23,7 +23,7 @@ from datetime import UTC, datetime, timedelta
 import jwt as pyjwt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
@@ -389,15 +389,20 @@ _TOKEN_PAGE_HTML = """\
   <div id="loading" class="info">Checking authentication...</div>
 </div>
 
-<script>
+<script src="/auth/tokens.js"></script>
+</body>
+</html>
+"""
+
+_TOKEN_PAGE_JS = """\
 async function checkAuth() {
   try {
-    const resp = await fetch('/auth/me', {
+    var resp = await fetch('/auth/me', {
       headers: { 'Accept': 'application/json' },
       credentials: 'same-origin'
     });
     if (resp.ok) {
-      const user = await resp.json();
+      var user = await resp.json();
       if (user.id === 'anonymous' || !user.email) {
         showLogin();
       } else {
@@ -406,7 +411,7 @@ async function checkAuth() {
     } else {
       showLogin();
     }
-  } catch {
+  } catch (e) {
     showLogin();
   }
 }
@@ -423,14 +428,14 @@ function showTokenForm(user) {
 }
 
 async function generateToken() {
-  const btn = document.getElementById('generate-btn');
-  const errEl = document.getElementById('form-error');
+  var btn = document.getElementById('generate-btn');
+  var errEl = document.getElementById('form-error');
   errEl.classList.add('hidden');
   btn.disabled = true;
   btn.textContent = 'Generating...';
 
   try {
-    const resp = await fetch('/auth/token', {
+    var resp = await fetch('/auth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       credentials: 'same-origin',
@@ -440,10 +445,11 @@ async function generateToken() {
       })
     });
     if (!resp.ok) {
-      const data = await resp.json().catch(() => null);
-      throw new Error(data?.error?.message || data?.detail || 'Failed to create token');
+      var data = await resp.json().catch(function() { return null; });
+      throw new Error((data && data.error && data.error.message) || \
+(data && data.detail) || 'Failed to create token');
     }
-    const data = await resp.json();
+    var data = await resp.json();
     document.getElementById('token-value').textContent = data.access_token;
     document.getElementById('token-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
@@ -457,12 +463,13 @@ async function generateToken() {
 }
 
 function copyToken() {
-  const token = document.getElementById('token-value').textContent;
-  navigator.clipboard.writeText(token).then(() => {
-    const btn = document.querySelector('.btn-copy');
+  var token = document.getElementById('token-value').textContent;
+  navigator.clipboard.writeText(token).then(function() {
+    var btn = document.querySelector('.btn-copy');
     btn.textContent = 'Copied!';
     btn.style.backgroundColor = '#16a34a';
-    setTimeout(() => { btn.textContent = 'Copy to Clipboard'; btn.style.backgroundColor = ''; }, 2000);
+    setTimeout(function() { btn.textContent = 'Copy to Clipboard'; \
+btn.style.backgroundColor = ''; }, 2000);
   });
 }
 
@@ -472,9 +479,6 @@ function resetForm() {
 }
 
 checkAuth();
-</script>
-</body>
-</html>
 """
 
 
@@ -487,6 +491,16 @@ async def token_page() -> HTMLResponse:
     Authentication is handled client-side via the session cookie.
     """
     return HTMLResponse(content=_TOKEN_PAGE_HTML)
+
+
+@router.get("/tokens.js")
+async def token_page_js() -> PlainTextResponse:
+    """Serve the JavaScript for the token generation page.
+
+    Extracted from the HTML page so that Content-Security-Policy can
+    use ``script-src 'self'`` without ``'unsafe-inline'``.
+    """
+    return PlainTextResponse(content=_TOKEN_PAGE_JS, media_type="application/javascript")
 
 
 @router.post("/token")

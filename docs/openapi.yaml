@@ -3323,6 +3323,24 @@ paths:
             text/html:
               schema:
                 type: string
+  /auth/tokens.js:
+    get:
+      tags:
+      - Auth
+      summary: Token Page Js
+      description: 'Serve the JavaScript for the token generation page.
+
+
+        Extracted from the HTML page so that Content-Security-Policy can
+
+        use ``script-src ''self''`` without ``''unsafe-inline''``.'
+      operationId: token_page_js_auth_tokens_js_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /auth/token:
     post:
       tags:
