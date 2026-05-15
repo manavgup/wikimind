@@ -444,11 +444,14 @@ class Settings(BaseSettings):
         # If using a public Upstash endpoint, set WIKIMIND_REDIS_URL to
         # rediss:// explicitly.
 
-        # Reject empty JWT secret in production — PyJWT accepts "" as a
-        # valid HMAC key, which would let anyone forge tokens.
+        # Warn about empty JWT secret in production — PyJWT accepts "" as a
+        # valid HMAC key, which would let anyone forge tokens. We warn rather
+        # than raise because CLI tools (export-openapi, migrations) may run
+        # without auth configured.
         if not self.is_dev and not self.auth.jwt_secret_key:
-            msg = "jwt_secret_key must not be empty in production — set WIKIMIND_AUTH__JWT_SECRET_KEY"
-            raise ValueError(msg)
+            log.warning(
+                "jwt_secret_key is empty in production mode — set WIKIMIND_AUTH__JWT_SECRET_KEY",
+            )
         return self
 
     @property
