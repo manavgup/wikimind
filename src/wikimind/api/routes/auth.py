@@ -259,11 +259,11 @@ async def request_magic_link(
     log.info("magic_link_requested", email=body.email)
 
     # Always return the same message to avoid leaking whether the email exists.
-    # Include the dev_token for non-production use (CLI, testing).
+    # Only include dev_token in development mode (secure by default).
     return MagicLinkResponse(
         status="ok",
         message="If that email is registered, a login link has been sent",
-        dev_token=token,
+        dev_token=token if settings.is_dev else None,
     )
 
 

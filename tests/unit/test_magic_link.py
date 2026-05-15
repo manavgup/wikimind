@@ -24,8 +24,10 @@ _service = UserService()
 
 
 @pytest.mark.asyncio
-async def test_request_magic_link_returns_ok(client):
-    """POST /auth/magic-link should return 200 with a consistent message."""
+async def test_request_magic_link_returns_ok(client, monkeypatch):
+    """POST /auth/magic-link should return 200 with dev_token in dev mode."""
+    monkeypatch.setattr(get_settings(), "env", "development")
+
     response = await client.post(
         "/auth/magic-link",
         json={"email": "test@example.com"},
@@ -35,6 +37,19 @@ async def test_request_magic_link_returns_ok(client):
     assert body["status"] == "ok"
     assert "login link" in body["message"]
     assert body["dev_token"] is not None
+
+
+@pytest.mark.asyncio
+async def test_request_magic_link_hides_dev_token_in_production(client):
+    """POST /auth/magic-link should NOT return dev_token in production (default)."""
+    response = await client.post(
+        "/auth/magic-link",
+        json={"email": "test@example.com"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["dev_token"] is None
 
 
 @pytest.mark.asyncio
@@ -56,10 +71,11 @@ async def test_request_magic_link_disabled(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_magic_link_verify_creates_session(client):
+async def test_magic_link_verify_creates_session(client, monkeypatch):
     """Verifying a valid token should return an access_token and user info."""
     settings = get_settings()
     settings.auth.jwt_secret_key = TEST_JWT_SECRET
+    monkeypatch.setattr(settings, "env", "development")
 
     # Request a magic link
     response = await client.post(
@@ -144,10 +160,11 @@ async def test_magic_link_verify_rejects_tampered_token(client):
 
 
 @pytest.mark.asyncio
-async def test_magic_link_verify_creates_user_if_not_exists(client, db_session: AsyncSession):
+async def test_magic_link_verify_creates_user_if_not_exists(client, db_session: AsyncSession, monkeypatch):
     """Verifying a magic link for a new email should auto-create the user."""
     settings = get_settings()
     settings.auth.jwt_secret_key = TEST_JWT_SECRET
+    monkeypatch.setattr(settings, "env", "development")
 
     # Request and verify a magic link for a new user
     response = await client.post(
