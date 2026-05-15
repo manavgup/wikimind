@@ -326,7 +326,11 @@ class ConceptCompiler:
     async def _find_existing_concept_article(self, concept_name: str, session: AsyncSession) -> Article | None:
         slug = f"concept-{slugify(concept_name)}"
         result = await session.execute(
-            select(Article).where(Article.slug == slug, Article.page_type == PageType.CONCEPT)
+            select(Article).where(
+                Article.slug == slug,
+                Article.page_type == PageType.CONCEPT,
+                Article.user_id == self.user_id,
+            )
         )
         return result.scalar_one_or_none()
 
@@ -439,7 +443,11 @@ provider: {self._last_provider_used or "unknown"}
                 continue
             target_slug = f"concept-{normalized}"
             result = await session.execute(
-                select(Article).where(Article.slug == target_slug, Article.page_type == PageType.CONCEPT)
+                select(Article).where(
+                    Article.slug == target_slug,
+                    Article.page_type == PageType.CONCEPT,
+                    Article.user_id == user_id,
+                )
             )
             target = result.scalar_one_or_none()
             if target is None:

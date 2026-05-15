@@ -204,7 +204,11 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession, u
     # Look up existing concept page.
     slug = f"concept-{slugify(concept.name)}"
     existing_result = await session.execute(
-        select(Article).where(Article.slug == slug, Article.page_type == PageType.CONCEPT)
+        select(Article).where(
+            Article.slug == slug,
+            Article.page_type == PageType.CONCEPT,
+            Article.user_id == user_id,
+        )
     )
     existing = existing_result.scalar_one_or_none()
     if existing is None:
