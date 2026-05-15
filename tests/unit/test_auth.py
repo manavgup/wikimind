@@ -6,14 +6,15 @@ import hmac
 import inspect
 import time
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import jwt
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import TEST_JWT_SECRET
-from wikimind.api.deps import ANONYMOUS_USER_ID, get_ws_user_id
+from tests.conftest import TEST_JWT_SECRET, TEST_USER_ID
+from wikimind.api.deps import get_ws_user_id
 from wikimind.api.routes import ws as ws_mod
 from wikimind.api.routes.auth import (
     _consume_oauth_state,
@@ -77,51 +78,52 @@ def test_create_jwt_expiry():
 
 
 # ---------------------------------------------------------------------------
-# Auth middleware — pass-through when disabled
+# Auth middleware — dev mode auto-auth
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_middleware_passthrough_when_disabled(client):
-    """When auth.enabled=False, all requests pass through without a token."""
+async def test_middleware_auto_auth_in_test_mode(client):
+    """In test mode, all requests are auto-authenticated as TEST_USER_ID."""
     response = await client.get("/health")
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
-async def test_middleware_sets_anonymous_user_id_when_disabled(client):
-    """When auth.enabled=False, get_current_user_id returns 'anonymous'."""
-    # The /health endpoint succeeds without auth — that proves the middleware passed through
-    response = await client.get("/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-
-
 # ---------------------------------------------------------------------------
-# Auth middleware — enabled mode
+# Auth middleware — production mode (JWT required)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_middleware_returns_401_when_no_token(client, monkeypatch):
-    """When auth is enabled, missing token should return 401."""
+@pytest.fixture
+async def _prod_client(monkeypatch):
+    """ASGI client with the real (un-patched) AuthMiddleware in production mode."""
+    from httpx import ASGITransport
+    from httpx import AsyncClient as HttpxClient
+
+    from wikimind.main import app
+
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
-    response = await client.get("/api/wiki/articles")
+    transport = ASGITransport(app=app)
+    async with HttpxClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_middleware_returns_401_when_no_token(_prod_client):
+    """Missing token should return 401 in production mode."""
+    response = await _prod_client.get("/api/wiki/articles")
     assert response.status_code == 401
     body = response.json()
     assert body["error"]["code"] == "UNAUTHORIZED"
 
 
 @pytest.mark.asyncio
-async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
+async def test_middleware_returns_401_when_token_expired(_prod_client):
     """An expired JWT should return a TOKEN_EXPIRED error."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
     expired_payload = {
         "sub": "user-1",
         "email": "alice@example.com",
@@ -130,7 +132,7 @@ async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
     }
     expired_token = jwt.encode(expired_payload, TEST_JWT_SECRET, algorithm="HS256")
 
-    response = await client.get(
+    response = await _prod_client.get(
         "/api/wiki/articles",
         headers={"Authorization": f"Bearer {expired_token}"},
     )
@@ -140,19 +142,15 @@ async def test_middleware_returns_401_when_token_expired(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_middleware_returns_401_when_token_invalid(client, monkeypatch):
+async def test_middleware_returns_401_when_token_invalid(_prod_client):
     """A token signed with the wrong key should return INVALID_TOKEN."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
     bad_token = jwt.encode(
         {"sub": "user-1", "email": "a@b.com", "exp": datetime.now(UTC) + timedelta(hours=1)},
         "wrong-secret-key-for-unit-tests!!",
         algorithm="HS256",
     )
 
-    response = await client.get(
+    response = await _prod_client.get(
         "/api/wiki/articles",
         headers={"Authorization": f"Bearer {bad_token}"},
     )
@@ -162,12 +160,8 @@ async def test_middleware_returns_401_when_token_invalid(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_middleware_passes_with_valid_token(client, monkeypatch):
+async def test_middleware_passes_with_valid_token(_prod_client):
     """A valid JWT should allow the request through."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
     valid_token = jwt.encode(
         {
             "sub": "user-1",
@@ -178,7 +172,7 @@ async def test_middleware_passes_with_valid_token(client, monkeypatch):
         algorithm="HS256",
     )
 
-    response = await client.get(
+    response = await _prod_client.get(
         "/health",
         headers={"Authorization": f"Bearer {valid_token}"},
     )
@@ -186,14 +180,9 @@ async def test_middleware_passes_with_valid_token(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_middleware_skips_exempt_paths(client, monkeypatch):
-    """Exempt paths should not require authentication even when auth is enabled."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
-    # /health is exempt
-    response = await client.get("/health")
+async def test_middleware_skips_exempt_paths(_prod_client):
+    """Exempt paths should not require authentication even in production mode."""
+    response = await _prod_client.get("/health")
     assert response.status_code == 200
 
 
@@ -262,64 +251,22 @@ def test_assets_png_path_exempt_via_prefix():
 
 
 @pytest.mark.asyncio
-async def test_auth_me_returns_user_profile(client, db_session: AsyncSession, monkeypatch):
+async def test_auth_me_returns_user_profile(client):
     """GET /auth/me should return the authenticated user's profile."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
-    # Create a user directly in the DB
-    user = User(
-        id="user-42",
-        email="alice@example.com",
-        name="Alice",
-        avatar_url="https://example.com/avatar.png",
-        auth_provider="google",
-        auth_provider_id="g-999",
-    )
-    db_session.add(user)
-    await db_session.commit()
-
-    token = jwt.encode(
-        {
-            "sub": "user-42",
-            "email": "alice@example.com",
-            "exp": datetime.now(UTC) + timedelta(hours=1),
-        },
-        TEST_JWT_SECRET,
-        algorithm="HS256",
-    )
-
-    response = await client.get(
-        "/auth/me",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    # The client fixture auto-authenticates as TEST_USER_ID and seeds the user row.
+    response = await client.get("/auth/me")
     assert response.status_code == 200
     body = response.json()
-    assert body["id"] == "user-42"
-    assert body["email"] == "alice@example.com"
-    assert body["name"] == "Alice"
+    assert body["id"] == TEST_USER_ID
+    assert body["email"] == "test@wikimind.local"
 
 
 @pytest.mark.asyncio
-async def test_auth_me_returns_anonymous_when_auth_disabled(client, monkeypatch):
-    """GET /auth/me with auth disabled returns anonymous stub user."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", False)
-
-    response = await client.get("/auth/me")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == ANONYMOUS_USER_ID
-
-
-async def test_auth_me_returns_401_when_auth_enabled_no_token(client, monkeypatch):
-    """GET /auth/me with auth enabled but no token returns 401."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
-    response = await client.get("/auth/me")
+async def test_auth_me_returns_401_when_no_user(_prod_client):
+    """GET /auth/me with no authenticated user returns 401."""
+    # /auth/me is an SPA route when Accept includes text/html (exempt from JWT).
+    # Without auth the middleware sets user_id=None → the endpoint returns 401.
+    response = await _prod_client.get("/auth/me")
     assert response.status_code == 401
 
 
@@ -380,27 +327,18 @@ def _make_ws_mock(
     ws = MagicMock()
     ws.cookies = cookies or {}
     ws.query_params = query_params or {}
+    ws.close = AsyncMock()
     return ws
 
 
 @pytest.mark.asyncio
-async def test_get_ws_user_id_returns_anonymous_when_auth_disabled(monkeypatch):
-    """When auth is disabled, get_ws_user_id should return ANONYMOUS_USER_ID."""
-    settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", False)
-
-    ws = _make_ws_mock()
-    result = await get_ws_user_id(ws)
-    assert result == ANONYMOUS_USER_ID
-
-
-@pytest.mark.asyncio
 async def test_get_ws_user_id_extracts_user_from_jwt_cookie(monkeypatch):
-    """When auth is enabled, get_ws_user_id should decode user_id from the session cookie."""
+    """get_ws_user_id should decode user_id from the session cookie."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
     token = jwt.encode(
         {
@@ -421,9 +359,10 @@ async def test_get_ws_user_id_extracts_user_from_jwt_cookie(monkeypatch):
 async def test_get_ws_user_id_falls_back_to_token_query_param(monkeypatch):
     """When no cookie is present, get_ws_user_id should try the ``token`` query param."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
     token = jwt.encode(
         {
@@ -440,24 +379,26 @@ async def test_get_ws_user_id_falls_back_to_token_query_param(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_ws_user_id_returns_anonymous_for_missing_token(monkeypatch):
-    """When auth is enabled but no token is provided, return ANONYMOUS_USER_ID."""
+async def test_get_ws_user_id_rejects_missing_token(monkeypatch):
+    """When no token is provided, get_ws_user_id should reject the connection."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
     ws = _make_ws_mock()
-    result = await get_ws_user_id(ws)
-    assert result == ANONYMOUS_USER_ID
+    with pytest.raises(HTTPException):
+        await get_ws_user_id(ws)
 
 
 @pytest.mark.asyncio
-async def test_get_ws_user_id_returns_anonymous_for_invalid_token(monkeypatch):
-    """An invalid JWT should result in ANONYMOUS_USER_ID, not an exception."""
+async def test_get_ws_user_id_rejects_invalid_token(monkeypatch):
+    """An invalid JWT should cause get_ws_user_id to reject the connection."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
     bad_token = jwt.encode(
         {"sub": "user-1", "exp": datetime.now(UTC) + timedelta(hours=1)},
@@ -466,17 +407,18 @@ async def test_get_ws_user_id_returns_anonymous_for_invalid_token(monkeypatch):
     )
 
     ws = _make_ws_mock(cookies={settings.auth.cookie_name: bad_token})
-    result = await get_ws_user_id(ws)
-    assert result == ANONYMOUS_USER_ID
+    with pytest.raises(HTTPException):
+        await get_ws_user_id(ws)
 
 
 @pytest.mark.asyncio
-async def test_get_ws_user_id_returns_anonymous_for_expired_token(monkeypatch):
-    """An expired JWT should result in ANONYMOUS_USER_ID."""
+async def test_get_ws_user_id_rejects_expired_token(monkeypatch):
+    """An expired JWT should cause get_ws_user_id to reject the connection."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
     monkeypatch.setattr(settings.auth, "jwt_algorithm", "HS256")
+    monkeypatch.setattr(settings.auth, "dev_auto_auth", False)
+    monkeypatch.setattr(settings, "env", "production")
 
     expired_token = jwt.encode(
         {
@@ -489,8 +431,8 @@ async def test_get_ws_user_id_returns_anonymous_for_expired_token(monkeypatch):
     )
 
     ws = _make_ws_mock(cookies={settings.auth.cookie_name: expired_token})
-    result = await get_ws_user_id(ws)
-    assert result == ANONYMOUS_USER_ID
+    with pytest.raises(HTTPException):
+        await get_ws_user_id(ws)
 
 
 @pytest.mark.asyncio
@@ -653,7 +595,6 @@ async def test_token_page_js_served(client):
 async def test_login_sets_next_cookie_for_safe_path(client, monkeypatch):
     """GET /auth/login/google?next=/auth/tokens should set a wikimind_next cookie."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
@@ -667,7 +608,6 @@ async def test_login_sets_next_cookie_for_safe_path(client, monkeypatch):
 async def test_login_ignores_unsafe_next_url(client, monkeypatch):
     """GET /auth/login/google?next=//evil.com should NOT set a wikimind_next cookie."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
@@ -685,7 +625,6 @@ async def test_login_ignores_unsafe_next_url(client, monkeypatch):
 async def test_login_uses_x_forwarded_proto(client, monkeypatch):
     """Login redirect should use X-Forwarded-Proto for the callback URL."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "google_client_id", "fake-id")
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
@@ -725,23 +664,15 @@ def _auth_header(
 async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, monkeypatch):
     """POST /auth/token should return a valid JWT with the expected response shape."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
 
-    user = User(
-        id="user-1",
-        email="test@example.com",
-        name="Test User",
-        auth_provider="google",
-        auth_provider_id="g-1",
-    )
-    db_session.add(user)
-    await db_session.commit()
+    # The client fixture auto-authenticates as TEST_USER_ID, and we need
+    # a User row for that ID to exist for the token endpoint.
+    # (The client fixture already seeds it.)
 
     response = await client.post(
         "/auth/token",
         json={"name": "my-cli-token", "expires_in_days": 90},
-        headers=_auth_header(),
     )
     assert response.status_code == 200
     body = response.json()
@@ -764,23 +695,11 @@ async def test_create_api_token_returns_jwt(client, db_session: AsyncSession, mo
 async def test_api_token_has_correct_claims(client, db_session: AsyncSession, monkeypatch):
     """The API token JWT should contain all expected claims."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
-    user = User(
-        id="user-1",
-        email="test@example.com",
-        name="Test User",
-        auth_provider="google",
-        auth_provider_id="g-1",
-    )
-    db_session.add(user)
-    await db_session.commit()
 
     response = await client.post(
         "/auth/token",
         json={"name": "automation"},
-        headers=_auth_header(),
     )
     assert response.status_code == 200
 
@@ -797,33 +716,20 @@ async def test_api_token_has_correct_claims(client, db_session: AsyncSession, mo
     assert "jti" in decoded
     assert "iat" in decoded
     assert "exp" in decoded
-    assert decoded["user"]["id"] == "user-1"
-    assert decoded["user"]["email"] == "test@example.com"
-    assert decoded["user"]["name"] == "Test User"
+    assert decoded["user"]["id"] == TEST_USER_ID
+    assert decoded["user"]["email"] == "test@wikimind.local"
 
 
 @pytest.mark.asyncio
 async def test_api_token_expires_in_requested_days(client, db_session: AsyncSession, monkeypatch):
     """The API token exp claim should match the requested expires_in_days."""
     settings = get_settings()
-    monkeypatch.setattr(settings.auth, "enabled", True)
     monkeypatch.setattr(settings.auth, "jwt_secret_key", TEST_JWT_SECRET)
-
-    user = User(
-        id="user-1",
-        email="test@example.com",
-        name="Test User",
-        auth_provider="google",
-        auth_provider_id="g-1",
-    )
-    db_session.add(user)
-    await db_session.commit()
 
     days = 60
     response = await client.post(
         "/auth/token",
         json={"name": "long-token", "expires_in_days": days},
-        headers=_auth_header(),
     )
     assert response.status_code == 200
 

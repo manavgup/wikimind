@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Job, JobStatus, JobType, Source, SourceType
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ class TestGetJobOwnership:
             session_factory,
             Job(
                 id="job-owned",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
                 job_type=JobType.COMPILE_SOURCE,
                 status=JobStatus.QUEUED,
             ),
@@ -86,7 +86,7 @@ class TestTriggerCompileOwnership:
                 source_type=SourceType.TEXT,
                 title="Mine",
                 file_path="src-owned.txt",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             ),
         )
         mock_bg = MagicMock()

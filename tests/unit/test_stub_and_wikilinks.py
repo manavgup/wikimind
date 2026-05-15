@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlmodel import select
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, PageType
 from wikimind.services.wiki import WikiService
 from wikimind.storage import get_wiki_storage
@@ -17,10 +17,9 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-from tests.conftest import TEST_USER_ID
 
-# When auth is disabled (as in tests), get_current_user_id returns ANONYMOUS_USER_ID.
-_CLIENT_USER_ID = ANONYMOUS_USER_ID
+# When auth is disabled (as in tests), get_current_user_id returns TEST_USER_ID.
+_CLIENT_USER_ID = TEST_USER_ID
 
 
 # ---------------------------------------------------------------------------

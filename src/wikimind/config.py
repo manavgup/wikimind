@@ -291,9 +291,13 @@ class EmbeddingConfig(BaseModel):
 
 
 class AuthConfig(BaseModel):
-    """OAuth2 authentication configuration."""
+    """OAuth2 authentication configuration.
 
-    enabled: bool = False
+    Auth is always on. In development mode (``is_dev``), the system can
+    auto-provision and auto-authenticate a dev user so that no manual
+    login is needed for local development.
+    """
+
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 1440  # 24 hours
@@ -313,19 +317,10 @@ class AuthConfig(BaseModel):
     magic_link_enabled: bool = True
     magic_link_ttl_seconds: int = 600  # 10 minutes
     magic_link_token_length: int = 32  # bytes for secrets.token_urlsafe
-
-    @model_validator(mode="after")
-    def _reject_empty_secret_when_enabled(self) -> AuthConfig:
-        """Prevent auth bypass via empty HMAC secret.
-
-        PyJWT accepts an empty string as a valid HMAC key, so an attacker
-        could forge tokens if the operator enables auth without setting a
-        real secret.
-        """
-        if self.enabled and not self.jwt_secret_key:
-            msg = "jwt_secret_key must not be empty when auth is enabled — set WIKIMIND_AUTH__JWT_SECRET_KEY"
-            raise ValueError(msg)
-        return self
+    # Dev-mode auto-authentication: when is_dev AND dev_auto_auth, requests
+    # are auto-authenticated as the dev user (no login required).
+    dev_auto_auth: bool = True
+    dev_user_email: str = "dev@wikimind.local"
 
 
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
@@ -448,6 +443,15 @@ class Settings(BaseSettings):
         # that the private endpoint rejects TLS handshakes.
         # If using a public Upstash endpoint, set WIKIMIND_REDIS_URL to
         # rediss:// explicitly.
+
+        # Warn about empty JWT secret in production — PyJWT accepts "" as a
+        # valid HMAC key, which would let anyone forge tokens. We warn rather
+        # than raise because CLI tools (export-openapi, migrations) may run
+        # without auth configured.
+        if not self.is_dev and not self.auth.jwt_secret_key:
+            log.warning(
+                "jwt_secret_key is empty in production mode — set WIKIMIND_AUTH__JWT_SECRET_KEY",
+            )
         return self
 
     @property

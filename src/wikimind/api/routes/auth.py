@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import ANONYMOUS_USER_ID, require_user_id
+from wikimind.api.deps import require_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import (
@@ -222,10 +222,7 @@ async def me(
     service: UserService = Depends(get_user_service),
 ) -> UserProfileResponse:
     """Return current user profile, auto-provisioning if needed."""
-    settings = get_settings()
-    if not request.state.user_id:
-        if not settings.auth.enabled:
-            return UserProfileResponse(id=ANONYMOUS_USER_ID, email="", name="Anonymous", avatar_url=None)
+    if not getattr(request.state, "user_id", None):
         raise HTTPException(status_code=401)
 
     email = getattr(request.state, "user_email", None)
@@ -403,7 +400,7 @@ async function checkAuth() {
     });
     if (resp.ok) {
       var user = await resp.json();
-      if (user.id === 'anonymous' || !user.email) {
+      if (!user.email) {
         showLogin();
       } else {
         showTokenForm(user);

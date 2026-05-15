@@ -10,7 +10,6 @@ from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.engine.confidence import compute_staleness
 from wikimind.errors import NotFoundError
 from wikimind.models import (
@@ -145,7 +144,7 @@ async def test_refresh_endpoint(client, session_factory):
                 slug="api-refresh-test",
                 title="API Refresh Test",
                 file_path="test/api-refresh-test.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
                 last_reinforced_at=old_time,
             )
         )
@@ -182,7 +181,7 @@ async def test_list_articles_includes_staleness(client, session_factory):
                 slug="staleness-list-test",
                 title="Staleness List Test",
                 file_path="test/staleness-list.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
                 last_reinforced_at=utcnow_naive(),
             )
         )

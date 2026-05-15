@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tests.conftest import TEST_USER_ID
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import (
     Article,
     CompletionResponse,
@@ -251,7 +250,7 @@ async def _seed_article(db_session, tmp_path: Path) -> Article:
     """Create an article on disk and in the database."""
     from wikimind.config import get_settings as _gs
 
-    wiki_dir = Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir = Path(_gs().data_dir) / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     (wiki_dir / "test-export.md").write_text(
         "# Test Export Article\n\n"
@@ -267,7 +266,7 @@ async def _seed_article(db_session, tmp_path: Path) -> Article:
         title="Test Export Article",
         file_path="test-export.md",
         summary="An article about AI agents.",
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(article)
     await db_session.commit()

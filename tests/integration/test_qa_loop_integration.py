@@ -36,7 +36,7 @@ from wikimind.models import (
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 
 _FAKE_QA_SETTINGS = SimpleNamespace(
     data_dir="/tmp",
@@ -67,7 +67,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # agent takes the _query_llm branch (not the empty-context shortcut).
     from wikimind.config import get_settings as _gs
 
-    wiki_dir = Path(_gs().data_dir) / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir = Path(_gs().data_dir) / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     (wiki_dir / "knowledge.md").write_text(
         "# Knowledge\n\nThe wikimind project answers questions from sources.",
@@ -78,7 +78,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
         title="Knowledge",
         file_path="knowledge.md",
         summary="seed article",
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(seed)
     await db_session.commit()
@@ -135,7 +135,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     # Real call — must not raise. Pre-fix this raised ValueError because
     # ConfidenceLevel("high") is not a member of the enum.
     # answer(user_id="anonymous") now returns a tuple of (Query, Conversation).
-    query, _, _ = await agent.answer(request, db_session, user_id=ANONYMOUS_USER_ID)
+    query, _, _ = await agent.answer(request, db_session, user_id=TEST_USER_ID)
 
     # Query row was persisted with the agent-confidence string preserved.
     assert query.id is not None
@@ -193,7 +193,7 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
         title="Seed Article",
         file_path="/dev/null",
         summary="seed",
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(seed)
     await db_session.commit()
@@ -203,13 +203,13 @@ async def test_multi_turn_conversation_includes_prior_context_in_prompt(
     agent._retrieve_context = AsyncMock(return_value=[{"title": "Seed Article", "content": "seed content", "score": 1}])
 
     # Q1 — starts a new conversation
-    _q1, conv, _ = await agent.answer(QueryRequest(question="What is X?"), db_session, user_id=ANONYMOUS_USER_ID)
+    _q1, conv, _ = await agent.answer(QueryRequest(question="What is X?"), db_session, user_id=TEST_USER_ID)
 
     # Q2 — continues the same conversation
     _q2, _, _ = await agent.answer(
         QueryRequest(question="How does it work?", conversation_id=conv.id),
         db_session,
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
 
     # Both LLM calls must have been captured
@@ -273,7 +273,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
         agent = QAAgent()
 
     # Seed a fixture article on disk so retrieval has something real to find
-    wiki_dir = data_dir / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir = data_dir / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     (wiki_dir / "fixture-source.md").write_text(
         "# Fixture Source\n\nThe Karpathy loop is the core mechanism of WikiMind."
@@ -289,7 +289,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
             summary="A fixture article for the loop closure test.",
             created_at=utcnow_naive(),
             updated_at=utcnow_naive(),
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
@@ -317,7 +317,7 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     q_a, _conv_a, _score_a = await agent.answer(
         QueryRequest(question="How does the Karpathy loop work?", file_back=True),
         db_session,
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
 
     # The production conditional must have fired: filed_back and filed_article_id
@@ -328,12 +328,12 @@ async def test_filed_back_conversation_is_retrievable_by_next_query(
     # The filed-back article must now be in the Article table and on disk.
     filed_article = await db_session.get(Article, q_a.filed_article_id)
     assert filed_article is not None
-    assert (data_dir / "wiki" / ANONYMOUS_USER_ID / filed_article.file_path).exists()
+    assert (data_dir / "wiki" / TEST_USER_ID / filed_article.file_path).exists()
 
     # Phase 3: Verify the filed-back article is retrievable by a future question.
     # Use the agent's own retrieval helper to confirm the filed-back article
     # would be found by a related future question.
-    retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session, user_id=ANONYMOUS_USER_ID)
+    retrieved = await agent._retrieve_context("Tell me about the Karpathy loop", db_session, user_id=TEST_USER_ID)
     retrieved_titles = {r["title"] for r in retrieved}
 
     assert "How does the Karpathy loop work?" in retrieved_titles, (
@@ -381,7 +381,7 @@ async def test_auto_file_back_creates_answer_article_when_flag_on(
         title="Seed Article",
         file_path=str(seed_md),
         summary="seed",
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(seed)
     await db_session.commit()
@@ -413,7 +413,7 @@ async def test_auto_file_back_creates_answer_article_when_flag_on(
     query, _conv, score = await agent.answer(
         QueryRequest(question="How does wikimind work?", file_back=False),
         db_session,
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
 
     assert score is not None

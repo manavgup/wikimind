@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tests.conftest import TEST_USER_ID
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.errors import NotFoundError, QueryError
 from wikimind.models import (
     Article,
@@ -266,7 +265,7 @@ class TestCrystallizeConversation:
 class TestCrystallizeEndpoint:
     async def test_crystallize_endpoint_returns_200(self, client, db_session):
         """POST /query/conversations/{id}/crystallize returns 200 with article data."""
-        await _seed_conversation(db_session, conv_id="conv-ep-1", user_id=ANONYMOUS_USER_ID)
+        await _seed_conversation(db_session, conv_id="conv-ep-1", user_id=TEST_USER_ID)
 
         mock_router = MagicMock()
         mock_router.complete = AsyncMock(return_value=_mock_completion_response())

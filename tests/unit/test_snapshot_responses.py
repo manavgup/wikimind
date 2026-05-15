@@ -16,7 +16,6 @@ import pytest
 
 from tests.conftest import TEST_USER_ID
 from tests.snapshot_utils import assert_matches_snapshot
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import Article, IngestStatus, PageType, Source, SourceType
 from wikimind.services.ingest import get_ingest_service
 
@@ -80,7 +79,7 @@ async def test_articles_list_populated_snapshot(client, session_factory) -> None
                 slug="snapshot-article",
                 title="Snapshot Article",
                 file_path="/tmp/snap.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
                 page_type=PageType.SOURCE,
                 summary="A test article for snapshot testing.",
             )

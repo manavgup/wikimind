@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article
 
 OTHER_USER_ID = "other-user"
@@ -22,7 +22,7 @@ async def _seed_articles(factory) -> None:
                 slug="own-article",
                 title="Own Article",
                 file_path="/tmp/own.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(

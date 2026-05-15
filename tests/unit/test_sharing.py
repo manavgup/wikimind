@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from sqlmodel import select
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.errors import NotFoundError
 from wikimind.models import Article, ShareLink
 from wikimind.services.sharing import SharingService
@@ -44,7 +44,7 @@ async def _seed_article(db_session, tmp_path: Path, slug: str = "shared-article"
         title=slug.replace("-", " ").title(),
         file_path=str(md_path),
         summary="A test article.",
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(article)
     await db_session.commit()
@@ -66,7 +66,7 @@ class TestSharingServiceUnit:
         result = await service.create_share_link(
             db_session,
             article_id=article.id,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
 
         assert result.article_id == article.id
@@ -84,7 +84,7 @@ class TestSharingServiceUnit:
         result = await service.create_share_link(
             db_session,
             article_id=article.id,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
             expires_in_days=7,
         )
 
@@ -98,7 +98,7 @@ class TestSharingServiceUnit:
             await service.create_share_link(
                 db_session,
                 article_id="nonexistent",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
 
     @pytest.mark.asyncio
@@ -109,11 +109,11 @@ class TestSharingServiceUnit:
         created = await service.create_share_link(
             db_session,
             article_id=article.id,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
         await db_session.commit()
 
-        await service.revoke_share_link(db_session, created.id, ANONYMOUS_USER_ID)
+        await service.revoke_share_link(db_session, created.id, TEST_USER_ID)
         await db_session.commit()
 
         # Verify it's revoked
@@ -126,11 +126,11 @@ class TestSharingServiceUnit:
         article = await _seed_article(db_session, tmp_path)
         service = SharingService()
 
-        await service.create_share_link(db_session, article_id=article.id, user_id=ANONYMOUS_USER_ID)
-        await service.create_share_link(db_session, article_id=article.id, user_id=ANONYMOUS_USER_ID)
+        await service.create_share_link(db_session, article_id=article.id, user_id=TEST_USER_ID)
+        await service.create_share_link(db_session, article_id=article.id, user_id=TEST_USER_ID)
         await db_session.commit()
 
-        links = await service.list_share_links(db_session, ANONYMOUS_USER_ID)
+        links = await service.list_share_links(db_session, TEST_USER_ID)
         assert len(links) == 2
 
     @pytest.mark.asyncio
@@ -139,11 +139,11 @@ class TestSharingServiceUnit:
         article2 = await _seed_article(db_session, tmp_path, slug="article-two")
         service = SharingService()
 
-        await service.create_share_link(db_session, article_id=article1.id, user_id=ANONYMOUS_USER_ID)
-        await service.create_share_link(db_session, article_id=article2.id, user_id=ANONYMOUS_USER_ID)
+        await service.create_share_link(db_session, article_id=article1.id, user_id=TEST_USER_ID)
+        await service.create_share_link(db_session, article_id=article2.id, user_id=TEST_USER_ID)
         await db_session.commit()
 
-        links = await service.list_share_links(db_session, ANONYMOUS_USER_ID, article_id=article1.id)
+        links = await service.list_share_links(db_session, TEST_USER_ID, article_id=article1.id)
         assert len(links) == 1
         assert links[0].article_id == article1.id
 
@@ -152,7 +152,7 @@ class TestSharingServiceUnit:
         article = await _seed_article(db_session, tmp_path)
         service = SharingService()
 
-        created = await service.create_share_link(db_session, article_id=article.id, user_id=ANONYMOUS_USER_ID)
+        created = await service.create_share_link(db_session, article_id=article.id, user_id=TEST_USER_ID)
         await db_session.commit()
 
         with patch("wikimind.services.sharing.read_article_content") as mock_read:
@@ -168,10 +168,10 @@ class TestSharingServiceUnit:
         article = await _seed_article(db_session, tmp_path)
         service = SharingService()
 
-        created = await service.create_share_link(db_session, article_id=article.id, user_id=ANONYMOUS_USER_ID)
+        created = await service.create_share_link(db_session, article_id=article.id, user_id=TEST_USER_ID)
         await db_session.commit()
 
-        await service.revoke_share_link(db_session, created.id, ANONYMOUS_USER_ID)
+        await service.revoke_share_link(db_session, created.id, TEST_USER_ID)
         await db_session.commit()
 
         with pytest.raises(NotFoundError):
@@ -315,7 +315,7 @@ async def _seed_articles_for_export(db_session, tmp_path: Path) -> list[Article]
             title=f"Article {i}",
             file_path=str(md_path),
             summary=f"Summary for article {i}.",
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
             page_type="source",
         )
         db_session.add(article)

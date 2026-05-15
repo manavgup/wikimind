@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 
 
 @pytest.mark.asyncio
@@ -54,7 +54,7 @@ async def test_wikilink_resolution_end_to_end(
         title="Existing Target",
         file_path=str(tmp_path / "existing-target.md"),
         confidence=ConfidenceLevel.SOURCED,
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(target)
 
@@ -65,13 +65,13 @@ async def test_wikilink_resolution_end_to_end(
         title="Test Source",
         status=IngestStatus.PROCESSING,
         ingested_at=utcnow_naive(),
-        user_id=ANONYMOUS_USER_ID,
+        user_id=TEST_USER_ID,
     )
     db_session.add(source)
     await db_session.commit()
 
     # 2. Drive the save path
-    compiler = Compiler(user_id=ANONYMOUS_USER_ID)
+    compiler = Compiler(user_id=TEST_USER_ID)
     result = CompilationResult(
         title="New Compiled Article",
         summary="Two sentence summary. For integration test.",

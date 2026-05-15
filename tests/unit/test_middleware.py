@@ -28,10 +28,10 @@ async def test_security_headers_present(client):
 
 
 @pytest.mark.asyncio
-async def test_hsts_present_in_production(client):
+async def test_hsts_present_in_production(client, monkeypatch):
     """HSTS header should be present when not in development mode."""
     settings = get_settings()
-    assert not settings.is_dev, "Test assumes production mode (default)"
+    monkeypatch.setattr(settings, "env", "production")
     response = await client.get("/health")
     assert response.status_code == 200
     assert "Strict-Transport-Security" in response.headers

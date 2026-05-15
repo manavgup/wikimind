@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.config import get_settings
 from wikimind.models import Article
 
@@ -75,7 +75,7 @@ async def _seed_article(factory) -> str:
             slug="test-article",
             title="Test Article",
             file_path="/tmp/test.md",
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
         session.add(article)
         await session.commit()
@@ -175,7 +175,7 @@ async def test_article_response_includes_tags(client, session_factory) -> None:
 
     # Seed article with a file that can be read
     settings = get_settings()
-    wiki_dir = Path(settings.data_dir) / "wiki" / ANONYMOUS_USER_ID
+    wiki_dir = Path(settings.data_dir) / "wiki" / TEST_USER_ID
     wiki_dir.mkdir(parents=True, exist_ok=True)
     md_file = wiki_dir / "test.md"
     md_file.write_text("# Test\nSome content")
@@ -186,7 +186,7 @@ async def test_article_response_includes_tags(client, session_factory) -> None:
             slug="tagged-article",
             title="Tagged Article",
             file_path="test.md",
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
         session.add(article)
         await session.commit()
@@ -292,7 +292,7 @@ async def test_execute_saved_search_with_tag_filter(client, session_factory) -> 
                 slug="alpha",
                 title="Alpha Article",
                 file_path="/tmp/a.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -301,7 +301,7 @@ async def test_execute_saved_search_with_tag_filter(client, session_factory) -> 
                 slug="beta",
                 title="Beta Article",
                 file_path="/tmp/b.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         await session.commit()

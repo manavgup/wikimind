@@ -342,7 +342,7 @@ async def _update_openai_compatible_settings(
     """Persist runtime OpenAI-compatible settings and update the singleton."""
     updated = False
 
-    if settings.auth.enabled and _has_openai_compatible_runtime_update(request):
+    if not settings.is_dev and _has_openai_compatible_runtime_update(request):
         raise HTTPException(
             status_code=403,
             detail="OpenAI-compatible runtime settings are global and cannot be changed by users when auth is enabled",

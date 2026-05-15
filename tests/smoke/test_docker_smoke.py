@@ -25,8 +25,6 @@ from contextlib import closing
 import httpx
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
-
 # ---------------------------------------------------------------------------
 # Markers — all tests in this module require Docker and are slow
 # ---------------------------------------------------------------------------
@@ -186,7 +184,7 @@ def container_url(docker_image: str):
             "-e",
             "WIKIMIND_LLM__DEFAULT_PROVIDER=mock",
             "-e",
-            "WIKIMIND_AUTH__ENABLED=false",
+            "WIKIMIND_ENV=development",
             "-e",
             "WEB_CONCURRENCY=1",
             docker_image,
@@ -308,8 +306,8 @@ class TestAuthFlow:
         resp = httpx.get(f"{container_url}/api/ingest/sources", timeout=10)
         assert resp.status_code == 200
 
-    def test_auth_me_returns_anonymous(self, container_url: str):
-        """With auth disabled, /auth/me returns an anonymous stub user."""
+    def test_auth_me_returns_dev_user(self, container_url: str):
+        """In dev mode, /auth/me returns the auto-provisioned dev user."""
         resp = httpx.get(
             f"{container_url}/auth/me",
             headers={"Accept": "application/json"},
@@ -317,15 +315,16 @@ class TestAuthFlow:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["id"] == ANONYMOUS_USER_ID
+        assert data["id"].startswith("dev-")
+        assert data["email"] == "dev@wikimind.local"
 
 
 class TestAuthEnabled:
-    """Verify auth enforcement when enabled via a separate container."""
+    """Verify auth enforcement in production mode (no dev auto-auth)."""
 
     @pytest.fixture(scope="class")
     def auth_container_url(self, docker_image: str):
-        """Start a container with auth enabled."""
+        """Start a container in production mode with JWT auth required."""
         port = _find_free_port()
         base_url = f"http://127.0.0.1:{port}"
         name = f"{CONTAINER_NAME}-auth"
@@ -346,7 +345,7 @@ class TestAuthEnabled:
                 "-e",
                 "WIKIMIND_LLM__DEFAULT_PROVIDER=mock",
                 "-e",
-                "WIKIMIND_AUTH__ENABLED=true",
+                "WIKIMIND_ENV=production",
                 "-e",
                 "WIKIMIND_AUTH__JWT_SECRET_KEY=smoke-test-secret-key-for-ci",
                 "-e",
