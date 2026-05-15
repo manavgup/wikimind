@@ -11,7 +11,7 @@ import functools
 import json
 import re
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import structlog
 from redis.asyncio import Redis
@@ -33,9 +33,13 @@ from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Prov
 from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from wikimind.engine.provider_base import StreamSession
 
 log = structlog.get_logger()
+
+_T = TypeVar("_T")
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +349,72 @@ class LLMRouter:
         except SQLAlchemyError:
             log.debug("cost log write failed (table may not exist)", exc_info=True)
 
+    async def _execute_with_fallback(
+        self,
+        *,
+        preferred_provider: Provider | None,
+        user_id: str,
+        operation: Callable[[ProviderProtocol, Provider, str], Awaitable[_T]],
+        log_label: str,
+    ) -> _T:
+        """Execute an LLM operation with provider selection and fallback.
+
+        This is the shared retry/fallback loop used by :meth:`complete`,
+        :meth:`complete_multimodal`, and :meth:`stream_complete`.
+
+        Args:
+            preferred_provider: Optional provider preference.
+            user_id: User ID for BYOK key lookup.
+            operation: An async callable ``(instance, provider, model) -> result``
+                that performs the actual provider-specific work.
+            log_label: Human-readable label used in log messages
+                (e.g. ``"LLM call"``, ``"LLM stream call"``).
+
+        Returns:
+            The value returned by *operation* on the first successful provider.
+
+        Raises:
+            UpstreamError: When all providers fail.
+        """
+        provider_order = self._get_provider_order(preferred_provider)
+
+        # Also consider BYOK-capable providers that aren't config-enabled
+        # — the user may have stored a key.
+        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
+            if p not in provider_order:
+                provider_order.append(p)
+
+        last_error = None
+        for provider in provider_order:
+            user_key = await self._resolve_user_key(provider, user_id)
+            if not user_key and not self._is_provider_available(provider):
+                continue
+
+            model = self._get_model(provider)
+            try:
+                log.info(
+                    log_label,
+                    provider=provider,
+                    model=model,
+                    byok=bool(user_key),
+                )
+                instance = await self._get_provider_instance(provider, api_key_override=user_key)
+                return await operation(instance, provider, model)
+
+            except _LLM_PROVIDER_ERRORS as e:
+                log.warning(
+                    "%s provider failed",
+                    log_label,
+                    provider=provider,
+                    error=str(e),
+                )
+                last_error = e
+                if not self.settings.llm.fallback_enabled:
+                    raise
+
+        msg = f"All LLM providers failed. Last error: {last_error}"
+        raise UpstreamError(msg)
+
     async def complete(
         self,
         request: CompletionRequest,
@@ -355,61 +425,33 @@ class LLMRouter:
         The router checks for a BYOK key for each candidate provider
         and uses it instead of the system key.
         """
-        provider_order = self._get_provider_order(request.preferred_provider)
 
-        # Also consider BYOK-capable providers that aren't config-enabled
-        # — the user may have stored a key.
-        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-            if p not in provider_order:
-                provider_order.append(p)
+        async def _op(instance: ProviderProtocol, provider: Provider, model: str) -> CompletionResponse:
+            response = await instance.complete(request, model)
+            await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
+            log.info(
+                "LLM call complete",
+                provider=provider,
+                cost_usd=response.cost_usd,
+                latency_ms=response.latency_ms,
+            )
 
-        last_error = None
-        for provider in provider_order:
-            # Check for user BYOK key first
-            user_key = await self._resolve_user_key(provider, user_id)
-            if not user_key and not self._is_provider_available(provider):
-                continue
+            def _log_budget_error(t: asyncio.Task) -> None:
+                if not t.cancelled():
+                    exc = t.exception()
+                    if exc:
+                        log.warning("budget check failed", error=str(exc))
 
-            model = self._get_model(provider)
-            try:
-                log.info(
-                    "LLM call",
-                    provider=provider,
-                    model=model,
-                    task=request.task_type,
-                    byok=bool(user_key),
-                )
-                instance = await self._get_provider_instance(provider, api_key_override=user_key)
-                response = await instance.complete(request, model)
+            task = asyncio.create_task(self._check_budget(user_id=user_id))
+            task.add_done_callback(_log_budget_error)
+            return response
 
-                # Log cost in independent session
-                await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
-
-                log.info(
-                    "LLM call complete",
-                    provider=provider,
-                    cost_usd=response.cost_usd,
-                    latency_ms=response.latency_ms,
-                )
-
-                def _log_budget_error(t: asyncio.Task) -> None:
-                    if not t.cancelled():
-                        exc = t.exception()
-                        if exc:
-                            log.warning("budget check failed", error=str(exc))
-
-                task = asyncio.create_task(self._check_budget(user_id=user_id))
-                task.add_done_callback(_log_budget_error)
-                return response
-
-            except _LLM_PROVIDER_ERRORS as e:
-                log.warning("LLM provider failed", provider=provider, error=str(e))
-                last_error = e
-                if not self.settings.llm.fallback_enabled:
-                    raise
-
-        msg = f"All LLM providers failed. Last error: {last_error}"
-        raise UpstreamError(msg)
+        return await self._execute_with_fallback(
+            preferred_provider=request.preferred_provider,
+            user_id=user_id,
+            operation=_op,
+            log_label="LLM call",
+        )
 
     async def complete_multimodal(
         self,
@@ -442,55 +484,30 @@ class LLMRouter:
         Raises:
             UpstreamError: When all providers fail.
         """
-        provider_order = self._get_provider_order(preferred_provider)
 
-        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-            if p not in provider_order:
-                provider_order.append(p)
+        async def _op(instance: ProviderProtocol, provider: Provider, model: str) -> CompletionResponse:
+            response = await instance.complete_multimodal(
+                system=system,
+                content_parts=content_parts,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            await self._log_cost(provider, model, task_type, response, user_id=user_id)
+            log.info(
+                "LLM multimodal call complete",
+                provider=provider,
+                cost_usd=response.cost_usd,
+                latency_ms=response.latency_ms,
+            )
+            return response
 
-        last_error = None
-        for provider in provider_order:
-            user_key = await self._resolve_user_key(provider, user_id)
-            if not user_key and not self._is_provider_available(provider):
-                continue
-
-            model = self._get_model(provider)
-            try:
-                log.info(
-                    "LLM multimodal call",
-                    provider=provider,
-                    model=model,
-                    task=task_type,
-                    byok=bool(user_key),
-                )
-                instance = await self._get_provider_instance(provider, api_key_override=user_key)
-                response = await instance.complete_multimodal(
-                    system=system,
-                    content_parts=content_parts,
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-
-                # Log cost in independent session
-                await self._log_cost(provider, model, task_type, response, user_id=user_id)
-
-                log.info(
-                    "LLM multimodal call complete",
-                    provider=provider,
-                    cost_usd=response.cost_usd,
-                    latency_ms=response.latency_ms,
-                )
-                return response
-
-            except _LLM_PROVIDER_ERRORS as e:
-                log.warning("LLM multimodal provider failed", provider=provider, error=str(e))
-                last_error = e
-                if not self.settings.llm.fallback_enabled:
-                    raise
-
-        msg = f"All LLM providers failed. Last error: {last_error}"
-        raise UpstreamError(msg)
+        return await self._execute_with_fallback(
+            preferred_provider=preferred_provider,
+            user_id=user_id,
+            operation=_op,
+            log_label="LLM multimodal call",
+        )
 
     async def stream_complete(
         self,
@@ -513,41 +530,16 @@ class LLMRouter:
         Raises:
             UpstreamError: When all providers fail during stream creation.
         """
-        provider_order = self._get_provider_order(request.preferred_provider)
 
-        for p in (Provider.ANTHROPIC, Provider.OPENAI, Provider.GOOGLE):
-            if p not in provider_order:
-                provider_order.append(p)
+        async def _op(instance: ProviderProtocol, _provider: Provider, model: str) -> StreamSession:
+            return await instance.stream(request, model)
 
-        last_error = None
-        for provider in provider_order:
-            user_key = await self._resolve_user_key(provider, user_id)
-            if not user_key and not self._is_provider_available(provider):
-                continue
-
-            model = self._get_model(provider)
-            try:
-                log.info(
-                    "LLM stream call",
-                    provider=provider,
-                    model=model,
-                    task=request.task_type,
-                    byok=bool(user_key),
-                )
-                instance = await self._get_provider_instance(provider, api_key_override=user_key)
-                return await instance.stream(request, model)
-            except _LLM_PROVIDER_ERRORS as e:
-                log.warning(
-                    "LLM stream provider failed",
-                    provider=provider,
-                    error=str(e),
-                )
-                last_error = e
-                if not self.settings.llm.fallback_enabled:
-                    raise
-
-        msg = f"All LLM providers failed. Last error: {last_error}"
-        raise UpstreamError(msg)
+        return await self._execute_with_fallback(
+            preferred_provider=request.preferred_provider,
+            user_id=user_id,
+            operation=_op,
+            log_label="LLM stream call",
+        )
 
     def parse_json_response(self, response: CompletionResponse) -> Any:
         """Parse JSON from LLM response, handling common formatting issues.
