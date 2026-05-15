@@ -543,9 +543,9 @@ async def get_llm_cost_breakdown(
     settings = get_settings()
 
     async with get_session_factory()() as session:
-        total_stmt = select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
-        if user_id:
-            total_stmt = total_stmt.where(CostLog.user_id == user_id)
+        total_stmt = select(func.sum(CostLog.cost_usd)).where(
+            CostLog.created_at >= start_of_month, CostLog.user_id == user_id
+        )
         total_result = await session.execute(total_stmt)
         total = total_result.scalar() or 0.0
 
@@ -555,11 +555,9 @@ async def get_llm_cost_breakdown(
                 func.sum(CostLog.cost_usd),
                 func.count(),
             )
-            .where(CostLog.created_at >= start_of_month)
+            .where(CostLog.created_at >= start_of_month, CostLog.user_id == user_id)
             .group_by(CostLog.provider)
         )
-        if user_id:
-            provider_stmt = provider_stmt.where(CostLog.user_id == user_id)
         provider_result = await session.execute(provider_stmt)
         provider_rows = provider_result.all()
 
@@ -569,11 +567,9 @@ async def get_llm_cost_breakdown(
                 func.sum(CostLog.cost_usd),
                 func.count(),
             )
-            .where(CostLog.created_at >= start_of_month)
+            .where(CostLog.created_at >= start_of_month, CostLog.user_id == user_id)
             .group_by(CostLog.task_type)
         )
-        if user_id:
-            task_stmt = task_stmt.where(CostLog.user_id == user_id)
         task_result = await session.execute(task_stmt)
         task_rows = task_result.all()
 
@@ -614,9 +610,9 @@ async def get_llm_cost(
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
 
     async with get_session_factory()() as session:
-        cost_stmt = select(func.sum(CostLog.cost_usd)).where(CostLog.created_at >= start_of_month)
-        if user_id:
-            cost_stmt = cost_stmt.where(CostLog.user_id == user_id)
+        cost_stmt = select(func.sum(CostLog.cost_usd)).where(
+            CostLog.created_at >= start_of_month, CostLog.user_id == user_id
+        )
         result = await session.execute(cost_stmt)
         total = result.scalar() or 0.0
 

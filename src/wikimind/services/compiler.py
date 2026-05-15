@@ -34,9 +34,7 @@ class CompilerService:
         Returns:
             List of Job records ordered by queue time descending.
         """
-        query = select(Job).order_by(Job.queued_at.desc()).limit(limit)  # type: ignore[attr-defined]
-        if user_id:
-            query = query.where(Job.user_id == user_id)
+        query = select(Job).where(Job.user_id == user_id).order_by(Job.queued_at.desc()).limit(limit)  # type: ignore[attr-defined]
         if status:
             query = query.where(Job.status == status)
         result = await session.execute(query)

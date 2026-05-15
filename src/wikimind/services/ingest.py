@@ -195,9 +195,7 @@ class IngestService:
         Returns:
             List of Source records.
         """
-        query = select(Source).offset(offset).limit(limit)
-        if user_id:
-            query = query.where(Source.user_id == user_id)
+        query = select(Source).where(Source.user_id == user_id).offset(offset).limit(limit)
         if status:
             query = query.where(Source.status == status)
         result = await session.execute(query)

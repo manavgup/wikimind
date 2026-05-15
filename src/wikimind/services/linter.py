@@ -59,11 +59,10 @@ class LinterService:
         """
         stmt = (
             select(LintReport)
+            .where(LintReport.user_id == user_id)
             .order_by(LintReport.generated_at.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
-        if user_id:
-            stmt = stmt.where(LintReport.user_id == user_id)
         result = await session.execute(stmt)
         return list(result.scalars().all())
 
@@ -175,11 +174,10 @@ class LinterService:
         """
         latest_stmt = (
             select(LintReport)
+            .where(LintReport.user_id == user_id)
             .order_by(LintReport.generated_at.desc())  # type: ignore[attr-defined]
             .limit(1)
         )
-        if user_id:
-            latest_stmt = latest_stmt.where(LintReport.user_id == user_id)
         result = await session.execute(latest_stmt)
         report = result.scalars().first()
         if not report:

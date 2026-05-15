@@ -161,10 +161,8 @@ async def update_article_counts(
     ac_stmt = (
         select(ArticleConcept)
         .join(Article, ArticleConcept.article_id == Article.id)  # type: ignore[arg-type]
-        .where(Article.page_type == PageType.SOURCE)
+        .where(Article.page_type == PageType.SOURCE, Article.user_id == user_id)
     )
-    if user_id:
-        ac_stmt = ac_stmt.where(Article.user_id == user_id)
     ac_result = await session.execute(ac_stmt)
     for ac in ac_result.scalars().all():
         normalized = slugify(ac.concept_name)
@@ -172,9 +170,7 @@ async def update_article_counts(
             counts[normalized] = counts.get(normalized, 0) + 1
 
     # Apply counts to all concepts (scoped by user_id)
-    concept_stmt = select(Concept)
-    if user_id:
-        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
+    concept_stmt = select(Concept).where(Concept.user_id == user_id)
     concepts_result = await session.execute(concept_stmt)
     for concept in concepts_result.scalars().all():
         concept.article_count = counts.get(concept.name, 0)
@@ -242,9 +238,7 @@ async def maybe_trigger_concept_pages(
     """
     settings = get_settings()
     min_sources = settings.taxonomy.concept_page_min_sources
-    stmt = select(Concept).where(Concept.article_count >= min_sources)
-    if user_id:
-        stmt = stmt.where(Concept.user_id == user_id)
+    stmt = select(Concept).where(Concept.article_count >= min_sources, Concept.user_id == user_id)
     result = await session.execute(stmt)  # AsyncSession, not SQLModel Session
     eligible = list(result.scalars().all())
     if not eligible:
@@ -286,10 +280,9 @@ async def maybe_trigger_taxonomy_rebuild(
     threshold = settings.taxonomy.rebuild_threshold
 
     stmt = select(Concept).where(
-        Concept.parent_id.is_(None)  # type: ignore[union-attr]
+        Concept.parent_id.is_(None),  # type: ignore[union-attr]
+        Concept.user_id == user_id,
     )
-    if user_id:
-        stmt = stmt.where(Concept.user_id == user_id)
     result = await session.execute(stmt)
     unparented = list(result.scalars().all())
 
@@ -315,9 +308,7 @@ async def rebuild_taxonomy(
     settings = get_settings()
     max_depth = settings.taxonomy.max_hierarchy_depth
 
-    concept_stmt = select(Concept)
-    if user_id:
-        concept_stmt = concept_stmt.where(Concept.user_id == user_id)
+    concept_stmt = select(Concept).where(Concept.user_id == user_id)
     result = await session.execute(concept_stmt)
     all_concepts = list(result.scalars().all())
 

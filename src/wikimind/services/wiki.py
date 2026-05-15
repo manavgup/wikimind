@@ -339,9 +339,7 @@ class WikiService:
         # Short-circuit: if article_ids filter is an empty list, return early
         if article_ids is not None and len(article_ids) == 0:
             return []
-        query = select(Article).offset(offset).limit(limit)
-        if user_id:
-            query = query.where(Article.user_id == user_id)
+        query = select(Article).where(Article.user_id == user_id).offset(offset).limit(limit)
         if article_ids is not None:
             query = query.where(
                 Article.id.in_(article_ids)  # type: ignore[attr-defined]
@@ -385,16 +383,12 @@ class WikiService:
             NotFoundError: If no article matches either lookup.
         """
         # Try ID first
-        id_stmt = select(Article).where(Article.id == id_or_slug)
-        if user_id:
-            id_stmt = id_stmt.where(Article.user_id == user_id)
+        id_stmt = select(Article).where(Article.id == id_or_slug, Article.user_id == user_id)
         result = await session.execute(id_stmt)
         article = result.scalar_one_or_none()
         if article is None:
             # Fall back to slug
-            slug_stmt = select(Article).where(Article.slug == id_or_slug)
-            if user_id:
-                slug_stmt = slug_stmt.where(Article.user_id == user_id)
+            slug_stmt = select(Article).where(Article.slug == id_or_slug, Article.user_id == user_id)
             result = await session.execute(slug_stmt)
             article = result.scalar_one_or_none()
         if not article:
@@ -531,15 +525,11 @@ class WikiService:
         """
         if not id_or_slug:
             return None
-        id_stmt = select(Article.id).where(Article.id == id_or_slug)
-        if user_id:
-            id_stmt = id_stmt.where(Article.user_id == user_id)
+        id_stmt = select(Article.id).where(Article.id == id_or_slug, Article.user_id == user_id)
         row = (await session.execute(id_stmt)).first()
         if row is not None:
             return row[0]
-        slug_stmt = select(Article.id).where(Article.slug == id_or_slug)
-        if user_id:
-            slug_stmt = slug_stmt.where(Article.user_id == user_id)
+        slug_stmt = select(Article.id).where(Article.slug == id_or_slug, Article.user_id == user_id)
         row = (await session.execute(slug_stmt)).first()
         return row[0] if row is not None else None
 
@@ -608,9 +598,7 @@ class WikiService:
                 return GraphResponse(nodes=[], edges=[])
 
         # Push every filter into a single SQL query against Backlink.
-        bl_stmt = select(Backlink)
-        if user_id:
-            bl_stmt = bl_stmt.where(Backlink.user_id == user_id)
+        bl_stmt = select(Backlink).where(Backlink.user_id == user_id)
         if relation_type is not None:
             bl_stmt = bl_stmt.where(Backlink.relation_type == relation_type.value)
         if from_id is not None:
@@ -622,9 +610,7 @@ class WikiService:
 
         # Articles for node list — full set per user scope so the graph
         # remains visually consistent across edge filters.
-        graph_stmt = select(Article)
-        if user_id:
-            graph_stmt = graph_stmt.where(Article.user_id == user_id)
+        graph_stmt = select(Article).where(Article.user_id == user_id)
         articles_result = await session.execute(graph_stmt)
         articles = articles_result.scalars().all()
 
@@ -701,10 +687,8 @@ class WikiService:
                 Backlink.resolution,
             )
             .join(Article, Article.id == Backlink.target_article_id)
-            .where(Backlink.source_article_id == article_id)
+            .where(Backlink.source_article_id == article_id, Article.user_id == user_id)
         )
-        if user_id:
-            out_stmt = out_stmt.where(Article.user_id == user_id)
         out_rows = (await session.execute(out_stmt)).all()
 
         # Incoming: this article is the target. Join source Article for metadata.
@@ -718,10 +702,8 @@ class WikiService:
                 Backlink.resolution,
             )
             .join(Article, Article.id == Backlink.source_article_id)
-            .where(Backlink.target_article_id == article_id)
+            .where(Backlink.target_article_id == article_id, Article.user_id == user_id)
         )
-        if user_id:
-            in_stmt = in_stmt.where(Article.user_id == user_id)
         in_rows = (await session.execute(in_stmt)).all()
 
         outgoing: dict[str, list[RelationshipEdge]] = {}
@@ -878,9 +860,7 @@ class WikiService:
         Returns:
             Mapping of article_id to normalised keyword score.
         """
-        kw_stmt = select(Article)
-        if user_id:
-            kw_stmt = kw_stmt.where(Article.user_id == user_id)
+        kw_stmt = select(Article).where(Article.user_id == user_id)
         result = await session.execute(kw_stmt)
         all_articles = result.scalars().all()
 
@@ -918,9 +898,7 @@ class WikiService:
         Returns:
             List of Concept records.
         """
-        query = select(Concept)
-        if user_id:
-            query = query.where(Concept.user_id == user_id)
+        query = select(Concept).where(Concept.user_id == user_id)
         if not include_empty:
             query = query.where(Concept.article_count > 0)
         result = await session.execute(query)
@@ -945,9 +923,7 @@ class WikiService:
         Raises:
             NotFoundError: If concept not found.
         """
-        query = select(Concept).where(Concept.name == name)
-        if user_id:
-            query = query.where(Concept.user_id == user_id)
+        query = select(Concept).where(Concept.name == name, Concept.user_id == user_id)
         result = await session.execute(query)
         concept = result.scalar_one_or_none()
         if not concept:
@@ -1018,9 +994,7 @@ class WikiService:
             content = await storage.read(health_relative)
             return WikiHealthReport(**json.loads(content))
 
-        article_stmt = select(Article)
-        if user_id:
-            article_stmt = article_stmt.where(Article.user_id == user_id)
+        article_stmt = select(Article).where(Article.user_id == user_id)
         articles_result = await session.execute(article_stmt)
         articles = articles_result.scalars().all()
 

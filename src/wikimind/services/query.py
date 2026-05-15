@@ -127,9 +127,7 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
     if not titles:
         return []
 
-    stmt = select(Article).where(Article.title.in_(titles))  # type: ignore[attr-defined]
-    if user_id:
-        stmt = stmt.where(Article.user_id == user_id)
+    stmt = select(Article).where(Article.title.in_(titles), Article.user_id == user_id)  # type: ignore[attr-defined]
     article_result = await session.execute(stmt)
     articles_by_title = {a.title: a for a in article_result.scalars().all()}
 
@@ -341,9 +339,7 @@ class QueryService:
         Returns:
             List of Query records.
         """
-        stmt = select(Query).order_by(Query.created_at.desc()).limit(limit)  # type: ignore[attr-defined]
-        if user_id:
-            stmt = stmt.where(Query.user_id == user_id)
+        stmt = select(Query).where(Query.user_id == user_id).order_by(Query.created_at.desc()).limit(limit)  # type: ignore[attr-defined]
         result = await session.execute(stmt)
         return list(result.scalars().all())
 
@@ -367,11 +363,10 @@ class QueryService:
         """
         conv_stmt = (
             select(Conversation)
+            .where(Conversation.user_id == user_id)
             .order_by(Conversation.updated_at.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
-        if user_id:
-            conv_stmt = conv_stmt.where(Conversation.user_id == user_id)
         result = await session.execute(conv_stmt)
         conversations = list(result.scalars().all())
 
