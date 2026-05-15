@@ -58,7 +58,7 @@ class YouTubeAdapter:
         # are stable for a given video so the hash is effectively a video-id
         # alias, but hashing the actual content also catches the (rare) case
         # where the same transcript appears under multiple URLs.
-        dedup = await _check_source_dedup(transcript_text.encode("utf-8"), session, "YouTube")
+        dedup = await _check_source_dedup(transcript_text.encode("utf-8"), session, "YouTube", user_id)
         if dedup is not None:
             return dedup
         content_hash = compute_hash(transcript_text.encode("utf-8"))

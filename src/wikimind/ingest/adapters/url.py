@@ -52,7 +52,7 @@ class URLAdapter:
         # ingested this exact content (issue #67). We use the HTML bytes — not
         # the cleaned extraction — so the hash is stable across changes to the
         # trafilatura extraction pipeline.
-        dedup = await _check_source_dedup(html.encode("utf-8"), session, "URL")
+        dedup = await _check_source_dedup(html.encode("utf-8"), session, "URL", user_id)
         if dedup is not None:
             return dedup
         content_hash = compute_hash(html.encode("utf-8"))

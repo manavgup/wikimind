@@ -168,7 +168,7 @@ class PDFAdapter:
         # Dedup: hash the raw PDF bytes and short-circuit if we've already
         # ingested this exact file (issue #67). The hash is computed before
         # any LLM work or extraction so re-uploads are essentially free.
-        dedup = await _check_source_dedup(file_bytes, session, "PDF")
+        dedup = await _check_source_dedup(file_bytes, session, "PDF", user_id)
         if dedup is not None:
             return dedup
         content_hash = compute_hash(file_bytes)

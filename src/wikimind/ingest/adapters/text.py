@@ -41,7 +41,7 @@ class TextAdapter:
         # Dedup: hash the UTF-8 bytes of the pasted content (issue #67).
         # Title differences do NOT contribute — re-pasting the same body
         # under a new title still hits the dedup.
-        dedup = await _check_source_dedup(content.encode("utf-8"), session, "text")
+        dedup = await _check_source_dedup(content.encode("utf-8"), session, "text", user_id)
         if dedup is not None:
             return dedup
         content_hash = compute_hash(content.encode("utf-8"))
