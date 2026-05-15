@@ -547,9 +547,10 @@ class WorkerSettings:
 
     functions: ClassVar[list] = [compile_source, lint_wiki, recompile_article, sweep_wikilinks]
     redis_settings = get_redis_settings()
-    max_jobs = 4
-    job_timeout = 300  # 5 min max per job
-    keep_result = 3600  # Keep results for 1 hour
+    _worker_cfg = get_settings().worker
+    max_jobs = _worker_cfg.max_jobs
+    job_timeout = _worker_cfg.job_timeout
+    keep_result = _worker_cfg.keep_result
 
     # Weekly linter + daily wikilink sweep — iterate over all users
     cron_jobs: ClassVar[list] = [

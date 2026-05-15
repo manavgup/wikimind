@@ -357,9 +357,9 @@ class PDFAdapter:
         """Extract embedded images from a PDF.
 
         Iterates over every page, extracting images via
-        ``page.get_images()``. Images smaller than 5KB are skipped
-        (icons, bullets). Returns a list of (filename, kind, image_bytes)
-        tuples for the caller to persist.
+        ``page.get_images()``. Images smaller than ``image_min_bytes``
+        are skipped (icons, bullets). Returns a list of (filename, kind,
+        image_bytes) tuples for the caller to persist.
 
         Args:
             file_bytes: Raw PDF binary contents.
@@ -370,6 +370,9 @@ class PDFAdapter:
         Returns:
             List of (filename, kind, image_bytes) tuples.
         """
+        settings = get_settings()
+        min_bytes = settings.image_min_bytes
+
         # Best-effort filesystem cache directory (non-fatal if unavailable)
         out_dir = PDFAdapter.get_image_dir(user_id, source_id)
         with contextlib.suppress(OSError):
@@ -400,7 +403,7 @@ class PDFAdapter:
                     continue
 
                 image_bytes = base_image["image"]
-                if len(image_bytes) < 5000:
+                if len(image_bytes) < min_bytes:
                     continue
 
                 ext = base_image.get("ext", "png")

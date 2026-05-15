@@ -122,6 +122,14 @@ class LLMConfig(BaseModel):
     ollama_base_url: str = "http://localhost:11434"
     mock: MockConfig = Field(default_factory=MockConfig)
 
+    @model_validator(mode="after")
+    def _validate_budget_warning_pct(self) -> LLMConfig:
+        """Ensure budget_warning_pct is a valid fraction between 0 and 1."""
+        if not 0 < self.budget_warning_pct < 1:
+            msg = "budget_warning_pct must be between 0 and 1 (exclusive)"
+            raise ValueError(msg)
+        return self
+
 
 class SyncConfig(BaseModel):
     """Cloud sync configuration."""
@@ -176,6 +184,20 @@ class CaptureConfig(BaseModel):
     rss_http_timeout_seconds: int = 30
 
 
+class SearchConfig(BaseModel):
+    """Full-text search configuration."""
+
+    fts_max_candidates: int = 1000
+
+
+class WorkerConfig(BaseModel):
+    """ARQ worker configuration."""
+
+    max_jobs: int = 4
+    job_timeout: int = 300  # 5 min max per job
+    keep_result: int = 3600  # keep results for 1 hour
+
+
 class IngestConfig(BaseModel):
     """Ingestion configuration."""
 
@@ -199,6 +221,17 @@ class StalenessConfig(BaseModel):
 
     decay_rate: float = 0.002  # ~50% staleness at 250 days
     lint_threshold: float = 0.5  # articles above this are flagged
+
+    @model_validator(mode="after")
+    def _validate_staleness_params(self) -> StalenessConfig:
+        """Ensure staleness parameters are within valid ranges."""
+        if self.decay_rate <= 0:
+            msg = "decay_rate must be positive"
+            raise ValueError(msg)
+        if not 0 < self.lint_threshold < 1:
+            msg = "lint_threshold must be between 0 and 1 (exclusive)"
+            raise ValueError(msg)
+        return self
 
 
 class LinterConfig(BaseModel):
@@ -241,6 +274,20 @@ class EmbeddingConfig(BaseModel):
     chunk_size_tokens: int = 500
     chunk_overlap_tokens: int = 50
     min_similarity_score: float = 0.65
+
+    @model_validator(mode="after")
+    def _validate_chunk_overlap(self) -> EmbeddingConfig:
+        """Ensure chunk_overlap_tokens is non-negative and less than chunk_size_tokens."""
+        if self.chunk_overlap_tokens < 0:
+            msg = f"chunk_overlap_tokens ({self.chunk_overlap_tokens}) must not be negative"
+            raise ValueError(msg)
+        if self.chunk_overlap_tokens >= self.chunk_size_tokens:
+            msg = (
+                f"chunk_overlap_tokens ({self.chunk_overlap_tokens}) must be less than "
+                f"chunk_size_tokens ({self.chunk_size_tokens})"
+            )
+            raise ValueError(msg)
+        return self
 
 
 class AuthConfig(BaseModel):
@@ -327,6 +374,8 @@ class Settings(BaseSettings):
     qa: QAConfig = Field(default_factory=QAConfig)
     taxonomy: TaxonomyConfig = Field(default_factory=TaxonomyConfig)
     capture: CaptureConfig = Field(default_factory=CaptureConfig)
+    search: SearchConfig = Field(default_factory=SearchConfig)
+    worker: WorkerConfig = Field(default_factory=WorkerConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     compiler: CompilerConfig = Field(default_factory=CompilerConfig)
     linter: LinterConfig = Field(default_factory=LinterConfig)
@@ -358,6 +407,7 @@ class Settings(BaseSettings):
     # Frontend FiguresPanel displays them alongside the article.
     image_extraction_enabled: bool = True
     image_max_per_pdf: int = 30
+    image_min_bytes: int = 5000
     image_base_url: str = "/images"
 
     # API keys — SecretStr prevents accidental logging
@@ -372,11 +422,19 @@ class Settings(BaseSettings):
     def _post_init(self) -> Settings:
         """Resolve env-var fallbacks that pydantic-settings can't handle natively."""
         # Database URL: SQLite default, or rewrite unprefixed DATABASE_URL scheme
+        constructed_url = self.database_url
         if not self.database_url:
             self.database_url = f"sqlite+aiosqlite:///{self.data_dir}/db/wikimind.db"
+            constructed_url = self.database_url
         raw = os.environ.get("DATABASE_URL")
+        wikimind_db_url_set = bool(os.environ.get("WIKIMIND_DATABASE_URL"))
         if raw and not self.database_url.startswith("postgresql"):
             self.database_url = re.sub(r"^postgres(ql)?://", "postgresql+asyncpg://", raw)
+        if raw and wikimind_db_url_set and self.database_url != constructed_url:
+            log.warning(
+                "DATABASE_URL env var overrides WIKIMIND_DATABASE_URL",
+                hint="remove one to avoid ambiguity",
+            )
         # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
             self.redis_url = os.environ.get("REDIS_URL") or None
