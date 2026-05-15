@@ -1,6 +1,7 @@
 """Endpoints for ingesting sources (URLs, PDFs, text) into the knowledge base."""
 
 import mimetypes
+import re
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -19,6 +20,23 @@ from wikimind.models import (
 )
 from wikimind.services.ingest import IngestService, get_ingest_service
 from wikimind.storage import find_original_sibling, get_raw_storage
+
+# Strict pattern: only alphanumeric, hyphens, underscores, dots (no path separators)
+_SAFE_FILENAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
+
+
+def _validate_path_component(value: str, label: str = "path component") -> None:
+    """Reject path components that could enable path traversal.
+
+    Raises HTTPException(400) for values containing ``..``, path separators,
+    or any character outside the safe set. This is defense-in-depth on top
+    of the ``LocalFileStorage._resolve()`` guard in ``storage.py``.
+    """
+    if ".." in value or "/" in value or "\\" in value:
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+    if not _SAFE_FILENAME_RE.match(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {label}")
+
 
 router = APIRouter()
 
@@ -184,6 +202,7 @@ async def list_source_images(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
+    _validate_path_component(source_id, "source_id")
     await service.get_source(source_id, session, user_id=user_id)
 
     # DB-first: query source_image table
@@ -238,6 +257,8 @@ async def get_source_image(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
+    _validate_path_component(source_id, "source_id")
+    _validate_path_component(filename, "filename")
     await service.get_source(source_id, session, user_id=user_id)
 
     content_type, _ = mimetypes.guess_type(filename)

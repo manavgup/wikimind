@@ -51,10 +51,16 @@ export function exportWiki(format: WikiExportFormat = "obsidian"): void {
   const base = getBaseUrl() || window.location.origin;
   const url = `${base}/api/wiki/export/wiki?format=${format}`;
 
+  // Validate URL is same-origin to prevent open-redirect / XSS via form action
+  const parsed = new URL(url, window.location.origin);
+  if (parsed.origin !== window.location.origin) {
+    throw new Error("Export URL must be same-origin");
+  }
+
   // Use a form POST to trigger download with credentials
   const form = document.createElement("form");
   form.method = "POST";
-  form.action = url;
+  form.action = parsed.href;
   form.style.display = "none";
   document.body.appendChild(form);
   form.submit();

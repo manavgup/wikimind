@@ -27,7 +27,8 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
-import wikimind.models  # noqa: F401 — registers SQLModel tables in metadata
+# CodeQL: unused-import — side-effect import registers SQLModel tables
+import wikimind.models  # noqa: F401
 
 
 def _get_table_names(sync_conn):

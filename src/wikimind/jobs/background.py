@@ -23,7 +23,12 @@ from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
 
 from wikimind.config import get_settings
-from wikimind.jobs.worker import compile_source, lint_wiki, recompile_article, sweep_wikilinks
+from wikimind.jobs.worker import (  # CodeQL[cyclic-import]
+    compile_source,
+    lint_wiki,
+    recompile_article,
+    sweep_wikilinks,
+)
 
 if TYPE_CHECKING:
     from wikimind.models import NormalizedDocument
