@@ -83,7 +83,7 @@ export function Layout({ children }: LayoutProps) {
       <main className="relative flex-1 overflow-hidden">
         {children}
 
-        <div className="pointer-events-none absolute right-4 top-4 flex w-80 flex-col gap-2">
+        <div role="status" aria-live="polite" className="pointer-events-none absolute right-4 top-4 flex w-80 flex-col gap-2">
           {toasts.map((toast) => (
             <div
               key={toast.id}
