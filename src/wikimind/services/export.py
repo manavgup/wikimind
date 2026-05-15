@@ -6,6 +6,7 @@ use the LLM router to rewrite content into the target format.
 """
 
 import functools
+import re
 
 import structlog
 
@@ -223,10 +224,34 @@ def _escape_html(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+_ALLOWED_URL_SCHEMES = re.compile(r"^(https?://|mailto:)", re.IGNORECASE)
+
+
+def _sanitize_url(url: str) -> str | None:
+    r"""Return the URL if it uses an allowed scheme, otherwise ``None``.
+
+    Only ``http://``, ``https://``, and ``mailto:`` are permitted.
+    Strips leading whitespace and control characters to prevent bypass
+    via tab/newline injection (e.g. ``\tjavascript:``).
+    """
+    # Strip ASCII control characters and whitespace that could mask the scheme
+    cleaned = re.sub(r"[\x00-\x20]+", "", url)
+    if _ALLOWED_URL_SCHEMES.match(cleaned):
+        return url
+    return None
+
+
+def _replace_link(match: re.Match[str]) -> str:
+    """Regex replacement callback for markdown links with URL validation."""
+    text, url = match.group(1), match.group(2)
+    if _sanitize_url(url) is not None:
+        return f'<a href="{url}">{text}</a>'
+    # Unsafe scheme — render as plain text
+    return text
+
+
 def _inline_format(text: str) -> str:
     """Apply inline markdown formatting (bold, italic, code, links)."""
-    import re  # noqa: PLC0415 — only used within this helper
-
     result = _escape_html(text)
     # Inline code (must be before bold/italic to avoid conflict)
     result = re.sub(r"`([^`]+)`", r"<code>\1</code>", result)
@@ -234,8 +259,8 @@ def _inline_format(text: str) -> str:
     result = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", result)
     # Italic
     result = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", result)
-    # Links
-    result = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', result)
+    # Links — only allow safe URL schemes
+    result = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _replace_link, result)
     return result
 
 
