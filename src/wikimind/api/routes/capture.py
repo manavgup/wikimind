@@ -1,6 +1,6 @@
 """Endpoints for ambient capture — inbox, ingest/discard, and RSS feeds (issue #442)."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
@@ -54,8 +54,8 @@ async def create_capture(
 async def list_captures(
     status: CaptureStatus | None = None,
     kind: CaptureKind | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
     service: CaptureService = Depends(get_capture_service),
     user_id: str = Depends(get_current_user_id),

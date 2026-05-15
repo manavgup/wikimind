@@ -127,6 +127,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       - name: offset
@@ -134,6 +136,7 @@ paths:
         required: false
         schema:
           type: integer
+          minimum: 0
           default: 0
           title: Offset
       responses:
@@ -393,6 +396,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       - name: offset
@@ -400,6 +405,7 @@ paths:
         required: false
         schema:
           type: integer
+          minimum: 0
           default: 0
           title: Offset
       responses:
@@ -748,6 +754,7 @@ paths:
         required: false
         schema:
           type: integer
+          minimum: 0
           default: 0
           title: Offset
       responses:
@@ -866,6 +873,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       - name: offset
@@ -873,6 +882,7 @@ paths:
         required: false
         schema:
           type: integer
+          minimum: 0
           default: 0
           title: Offset
       responses:
@@ -1360,6 +1370,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       - name: offset
@@ -1367,6 +1379,7 @@ paths:
         required: false
         schema:
           type: integer
+          minimum: 0
           default: 0
           title: Offset
       responses:
@@ -1715,6 +1728,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       responses:
@@ -1742,6 +1757,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 200
+          minimum: 1
           default: 50
           title: Limit
       responses:
@@ -3931,6 +3948,7 @@ components:
           title: Title
         content:
           type: string
+          maxLength: 500000
           title: Content
         source_url:
           anyOf:
@@ -5094,6 +5112,7 @@ components:
       properties:
         content:
           type: string
+          maxLength: 500000
           title: Content
         title:
           anyOf:
@@ -5629,6 +5648,7 @@ components:
       properties:
         question:
           type: string
+          maxLength: 10000
           title: Question
         file_back:
           type: boolean
