@@ -2,7 +2,6 @@
 
 import keyring
 import pytest
-from pydantic import ValidationError
 
 from wikimind.config import Settings, _reconcile_providers, get_settings
 
