@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
-from wikimind.database import get_session_factory
+from wikimind.database import _dialect_insert, get_session_factory
 from wikimind.engine.confidence import compute_confidence
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.llm_router import get_llm_router
@@ -838,28 +838,25 @@ Compile this into a wiki article following the JSON schema exactly."""
         user_id: str,
     ) -> None:
         """Insert one Backlink row per resolved candidate with relation_type."""
+        conn = await session.connection()
+        insert_fn = _dialect_insert(conn)
         for rb in resolved:
             try:
                 rel = RelationType(rb.relation_type)
             except ValueError:
                 rel = RelationType.REFERENCES
-            bl = Backlink(
-                source_article_id=source_article_id,
-                target_article_id=rb.target_id,
-                context=rb.candidate_text,
-                relation_type=rel,
-                user_id=user_id,
-            )
-            session.add(bl)
-            try:
-                await session.flush()
-            except IntegrityError:
-                await session.rollback()
-                log.debug(
-                    "Skipped duplicate backlink",
-                    source=source_article_id,
-                    target=rb.target_id,
+            stmt = (
+                insert_fn(Backlink)
+                .values(
+                    source_article_id=source_article_id,
+                    target_article_id=rb.target_id,
+                    context=rb.candidate_text,
+                    relation_type=rel,
+                    user_id=user_id,
                 )
+                .on_conflict_do_nothing()
+            )
+            await session.execute(stmt)
         await session.commit()
 
     async def _persist_claims(

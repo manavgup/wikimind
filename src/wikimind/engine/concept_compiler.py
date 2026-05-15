@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING
 
 import structlog
 from slugify import slugify
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
+from wikimind.database import _dialect_insert
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
@@ -405,28 +405,22 @@ provider: {self._last_provider_used or "unknown"}
         session: AsyncSession,
         user_id: str,
     ) -> None:
+        conn = await session.connection()
+        insert_fn = _dialect_insert(conn)
         for source_id in source_article_ids:
-            # Guard against duplicate Backlinks (issue #152).
-            existing = await session.execute(
-                select(Backlink).where(
-                    Backlink.source_article_id == concept_article_id,
-                    Backlink.target_article_id == source_id,
+            stmt = (
+                insert_fn(Backlink)
+                .values(
+                    source_article_id=concept_article_id,
+                    target_article_id=source_id,
+                    relation_type=RelationType.SYNTHESIZES,
+                    context="Concept page synthesizes from source article",
+                    user_id=user_id,
                 )
+                .on_conflict_do_nothing()
             )
-            if existing.scalars().first() is not None:
-                continue
-            bl = Backlink(
-                source_article_id=concept_article_id,
-                target_article_id=source_id,
-                relation_type=RelationType.SYNTHESIZES,
-                context="Concept page synthesizes from source article",
-                user_id=user_id,
-            )
-            session.add(bl)
-            try:
-                await session.commit()
-            except IntegrityError:
-                await session.rollback()
+            await session.execute(stmt)
+        await session.commit()
 
     async def _create_related_to_links(
         self,
@@ -437,6 +431,8 @@ provider: {self._last_provider_used or "unknown"}
     ) -> None:
         if not related_concepts:
             return
+        conn = await session.connection()
+        insert_fn = _dialect_insert(conn)
         for related_name in related_concepts:
             normalized = slugify(related_name)
             if not normalized:
@@ -453,24 +449,16 @@ provider: {self._last_provider_used or "unknown"}
             if target is None:
                 continue
             for src_id, tgt_id in [(concept_article.id, target.id), (target.id, concept_article.id)]:
-                # Guard against duplicate Backlinks (issue #152).
-                existing = await session.execute(
-                    select(Backlink).where(
-                        Backlink.source_article_id == src_id,
-                        Backlink.target_article_id == tgt_id,
+                stmt = (
+                    insert_fn(Backlink)
+                    .values(
+                        source_article_id=src_id,
+                        target_article_id=tgt_id,
+                        relation_type=RelationType.RELATED_TO,
+                        context=f"Related: {concept_article.title} <-> {target.title}",
+                        user_id=user_id,
                     )
+                    .on_conflict_do_nothing()
                 )
-                if existing.scalars().first() is not None:
-                    continue
-                bl = Backlink(
-                    source_article_id=src_id,
-                    target_article_id=tgt_id,
-                    relation_type=RelationType.RELATED_TO,
-                    context=f"Related: {concept_article.title} <-> {target.title}",
-                    user_id=user_id,
-                )
-                session.add(bl)
-                try:
-                    await session.commit()
-                except IntegrityError:
-                    await session.rollback()
+                await session.execute(stmt)
+        await session.commit()
