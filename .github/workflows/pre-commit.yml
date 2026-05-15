@@ -76,7 +76,16 @@ jobs:
           restore-keys: pre-commit-
 
       # -----------------------------------------------------------
-      # 4️⃣  Run all hooks
+      # 4️⃣  Regenerate secrets baseline before validation
+      # -----------------------------------------------------------
+      # Worktree branches may have stale line numbers in .secrets.baseline.
+      # Regenerate it here so the detect-secrets hook validates against
+      # the current file contents, not the committed baseline.
+      - name: 🔑  Regenerate secrets baseline
+        run: uv run detect-secrets scan --baseline .secrets.baseline
+
+      # -----------------------------------------------------------
+      # 5️⃣  Run all hooks
       # -----------------------------------------------------------
       - name: 🪝  Run pre-commit on all files
         run: uv run pre-commit run --all-files
