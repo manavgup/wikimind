@@ -237,7 +237,7 @@ def _sanitize_url(url: str) -> str | None:
     # Strip ASCII control characters and whitespace that could mask the scheme
     cleaned = re.sub(r"[\x00-\x20]+", "", url)
     if _ALLOWED_URL_SCHEMES.match(cleaned):
-        return url
+        return cleaned
     return None
 
 
