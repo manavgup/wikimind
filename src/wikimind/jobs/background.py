@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 from arq import create_pool
-from arq.connections import RedisSettings
+from arq.connections import ArqRedis, RedisSettings
 
 from wikimind.config import get_settings
 from wikimind.jobs.worker import compile_source, lint_wiki, recompile_article, sweep_wikilinks
@@ -59,6 +59,8 @@ class BackgroundCompiler:
     def __init__(self) -> None:
         _check_production_redis_guard()
         self._redis_url: str | None = get_settings().redis_url
+        self._arq_pool: ArqRedis | None = None  # lazily created; reused across calls
+        self._pool_lock: asyncio.Lock = asyncio.Lock()  # guards lazy pool creation
 
     @property
     def is_prod(self) -> bool:
@@ -184,13 +186,25 @@ class BackgroundCompiler:
         return job_id
 
     async def _enqueue_arq(self, func_name: str, *args: object) -> None:
-        """Enqueue a job via ARQ Redis pool."""
-        settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
-        pool = await create_pool(settings)
-        try:
-            await pool.enqueue_job(func_name, *args)
-        finally:
-            await pool.close()
+        """Enqueue a job via a cached ARQ Redis pool.
+
+        The pool is lazily created on first call and reused for all
+        subsequent enqueue operations to avoid per-call connection
+        overhead. An asyncio.Lock guards initialization to prevent
+        duplicate pools under concurrent calls.
+        """
+        if self._arq_pool is None:
+            async with self._pool_lock:
+                if self._arq_pool is None:  # double-check after acquiring lock
+                    settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
+                    self._arq_pool = await create_pool(settings)
+        await self._arq_pool.enqueue_job(func_name, *args)
+
+    async def close(self) -> None:
+        """Close the cached ARQ Redis pool, if any."""
+        if self._arq_pool is not None:
+            await self._arq_pool.close()
+            self._arq_pool = None
 
     @staticmethod
     async def _run_compile_in_process(

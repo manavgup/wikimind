@@ -44,6 +44,7 @@ from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscribe
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.errors import WikiMindError
+from wikimind.jobs.background import get_background_compiler
 from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
@@ -172,6 +173,7 @@ async def lifespan(_app: FastAPI):
     yield
 
     log.info("WikiMind gateway shutting down")
+    await get_background_compiler().close()
     await stop_redis_subscriber()
     await close_db()
 

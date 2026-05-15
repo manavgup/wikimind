@@ -61,7 +61,8 @@ async def test_background_compiler_prod_mode_compile() -> None:
     with patch.object(bg_mod, "create_pool", AsyncMock(return_value=fake_pool)):
         await bc.schedule_compile("src-1", user_id=TEST_USER_ID)
     fake_pool.enqueue_job.assert_awaited()
-    fake_pool.close.assert_awaited()
+    # Pool is cached — not closed per call
+    fake_pool.close.assert_not_awaited()
 
 
 async def test_background_compiler_prod_mode_lint() -> None:
@@ -131,6 +132,38 @@ async def test_run_recompile_in_process_logs_exception() -> None:
 async def test_run_sweep_in_process_logs_exception() -> None:
     with patch.object(bg_mod, "sweep_wikilinks", AsyncMock(side_effect=RuntimeError("x"))):
         await BackgroundCompiler._run_sweep_in_process(user_id=TEST_USER_ID)
+
+
+async def test_background_compiler_pool_reused_across_calls() -> None:
+    """The ARQ pool is created once and reused for subsequent enqueue calls."""
+    bc = BackgroundCompiler()
+    bc._redis_url = "redis://localhost:6379"
+    fake_pool = MagicMock()
+    fake_pool.enqueue_job = AsyncMock()
+    mock_create = AsyncMock(return_value=fake_pool)
+    with patch.object(bg_mod, "create_pool", mock_create):
+        await bc.schedule_compile("src-1", user_id=TEST_USER_ID)
+        await bc.schedule_lint(user_id=TEST_USER_ID)
+    # create_pool called only once despite two enqueue calls
+    assert mock_create.await_count == 1
+    assert fake_pool.enqueue_job.await_count == 2
+
+
+async def test_background_compiler_close() -> None:
+    """close() shuts down the cached pool and resets the attribute."""
+    bc = BackgroundCompiler()
+    fake_pool = MagicMock()
+    fake_pool.close = AsyncMock()
+    bc._arq_pool = fake_pool
+    await bc.close()
+    fake_pool.close.assert_awaited_once()
+    assert bc._arq_pool is None
+
+
+async def test_background_compiler_close_noop_when_no_pool() -> None:
+    """close() is safe to call when no pool was ever created."""
+    bc = BackgroundCompiler()
+    await bc.close()  # should not raise
 
 
 def test_background_compiler_singleton() -> None:
