@@ -207,6 +207,7 @@ async def _ensure_dev_user(engine) -> None:
                 name="Dev User",
                 auth_provider="dev",
                 auth_provider_id=dev_user_id,
+                is_admin=True,
             )
             .on_conflict_do_nothing()
         )
@@ -258,6 +259,24 @@ async def init_db():
     # Ensure the dev user row exists so FK constraints are satisfied
     # when running in dev mode with dev_auto_auth.
     await _ensure_dev_user(engine)
+
+    # Migrate any rows still owned by the old "anonymous" user to the dev user.
+    # This handles upgrades from pre-#729 versions where auth was optional.
+    settings = get_settings()
+    if settings.is_dev and settings.auth.dev_auto_auth:
+        dev_uid = f"dev-{settings.auth.dev_user_email}"
+        async with engine.begin() as conn:
+            for tbl in ("article", "source", "concept", "query", "conversation", "backlink",
+                        "share_link", "lint_finding", "cost_log", "tag", "user_preference"):
+                try:
+                    result = await conn.execute(
+                        sa_text(f"UPDATE {tbl} SET user_id = :new WHERE user_id = 'anonymous'"),
+                        {"new": dev_uid},
+                    )
+                    if result.rowcount:
+                        log.info("migrated anonymous rows", table=tbl, count=result.rowcount)
+                except Exception:
+                    pass  # table may not exist yet
 
     # Create FTS virtual table for full-text search (idempotent).
     from wikimind.services.search import create_fts_table, rebuild_fts_index  # noqa: PLC0415

@@ -102,7 +102,7 @@ check-env: check-venv ## Verify Python version, venv hygiene, and required tools
 
 .PHONY: dev
 dev: check-venv ## Start full local stack: API server + ARQ worker + Redis (via honcho)
-	$(BIN)/honcho start -f Procfile.dev
+	WIKIMIND_ENV=development $(BIN)/honcho start -f Procfile.dev
 
 .PHONY: dev-api
 dev-api: check-venv ## Run only the fast-reload API server on :7842 (uvicorn)
@@ -114,7 +114,7 @@ dev-api: check-venv ## Run only the fast-reload API server on :7842 (uvicorn)
 		echo ""; \
 		exit 1; \
 	fi
-	$(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
+	WIKIMIND_ENV=development $(BIN)/uvicorn wikimind.main:app --host 127.0.0.1 --port 7842 --reload --reload-exclude "scripts/*" --reload-exclude "tests/*" --reload-exclude "docs/*"
 
 .PHONY: dev-token
 dev-token: ## Generate a JWT API token for dev/testing (uses .env secret)
