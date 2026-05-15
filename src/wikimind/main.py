@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import FileResponse, HTMLResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -291,8 +292,8 @@ _STATUS_TO_CODE = {
 }
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Wrap FastAPI HTTPException in the standard JSON error envelope."""
     request_id = getattr(request.state, "request_id", "unknown")
     code = _STATUS_TO_CODE.get(exc.status_code, f"http_{exc.status_code}")
