@@ -624,6 +624,26 @@ async def test_token_page_returns_html(client):
     assert "Generate Token" in resp.text
 
 
+@pytest.mark.asyncio
+async def test_token_page_uses_external_script(client):
+    """Token page HTML should reference external JS, not inline scripts."""
+    resp = await client.get("/auth/tokens", headers={"Accept": "text/html"})
+    assert resp.status_code == 200
+    assert '<script src="/auth/tokens.js">' in resp.text
+    # No inline script blocks (only the external script tag)
+    assert resp.text.count("<script") == 1
+
+
+@pytest.mark.asyncio
+async def test_token_page_js_served(client):
+    """GET /auth/tokens.js should return JavaScript with correct content type."""
+    resp = await client.get("/auth/tokens.js")
+    assert resp.status_code == 200
+    assert "javascript" in resp.headers["content-type"]
+    assert "checkAuth" in resp.text
+    assert "generateToken" in resp.text
+
+
 # ---------------------------------------------------------------------------
 # OAuth login ?next= redirect cookie
 # ---------------------------------------------------------------------------

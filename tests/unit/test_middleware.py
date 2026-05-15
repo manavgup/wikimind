@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from starlette.responses import JSONResponse
 
+from wikimind.config import get_settings
 from wikimind.main import SPAFallbackMiddleware
 
 
@@ -19,6 +20,34 @@ async def test_security_headers_present(client):
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-XSS-Protection"] == "1; mode=block"
     assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "Content-Security-Policy" in response.headers
+    csp = response.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in csp
+    assert "script-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+
+
+@pytest.mark.asyncio
+async def test_hsts_present_in_production(client):
+    """HSTS header should be present when not in development mode."""
+    settings = get_settings()
+    assert not settings.is_dev, "Test assumes production mode (default)"
+    response = await client.get("/health")
+    assert response.status_code == 200
+    assert "Strict-Transport-Security" in response.headers
+    hsts = response.headers["Strict-Transport-Security"]
+    assert "max-age=63072000" in hsts
+    assert "includeSubDomains" in hsts
+
+
+@pytest.mark.asyncio
+async def test_hsts_absent_in_development(client, monkeypatch):
+    """HSTS header should be omitted in development mode to avoid breaking local HTTP."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "env", "development")
+    response = await client.get("/health")
+    assert response.status_code == 200
+    assert "Strict-Transport-Security" not in response.headers
 
 
 @pytest.mark.asyncio
