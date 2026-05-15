@@ -9,15 +9,14 @@ to just the contradiction edge.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import Article, Backlink, RelationType
 
 
 @pytest.mark.asyncio
-async def test_graph_relation_type_contradicts_returns_only_contradictions(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+async def test_graph_relation_type_contradicts_returns_only_contradictions(client, session_factory) -> None:
+    factory = session_factory
     async with factory() as session:
         session.add(
             Article(

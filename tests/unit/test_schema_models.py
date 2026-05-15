@@ -1,12 +1,17 @@
 """Tests for schema overhaul Phase 1 — enums, tables, Pydantic models, and registry."""
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind.engine.concept_kind_registry import (
@@ -327,59 +332,52 @@ class TestAnswerCompilationResult:
 
 
 class TestSeedBuiltinKinds:
-    async def test_creates_five_kinds(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_creates_five_kinds(self, session_factory):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             result = await session.execute(select(ConceptKindDef))
             assert {k.name for k in result.scalars().all()} == {"topic", "person", "organization", "product", "paper"}
 
-    async def test_idempotent(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_idempotent(self, session_factory):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             assert len((await session.execute(select(ConceptKindDef))).scalars().all()) == 5
 
-    async def test_topic_has_correct_sections(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_topic_has_correct_sections(self, session_factory):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             topic = (await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "topic"))).scalar_one()
             assert "overview" in json.loads(topic.required_sections)
 
-    async def test_person_has_correct_template_key(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_person_has_correct_template_key(self, session_factory):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             person = (await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "person"))).scalar_one()
             assert person.prompt_template_key == "concept_synthesis_person"
 
 
 class TestValidateRegistryAgainstPrompts:
-    async def test_passes_with_valid_templates(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_passes_with_valid_templates(self, session_factory):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
-        async with factory() as session:
+        async with session_factory() as session:
             await validate_registry_against_prompts(session)
 
-    async def test_fails_with_missing_template(self, async_engine, monkeypatch):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_fails_with_missing_template(self, session_factory, monkeypatch):
+        async with session_factory() as session:
             await seed_builtin_kinds(session)
         modified = {k: v for k, v in PROMPT_TEMPLATES.items() if k != "concept_synthesis_topic"}
         monkeypatch.setattr("wikimind.engine.concept_kind_registry.PROMPT_TEMPLATES", modified)
-        async with factory() as session:
+        async with session_factory() as session:
             with pytest.raises(RegistryTemplateMismatchError, match="concept_synthesis_topic"):
                 await validate_registry_against_prompts(session)
 
-    async def test_passes_with_empty_registry(self, async_engine):
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def test_passes_with_empty_registry(self, session_factory):
+        async with session_factory() as session:
             await validate_registry_against_prompts(session)

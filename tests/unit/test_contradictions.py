@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.conftest import TEST_USER_ID
 from wikimind.api.deps import ANONYMOUS_USER_ID
@@ -280,9 +279,8 @@ async def test_service_create_from_finding_different_claims_creates_separate(db_
 
 
 @pytest.mark.asyncio
-async def test_api_list_contradictions(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles_and_contradictions(factory)
+async def test_api_list_contradictions(client, session_factory) -> None:
+    await _seed_articles_and_contradictions(session_factory)
 
     response = await client.get("/api/wiki/contradictions")
     assert response.status_code == 200
@@ -291,9 +289,8 @@ async def test_api_list_contradictions(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_list_contradictions_filter_active(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles_and_contradictions(factory)
+async def test_api_list_contradictions_filter_active(client, session_factory) -> None:
+    await _seed_articles_and_contradictions(session_factory)
 
     response = await client.get("/api/wiki/contradictions", params={"status": "active"})
     assert response.status_code == 200
@@ -303,9 +300,8 @@ async def test_api_list_contradictions_filter_active(client, async_engine) -> No
 
 
 @pytest.mark.asyncio
-async def test_api_get_single_contradiction(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles_and_contradictions(factory)
+async def test_api_get_single_contradiction(client, session_factory) -> None:
+    await _seed_articles_and_contradictions(session_factory)
 
     response = await client.get("/api/wiki/contradictions/ctr1")
     assert response.status_code == 200
@@ -323,9 +319,8 @@ async def test_api_get_contradiction_not_found(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_resolve_contradiction(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles_and_contradictions(factory)
+async def test_api_resolve_contradiction(client, session_factory) -> None:
+    await _seed_articles_and_contradictions(session_factory)
 
     response = await client.patch(
         "/api/wiki/contradictions/ctr1",
@@ -339,9 +334,8 @@ async def test_api_resolve_contradiction(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_dismiss_contradiction(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles_and_contradictions(factory)
+async def test_api_dismiss_contradiction(client, session_factory) -> None:
+    await _seed_articles_and_contradictions(session_factory)
 
     response = await client.patch(
         "/api/wiki/contradictions/ctr1",
@@ -404,20 +398,18 @@ async def _seed_other_user_contradiction(factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_get_contradiction_cross_user_returns_404(client, async_engine) -> None:
+async def test_api_get_contradiction_cross_user_returns_404(client, session_factory) -> None:
     """GET another user's contradiction returns 404 — not leaked."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_other_user_contradiction(factory)
+    await _seed_other_user_contradiction(session_factory)
 
     response = await client.get("/api/wiki/contradictions/other-ctr1")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_api_patch_contradiction_cross_user_returns_404(client, async_engine) -> None:
+async def test_api_patch_contradiction_cross_user_returns_404(client, session_factory) -> None:
     """PATCH another user's contradiction returns 404 — not modifiable."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_other_user_contradiction(factory)
+    await _seed_other_user_contradiction(session_factory)
 
     response = await client.patch(
         "/api/wiki/contradictions/other-ctr1",

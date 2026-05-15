@@ -337,11 +337,8 @@ class TestWikiRoutesWithData:
     """Route tests that create data in the database via the same engine as the client."""
 
     @staticmethod
-    async def _seed_article(async_engine, **kwargs):
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
-        factory = async_sessionmaker(async_engine, expire_on_commit=False)
-        async with factory() as session:
+    async def _seed_article(session_factory, **kwargs):
+        async with session_factory() as session:
             art = Article(**kwargs)
             session.add(art)
             await session.commit()
@@ -349,10 +346,10 @@ class TestWikiRoutesWithData:
             return art
 
     @pytest.mark.asyncio
-    async def test_recompile_existing_article(self, client: AsyncClient, async_engine):
+    async def test_recompile_existing_article(self, client: AsyncClient, session_factory):
         """Recompile route should create a job and schedule recompile."""
         art = await self._seed_article(
-            async_engine,
+            session_factory,
             slug="recompile-test",
             title="Recompile Test",
             file_path="wiki/recompile-test.md",
@@ -370,10 +367,10 @@ class TestWikiRoutesWithData:
         assert data["job_id"] is not None
 
     @pytest.mark.asyncio
-    async def test_refresh_existing_article(self, client: AsyncClient, async_engine):
+    async def test_refresh_existing_article(self, client: AsyncClient, session_factory):
         """Refresh route should mark article as still-current."""
         art = await self._seed_article(
-            async_engine,
+            session_factory,
             slug="refresh-test",
             title="Refresh Test",
             file_path="wiki/refresh-test.md",
@@ -387,10 +384,10 @@ class TestWikiRoutesWithData:
         assert data["status"] == "refreshed"
 
     @pytest.mark.asyncio
-    async def test_get_article_tags(self, client: AsyncClient, async_engine):
+    async def test_get_article_tags(self, client: AsyncClient, session_factory):
         """Get tags for an article."""
         art = await self._seed_article(
-            async_engine,
+            session_factory,
             slug="tagged-art",
             title="Tagged Art",
             file_path="wiki/tagged-art.md",
@@ -403,10 +400,10 @@ class TestWikiRoutesWithData:
         assert isinstance(resp.json(), list)
 
     @pytest.mark.asyncio
-    async def test_export_existing_article_pdf(self, client: AsyncClient, async_engine):
+    async def test_export_existing_article_pdf(self, client: AsyncClient, session_factory):
         """Export an existing article as PDF HTML."""
         art = await self._seed_article(
-            async_engine,
+            session_factory,
             slug="export-test",
             title="Export Test",
             file_path="wiki/export-test.md",

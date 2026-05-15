@@ -6,7 +6,6 @@ Covers issues #660 (recompile_article) and #663 (get_article_tags).
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import Article
@@ -44,10 +43,9 @@ async def _seed_articles(factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_recompile_own_article_succeeds(client, async_engine) -> None:
+async def test_recompile_own_article_succeeds(client, session_factory) -> None:
     """Recompiling own article should return 200 with scheduled status."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     resp = await client.post("/api/wiki/articles/own-art/recompile")
     assert resp.status_code == 200
@@ -57,10 +55,9 @@ async def test_recompile_own_article_succeeds(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_recompile_other_users_article_returns_404(client, async_engine) -> None:
+async def test_recompile_other_users_article_returns_404(client, session_factory) -> None:
     """Recompiling another user's article should return 404."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     resp = await client.post("/api/wiki/articles/other-art/recompile")
     assert resp.status_code == 404
@@ -79,10 +76,9 @@ async def test_recompile_nonexistent_article_returns_404(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_tags_own_article(client, async_engine) -> None:
+async def test_get_tags_own_article(client, session_factory) -> None:
     """Getting tags for own article should succeed (empty list when untagged)."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     resp = await client.get("/api/wiki/articles/own-art/tags")
     assert resp.status_code == 200
@@ -90,20 +86,18 @@ async def test_get_tags_own_article(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_tags_other_users_article_returns_404(client, async_engine) -> None:
+async def test_get_tags_other_users_article_returns_404(client, session_factory) -> None:
     """Getting tags for another user's article should return 404."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     resp = await client.get("/api/wiki/articles/other-art/tags")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_get_tags_own_article_with_tags(client, async_engine) -> None:
+async def test_get_tags_own_article_with_tags(client, session_factory) -> None:
     """Getting tags for own article that has tags should return them."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     # Create a tag and apply it
     tag_resp = await client.post("/api/tags", json={"name": "important", "color": "#ef4444"})

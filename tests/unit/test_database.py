@@ -8,7 +8,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
@@ -28,12 +27,6 @@ def _wiki_root() -> Path:
     root = Path(settings.data_dir) / "wiki" / TEST_USER_ID
     root.mkdir(parents=True, exist_ok=True)
     return root
-
-
-@pytest.fixture
-def session_factory(async_engine):
-    """Override get_session to use the in-memory engine."""
-    return async_sessionmaker(async_engine, expire_on_commit=False)
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ Also covers the /wiki/articles/{id_or_slug}/relationships endpoint (issue #423).
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import Article, Backlink, RelationType
@@ -54,9 +53,8 @@ async def _seed_three_article_graph(factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_no_filters_returns_all_edges(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_no_filters_returns_all_edges(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph")
     assert response.status_code == 200
@@ -66,9 +64,8 @@ async def test_graph_no_filters_returns_all_edges(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_filter_by_relation_type(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filter_by_relation_type(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"relation_type": "contradicts"})
     assert response.status_code == 200
@@ -81,9 +78,8 @@ async def test_graph_filter_by_relation_type(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_filter_by_from_article_id(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filter_by_from_article_id(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"from_article": "a1"})
     assert response.status_code == 200
@@ -94,9 +90,8 @@ async def test_graph_filter_by_from_article_id(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_filter_by_from_article_slug(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filter_by_from_article_slug(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"from_article": "art-a"})
     assert response.status_code == 200
@@ -105,9 +100,8 @@ async def test_graph_filter_by_from_article_slug(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_filter_by_to_article(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filter_by_to_article(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"to_article": "a3"})
     assert response.status_code == 200
@@ -118,9 +112,8 @@ async def test_graph_filter_by_to_article(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_filters_compose_with_and(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filters_compose_with_and(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     # from a1 AND relation_type contradicts → only a1->a3.
     response = await client.get(
@@ -137,9 +130,8 @@ async def test_graph_filters_compose_with_and(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_unknown_from_article_returns_empty(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_unknown_from_article_returns_empty(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"from_article": "no-such-thing"})
     assert response.status_code == 200
@@ -149,18 +141,16 @@ async def test_graph_unknown_from_article_returns_empty(client, async_engine) ->
 
 
 @pytest.mark.asyncio
-async def test_graph_invalid_relation_type_is_422(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_invalid_relation_type_is_422(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"relation_type": "bogus"})
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_relationships_endpoint_groups_by_direction_and_type(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_relationships_endpoint_groups_by_direction_and_type(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/articles/a1/relationships")
     assert response.status_code == 200
@@ -182,9 +172,8 @@ async def test_relationships_endpoint_groups_by_direction_and_type(client, async
 
 
 @pytest.mark.asyncio
-async def test_relationships_endpoint_resolves_slug(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_relationships_endpoint_resolves_slug(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     # a3 has two incoming (a1 contradicts, a2 supersedes) and no outgoing.
     response = await client.get("/api/wiki/articles/art-c/relationships")
@@ -203,9 +192,8 @@ async def test_relationships_endpoint_404_when_missing(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_graph_unknown_to_article_returns_empty(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_unknown_to_article_returns_empty(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"to_article": "no-such-thing"})
     assert response.status_code == 200
@@ -215,9 +203,8 @@ async def test_graph_unknown_to_article_returns_empty(client, async_engine) -> N
 
 
 @pytest.mark.asyncio
-async def test_graph_filter_by_to_article_slug(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_three_article_graph(factory)
+async def test_graph_filter_by_to_article_slug(client, session_factory) -> None:
+    await _seed_three_article_graph(session_factory)
 
     response = await client.get("/api/wiki/graph", params={"to_article": "art-c"})
     assert response.status_code == 200

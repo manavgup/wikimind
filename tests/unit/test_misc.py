@@ -10,7 +10,6 @@ import pytest
 import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
@@ -137,9 +136,8 @@ async def test_settings_test_llm_uses_provider_safe_token_budget(client) -> None
     assert seen["request"].max_tokens >= 16
 
 
-async def test_settings_get_cost(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    with patch("wikimind.api.routes.settings.get_session_factory", return_value=factory):
+async def test_settings_get_cost(client, session_factory) -> None:
+    with patch("wikimind.api.routes.settings.get_session_factory", return_value=session_factory):
         resp = await client.get("/api/settings/llm/cost")
     assert resp.status_code == 200
     assert "cost_this_month_usd" in resp.json()

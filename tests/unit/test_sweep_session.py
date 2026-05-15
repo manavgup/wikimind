@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlmodel import select
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
@@ -82,7 +85,7 @@ async def test_sweep_creates_backlinks(db_session: AsyncSession, tmp_path: Path)
 
 
 @pytest.mark.asyncio
-async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_path: Path) -> None:
+async def test_sweep_handles_duplicate_backlinks(session_factory, tmp_path: Path) -> None:
     """When a Backlink already exists, sweep uses merge() without SAWarning or error.
 
     Uses separate sessions (as production code does): one for setup, one
@@ -90,7 +93,7 @@ async def test_sweep_handles_duplicate_backlinks(async_engine: AsyncEngine, tmp_
     created the Backlink in a prior session.
     """
     wiki = _wiki_root()
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     # Setup: create articles and a pre-existing backlink.
     async with factory() as setup_session:
@@ -146,7 +149,7 @@ class _CountingSessionFactory:
 
 @pytest.mark.asyncio
 async def test_sweep_wikilinks_uses_isolated_sessions(
-    async_engine: AsyncEngine,
+    session_factory,
     tmp_path: Path,
 ) -> None:
     """sweep_wikilinks(user_id="test-user") creates a separate session per article via get_session_factory().
@@ -155,7 +158,7 @@ async def test_sweep_wikilinks_uses_isolated_sessions(
     multiple sessions are created (one for the job + one per article).
     """
     wiki = _wiki_root()
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     # Pre-populate: one article with an unresolved bracket, one target
     async with factory() as setup_session:

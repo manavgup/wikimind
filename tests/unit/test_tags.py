@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import get_settings
@@ -84,9 +83,8 @@ async def _seed_article(factory) -> str:
 
 
 @pytest.mark.asyncio
-async def test_tag_article(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+async def test_tag_article(client, session_factory) -> None:
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "important"})
     tag_id = tag_resp.json()["id"]
@@ -102,10 +100,9 @@ async def test_tag_article(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_tag_article_idempotent(client, async_engine) -> None:
+async def test_tag_article_idempotent(client, session_factory) -> None:
     """Tagging the same article twice should not raise an error."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "star"})
     tag_id = tag_resp.json()["id"]
@@ -118,9 +115,8 @@ async def test_tag_article_idempotent(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_untag_article(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+async def test_untag_article(client, session_factory) -> None:
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "remove-me"})
     tag_id = tag_resp.json()["id"]
@@ -131,9 +127,8 @@ async def test_untag_article(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_untag_nonexistent_returns_404(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+async def test_untag_nonexistent_returns_404(client, session_factory) -> None:
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "nope"})
     tag_id = tag_resp.json()["id"]
@@ -143,9 +138,8 @@ async def test_untag_nonexistent_returns_404(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_article_tags(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+async def test_get_article_tags(client, session_factory) -> None:
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "alpha", "color": "#22c55e"})
     tag_id = tag_resp.json()["id"]
@@ -160,9 +154,8 @@ async def test_get_article_tags(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_articles_by_tag(client, async_engine) -> None:
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+async def test_get_articles_by_tag(client, session_factory) -> None:
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "special"})
     tag_id = tag_resp.json()["id"]
@@ -176,9 +169,9 @@ async def test_get_articles_by_tag(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_article_response_includes_tags(client, async_engine) -> None:
+async def test_article_response_includes_tags(client, session_factory) -> None:
     """Article detail should include tags in the response."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     # Seed article with a file that can be read
     settings = get_settings()
@@ -210,10 +203,9 @@ async def test_article_response_includes_tags(client, async_engine) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_tag_cascades_to_associations(client, async_engine) -> None:
+async def test_delete_tag_cascades_to_associations(client, session_factory) -> None:
     """Deleting a tag should remove all article-tag associations."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_article(factory)
+    await _seed_article(session_factory)
 
     tag_resp = await client.post("/api/tags", json={"name": "cascade-test"})
     tag_id = tag_resp.json()["id"]
@@ -289,9 +281,9 @@ async def test_execute_saved_search_empty(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_saved_search_with_tag_filter(client, async_engine) -> None:
+async def test_execute_saved_search_with_tag_filter(client, session_factory) -> None:
     """Executing a search with tag filter returns only tagged articles."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     async with factory() as session:
         session.add(

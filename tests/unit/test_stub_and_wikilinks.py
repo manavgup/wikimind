@@ -6,7 +6,6 @@ import uuid
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
@@ -16,7 +15,6 @@ from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
-    from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
@@ -297,10 +295,9 @@ async def test_post_stub_empty_title_rejected(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_wikilink_resolve_endpoint(client: AsyncClient, async_engine: AsyncEngine) -> None:
+async def test_wikilink_resolve_endpoint(client: AsyncClient, session_factory) -> None:
     """GET /wiki/wikilinks/resolve returns matching articles."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     response = await client.get("/api/wiki/wikilinks/resolve", params={"q": "learning"})
     assert response.status_code == 200
@@ -312,10 +309,9 @@ async def test_wikilink_resolve_endpoint(client: AsyncClient, async_engine: Asyn
 
 
 @pytest.mark.asyncio
-async def test_wikilink_resolve_shows_stub_flag(client: AsyncClient, async_engine: AsyncEngine) -> None:
+async def test_wikilink_resolve_shows_stub_flag(client: AsyncClient, session_factory) -> None:
     """Wikilink resolve response includes is_stub field."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     response = await client.get("/api/wiki/wikilinks/resolve", params={"q": "Deep"})
     assert response.status_code == 200
@@ -332,10 +328,9 @@ async def test_wikilink_resolve_empty_query_rejected(client: AsyncClient) -> Non
 
 
 @pytest.mark.asyncio
-async def test_article_list_includes_stub_flag(client: AsyncClient, async_engine: AsyncEngine) -> None:
+async def test_article_list_includes_stub_flag(client: AsyncClient, session_factory) -> None:
     """GET /wiki/articles returns is_stub in the response for each article."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    await _seed_articles(factory)
+    await _seed_articles(session_factory)
 
     response = await client.get("/api/wiki/articles")
     assert response.status_code == 200
