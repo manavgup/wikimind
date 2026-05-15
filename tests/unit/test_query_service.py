@@ -724,8 +724,8 @@ class TestBuildCitationsOwnership:
         citations_b = await _build_citations(query, db_session, user_id="user-b")
         assert citations_b == []
 
-    async def test_build_citations_no_filter_when_user_id_none(self, db_session, tmp_path):
-        """_build_citations returns all matching articles when user_id is None."""
+    async def test_build_citations_enforces_user_id_filter(self, db_session, tmp_path):
+        """_build_citations always filters by user_id, even when empty string."""
         file_path = tmp_path / "any-article.md"
         file_path.write_text("# Any", encoding="utf-8")
 
@@ -751,5 +751,6 @@ class TestBuildCitationsOwnership:
         db_session.add(query)
         await db_session.commit()
 
-        citations = await _build_citations(query, db_session, user_id=None)
-        assert len(citations) == 1
+        # Empty string must not bypass isolation — should return no results
+        citations = await _build_citations(query, db_session, user_id="")
+        assert citations == []

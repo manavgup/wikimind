@@ -249,14 +249,12 @@ class EmbeddingService:
             return []
 
         query_embedding = self._encode([query])
-        n_results = limit if user_id else min(limit, self._collection.count())
         query_kwargs: dict[str, Any] = {
             "query_embeddings": query_embedding,
-            "n_results": n_results,
+            "n_results": limit,
             "include": ["documents", "metadatas", "distances"],
+            "where": {"user_id": user_id},
         }
-        if user_id:
-            query_kwargs["where"] = {"user_id": user_id}
         results = self._collection.query(**query_kwargs)
 
         search_results: list[SemanticSearchResult] = []

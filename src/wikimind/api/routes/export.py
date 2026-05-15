@@ -28,15 +28,11 @@ async def _resolve_article(
     user_id: str,
 ) -> Article:
     """Look up an article by ID or slug, raising 404 if not found."""
-    id_stmt = select(Article).where(Article.id == id_or_slug)
-    if user_id:
-        id_stmt = id_stmt.where(Article.user_id == user_id)
+    id_stmt = select(Article).where(Article.id == id_or_slug, Article.user_id == user_id)
     result = await session.execute(id_stmt)
     article = result.scalar_one_or_none()
     if article is None:
-        slug_stmt = select(Article).where(Article.slug == id_or_slug)
-        if user_id:
-            slug_stmt = slug_stmt.where(Article.user_id == user_id)
+        slug_stmt = select(Article).where(Article.slug == id_or_slug, Article.user_id == user_id)
         result = await session.execute(slug_stmt)
         article = result.scalar_one_or_none()
     if not article:

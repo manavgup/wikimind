@@ -198,9 +198,7 @@ async def regenerate_index_md(
     """
     wiki_storage = get_wiki_storage(user_id)
 
-    article_stmt = select(Article)
-    if user_id:
-        article_stmt = article_stmt.where(Article.user_id == user_id)
+    article_stmt = select(Article).where(Article.user_id == user_id)
     articles_result = await session.execute(article_stmt)
     articles: list[Article] = list(articles_result.scalars().all())
 
@@ -224,20 +222,16 @@ async def _fetch_health_data(
     user_id: str,
 ) -> HealthData:
     """Fetch articles and backlinks for the health page, scoped by user_id."""
-    article_stmt = select(Article)
-    if user_id:
-        article_stmt = article_stmt.where(Article.user_id == user_id)
+    article_stmt = select(Article).where(Article.user_id == user_id)
     articles_result = await session.execute(article_stmt)
     articles: list[Article] = list(articles_result.scalars().all())
 
     # Filter backlinks to only those between this user's articles
     article_ids = {a.id for a in articles}
-    backlink_stmt = select(Backlink)
-    if user_id:
-        backlink_stmt = backlink_stmt.where(
-            Backlink.source_article_id.in_(article_ids),  # type: ignore[attr-defined]
-            Backlink.target_article_id.in_(article_ids),  # type: ignore[attr-defined]
-        )
+    backlink_stmt = select(Backlink).where(
+        Backlink.source_article_id.in_(article_ids),  # type: ignore[attr-defined]
+        Backlink.target_article_id.in_(article_ids),  # type: ignore[attr-defined]
+    )
     backlinks_result = await session.execute(backlink_stmt)
     backlinks: list[Backlink] = list(backlinks_result.scalars().all())
 

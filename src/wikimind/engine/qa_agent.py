@@ -140,9 +140,7 @@ async def _score_wiki_worthiness(
 
     dedup_collision = False
     if candidate_slug:
-        stmt = select(Article).where(Article.slug == candidate_slug)
-        if user_id:
-            stmt = stmt.where(Article.user_id == user_id)
+        stmt = select(Article).where(Article.slug == candidate_slug, Article.user_id == user_id)
         existing = await db_session.execute(stmt)
         dedup_collision = existing.scalar_one_or_none() is not None
 
@@ -635,9 +633,7 @@ conversation context contradicts the wiki, prefer the wiki."""
         # Extract key terms from question (simple approach for Phase 1)
         terms = [t for t in question.lower().split() if len(t) > 3]
 
-        ctx_stmt = select(Article)
-        if user_id:
-            ctx_stmt = ctx_stmt.where(Article.user_id == user_id)
+        ctx_stmt = select(Article).where(Article.user_id == user_id)
         result = await session.execute(ctx_stmt)
         all_articles = result.scalars().all()
 

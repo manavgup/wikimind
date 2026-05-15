@@ -364,9 +364,8 @@ class AdminService:
             Source.status == IngestStatus.PROCESSING,
             Source.file_path.is_(None),  # type: ignore[union-attr]
             Source.ingested_at < cutoff,
+            Source.user_id == user_id,
         )
-        if user_id:
-            stmt = stmt.where(Source.user_id == user_id)
         result = await session.execute(stmt)
         return [
             ZombieSource(
