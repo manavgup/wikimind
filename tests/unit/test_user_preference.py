@@ -107,7 +107,7 @@ async def test_set_default_provider_invalid(client) -> None:
     """Sending an unknown provider name returns 400."""
     resp = await client.post("/api/settings/llm/default-provider", json={"provider": "nonexistent"})
     assert resp.status_code == 400
-    assert "Unknown provider" in resp.json()["detail"]
+    assert "Unknown provider" in resp.json()["error"]["message"]
 
 
 async def test_set_default_provider_not_enabled(client) -> None:
@@ -115,7 +115,7 @@ async def test_set_default_provider_not_enabled(client) -> None:
     # mock provider is disabled by default (enabled=False in MockConfig)
     resp = await client.post("/api/settings/llm/default-provider", json={"provider": "mock"})
     assert resp.status_code == 400
-    assert "not enabled" in resp.json()["detail"]
+    assert "not enabled" in resp.json()["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ async def test_patch_budget_invalid(client) -> None:
     """A non-positive budget value returns 400."""
     resp = await client.patch("/api/settings", json={"monthly_budget_usd": -1.0})
     assert resp.status_code == 400
-    assert "positive" in resp.json()["detail"]
+    assert "positive" in resp.json()["error"]["message"]
 
 
 async def test_patch_fallback(client) -> None:
@@ -188,7 +188,7 @@ async def test_patch_openai_compatible_rejects_invalid_base_url(client) -> None:
     """OpenAI-compatible base URLs must be absolute HTTP(S) URLs."""
     resp = await client.patch("/api/settings", json={"openai_compatible_base_url": "openrouter.ai/api/v1"})
     assert resp.status_code == 400
-    assert "base URL" in resp.json()["detail"]
+    assert "base URL" in resp.json()["error"]["message"]
 
 
 @pytest.mark.parametrize(
@@ -230,14 +230,14 @@ async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled
     )
 
     assert resp.status_code == 403
-    assert "runtime settings are global" in resp.json()["detail"]
+    assert "runtime settings are global" in resp.json()["error"]["message"]
 
 
 async def test_patch_openai_compatible_rejects_invalid_reasoning_format(client) -> None:
     """OpenAI-compatible reasoning format must be one of the supported payload styles."""
     resp = await client.patch("/api/settings", json={"openai_compatible_reasoning_format": "custom"})
     assert resp.status_code == 400
-    assert "reasoning format" in resp.json()["detail"]
+    assert "reasoning format" in resp.json()["error"]["message"]
 
 
 # ---------------------------------------------------------------------------

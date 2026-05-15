@@ -47,20 +47,14 @@ async def require_admin(
         return user_id
 
     if user_id == ANONYMOUS_USER_ID:
-        raise HTTPException(
-            status_code=403,
-            detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
-        )
+        raise HTTPException(status_code=403, detail="Admin access required")
 
     from wikimind.models import User  # noqa: PLC0415 — deferred to avoid circular import
 
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None or not user.is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
-        )
+        raise HTTPException(status_code=403, detail="Admin access required")
     return user_id
 
 

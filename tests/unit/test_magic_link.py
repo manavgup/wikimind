@@ -129,7 +129,7 @@ async def test_magic_link_verify_rejects_expired_token(client, monkeypatch):
         json={"token": expired_token},
     )
     assert response.status_code == 401
-    assert "expired" in response.json()["detail"].lower()
+    assert "expired" in response.json()["error"]["message"].lower()
 
 
 @pytest.mark.asyncio
@@ -156,7 +156,7 @@ async def test_magic_link_verify_rejects_tampered_token(client):
         json={"token": tampered_token},
     )
     assert response.status_code == 401
-    assert "signature" in response.json()["detail"].lower()
+    assert "signature" in response.json()["error"]["message"].lower()
 
 
 @pytest.mark.asyncio

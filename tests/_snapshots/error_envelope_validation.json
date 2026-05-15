@@ -1,13 +1,7 @@
 {
-  "detail": [
-    {
-      "input": {},
-      "loc": [
-        "body",
-        "content"
-      ],
-      "msg": "Field required",
-      "type": "missing"
-    }
-  ]
+  "error": {
+    "code": "validation_error",
+    "message": "body -> content: Field required",
+    "request_id": "<REQUEST_ID>"
+  }
 }

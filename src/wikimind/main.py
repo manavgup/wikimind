@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -43,7 +44,6 @@ from wikimind.api.routes.settings import apply_runtime_llm_preferences
 from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
-from wikimind.errors import WikiMindError
 from wikimind.jobs.background import get_background_compiler
 from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
@@ -274,20 +274,56 @@ app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
 # ---------------------------------------------------------------------------
-# Exception handlers — catch domain errors raised inside route handlers
+# Exception handlers — normalize all error responses to the standard envelope
 # ---------------------------------------------------------------------------
 
+_STATUS_TO_CODE = {
+    400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    422: "validation_error",
+    429: "rate_limited",
+    500: "internal_error",
+    502: "bad_gateway",
+    503: "service_unavailable",
+}
 
-@app.exception_handler(WikiMindError)
-async def wikimind_error_handler(request: Request, exc: WikiMindError) -> JSONResponse:
-    """Map WikiMindError subclasses to the standard JSON error envelope."""
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """Wrap FastAPI HTTPException in the standard JSON error envelope."""
     request_id = getattr(request.state, "request_id", "unknown")
+    code = _STATUS_TO_CODE.get(exc.status_code, f"http_{exc.status_code}")
+    message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": {
-                "code": exc.code,
-                "message": exc.message,
+                "code": code,
+                "message": message,
+                "request_id": request_id,
+            }
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Wrap Pydantic validation errors in the standard JSON error envelope."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    messages = []
+    for err in exc.errors():
+        loc = " -> ".join(str(part) for part in err.get("loc", []))
+        msg = err.get("msg", "")
+        messages.append(f"{loc}: {msg}" if loc else msg)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "validation_error",
+                "message": "; ".join(messages),
                 "request_id": request_id,
             }
         },
