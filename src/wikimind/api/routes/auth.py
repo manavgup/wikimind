@@ -351,10 +351,10 @@ _TOKEN_PAGE_HTML = """\
     <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
       Sign in to generate a token.
     </p>
-    <button class="btn btn-login" onclick="location.href='/auth/login/google?next=/auth/tokens'">
+    <button class="btn btn-login" id="login-google">
       Sign in with Google
     </button>
-    <button class="btn btn-login" onclick="location.href='/auth/login/github?next=/auth/tokens'">
+    <button class="btn btn-login" id="login-github">
       Sign in with GitHub
     </button>
   </div>
@@ -372,7 +372,7 @@ _TOKEN_PAGE_HTML = """\
       <option value="365">1 year</option>
     </select>
     <div id="form-error" class="error hidden"></div>
-    <button id="generate-btn" class="btn btn-primary" onclick="generateToken()">
+    <button id="generate-btn" class="btn btn-primary">
       Generate Token
     </button>
   </div>
@@ -381,9 +381,9 @@ _TOKEN_PAGE_HTML = """\
   <div id="result-section" class="hidden">
     <p class="warn">Copy this token now. You will not be able to see it again.</p>
     <div class="token-box" id="token-value"></div>
-    <button class="btn btn-copy" onclick="copyToken()">Copy to Clipboard</button>
+    <button class="btn btn-copy" id="copy-btn">Copy to Clipboard</button>
     <hr class="divider">
-    <button class="btn btn-primary" onclick="resetForm()">Generate Another</button>
+    <button class="btn btn-primary" id="reset-btn">Generate Another</button>
   </div>
 
   <div id="loading" class="info">Checking authentication...</div>
@@ -477,6 +477,17 @@ function resetForm() {
   document.getElementById('result-section').classList.add('hidden');
   document.getElementById('token-section').classList.remove('hidden');
 }
+
+// Bind event handlers (no inline onclick — CSP blocks unsafe-inline)
+document.getElementById('login-google').addEventListener('click', function() {
+  location.href = '/auth/login/google?next=/auth/tokens';
+});
+document.getElementById('login-github').addEventListener('click', function() {
+  location.href = '/auth/login/github?next=/auth/tokens';
+});
+document.getElementById('generate-btn').addEventListener('click', generateToken);
+document.getElementById('copy-btn').addEventListener('click', copyToken);
+document.getElementById('reset-btn').addEventListener('click', resetForm);
 
 checkAuth();
 """
