@@ -424,12 +424,13 @@ class Settings(BaseSettings):
             self.database_url = f"sqlite+aiosqlite:///{self.data_dir}/db/wikimind.db"
             constructed_url = self.database_url
         raw = os.environ.get("DATABASE_URL")
+        wikimind_db_url_set = bool(os.environ.get("WIKIMIND_DATABASE_URL"))
         if raw and not self.database_url.startswith("postgresql"):
             self.database_url = re.sub(r"^postgres(ql)?://", "postgresql+asyncpg://", raw)
-        if raw and self.database_url != constructed_url:
+        if raw and wikimind_db_url_set and self.database_url != constructed_url:
             log.warning(
-                "DATABASE_URL env var overrides constructed database_url",
-                hint="set WIKIMIND_DATABASE_URL instead for explicit configuration",
+                "DATABASE_URL env var overrides WIKIMIND_DATABASE_URL",
+                hint="remove one to avoid ambiguity",
             )
         # Redis URL: fall back to unprefixed REDIS_URL
         if not self.redis_url:
