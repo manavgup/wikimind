@@ -5,9 +5,11 @@
 # ARQ worker settings are read by the arq runtime.
 
 # FastAPI route handlers (called by the framework, not directly)
+# CodeQL: unused-import — intentional vulture whitelist entries
 from wikimind.api.routes import ingest, jobs, query, settings, wiki, ws  # noqa: F401
 
 # CLI entry point and subcommands (invoked by click framework, not directly)
+# CodeQL: unused-import — intentional vulture whitelist entry
 from wikimind.cli import main  # noqa: F401
 
 # SQLModel table fields (used by ORM, not directly referenced)

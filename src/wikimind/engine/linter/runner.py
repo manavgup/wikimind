@@ -179,7 +179,10 @@ async def _queue_recompile_for_new_contradictions(
     Returns:
         Number of recompile jobs queued.
     """
-    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415, I001 — circular: runner -> background -> worker -> runner
+    # Lazy import to break circular dependency:
+    # runner -> background -> worker -> runner
+    # CodeQL: cyclic-import — unavoidable, see #649
+    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415
 
     # Collect unique article IDs that need recompilation
     article_ids_to_recompile: set[str] = set()

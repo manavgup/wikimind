@@ -37,7 +37,7 @@ from wikimind.config import get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.compiler import Compiler
 from wikimind.engine.concept_compiler import ConceptCompiler
-from wikimind.engine.linter.runner import run_lint
+from wikimind.engine.linter.runner import run_lint  # CodeQL[cyclic-import]
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
     Article,
