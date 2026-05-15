@@ -49,8 +49,12 @@ async def ingest_pdf(
     """
     if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
-    # Enforce 50 MB upload limit before reading entire file into memory
+    # Enforce 50 MB upload limit. Check Content-Length header first to reject
+    # oversized uploads without reading into memory. Fall back to post-read
+    # check for chunked transfers that omit Content-Length.
     max_size = 50 * 1024 * 1024  # 50 MB
+    if file.size is not None and file.size > max_size:
+        raise HTTPException(status_code=413, detail="PDF exceeds 50 MB size limit")
     contents = await file.read()
     if len(contents) > max_size:
         raise HTTPException(status_code=413, detail="PDF exceeds 50 MB size limit")
