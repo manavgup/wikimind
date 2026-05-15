@@ -1,0 +1,74 @@
+# ===============================================================
+# 🗄️  Alembic Single-Head Check
+# ===============================================================
+#
+#   - runs `alembic heads` and fails if more than one head exists
+#   - multiple heads cause deployment failures (alembic upgrade
+#     head refuses to run when the migration graph is branched)
+#   - triggers on changes to alembic/ or models.py
+# ---------------------------------------------------------------
+
+name: Alembic Single-Head Check
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "src/wikimind/models.py"
+      - ".github/workflows/alembic-check.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "src/wikimind/models.py"
+      - ".github/workflows/alembic-check.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  alembic-single-head:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Alembic single head
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Verify single Alembic head
+        run: |
+          HEAD_COUNT=$(uv run alembic heads | grep -c ' (head)' || true)
+          echo "Alembic heads found: $HEAD_COUNT"
+          uv run alembic heads
+          if [ "$HEAD_COUNT" -ne 1 ]; then
+            echo "::error::Multiple Alembic heads detected. Merge the migration branches before merging this PR."
+            exit 1
+          fi
+          echo "Single head confirmed"
