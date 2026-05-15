@@ -82,7 +82,9 @@ jobs:
       # Regenerate it here so the detect-secrets hook validates against
       # the current file contents, not the committed baseline.
       - name: 🔑  Regenerate secrets baseline
-        run: uv run detect-secrets scan --baseline .secrets.baseline
+        run: |
+          uv run detect-secrets scan --baseline .secrets.baseline
+          git add .secrets.baseline
 
       # -----------------------------------------------------------
       # 5️⃣  Run all hooks
