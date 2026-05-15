@@ -286,11 +286,8 @@ async def init_db():
     settings = get_settings()
     if is_postgres(settings.database_url):
         async with engine.begin() as lock_conn:
-            await lock_conn.execute(sa_text("SELECT pg_advisory_lock(737069)"))
-            try:
-                await _run_versioned_migrations(engine, _versioned_migrations, _session_migrations)
-            finally:
-                await lock_conn.execute(sa_text("SELECT pg_advisory_unlock(737069)"))
+            await lock_conn.execute(sa_text("SELECT pg_advisory_xact_lock(737069)"))
+            await _run_versioned_migrations(engine, _versioned_migrations, _session_migrations)
     else:
         await _run_versioned_migrations(engine, _versioned_migrations, _session_migrations)
 
