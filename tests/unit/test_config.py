@@ -4,7 +4,7 @@ import keyring
 import pytest
 from pydantic import ValidationError
 
-from wikimind.config import AuthConfig, Settings, _reconcile_providers, get_settings
+from wikimind.config import Settings, _reconcile_providers, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +27,9 @@ def _clean_env(monkeypatch):
     for key in list(__import__("os").environ.keys()):
         if key.startswith("WIKIMIND_") or key.endswith("_API_KEY"):
             monkeypatch.delenv(key, raising=False)
+    # Re-set development mode — the validator rejects empty jwt_secret_key
+    # in production, and config tests typically don't set a secret.
+    monkeypatch.setenv("WIKIMIND_ENV", "development")
 
 
 class TestNestedEnvVars:
@@ -269,21 +272,24 @@ class TestDatabaseUrlRewrite:
 
 
 class TestAuthConfigJwtSecret:
-    """AuthConfig must reject empty jwt_secret_key when auth is enabled (#656)."""
+    """Settings must reject empty jwt_secret_key in production (#656)."""
 
-    def test_rejects_empty_secret_when_enabled(self):
-        """An empty secret with auth enabled is an auth bypass — must fail."""
+    def test_rejects_empty_secret_in_production(self, monkeypatch):
+        """An empty secret in production is an auth bypass — must fail."""
+        monkeypatch.setenv("WIKIMIND_ENV", "production")
         with pytest.raises(ValidationError, match="jwt_secret_key must not be empty"):
-            AuthConfig(enabled=True, jwt_secret_key="")
+            Settings()
 
-    def test_accepts_real_secret_when_enabled(self):
-        """A non-empty secret with auth enabled is valid."""
-        cfg = AuthConfig(enabled=True, jwt_secret_key="real-secret")
-        assert cfg.jwt_secret_key == "real-secret"
-        assert cfg.enabled is True
+    def test_accepts_real_secret_in_production(self, monkeypatch):
+        """A non-empty secret in production is valid."""
+        monkeypatch.setenv("WIKIMIND_ENV", "production")
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "real-secret")
+        s = Settings()
+        assert s.auth.jwt_secret_key == "real-secret"
 
-    def test_allows_empty_secret_when_disabled(self):
-        """Auth disabled + empty secret is fine — no tokens are verified."""
-        cfg = AuthConfig(enabled=False, jwt_secret_key="")
-        assert cfg.enabled is False
-        assert cfg.jwt_secret_key == ""
+    def test_allows_empty_secret_in_development(self, monkeypatch):
+        """Dev mode + empty secret is fine — dev_auto_auth bypasses JWT."""
+        monkeypatch.setenv("WIKIMIND_ENV", "development")
+        s = Settings()
+        assert s.is_dev
+        assert s.auth.jwt_secret_key == ""

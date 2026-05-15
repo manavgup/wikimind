@@ -27,9 +27,8 @@ import structlog
 from fastmcp import FastMCP
 from pydantic import Field
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.config import get_settings
-from wikimind.database import get_session_factory, init_db
+from wikimind.database import get_dev_user_id, get_session_factory, init_db
 from wikimind.models import QueryRequest
 from wikimind.services.ingest import IngestService
 from wikimind.services.query import QueryService
@@ -84,6 +83,15 @@ mcp = FastMCP(
 # ---------------------------------------------------------------------------
 
 
+async def _get_mcp_user_id() -> str:
+    """Return the user ID for MCP operations.
+
+    In dev mode, uses the auto-provisioned dev user. MCP is a local
+    tool — it always runs in the same environment as the server.
+    """
+    return await get_dev_user_id()
+
+
 @contextlib.asynccontextmanager
 async def _get_session():
     """Yield an async database session for MCP tool handlers."""
@@ -124,7 +132,7 @@ async def wiki_search(
         results = await wiki_service.search(
             q=query,
             session=session,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=await _get_mcp_user_id(),
             limit=limit,
         )
 
@@ -167,7 +175,7 @@ async def wiki_get_article(
             article = await wiki_service.get_article(
                 id_or_slug=id_or_slug,
                 session=session,
-                user_id=ANONYMOUS_USER_ID,
+                user_id=await _get_mcp_user_id(),
             )
         except Exception as exc:
             return json.dumps({"error": str(exc)})
@@ -226,7 +234,7 @@ async def wiki_ask(
             result = await query_service.ask(
                 request=request,
                 session=session,
-                user_id=ANONYMOUS_USER_ID,
+                user_id=await _get_mcp_user_id(),
             )
         except Exception as exc:
             log.warning("wiki_ask failed", error=str(exc))
@@ -273,7 +281,7 @@ async def wiki_list_sources(
     async with _get_session() as session:
         sources = await ingest_service.list_sources(
             session=session,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=await _get_mcp_user_id(),
             status=status,
             limit=limit,
         )

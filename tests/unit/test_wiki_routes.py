@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, Backlink, RelationType
 
 
@@ -19,16 +19,16 @@ async def _seed_three_article_graph(factory) -> None:
     a2 --supersedes-->  a3
     """
     async with factory() as session:
-        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=ANONYMOUS_USER_ID))
-        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=ANONYMOUS_USER_ID))
-        session.add(Article(id="a3", slug="art-c", title="Art C", file_path="/tmp/c.md", user_id=ANONYMOUS_USER_ID))
+        session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=TEST_USER_ID))
+        session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=TEST_USER_ID))
+        session.add(Article(id="a3", slug="art-c", title="Art C", file_path="/tmp/c.md", user_id=TEST_USER_ID))
         session.add(
             Backlink(
                 source_article_id="a1",
                 target_article_id="a2",
                 relation_type=RelationType.REFERENCES,
                 context="ref",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -37,7 +37,7 @@ async def _seed_three_article_graph(factory) -> None:
                 target_article_id="a3",
                 relation_type=RelationType.CONTRADICTS,
                 context="conflict",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -46,7 +46,7 @@ async def _seed_three_article_graph(factory) -> None:
                 target_article_id="a3",
                 relation_type=RelationType.SUPERSEDES,
                 context="newer",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         await session.commit()

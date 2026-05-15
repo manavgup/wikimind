@@ -8,10 +8,8 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import jwt
 import pytest
 
 from wikimind.api.routes import settings as settings_mod
@@ -208,29 +206,23 @@ async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled
     monkeypatch,
     payload,
 ) -> None:
-    """Authenticated users cannot change global OpenAI-compatible runtime config."""
+    """In production (non-dev mode), users cannot change global runtime config."""
+    from fastapi import HTTPException
+
+    from wikimind.api.routes.settings import SettingsUpdateRequest, _update_openai_compatible_settings
+
     settings = settings_mod.get_settings()
-    secret = "test-secret-key-32-bytes-minimum"
-    monkeypatch.setattr(settings.auth, "enabled", True)
-    monkeypatch.setattr(settings.auth, "jwt_secret_key", secret)
-    token = jwt.encode(
-        {
-            "sub": "user-1",
-            "email": "user@example.com",
-            "exp": datetime.now(UTC) + timedelta(minutes=5),
-        },
-        secret,
-        algorithm=settings.auth.jwt_algorithm,
-    )
-
-    resp = await client.patch(
-        "/api/settings",
-        json=payload,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert resp.status_code == 403
-    assert "runtime settings are global" in resp.json()["error"]["message"]
+    # Temporarily override is_dev to False to simulate production
+    original_env = settings.env
+    settings.env = "production"
+    try:
+        request = SettingsUpdateRequest(**payload)
+        with pytest.raises(HTTPException) as exc_info:
+            await _update_openai_compatible_settings(request, settings, "user-1")
+        assert exc_info.value.status_code == 403
+        assert "runtime settings are global" in exc_info.value.detail
+    finally:
+        settings.env = original_env
 
 
 async def test_patch_openai_compatible_rejects_invalid_reasoning_format(client) -> None:

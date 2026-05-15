@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, Backlink, RelationType
 
 
@@ -24,7 +24,7 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
                 slug="article-x",
                 title="Article X",
                 file_path="/tmp/x.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -33,7 +33,7 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
                 slug="article-y",
                 title="Article Y",
                 file_path="/tmp/y.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -42,7 +42,7 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
                 slug="article-z",
                 title="Article Z",
                 file_path="/tmp/z.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         # X contradicts Y — the edge we expect to see when filtering.
@@ -52,7 +52,7 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
                 target_article_id="article-y",
                 relation_type=RelationType.CONTRADICTS,
                 context="X disagrees with Y",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         # X references Z — should be excluded by the contradicts filter.
@@ -62,7 +62,7 @@ async def test_graph_relation_type_contradicts_returns_only_contradictions(clien
                 target_article_id="article-z",
                 relation_type=RelationType.REFERENCES,
                 context="see also",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         await session.commit()

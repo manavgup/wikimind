@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, PageType, Source, SourceType
 from wikimind.storage import get_wiki_storage
 
@@ -14,10 +14,10 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-# When auth is disabled (as in tests), get_current_user_id returns ANONYMOUS_USER_ID.
+# When auth is disabled (as in tests), get_current_user_id returns TEST_USER_ID.
 # Tests that go through the HTTP client must create articles with this user_id
 # so the service-layer user_id filter finds them.
-_CLIENT_USER_ID = ANONYMOUS_USER_ID
+_CLIENT_USER_ID = TEST_USER_ID
 
 
 async def _create_article_with_file(

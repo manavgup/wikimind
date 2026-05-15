@@ -81,16 +81,13 @@ def whoami() -> None:
             handle_response_error(resp)
             data = resp.json()
 
-        user_id = data.get("id", "unknown")
         email = data.get("email", "")
         name = data.get("name", "")
+        user_id = data.get("id", "unknown")
 
-        if user_id == "anonymous" or not email:
-            click.echo("Not authenticated (anonymous mode).")
-        else:
-            click.echo(f"User:  {name}")
-            click.echo(f"Email: {email}")
-            click.echo(f"ID:    {user_id}")
+        click.echo(f"User:  {name}")
+        click.echo(f"Email: {email}")
+        click.echo(f"ID:    {user_id}")
 
     except httpx.ConnectError:
         click.echo(f"Error: Cannot connect to WikiMind server at {get_server_url()}", err=True)

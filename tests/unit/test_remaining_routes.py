@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.models import (
     Article,
     PageType,
@@ -90,7 +90,7 @@ class TestJobsRoutes:
                     source_type=SourceType.TEXT,
                     title="Test",
                     file_path="some-source-id.txt",
-                    user_id=ANONYMOUS_USER_ID,
+                    user_id=TEST_USER_ID,
                 )
             )
             await session.commit()
@@ -143,7 +143,7 @@ class TestIngestRoutes:
             source_type=SourceType.URL,
             source_url="http://example.com",
             title="Example",
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
         with patch.object(
             __import__("wikimind.services.ingest", fromlist=["IngestService"]).IngestService,
@@ -354,7 +354,7 @@ class TestWikiRoutesWithData:
             title="Recompile Test",
             file_path="wiki/recompile-test.md",
             page_type=PageType.SOURCE,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
 
         mock_bg = MagicMock()
@@ -375,7 +375,7 @@ class TestWikiRoutesWithData:
             title="Refresh Test",
             file_path="wiki/refresh-test.md",
             page_type=PageType.SOURCE,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
 
         resp = await client.post(f"/api/wiki/articles/{art.slug}/refresh")
@@ -392,7 +392,7 @@ class TestWikiRoutesWithData:
             title="Tagged Art",
             file_path="wiki/tagged-art.md",
             page_type=PageType.SOURCE,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
 
         resp = await client.get(f"/api/wiki/articles/{art.id}/tags")
@@ -408,7 +408,7 @@ class TestWikiRoutesWithData:
             title="Export Test",
             file_path="wiki/export-test.md",
             page_type=PageType.SOURCE,
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
 
         with patch(

@@ -7,6 +7,11 @@ import os
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+# Set development mode before any wikimind imports. Module-level code in
+# worker.py calls get_settings() at import time, which would fail the
+# production jwt_secret_key validation if WIKIMIND_ENV is not set.
+os.environ.setdefault("WIKIMIND_ENV", "development")
+
 import keyring
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -66,30 +71,46 @@ def _hermetic_env() -> Iterator[None]:
         "WIKIMIND_ANTHROPIC_API_KEY",
         "WIKIMIND_OPENAI_API_KEY",
         "WIKIMIND_GOOGLE_API_KEY",
-        "WIKIMIND_AUTH__ENABLED",
         "WIKIMIND_AUTH__JWT_SECRET_KEY",
         "WIKIMIND_AUTH__GOOGLE_CLIENT_ID",
         "WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET",
         "WIKIMIND_AUTH__GITHUB_CLIENT_ID",
         "WIKIMIND_AUTH__GITHUB_CLIENT_SECRET",
+        "WIKIMIND_AUTH__DEV_AUTO_AUTH",
+        "WIKIMIND_AUTH__DEV_USER_EMAIL",
     ]
     saved = {k: os.environ.pop(k, None) for k in scrubbed}
+    # Set dev mode at session scope so that any early get_settings() calls
+    # (e.g. during module import via worker.py) don't fail the production
+    # jwt_secret_key requirement.
+    saved_env = os.environ.get("WIKIMIND_ENV")
+    os.environ["WIKIMIND_ENV"] = "development"
     try:
         yield
     finally:
         for k, v in saved.items():
             if v is not None:
                 os.environ[k] = v
+        if saved_env is not None:
+            os.environ["WIKIMIND_ENV"] = saved_env
+        else:
+            os.environ.pop("WIKIMIND_ENV", None)
 
 
 @pytest.fixture(autouse=True)
 def _isolated_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Point WIKIMIND_DATA_DIR at a tmp dir for every test (filesystem isolation)."""
+    """Point WIKIMIND_DATA_DIR at a tmp dir for every test (filesystem isolation).
+
+    Tests run in development mode with dev_auto_auth disabled by default.
+    The ``client`` fixture patches the auth middleware to inject TEST_USER_ID
+    instead, giving tests a deterministic, database-independent user identity.
+    """
     data_dir = tmp_path / "wikimind"
     data_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("WIKIMIND_DATA_DIR", str(data_dir))
-    # Force auth disabled — .env may have WIKIMIND_AUTH__ENABLED=true for local dev
-    monkeypatch.setenv("WIKIMIND_AUTH__ENABLED", "false")
+    # Development mode — so jwt_secret_key is not required and dev_auto_auth works
+    monkeypatch.setenv("WIKIMIND_ENV", "development")
+    monkeypatch.setenv("WIKIMIND_AUTH__DEV_AUTO_AUTH", "true")
     get_settings.cache_clear()
     yield data_dir
     get_settings.cache_clear()
@@ -163,8 +184,33 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
     ``get_session_factory`` singleton are redirected to the same in-memory
     engine so that route handlers that call ``get_session_factory()`` directly
     (rather than through FastAPI's DI) also use the hermetic test DB.
+
+    Authentication is handled via ``dev_auto_auth=True`` — the middleware
+    auto-authenticates as a dev user whose ID matches ``TEST_USER_ID``.
+    ``get_dev_user_id`` is patched to return ``TEST_USER_ID``.
     """
     factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Seed the test user row so FK constraints are satisfied.
+    from wikimind.models import User
+
+    async with factory() as seed_session:
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        stmt = (
+            sqlite_insert(User)
+            .values(
+                id=TEST_USER_ID,
+                email="test@wikimind.local",
+                name="Test User",
+                auth_provider="test",
+                auth_provider_id=TEST_USER_ID,
+                is_admin=True,
+            )
+            .on_conflict_do_nothing()
+        )
+        await seed_session.execute(stmt)
+        await seed_session.commit()
 
     async def _override_session() -> AsyncGenerator[AsyncSession, None]:
         async with factory() as session:
@@ -185,13 +231,27 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
         "wikimind.engine.compiler.get_session_factory",
         "wikimind.engine.llm_router.get_session_factory",
     ]
+
+    # Patch get_dev_user_id to return TEST_USER_ID so the middleware's
+    # dev-auto-auth path uses our test user, and reset the cached value.
+    from wikimind.middleware.auth import reset_dev_user_cache
+
+    reset_dev_user_cache()
+
+    async def _mock_get_dev_user_id() -> str:
+        return TEST_USER_ID
+
     with contextlib.ExitStack() as stack:
         for target in _patch_targets:
             stack.enter_context(patch(target, _factory_fn))
+        # Patch get_dev_user_id in the database module — the middleware
+        # imports it lazily via `from wikimind.database import get_dev_user_id`.
+        stack.enter_context(patch("wikimind.database.get_dev_user_id", _mock_get_dev_user_id))
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
 
+    reset_dev_user_cache()
     app.dependency_overrides.clear()
 
 

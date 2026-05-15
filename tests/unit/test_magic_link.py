@@ -40,8 +40,11 @@ async def test_request_magic_link_returns_ok(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_request_magic_link_hides_dev_token_in_production(client):
-    """POST /auth/magic-link should NOT return dev_token in production (default)."""
+async def test_request_magic_link_hides_dev_token_in_production(client, monkeypatch):
+    """POST /auth/magic-link should NOT return dev_token in production."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "env", "production")
+
     response = await client.post(
         "/auth/magic-link",
         json={"email": "test@example.com"},

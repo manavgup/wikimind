@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from tests.conftest import TEST_USER_ID
-from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
@@ -28,7 +27,7 @@ async def _seed_articles_and_contradictions(factory) -> None:
                 slug="art-a",
                 title="Article Alpha",
                 file_path="/tmp/a.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -37,7 +36,7 @@ async def _seed_articles_and_contradictions(factory) -> None:
                 slug="art-b",
                 title="Article Beta",
                 file_path="/tmp/b.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -46,7 +45,7 @@ async def _seed_articles_and_contradictions(factory) -> None:
                 slug="art-c",
                 title="Article Gamma",
                 file_path="/tmp/c.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -57,7 +56,7 @@ async def _seed_articles_and_contradictions(factory) -> None:
                 article_a_id="a1",
                 article_b_id="a2",
                 status=ContradictionStatus.ACTIVE,
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         session.add(
@@ -69,7 +68,7 @@ async def _seed_articles_and_contradictions(factory) -> None:
                 article_b_id="a3",
                 status=ContradictionStatus.RESOLVED,
                 resolution="Both valid at different altitudes",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
         await session.commit()

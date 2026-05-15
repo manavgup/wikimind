@@ -1,12 +1,11 @@
 """JWT authentication middleware for OAuth2-protected endpoints.
 
-When ``settings.auth.enabled`` is False (default), the middleware is a
-pass-through — every request proceeds with ``request.state.user_id = None``.
-The ``get_current_user_id`` dependency coalesces this to ``"anonymous"``.
+Auth is always on. In development mode with ``dev_auto_auth`` enabled,
+the middleware auto-authenticates every request as the dev user (looked
+up or created at startup via ``_ensure_dev_user``). In production, the
+middleware extracts a JWT from the ``wikimind_session`` HttpOnly cookie
+(set during the OAuth callback) or the ``Authorization: Bearer`` header.
 
-When enabled, the middleware extracts a JWT from the ``wikimind_session``
-HttpOnly cookie (set during the OAuth callback). If no cookie is present,
-it falls back to the ``Authorization: Bearer`` header for API clients.
 The decoded payload sets ``request.state.user_id`` and
 ``request.state.user_email`` for downstream route handlers. Exempt paths
 (health check, docs, auth routes, logout) are never challenged.
@@ -40,17 +39,32 @@ _STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".woff", ".woff2", ".map")
 # Auth is enforced on API routes by checking Accept header: API clients
 # send Accept: application/json, browsers loading SPA pages send text/html.
 
+# Cached dev user ID — populated once on first request in dev-auto-auth mode.
+_dev_user_id: str | None = None
+
+
+def reset_dev_user_cache() -> None:
+    """Clear the cached dev user ID (used by tests)."""
+    global _dev_user_id
+    _dev_user_id = None
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """Enforce JWT authentication when auth is enabled."""
+    """Enforce JWT authentication on all requests."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        """Validate JWT token or pass through when auth is disabled."""
+        """Validate JWT token or auto-authenticate in dev mode."""
         settings = get_settings()
 
-        if not settings.auth.enabled:
-            request.state.user_id = None
-            request.state.user_email = None
+        # Dev-mode auto-auth: auto-authenticate as the dev user.
+        if settings.is_dev and settings.auth.dev_auto_auth:
+            global _dev_user_id
+            if _dev_user_id is None:
+                from wikimind.database import get_dev_user_id  # noqa: PLC0415
+
+                _dev_user_id = await get_dev_user_id()
+            request.state.user_id = _dev_user_id
+            request.state.user_email = settings.auth.dev_user_email
             return await call_next(request)
 
         path = request.url.path

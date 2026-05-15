@@ -178,35 +178,50 @@ async def _record_migration(engine, version: str) -> None:
     log.info("migration applied", version=version)
 
 
-async def _ensure_anonymous_user(engine) -> None:
-    """Create the 'anonymous' user row if it doesn't exist.
+async def _ensure_dev_user(engine) -> None:
+    """Create the dev user row if it doesn't exist.
 
-    When auth is disabled, ``get_current_user_id()`` returns ``"anonymous"``.
-    Tables with ``user_id`` FK constraints need this row to exist.
+    When running in development mode with ``dev_auto_auth`` enabled,
+    the auth middleware auto-authenticates as this user. Tables with
+    ``user_id`` FK constraints need this row to exist.
 
     Uses INSERT ... ON CONFLICT DO NOTHING instead of check-then-insert
     to avoid TOCTOU races when multiple Gunicorn workers start simultaneously.
     """
-    # CodeQL: cyclic-import — unavoidable, see #649
-    from wikimind.api.deps import ANONYMOUS_USER_ID  # noqa: PLC0415
     from wikimind.models import User  # noqa: PLC0415
+
+    settings = get_settings()
+    if not (settings.is_dev and settings.auth.dev_auto_auth):
+        return
+
+    dev_email = settings.auth.dev_user_email
+    dev_user_id = f"dev-{dev_email}"
 
     async with engine.begin() as conn:
         _insert = _dialect_insert(conn)
         stmt = (
             _insert(User)
             .values(
-                id=ANONYMOUS_USER_ID,
-                email="anonymous@localhost",
-                name="Anonymous",
-                auth_provider="none",
-                auth_provider_id="anonymous",
+                id=dev_user_id,
+                email=dev_email,
+                name="Dev User",
+                auth_provider="dev",
+                auth_provider_id=dev_user_id,
             )
             .on_conflict_do_nothing()
         )
         result = await conn.execute(stmt)
         if result.rowcount:
-            log.info("created anonymous user for no-auth mode")
+            log.info("created dev user for dev-auto-auth mode", email=dev_email)
+
+
+async def get_dev_user_id() -> str:
+    """Return the dev user ID for auto-auth mode.
+
+    Derives the ID deterministically from the configured dev email.
+    """
+    settings = get_settings()
+    return f"dev-{settings.auth.dev_user_email}"
 
 
 async def _run_versioned_migrations(engine, versioned_migrations, session_migrations) -> None:
@@ -240,9 +255,9 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
 
-    # Ensure the "anonymous" user row exists so FK constraints are satisfied
-    # when auth is disabled (get_current_user_id returns "anonymous").
-    await _ensure_anonymous_user(engine)
+    # Ensure the dev user row exists so FK constraints are satisfied
+    # when running in dev mode with dev_auto_auth.
+    await _ensure_dev_user(engine)
 
     # Create FTS virtual table for full-text search (idempotent).
     from wikimind.services.search import create_fts_table, rebuild_fts_index  # noqa: PLC0415

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID, require_admin
+from wikimind.api.deps import require_admin
 from wikimind.models import User
 
 if TYPE_CHECKING:
@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
-async def test_admin_stats_accessible_without_auth(client: AsyncClient) -> None:
-    """In single-user mode (auth disabled), admin endpoints are accessible."""
+async def test_admin_stats_accessible(client: AsyncClient) -> None:
+    """Admin endpoints are accessible when authenticated."""
     resp = await client.get("/api/admin/stats")
     assert resp.status_code == 200
     data = resp.json()
@@ -40,8 +40,6 @@ async def test_admin_stats_returns_system_wide_metrics(client: AsyncClient) -> N
 
 async def test_require_admin_rejects_non_admin(db_session: AsyncSession) -> None:
     """require_admin raises 403 when user is not admin."""
-    from wikimind.config import get_settings
-
     user = User(
         email="regular@test.com",
         auth_provider="google",
@@ -51,22 +49,13 @@ async def test_require_admin_rejects_non_admin(db_session: AsyncSession) -> None
     db_session.add(user)
     await db_session.commit()
 
-    settings = get_settings()
-    # Temporarily enable auth to test the guard
-    original = settings.auth.enabled
-    settings.auth.enabled = True
-    try:
-        with pytest.raises(Exception) as exc_info:
-            await require_admin(user_id=user.id, session=db_session)
-        assert exc_info.value.status_code == 403  # type: ignore[attr-defined]
-    finally:
-        settings.auth.enabled = original
+    with pytest.raises(Exception) as exc_info:
+        await require_admin(user_id=user.id, session=db_session)
+    assert exc_info.value.status_code == 403  # type: ignore[attr-defined]
 
 
 async def test_require_admin_allows_admin(db_session: AsyncSession) -> None:
     """require_admin returns user_id when user is admin."""
-    from wikimind.config import get_settings
-
     user = User(
         email="admin@test.com",
         auth_provider="google",
@@ -76,26 +65,12 @@ async def test_require_admin_allows_admin(db_session: AsyncSession) -> None:
     db_session.add(user)
     await db_session.commit()
 
-    settings = get_settings()
-    original = settings.auth.enabled
-    settings.auth.enabled = True
-    try:
-        result = await require_admin(user_id=user.id, session=db_session)
-        assert result == user.id
-    finally:
-        settings.auth.enabled = original
+    result = await require_admin(user_id=user.id, session=db_session)
+    assert result == user.id
 
 
-async def test_require_admin_rejects_anonymous(db_session: AsyncSession) -> None:
-    """require_admin raises 403 for anonymous user when auth is enabled."""
-    from wikimind.config import get_settings
-
-    settings = get_settings()
-    original = settings.auth.enabled
-    settings.auth.enabled = True
-    try:
-        with pytest.raises(Exception) as exc_info:
-            await require_admin(user_id=ANONYMOUS_USER_ID, session=db_session)
-        assert exc_info.value.status_code == 403  # type: ignore[attr-defined]
-    finally:
-        settings.auth.enabled = original
+async def test_require_admin_rejects_unknown_user(db_session: AsyncSession) -> None:
+    """require_admin raises 403 for a user_id that does not exist in the DB."""
+    with pytest.raises(Exception) as exc_info:
+        await require_admin(user_id="nonexistent-user", session=db_session)
+    assert exc_info.value.status_code == 403  # type: ignore[attr-defined]

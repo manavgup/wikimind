@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from wikimind.api.deps import ANONYMOUS_USER_ID
+from tests.conftest import TEST_USER_ID
 from wikimind.errors import NotFoundError
 from wikimind.models import Article
 from wikimind.services.wiki import WikiService
@@ -18,13 +18,13 @@ async def test_random_article_returns_article(db_session) -> None:
             slug="random-test",
             title="Random Test",
             file_path="/tmp/r.md",
-            user_id=ANONYMOUS_USER_ID,
+            user_id=TEST_USER_ID,
         )
     )
     await db_session.commit()
 
     svc = WikiService()
-    result = await svc.get_random_article(db_session, user_id=ANONYMOUS_USER_ID)
+    result = await svc.get_random_article(db_session, user_id=TEST_USER_ID)
     assert result.slug == "random-test"
     assert result.title == "Random Test"
 
@@ -38,13 +38,13 @@ async def test_random_article_returns_one_of_many(db_session) -> None:
                 slug=f"random-multi-{i}",
                 title=f"Multi {i}",
                 file_path=f"/tmp/rm{i}.md",
-                user_id=ANONYMOUS_USER_ID,
+                user_id=TEST_USER_ID,
             )
         )
     await db_session.commit()
 
     svc = WikiService()
-    result = await svc.get_random_article(db_session, user_id=ANONYMOUS_USER_ID)
+    result = await svc.get_random_article(db_session, user_id=TEST_USER_ID)
     valid_slugs = {f"random-multi-{i}" for i in range(5)}
     assert result.slug in valid_slugs
 
@@ -53,4 +53,4 @@ async def test_random_article_returns_one_of_many(db_session) -> None:
 async def test_random_article_raises_when_no_articles(db_session) -> None:
     svc = WikiService()
     with pytest.raises(NotFoundError):
-        await svc.get_random_article(db_session, user_id=ANONYMOUS_USER_ID)
+        await svc.get_random_article(db_session, user_id=TEST_USER_ID)
