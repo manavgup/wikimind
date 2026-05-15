@@ -59,6 +59,13 @@ class PermissionDeniedError(WikiMindError):
     status_code: int = 403
 
 
+class GoneError(WikiMindError):
+    """Raised when a resource existed but is no longer available (e.g. expired link)."""
+
+    code: str = "gone"
+    status_code: int = 410
+
+
 class UpstreamError(WikiMindError):
     """Raised when an external upstream service fails."""
 
