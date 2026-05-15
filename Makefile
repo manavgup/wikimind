@@ -511,6 +511,21 @@ check-docs: check-openapi check-adr-index check-readme-targets ## Verify all aut
 check-doc-sync: ## Run the co-change rule engine against the staged diff
 	uv run python scripts/check_doc_sync.py
 
+.PHONY: check-alembic
+check-alembic: ## Verify Alembic has a single migration head (no branches)
+	@HEAD_COUNT=$$(uv run alembic heads | grep -c ' (head)' || true); \
+	if [ "$$HEAD_COUNT" -ne 1 ]; then \
+		echo "ERROR: Multiple Alembic heads detected:"; \
+		uv run alembic heads; \
+		exit 1; \
+	fi
+	@echo "✓ Single Alembic head confirmed"
+
+.PHONY: check-lockfile
+check-lockfile: ## Verify uv.lock is in sync with pyproject.toml
+	uv lock --check
+	@echo "✓ uv.lock is in sync with pyproject.toml"
+
 .PHONY: backfill-images
 backfill-images: ## Extract images from existing PDFs that were ingested before image extraction
 	$(PYTHON) scripts/backfill_images.py
