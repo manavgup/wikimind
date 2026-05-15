@@ -40,6 +40,7 @@ export function QueryInput({ onSubmit, disabled }: Props) {
         disabled={disabled}
         rows={2}
         placeholder="Ask a question about your wiki…"
+        aria-label="Ask a question"
         className="flex-1 resize-none rounded-md border border-slate-300 px-4 py-3 text-sm shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-slate-100 disabled:text-slate-400"
       />
       <button

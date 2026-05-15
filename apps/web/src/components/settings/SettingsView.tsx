@@ -132,6 +132,7 @@ export function SettingsView() {
                     min="0.01"
                     value={budgetValue}
                     onChange={(e) => setBudgetValue(e.target.value)}
+                    aria-label="Monthly budget in USD"
                     className="w-24 rounded border border-slate-300 px-2 py-0.5 text-sm text-slate-700 focus:border-brand-300 focus:outline-none"
                     autoFocus
                   />

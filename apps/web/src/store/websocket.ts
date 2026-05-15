@@ -29,6 +29,7 @@ interface WebSocketStore {
 }
 
 const MAX_TOASTS = 5;
+const TOAST_AUTO_DISMISS_MS = 5_000;
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,7 +43,8 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
 
   setState: (state) => set({ state }),
 
-  ingest: (event) =>
+  ingest: (event) => {
+    const toastId = makeId();
     set((store) => {
       const next: Partial<WebSocketStore> = { lastEvent: event };
 
@@ -59,7 +61,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
         next.sourceStatus = rest;
         next.toasts = [
           {
-            id: makeId(),
+            id: toastId,
             kind: "success" as const,
             title: "Compilation complete",
             detail: event.article_title,
@@ -72,7 +74,7 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
       if (event.event === "compilation.failed") {
         next.toasts = [
           {
-            id: makeId(),
+            id: toastId,
             kind: "error" as const,
             title: "Compilation failed",
             detail: event.error,
@@ -83,15 +85,22 @@ export const useWebSocketStore = create<WebSocketStore>((set) => ({
       }
 
       return next;
-    }),
+    });
+    if (event.event === "compilation.complete" || event.event === "compilation.failed") {
+      setTimeout(() => useWebSocketStore.getState().dismissToast(toastId), TOAST_AUTO_DISMISS_MS);
+    }
+  },
 
-  pushToast: (input) =>
+  pushToast: (input) => {
+    const id = makeId();
     set((store) => ({
       toasts: [
-        { id: makeId(), kind: input.kind, title: input.title, detail: input.detail, createdAt: Date.now() },
+        { id, kind: input.kind, title: input.title, detail: input.detail, createdAt: Date.now() },
         ...store.toasts,
       ].slice(0, MAX_TOASTS),
-    })),
+    }));
+    setTimeout(() => useWebSocketStore.getState().dismissToast(id), TOAST_AUTO_DISMISS_MS);
+  },
 
   dismissToast: (id) =>
     set((store) => ({ toasts: store.toasts.filter((t) => t.id !== id) })),
