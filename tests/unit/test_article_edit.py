@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
-from tests.conftest import TEST_USER_ID
-
 # When auth is disabled (as in tests), get_current_user_id returns ANONYMOUS_USER_ID.
 # Tests that go through the HTTP client must create articles with this user_id
 # so the service-layer user_id filter finds them.
@@ -221,7 +219,7 @@ async def test_recompile_blocked_by_manual_edit(
         title="Edited Article",
         file_path="/tmp/edited.md",
         page_type=PageType.SOURCE,
-        user_id=TEST_USER_ID,
+        user_id=_CLIENT_USER_ID,
         manually_edited=True,
     )
     db_session.add(article)
@@ -239,7 +237,7 @@ async def test_recompile_force_overrides_manual_edit(
     db_session: AsyncSession,
 ) -> None:
     """POST recompile with force=true clears manually_edited and proceeds."""
-    src = Source(source_type=SourceType.TEXT, title="src", user_id=TEST_USER_ID)
+    src = Source(source_type=SourceType.TEXT, title="src", user_id=_CLIENT_USER_ID)
     db_session.add(src)
     await db_session.commit()
 
@@ -249,7 +247,7 @@ async def test_recompile_force_overrides_manual_edit(
         file_path="/tmp/force.md",
         page_type=PageType.SOURCE,
         source_ids=json.dumps([src.id]),
-        user_id=TEST_USER_ID,
+        user_id=_CLIENT_USER_ID,
         manually_edited=True,
     )
     db_session.add(article)
@@ -276,7 +274,7 @@ async def test_recompile_unedited_article_no_force_needed(
     db_session: AsyncSession,
 ) -> None:
     """POST recompile on a non-edited article works without force."""
-    src = Source(source_type=SourceType.TEXT, title="src", user_id=TEST_USER_ID)
+    src = Source(source_type=SourceType.TEXT, title="src", user_id=_CLIENT_USER_ID)
     db_session.add(src)
     await db_session.commit()
 
@@ -286,7 +284,7 @@ async def test_recompile_unedited_article_no_force_needed(
         file_path="/tmp/unedited.md",
         page_type=PageType.SOURCE,
         source_ids=json.dumps([src.id]),
-        user_id=TEST_USER_ID,
+        user_id=_CLIENT_USER_ID,
         manually_edited=False,
     )
     db_session.add(article)

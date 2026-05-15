@@ -192,16 +192,24 @@ class TagService:
         self,
         session: AsyncSession,
         article_id: str,
+        user_id: str | None = None,
     ) -> list[TagResponse]:
         """Return all tags applied to an article.
 
         Args:
             session: Async database session.
             article_id: Article to look up.
+            user_id: If provided, verify the article belongs to this user.
 
         Returns:
             List of TagResponse records.
+
+        Raises:
+            NotFoundError: If user_id is given and the article does not belong
+                to that user.
         """
+        if user_id is not None:
+            await self._get_article(session, article_id, user_id)
         result = await session.execute(
             select(Tag)
             .join(ArticleTag, ArticleTag.tag_id == Tag.id)  # type: ignore[arg-type]
