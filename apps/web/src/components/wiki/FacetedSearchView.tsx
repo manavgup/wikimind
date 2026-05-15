@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useFacetedSearch, useSearchFacets } from "../../hooks/useArticles";
@@ -255,7 +256,7 @@ export function FacetedSearchView() {
                       {result.snippet && (
                         <p
                           className="mt-1 line-clamp-2 text-xs text-slate-500"
-                          dangerouslySetInnerHTML={{ __html: result.snippet }}
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(result.snippet) }}
                         />
                       )}
                     </Link>
