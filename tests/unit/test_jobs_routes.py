@@ -10,22 +10,19 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from wikimind.api.deps import ANONYMOUS_USER_ID
 from wikimind.models import Job, JobStatus, JobType, Source, SourceType
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
-    from sqlalchemy.ext.asyncio import AsyncEngine
 
 OTHER_USER_ID = "other-user"
 
 
-async def _seed(async_engine: AsyncEngine, model):
+async def _seed(session_factory, model):
     """Insert a model instance and return it refreshed."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    async with factory() as session:
+    async with session_factory() as session:
         session.add(model)
         await session.commit()
         await session.refresh(model)
@@ -39,10 +36,10 @@ async def _seed(async_engine: AsyncEngine, model):
 
 class TestGetJobOwnership:
     @pytest.mark.asyncio
-    async def test_get_job_own_user(self, client: AsyncClient, async_engine: AsyncEngine):
+    async def test_get_job_own_user(self, client: AsyncClient, session_factory):
         """Owner can read their own job."""
         job = await _seed(
-            async_engine,
+            session_factory,
             Job(
                 id="job-owned",
                 user_id=ANONYMOUS_USER_ID,
@@ -57,10 +54,10 @@ class TestGetJobOwnership:
         assert data["id"] == "job-owned"
 
     @pytest.mark.asyncio
-    async def test_get_job_other_user_returns_none(self, client: AsyncClient, async_engine: AsyncEngine):
+    async def test_get_job_other_user_returns_none(self, client: AsyncClient, session_factory):
         """A job belonging to another user is invisible (returns None/null)."""
         await _seed(
-            async_engine,
+            session_factory,
             Job(
                 id="job-other",
                 user_id=OTHER_USER_ID,
@@ -80,10 +77,10 @@ class TestGetJobOwnership:
 
 class TestTriggerCompileOwnership:
     @pytest.mark.asyncio
-    async def test_trigger_compile_own_source(self, client: AsyncClient, async_engine: AsyncEngine):
+    async def test_trigger_compile_own_source(self, client: AsyncClient, session_factory):
         """Owner can trigger compile on their own source."""
         await _seed(
-            async_engine,
+            session_factory,
             Source(
                 id="src-owned",
                 source_type=SourceType.TEXT,
@@ -104,10 +101,10 @@ class TestTriggerCompileOwnership:
         assert data["status"] == "queued"
 
     @pytest.mark.asyncio
-    async def test_trigger_compile_other_user_returns_404(self, client: AsyncClient, async_engine: AsyncEngine):
+    async def test_trigger_compile_other_user_returns_404(self, client: AsyncClient, session_factory):
         """Triggering compile on another user's source returns 404."""
         await _seed(
-            async_engine,
+            session_factory,
             Source(
                 id="src-other",
                 source_type=SourceType.TEXT,

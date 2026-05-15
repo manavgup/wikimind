@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import select
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
@@ -55,7 +58,7 @@ async def _make_article(
 
 
 @pytest.mark.asyncio
-async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engine, tmp_path: Path) -> None:
+async def test_sweep_resolves_incrementally(db_session: AsyncSession, session_factory, tmp_path: Path) -> None:
     """Full sweep resolves brackets as target articles appear over time."""
     wiki = _wiki_root()
     # --- Setup: article B exists, article C does not yet exist ---
@@ -70,7 +73,7 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, async_engi
     article_a = await _make_article(db_session, "AI Overview", "overview.md", slug="ai-overview")
 
     # Build a real session factory backed by the same in-memory engine
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     # --- Phase 1: run sweep --- only Machine Learning should resolve ---
     with patch("wikimind.jobs.sweep.get_session_factory", return_value=factory):

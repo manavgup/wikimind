@@ -6,7 +6,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
@@ -135,9 +134,9 @@ async def test_refresh_not_found_raises(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_refresh_endpoint(client, async_engine):
+async def test_refresh_endpoint(client, session_factory):
     """POST /wiki/articles/{slug}/refresh should return 200 with staleness."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
     old_time = utcnow_naive() - timedelta(days=300)
 
     async with factory() as session:
@@ -173,9 +172,9 @@ async def test_refresh_endpoint_not_found(client):
 
 
 @pytest.mark.asyncio
-async def test_list_articles_includes_staleness(client, async_engine):
+async def test_list_articles_includes_staleness(client, session_factory):
     """GET /wiki/articles should include staleness_score in each response."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = session_factory
 
     async with factory() as session:
         session.add(

@@ -131,6 +131,18 @@ async def async_engine() -> AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture
+def session_factory(async_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Reusable async session factory backed by the in-memory test engine.
+
+    Prefer this fixture whenever a test (or its helper) needs to open
+    multiple independent sessions against the same test database — e.g.
+    for seeding data before exercising a route, or for verifying state
+    after a service call.
+    """
+    return async_sessionmaker(async_engine, expire_on_commit=False)
+
+
+@pytest.fixture
 async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Async database session backed by in-memory SQLite."""
     factory = async_sessionmaker(async_engine, expire_on_commit=False)

@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
@@ -236,9 +235,8 @@ async def test_contradiction_detection_creates_typed_backlink(db_session, _isola
 
 
 @pytest.mark.asyncio
-async def test_resolve_contradiction_endpoint(client, async_engine):
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    async with factory() as session:
+async def test_resolve_contradiction_endpoint(client, session_factory):
+    async with session_factory() as session:
         session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=TEST_USER_ID))
         session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=TEST_USER_ID))
         session.add(
@@ -268,7 +266,7 @@ async def test_resolve_contradiction_endpoint(client, async_engine):
     data = response.json()
     assert data["resolved"] is True
     assert data["resolution"] == "source_a_wins"
-    async with factory() as session:
+    async with session_factory() as session:
         result = await session.execute(
             select(Backlink).where(Backlink.source_article_id == "a1", Backlink.target_article_id == "a2")
         )
@@ -284,9 +282,8 @@ async def test_resolve_contradiction_404(client):
 
 
 @pytest.mark.asyncio
-async def test_resolve_contradiction_422_invalid(client, async_engine):
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    async with factory() as session:
+async def test_resolve_contradiction_422_invalid(client, session_factory):
+    async with session_factory() as session:
         session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=TEST_USER_ID))
         session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=TEST_USER_ID))
         session.add(
@@ -304,9 +301,8 @@ async def test_resolve_contradiction_422_invalid(client, async_engine):
 
 
 @pytest.mark.asyncio
-async def test_graph_api_includes_relation_type(client, async_engine):
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    async with factory() as session:
+async def test_graph_api_includes_relation_type(client, session_factory):
+    async with session_factory() as session:
         session.add(Article(id="a1", slug="art-a", title="Art A", file_path="/tmp/a.md", user_id=ANONYMOUS_USER_ID))
         session.add(Article(id="a2", slug="art-b", title="Art B", file_path="/tmp/b.md", user_id=ANONYMOUS_USER_ID))
         session.add(

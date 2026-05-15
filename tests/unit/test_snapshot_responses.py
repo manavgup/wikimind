@@ -13,7 +13,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from tests.conftest import TEST_USER_ID
 from tests.snapshot_utils import assert_matches_snapshot
@@ -72,10 +71,9 @@ async def test_articles_list_empty_snapshot(client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_articles_list_populated_snapshot(client, async_engine) -> None:
+async def test_articles_list_populated_snapshot(client, session_factory) -> None:
     """GET /api/wiki/articles with one article must match the golden file."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
-    async with factory() as session:
+    async with session_factory() as session:
         session.add(
             Article(
                 id="snap-art-1",
