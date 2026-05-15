@@ -60,6 +60,7 @@ class BackgroundCompiler:
         _check_production_redis_guard()
         self._redis_url: str | None = get_settings().redis_url
         self._arq_pool: ArqRedis | None = None  # lazily created; reused across calls
+        self._pool_lock: asyncio.Lock = asyncio.Lock()  # guards lazy pool creation
 
     @property
     def is_prod(self) -> bool:
@@ -189,11 +190,14 @@ class BackgroundCompiler:
 
         The pool is lazily created on first call and reused for all
         subsequent enqueue operations to avoid per-call connection
-        overhead.
+        overhead. An asyncio.Lock guards initialization to prevent
+        duplicate pools under concurrent calls.
         """
         if self._arq_pool is None:
-            settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
-            self._arq_pool = await create_pool(settings)
+            async with self._pool_lock:
+                if self._arq_pool is None:  # double-check after acquiring lock
+                    settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
+                    self._arq_pool = await create_pool(settings)
         await self._arq_pool.enqueue_job(func_name, *args)
 
     async def close(self) -> None:
