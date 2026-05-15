@@ -277,7 +277,10 @@ class EmbeddingConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_chunk_overlap(self) -> EmbeddingConfig:
-        """Ensure chunk_overlap_tokens is strictly less than chunk_size_tokens."""
+        """Ensure chunk_overlap_tokens is non-negative and less than chunk_size_tokens."""
+        if self.chunk_overlap_tokens < 0:
+            msg = f"chunk_overlap_tokens ({self.chunk_overlap_tokens}) must not be negative"
+            raise ValueError(msg)
         if self.chunk_overlap_tokens >= self.chunk_size_tokens:
             msg = (
                 f"chunk_overlap_tokens ({self.chunk_overlap_tokens}) must be less than "
