@@ -2,8 +2,8 @@
 
 import json
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.models import ConceptKindDef
 
@@ -60,8 +60,8 @@ async def seed_builtin_kinds(session: AsyncSession) -> None:
     """Idempotently create the five built-in ConceptKindDef rows."""
     for kind_data in _BUILTIN_KINDS:
         name = kind_data["name"]
-        result = await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == name))
-        existing = result.scalar_one_or_none()
+        result = await session.exec(select(ConceptKindDef).where(ConceptKindDef.name == name))
+        existing = result.one_or_none()
         if existing is None:
             kind = ConceptKindDef(**kind_data)
             session.add(kind)
@@ -74,8 +74,8 @@ class RegistryTemplateMismatchError(Exception):
 
 async def validate_registry_against_prompts(session: AsyncSession) -> None:
     """Check that every ConceptKindDef prompt_template_key exists in PROMPT_TEMPLATES."""
-    result = await session.execute(select(ConceptKindDef))
-    kinds = result.scalars().all()
+    result = await session.exec(select(ConceptKindDef))
+    kinds = result.all()
     missing: list[str] = [
         f"{kind.name} -> {kind.prompt_template_key}"
         for kind in kinds

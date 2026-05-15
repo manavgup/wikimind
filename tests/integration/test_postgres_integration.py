@@ -10,8 +10,9 @@ import json
 import os
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind.database import _backfill_concepts_from_articles
@@ -47,7 +48,7 @@ async def pg_session(pg_engine) -> AsyncSession:
     Postgres' foreign-key constraints (SQLite tests get away without this
     because FKs are off by default in SQLite).
     """
-    factory = async_sessionmaker(pg_engine, expire_on_commit=False)
+    factory = async_sessionmaker(pg_engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         session.add(
             User(
@@ -69,8 +70,8 @@ class TestPostgresBasicOperations:
         pg_session.add(source)
         await pg_session.commit()
 
-        result = await pg_session.execute(select(Source).where(Source.id == source.id))
-        loaded = result.scalar_one()
+        result = await pg_session.exec(select(Source).where(Source.id == source.id))
+        loaded = result.one()
         assert loaded.source_url == "https://example.com"
 
     async def test_json_column_round_trip(self, pg_session):
@@ -88,8 +89,8 @@ class TestPostgresBasicOperations:
         pg_session.add(article)
         await pg_session.commit()
 
-        result = await pg_session.execute(select(Article).where(Article.slug == "pg-json-test"))
-        loaded = result.scalar_one()
+        result = await pg_session.exec(select(Article).where(Article.slug == "pg-json-test"))
+        loaded = result.one()
         assert loaded.concept_ids is not None
 
     async def test_query_with_json_fields(self, pg_session):
@@ -104,8 +105,8 @@ class TestPostgresBasicOperations:
         pg_session.add(q)
         await pg_session.commit()
 
-        result = await pg_session.execute(select(Query).where(Query.id == q.id))
-        loaded = result.scalar_one()
+        result = await pg_session.exec(select(Query).where(Query.id == q.id))
+        loaded = result.one()
         assert loaded.question == "What is AI?"
 
 

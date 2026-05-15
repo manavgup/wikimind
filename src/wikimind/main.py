@@ -136,8 +136,8 @@ async def _reset_stuck_sources() -> None:
     source still in PROCESSING was interrupted.
     """
     async with get_session_factory()() as session:
-        result = await session.execute(select(Source).where(Source.status == IngestStatus.PROCESSING))
-        stuck = list(result.scalars().all())
+        result = await session.exec(select(Source).where(Source.status == IngestStatus.PROCESSING))
+        stuck = list(result.all())
         for source in stuck:
             source.status = IngestStatus.FAILED
             source.error_message = "Compilation interrupted — retry when ready"

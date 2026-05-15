@@ -87,8 +87,8 @@ class WikiExportService:
         Returns:
             Tuple of (zip bytes buffer, suggested filename, article count).
         """
-        result = await session.execute(select(Article).where(Article.user_id == user_id).order_by(Article.title))
-        articles = list(result.scalars().all())
+        result = await session.exec(select(Article).where(Article.user_id == user_id).order_by(Article.title))
+        articles = list(result.all())
 
         # Pre-load concepts for all articles
         concepts_map: dict[str, list[str]] = {}

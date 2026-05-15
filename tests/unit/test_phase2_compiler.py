@@ -236,8 +236,8 @@ async def test_relation_type_persisted(db_session, tmp_path):
     compiler._last_typed_suggestions = {"existing article": "extends"}
     source = await _make_source(db_session)
     article = await compiler.save_article(_result(backlink_suggestions=["Existing Article"]), source, db_session)
-    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    backlinks = list(bl_result.scalars().all())
+    bl_result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.all())
     assert len(backlinks) == 1
     assert backlinks[0].relation_type == RelationType.EXTENDS
 
@@ -257,8 +257,8 @@ async def test_default_relation_type_references(db_session, tmp_path):
     compiler._last_typed_suggestions = {}
     source = await _make_source(db_session)
     article = await compiler.save_article(_result(backlink_suggestions=["Target Article"]), source, db_session)
-    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    backlinks = list(bl_result.scalars().all())
+    bl_result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.all())
     assert len(backlinks) == 1
     assert backlinks[0].relation_type == RelationType.REFERENCES
 

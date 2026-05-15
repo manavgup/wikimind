@@ -137,17 +137,17 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
         if article is None:
             continue
         # Query join table for source IDs
-        as_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
-        source_ids = [row[0] for row in as_result.all()]
+        as_result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
+        source_ids = list(as_result.all())
         # Fallback to JSON column for pre-migration data
         if not source_ids:
             source_ids = _parse_source_ids(article.source_ids)
         sources: list[Source] = []
         if source_ids:
-            src_result = await session.execute(
+            src_result = await session.exec(
                 select(Source).where(Source.id.in_(source_ids)),  # type: ignore[attr-defined]
             )
-            by_id = {s.id: s for s in src_result.scalars().all()}
+            by_id = {s.id: s for s in src_result.all()}
             sources = [by_id[sid] for sid in source_ids if sid in by_id]
         if article.last_reinforced_at is None:
             effective = article.confidence_score

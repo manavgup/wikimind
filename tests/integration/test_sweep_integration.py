@@ -89,17 +89,17 @@ async def test_sweep_resolves_incrementally(db_session: AsyncSession, session_fa
 
     # Assert: Backlink A -> B exists (use a fresh session from factory to see committed data)
     async with factory() as check_session:
-        bl_result = await check_session.execute(
+        bl_result = await check_session.exec(
             select(Backlink).where(
                 Backlink.source_article_id == article_a.id,
                 Backlink.target_article_id == article_b.id,
             )
         )
-        assert bl_result.scalar_one_or_none() is not None
+        assert bl_result.one_or_none() is not None
 
         # Assert: Job row was created
-        job_result = await check_session.execute(select(Job).where(Job.job_type == JobType.SWEEP_WIKILINKS))
-        jobs = list(job_result.scalars().all())
+        job_result = await check_session.exec(select(Job).where(Job.job_type == JobType.SWEEP_WIKILINKS))
+        jobs = list(job_result.all())
         assert len(jobs) >= 1
         assert jobs[0].status == JobStatus.COMPLETE
 

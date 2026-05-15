@@ -54,8 +54,8 @@ async def require_admin(
 
     from wikimind.models import User  # noqa: PLC0415 — deferred to avoid circular import
 
-    result = await session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    result = await session.exec(select(User).where(User.id == user_id))
+    user = result.one_or_none()
     if user is None or not user.is_admin:
         raise HTTPException(
             status_code=403,

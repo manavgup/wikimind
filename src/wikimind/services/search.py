@@ -42,7 +42,7 @@ from wikimind.storage import get_wiki_storage
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -103,8 +103,8 @@ async def rebuild_fts_index(session: AsyncSession) -> int:
     """
     url = get_settings().database_url
 
-    result = await session.execute(select(Article))
-    articles = list(result.scalars().all())
+    result = await session.exec(select(Article))
+    articles = list(result.all())
 
     if not articles:
         return 0
@@ -282,8 +282,8 @@ async def _search_sqlite(
     # Map FTS rowids back to article IDs: fetch only the user's article IDs
     # (lightweight — no ORM hydration), compute their rowid hashes, and
     # select only the ones that matched the FTS query.
-    id_result = await session.execute(select(Article.id).where(Article.user_id == user_id))
-    user_article_ids = [row[0] for row in id_result.all()]
+    id_result = await session.exec(select(Article.id).where(Article.user_id == user_id))
+    user_article_ids = list(id_result.all())
 
     matched_ids: list[str] = []
     id_to_rowid: dict[str, int] = {}

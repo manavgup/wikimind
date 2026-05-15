@@ -61,7 +61,7 @@ from wikimind.storage import get_wiki_storage
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -339,7 +339,7 @@ class Compiler:
             f"\n\nUSER GUIDANCE — weight the article toward these priorities:\n<guidance>{safe_guidance}</guidance>"
         )
 
-        existing_concepts = [c.name for c in (await session.execute(select(Concept))).scalars().all()]
+        existing_concepts = [c.name for c in (await session.exec(select(Concept))).all()]
         if existing_concepts:
             user_prompt += "\n\nExisting concepts in this wiki (REUSE these before inventing new ones):\n" + ", ".join(
                 sorted(existing_concepts)
@@ -402,7 +402,7 @@ class Compiler:
 
         # Concept ID registry injection: prevents concept fragmentation by
         # telling the LLM which concepts already exist (issue #143, Phase 2).
-        existing_concepts = [c.name for c in (await session.execute(select(Concept))).scalars().all()]
+        existing_concepts = [c.name for c in (await session.exec(select(Concept))).all()]
         if existing_concepts:
             user_prompt += "\n\nExisting concepts in this wiki (REUSE these before inventing new ones):\n" + ", ".join(
                 sorted(existing_concepts)
@@ -781,17 +781,17 @@ Compile this into a wiki article following the JSON schema exactly."""
         session: AsyncSession,
     ) -> None:
         """Delete backlinks, claims, and join-table rows for an article before re-populating."""
-        old_bl = await session.execute(select(Backlink).where(Backlink.source_article_id == article_id))
-        for row in old_bl.scalars().all():
+        old_bl = await session.exec(select(Backlink).where(Backlink.source_article_id == article_id))
+        for row in old_bl.all():
             await session.delete(row)
-        old_claims = await session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article_id))
-        for claim in old_claims.scalars().all():
+        old_claims = await session.exec(select(CompiledClaim).where(CompiledClaim.article_id == article_id))
+        for claim in old_claims.all():
             await session.delete(claim)
-        old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
-        for ac in old_ac.scalars().all():
+        old_ac = await session.exec(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
+        for ac in old_ac.all():
             await session.delete(ac)
-        old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == article_id))
-        for a_s in old_as.scalars().all():
+        old_as = await session.exec(select(ArticleSource).where(ArticleSource.article_id == article_id))
+        for a_s in old_as.all():
             await session.delete(a_s)
 
     async def _post_save_side_effects(
@@ -896,7 +896,7 @@ Compile this into a wiki article following the JSON schema exactly."""
         candidate = base
         suffix = 2
         for _ in range(max_attempts):
-            existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
+            existing = (await session.exec(select(Article).where(Article.slug == candidate))).first()
             if existing is None:
                 return candidate
             candidate = f"{base}-{suffix}"

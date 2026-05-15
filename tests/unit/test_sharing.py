@@ -117,8 +117,8 @@ class TestSharingServiceUnit:
         await db_session.commit()
 
         # Verify it's revoked
-        result = await db_session.execute(select(ShareLink).where(ShareLink.id == created.id))
-        link = result.scalar_one()
+        result = await db_session.exec(select(ShareLink).where(ShareLink.id == created.id))
+        link = result.one()
         assert link.revoked is True
 
     @pytest.mark.asyncio

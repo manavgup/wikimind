@@ -123,8 +123,8 @@ async def test_compiled_claim_create_and_read(db_session) -> None:
     db_session.add(claim)
     await db_session.commit()
 
-    result = await db_session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
-    rows = list(result.scalars().all())
+    result = await db_session.exec(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
+    rows = list(result.all())
     assert len(rows) == 1
     assert rows[0].text == "Redis is single-threaded"
     assert json.loads(rows[0].subjects) == ["Redis", "single-threaded execution"]
@@ -168,8 +168,8 @@ async def test_concept_cluster_create_and_read(db_session) -> None:
     db_session.add(cluster)
     await db_session.commit()
 
-    result = await db_session.execute(select(ConceptCluster).where(ConceptCluster.user_id == TEST_USER_ID))
-    rows = list(result.scalars().all())
+    result = await db_session.exec(select(ConceptCluster).where(ConceptCluster.user_id == TEST_USER_ID))
+    rows = list(result.all())
     assert len(rows) == 1
     assert rows[0].canonical_text == "Redis"
     assert rows[0].status == ClusterStatus.CANDIDATE
@@ -271,8 +271,8 @@ async def test_claim_concept_join(db_session) -> None:
     db_session.add(join_row)
     await db_session.commit()
 
-    result = await db_session.execute(select(ClaimConcept).where(ClaimConcept.claim_id == claim.id))
-    rows = list(result.scalars().all())
+    result = await db_session.exec(select(ClaimConcept).where(ClaimConcept.claim_id == claim.id))
+    rows = list(result.all())
     assert len(rows) == 1
     assert rows[0].concept_id == cluster.id
     assert rows[0].role == ClaimConceptRole.SUBJECT
@@ -355,8 +355,8 @@ async def test_save_article_persists_compiled_claims(db_session, tmp_path) -> No
 
     article = await compiler.save_article(result, source, db_session)
 
-    claim_result = await db_session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
-    claim_rows = list(claim_result.scalars().all())
+    claim_result = await db_session.exec(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
+    claim_rows = list(claim_result.all())
     assert len(claim_rows) == 2
 
     texts = {r.text for r in claim_rows}
@@ -397,8 +397,8 @@ async def test_recompile_clears_old_claims(db_session, tmp_path) -> None:
         article_body="Body text. " * 50,
     )
     article = await compiler.save_article(result1, source, db_session)
-    claim_result = await db_session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
-    assert len(list(claim_result.scalars().all())) == 2
+    claim_result = await db_session.exec(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
+    assert len(list(claim_result.all())) == 2
 
     # Second compile with 1 claim (replacing)
     result2 = CompilationResult(
@@ -414,8 +414,8 @@ async def test_recompile_clears_old_claims(db_session, tmp_path) -> None:
     )
     await compiler.save_article(result2, source, db_session)
 
-    claim_result = await db_session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
-    claims = list(claim_result.scalars().all())
+    claim_result = await db_session.exec(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
+    claims = list(claim_result.all())
     assert len(claims) == 1
     assert claims[0].text == "Claim C"
 

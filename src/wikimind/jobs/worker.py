@@ -342,8 +342,8 @@ async def lint_wiki(_ctx, user_id: str):
 
 async def _get_article_source_ids(article: Article, session) -> list[str]:
     """Fetch source IDs from join table with JSON column fallback."""
-    result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
-    ids = [row[0] for row in result.all()]
+    result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
+    ids = list(result.all())
     if not ids:
         ids = json.loads(article.source_ids) if article.source_ids else []
     return ids
@@ -351,8 +351,8 @@ async def _get_article_source_ids(article: Article, session) -> list[str]:
 
 async def _get_article_concept_names(article: Article, session) -> list[str]:
     """Fetch concept names from join table with JSON column fallback."""
-    result = await session.execute(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article.id))
-    names = [row[0] for row in result.all()]
+    result = await session.exec(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article.id))
+    names = list(result.all())
     if not names:
         names = json.loads(article.concept_ids) if article.concept_ids else []
     return names
@@ -409,8 +409,8 @@ async def _recompile_from_concept(article: Article, session, user_id: str) -> No
         raise ValueError(msg)
 
     concept_name = concept_names[0]
-    result = await session.execute(select(Concept).where(Concept.name == concept_name))
-    concept = result.scalars().first()
+    result = await session.exec(select(Concept).where(Concept.name == concept_name))
+    concept = result.first()
     if not concept:
         msg = "Concept not found"
         raise ValueError(msg)

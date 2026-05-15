@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, SearchResponse, SearchResult, User
@@ -22,9 +21,6 @@ from wikimind.services.search import (
     remove_article,
     search_articles,
 )
-
-if TYPE_CHECKING:
-    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.fixture
@@ -43,7 +39,7 @@ async def fts_engine() -> AsyncEngine:
 @pytest.fixture
 async def fts_session(fts_engine: AsyncEngine) -> AsyncSession:
     """Session backed by the FTS-enabled in-memory engine."""
-    factory = async_sessionmaker(fts_engine, expire_on_commit=False)
+    factory = async_sessionmaker(fts_engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         yield session
 

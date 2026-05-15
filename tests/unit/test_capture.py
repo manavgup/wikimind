@@ -398,8 +398,8 @@ class TestRssAdapterPoll:
         assert new_count == 2
 
         # Verify captures created
-        result = await db_session.execute(select(CaptureSource).where(CaptureSource.user_id == TEST_USER_ID))
-        captures = list(result.scalars().all())
+        result = await db_session.exec(select(CaptureSource).where(CaptureSource.user_id == TEST_USER_ID))
+        captures = list(result.all())
         assert len(captures) == 2
         assert all(c.kind == CaptureKind.RSS for c in captures)
 

@@ -108,8 +108,8 @@ class TestUpdateArticleCountsUserScoping:
         # Update counts for alice only
         await update_article_counts(db_session, user_id="alice")
 
-        result = await db_session.execute(select(Concept).where(Concept.user_id == "alice"))
-        alice_concept = result.scalar_one()
+        result = await db_session.exec(select(Concept).where(Concept.user_id == "alice"))
+        alice_concept = result.one()
         assert alice_concept.article_count == 1
 
 
@@ -147,8 +147,8 @@ class TestRebuildTaxonomyUserScoping:
             await rebuild_taxonomy(db_session, user_id="alice")
 
         # Bob's concept should be untouched
-        bob_result = await db_session.execute(select(Concept).where(Concept.user_id == "bob"))
-        bob_concept = bob_result.scalar_one()
+        bob_result = await db_session.exec(select(Concept).where(Concept.user_id == "bob"))
+        bob_concept = bob_result.one()
         assert bob_concept.parent_id is None
         assert bob_concept.name == "biology"
 
@@ -324,8 +324,8 @@ class TestFileBackSelectionPathScoping:
         article_info = result.article
 
         # Verify the article stores a relative path and resolves under wiki/alice/
-        art_result = await db_session.execute(select(Article).where(Article.id == article_info.id))
-        article = art_result.scalar_one()
+        art_result = await db_session.exec(select(Article).where(Article.id == article_info.id))
+        article = art_result.one()
         assert article.file_path.startswith("qa-answers/")
         resolved = get_wiki_storage("alice").root / article.file_path
         assert "/alice/" in str(resolved)

@@ -28,7 +28,7 @@ from wikimind.services.search import remove_article as fts_remove_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -176,14 +176,12 @@ async def _cleanup_orphaned_concept_pages(
         await session.execute(
             sa_delete(Backlink).where(
                 or_(
-                    Backlink.source_article_id == article.id,  # type: ignore[arg-type]
-                    Backlink.target_article_id == article.id,  # type: ignore[arg-type]
+                    Backlink.source_article_id == article.id,
+                    Backlink.target_article_id == article.id,
                 )
             )
         )
-        await session.execute(
-            sa_delete(Article).where(Article.id == article.id)  # type: ignore[arg-type]
-        )
+        await session.execute(sa_delete(Article).where(Article.id == article.id))
         await fts_remove_article(session, article.id)
         cleaned += 1
         log.warning(

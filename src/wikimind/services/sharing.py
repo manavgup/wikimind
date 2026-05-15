@@ -183,8 +183,8 @@ class SharingService:
             NotFoundError: If link is revoked, invalid, or article missing.
             GoneError: If link has expired.
         """
-        result = await session.execute(select(ShareLink).where(ShareLink.token == token))
-        link = result.scalar_one_or_none()
+        result = await session.exec(select(ShareLink).where(ShareLink.token == token))
+        link = result.one_or_none()
 
         if link is None or link.revoked:
             msg = "Share link not found"

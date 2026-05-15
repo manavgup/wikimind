@@ -111,8 +111,8 @@ async def test_refresh_creates_reinforcement_event(db_session: AsyncSession):
     assert updated.last_reinforced_at > old_time
 
     # Verify a ReinforcementEvent was created
-    result = await db_session.execute(select(ReinforcementEvent).where(ReinforcementEvent.article_id == article.id))
-    events = list(result.scalars().all())
+    result = await db_session.exec(select(ReinforcementEvent).where(ReinforcementEvent.article_id == article.id))
+    events = list(result.all())
     assert len(events) == 1
     assert events[0].event_type == "manual_refresh"
     assert events[0].user_id == TEST_USER_ID
