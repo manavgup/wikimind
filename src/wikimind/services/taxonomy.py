@@ -18,6 +18,7 @@ from sqlmodel import select
 
 from wikimind.config import get_settings
 from wikimind.database import _dialect_insert
+from wikimind.engine.concept_compiler import ConceptCompiler, _collect_source_articles
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
     Article,
@@ -190,10 +191,6 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession, u
     This avoids expensive LLM calls when the source set is unchanged
     (issue #162).
     """
-    from wikimind.engine.concept_compiler import (  # noqa: PLC0415
-        _collect_source_articles,
-    )
-
     source_articles = await _collect_source_articles(concept.name, session, user_id=user_id)
     current_ids = sorted(a.id for a in source_articles)
 
@@ -243,7 +240,6 @@ async def maybe_trigger_concept_pages(
     eligible = list(result.scalars().all())
     if not eligible:
         return []
-    from wikimind.engine.concept_compiler import ConceptCompiler  # noqa: PLC0415
 
     compiler = ConceptCompiler(user_id=user_id)
     compiled: list[str] = []

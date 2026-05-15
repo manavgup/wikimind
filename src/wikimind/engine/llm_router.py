@@ -14,6 +14,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import structlog
+from redis.asyncio import Redis
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
@@ -58,11 +59,9 @@ async def _get_budget_redis():
         return None
 
     try:
-        from redis.asyncio import Redis  # noqa: PLC0415
-
         _budget_redis_pool = Redis.from_url(redis_url, decode_responses=True)
         return _budget_redis_pool
-    except (ImportError, RedisError, OSError):
+    except (RedisError, OSError):
         log.debug("Redis unavailable for budget dedup — per-process flags only")
         return None
 

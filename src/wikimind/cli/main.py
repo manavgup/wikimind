@@ -75,7 +75,7 @@ def serve(transport: str, host: str, port: int) -> None:
         }
       }
     """
-    from wikimind.mcp.server import run_server  # noqa: PLC0415
+    from wikimind.mcp.server import run_server  # noqa: PLC0415, I001 — deferred: heavy MCP deps only loaded for this subcommand
 
     # Build sys.argv so argparse in run_server() picks up the options.
     sys.argv = ["wikimind-mcp", "--transport", transport, "--host", host, "--port", str(port)]

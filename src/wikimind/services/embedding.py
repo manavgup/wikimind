@@ -135,7 +135,7 @@ class EmbeddingService:
             msg = "Search extras not installed. Install with: pip install 'wikimind[search]'"
             raise RuntimeError(msg)
 
-        import chromadb  # noqa: PLC0415
+        import chromadb  # noqa: PLC0415 — optional heavy dep: only loaded when search extras are installed
 
         settings = get_settings()
         chroma_path = Path(settings.data_dir) / "db" / "chroma"
@@ -162,7 +162,7 @@ class EmbeddingService:
     def _get_model(self) -> Any:
         """Lazily load the sentence-transformers model on first use."""
         if self._model is None:
-            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+            from sentence_transformers import SentenceTransformer  # noqa: PLC0415, I001 — optional heavy dep: lazily loaded on first use
 
             self._model = SentenceTransformer(self._model_name)
         return self._model

@@ -13,6 +13,7 @@ from __future__ import annotations
 import functools
 import hashlib
 from collections import Counter
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import structlog
@@ -631,8 +632,6 @@ async def _apply_facet_filters(
         now = utcnow_naive()
         days = {"7d": 7, "30d": 30, "365d": 365}.get(date_range)
         if days is not None:
-            from datetime import timedelta  # noqa: PLC0415
-
             cutoff = now - timedelta(days=days)
             result = await session.execute(
                 select(Article.id).where(
@@ -801,8 +800,6 @@ async def _facet_date(
     article_ids: list[str],
     user_id: str,
 ) -> list[FacetGroup]:
-    from datetime import timedelta  # noqa: PLC0415
-
     now = utcnow_naive()
     result = await session.execute(
         select(Article.updated_at).where(

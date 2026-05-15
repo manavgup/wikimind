@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind._datetime import utcnow_naive
 from wikimind.engine.compiler import Compiler
 from wikimind.errors import NotFoundError
+from wikimind.ingest.service import chunk_text, estimate_tokens
 from wikimind.models import (
     ApproveDraftResponse,
     CompilationDraft,
@@ -176,11 +177,6 @@ class DraftService:
             if content is None:
                 msg = "Source has no content file"
                 raise NotFoundError(msg)
-            from wikimind.ingest.service import (  # noqa: PLC0415
-                chunk_text,
-                estimate_tokens,
-            )
-
             doc = NormalizedDocument(
                 raw_source_id=source.id,
                 clean_text=content,

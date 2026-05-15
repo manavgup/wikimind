@@ -13,6 +13,8 @@ from datetime import timedelta
 from typing import Any
 
 import structlog
+from alembic.config import Config as AlembicConfig
+from alembic.script import ScriptDirectory
 from fastapi import APIRouter
 from redis.asyncio import Redis
 from sqlalchemy import text as sa_text
@@ -32,10 +34,7 @@ log = structlog.get_logger()
 def _get_alembic_head() -> str:
     """Read the latest revision from alembic's script directory."""
     try:
-        from alembic.config import Config  # noqa: PLC0415
-        from alembic.script import ScriptDirectory  # noqa: PLC0415
-
-        cfg = Config("alembic.ini")
+        cfg = AlembicConfig("alembic.ini")
         script = ScriptDirectory.from_config(cfg)
         heads = script.get_heads()
         return heads[0] if heads else "unknown"

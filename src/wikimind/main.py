@@ -153,7 +153,7 @@ async def lifespan(_app: FastAPI):
     configure_logging()
 
     if dsn := os.environ.get("SENTRY_DSN"):
-        import sentry_sdk  # noqa: PLC0415
+        import sentry_sdk  # noqa: PLC0415 — conditional: only loaded when SENTRY_DSN is set
 
         sentry_sdk.init(dsn=dsn, traces_sample_rate=0.1)
         log.info("Sentry initialized")
