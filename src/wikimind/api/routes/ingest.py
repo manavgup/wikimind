@@ -2,7 +2,7 @@
 
 import mimetypes
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,7 +49,11 @@ async def ingest_pdf(
     """
     if not file.filename or not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
+    # Enforce 50 MB upload limit before reading entire file into memory
+    max_size = 50 * 1024 * 1024  # 50 MB
     contents = await file.read()
+    if len(contents) > max_size:
+        raise HTTPException(status_code=413, detail="PDF exceeds 50 MB size limit")
     return await service.ingest_pdf(contents, file.filename, session, auto_compile=auto_compile, user_id=user_id)
 
 
@@ -73,8 +77,8 @@ async def ingest_text(
 @router.get("/sources")
 async def list_sources(
     status: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),

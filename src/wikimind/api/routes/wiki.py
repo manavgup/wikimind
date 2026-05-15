@@ -74,7 +74,7 @@ async def list_contradiction_resolutions():
 async def list_contradictions(
     status: ContradictionStatus | None = None,
     limit: int = Query(default=50, ge=1, le=200),
-    offset: int = 0,
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
     service: ContradictionService = Depends(get_contradiction_service),
     user_id: str = Depends(get_current_user_id),
@@ -125,8 +125,8 @@ async def list_articles(
     concept: str | None = None,
     confidence: str | None = None,
     page_type: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
@@ -378,8 +378,8 @@ async def get_concept(
 @router.get("/concepts/{name}/articles", response_model=list[ArticleSummaryResponse])
 async def get_concept_articles(
     name: str,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),

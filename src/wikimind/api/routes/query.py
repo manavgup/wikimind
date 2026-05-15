@@ -5,7 +5,7 @@ import json
 from collections.abc import AsyncIterator
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -83,7 +83,7 @@ async def ask_stream(
 
 @router.get("/history")
 async def query_history(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
@@ -94,7 +94,7 @@ async def query_history(
 
 @router.get("/conversations", response_model=list[ConversationSummary])
 async def list_conversations(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),

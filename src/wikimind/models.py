@@ -1179,7 +1179,7 @@ class IngestURLRequest(BaseModel):
 class IngestTextRequest(BaseModel):
     """Request to ingest raw text."""
 
-    content: str
+    content: str = Field(max_length=500000)
     title: str | None = None
     auto_compile: bool = True
 
@@ -1187,7 +1187,7 @@ class IngestTextRequest(BaseModel):
 class QueryRequest(BaseModel):
     """Request to query the wiki."""
 
-    question: str
+    question: str = Field(max_length=10000)
     file_back: bool = False  # Auto-save answer to wiki
     conversation_id: str | None = None  # None means start a new conversation
 
@@ -2091,7 +2091,7 @@ class CaptureRequest(BaseModel):
     """Request to capture content from an ambient adapter."""
 
     title: str | None = None
-    content: str
+    content: str = Field(max_length=500000)
     source_url: str | None = None
     external_id: str | None = None
 
