@@ -45,6 +45,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      WIKIMIND_ENV: "development"
       WIKIMIND_LLM__MOCK__ENABLED: "true"
       WIKIMIND_LLM__DEFAULT_PROVIDER: "mock"
       WIKIMIND_DATA_DIR: "/tmp/wikimind-e2e"

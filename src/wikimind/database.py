@@ -281,7 +281,7 @@ async def init_db():
         async with engine.begin() as conn:
             for tbl in tables_with_user_id:
                 stmt = sa_text(
-                    f"UPDATE {tbl} SET user_id = :new WHERE user_id = 'anonymous'"  # noqa: S608
+                    f"UPDATE {tbl} SET user_id = :new WHERE user_id = 'anonymous'"  # noqa: S608  # nosec B608
                 )
                 try:
                     result = await conn.execute(stmt, {"new": dev_uid})
