@@ -29,7 +29,10 @@ EXEMPT_PREFIXES = (
     "/public/",
 )
 # Static frontend files that must load without auth so users can see the login page.
-_STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".png", ".svg", ".woff", ".woff2", ".map")
+# NOTE: .png and .svg are intentionally excluded — API-served images
+# (e.g. /api/sources/{id}/images/{filename}) require auth.  Static frontend
+# images are already covered by the "/assets/" prefix exemption above.
+_STATIC_EXTENSIONS = (".html", ".js", ".css", ".ico", ".woff", ".woff2", ".map")
 # API route prefixes that require auth. Everything else is a frontend SPA route
 # (served as index.html by the static file mount) and must be exempt.
 # Paths that are always exempt from auth regardless of method.
