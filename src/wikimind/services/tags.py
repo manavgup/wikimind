@@ -95,8 +95,8 @@ class TagService:
         """
         tag = await self._get_tag(session, tag_id, user_id)
         # Remove all article-tag associations first
-        result = await session.execute(select(ArticleTag).where(ArticleTag.tag_id == tag.id))
-        for at in result.scalars().all():
+        result = await session.exec(select(ArticleTag).where(ArticleTag.tag_id == tag.id))
+        for at in result.all():
             await session.delete(at)
         await session.delete(tag)
 
@@ -185,8 +185,8 @@ class TagService:
             NotFoundError: If the tag does not exist for this user.
         """
         await self._get_tag(session, tag_id, user_id)
-        result = await session.execute(select(ArticleTag.article_id).where(ArticleTag.tag_id == tag_id))
-        return [row[0] for row in result.all()]
+        result = await session.exec(select(ArticleTag.article_id).where(ArticleTag.tag_id == tag_id))
+        return list(result.all())
 
     async def get_tags_for_article(
         self,
@@ -254,8 +254,8 @@ class TagService:
         user_id: str,
     ) -> Tag:
         """Look up a tag by ID, scoped to the user."""
-        result = await session.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
-        tag = result.scalar_one_or_none()
+        result = await session.exec(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
+        tag = result.one_or_none()
         if tag is None:
             msg = "Tag not found"
             raise NotFoundError(msg)
@@ -268,8 +268,8 @@ class TagService:
         user_id: str,
     ) -> Article:
         """Look up an article by ID, scoped to the user."""
-        result = await session.execute(select(Article).where(Article.id == article_id, Article.user_id == user_id))
-        article = result.scalar_one_or_none()
+        result = await session.exec(select(Article).where(Article.id == article_id, Article.user_id == user_id))
+        article = result.one_or_none()
         if article is None:
             msg = "Article not found"
             raise NotFoundError(msg)

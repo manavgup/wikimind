@@ -153,14 +153,14 @@ class UserService:
             name = user_info.name or user_info.login
             avatar_url = user_info.avatar_url
 
-        result = await session.execute(
+        result = await session.exec(
             select(User).where(User.auth_provider == provider, User.auth_provider_id == provider_id)
         )
-        user = result.scalar_one_or_none()
+        user = result.one_or_none()
 
         if not user and email:
-            result = await session.execute(select(User).where(User.email == email))
-            user = result.scalar_one_or_none()
+            result = await session.exec(select(User).where(User.email == email))
+            user = result.one_or_none()
 
         if user:
             user.name = name
@@ -341,8 +341,8 @@ class UserService:
         Returns:
             The existing or newly created User record.
         """
-        result = await session.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
+        result = await session.exec(select(User).where(User.email == email))
+        user = result.one_or_none()
         if user:
             return user
 
@@ -381,16 +381,9 @@ class UserService:
             raise NotFoundError(msg)
 
         # Collect IDs for join-table / child-table cleanup
-        article_ids = [
-            row[0] for row in (await session.execute(select(Article.id).where(Article.user_id == user_id))).all()
-        ]
-        report_ids = [
-            row[0] for row in (await session.execute(select(LintReport.id).where(LintReport.user_id == user_id))).all()
-        ]
-        conv_ids = [
-            row[0]
-            for row in (await session.execute(select(Conversation.id).where(Conversation.user_id == user_id))).all()
-        ]
+        article_ids = list((await session.exec(select(Article.id).where(Article.user_id == user_id))).all())
+        report_ids = list((await session.exec(select(LintReport.id).where(LintReport.user_id == user_id))).all())
+        conv_ids = list((await session.exec(select(Conversation.id).where(Conversation.user_id == user_id))).all())
 
         # 1. Delete child rows that reference articles
         if article_ids:

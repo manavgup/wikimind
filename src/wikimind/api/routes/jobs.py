@@ -50,8 +50,8 @@ async def trigger_compile(
     user_id: str = Depends(get_current_user_id),
 ):
     """Trigger compilation for a source."""
-    result = await session.execute(select(Source).where(Source.id == source_id, Source.user_id == user_id))
-    source = result.scalar_one_or_none()
+    result = await session.exec(select(Source).where(Source.id == source_id, Source.user_id == user_id))
+    source = result.one_or_none()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     if not source.file_path:

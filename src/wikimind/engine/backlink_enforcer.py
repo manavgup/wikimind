@@ -24,7 +24,7 @@ from sqlmodel import select
 from wikimind.models import Article, ArticleConcept, Backlink, RelationType
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -106,8 +106,8 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
     result = EnforcerResult()
 
     # Load the article
-    query_result = await session.execute(select(Article).where(Article.id == article_id))
-    article = query_result.scalars().first()
+    query_result = await session.exec(select(Article).where(Article.id == article_id))
+    article = query_result.first()
     if article is None:
         msg = f"Article {article_id} not found"
         result.warnings.append(msg)
@@ -115,8 +115,8 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
 
     # ---- Check 1: source pages need >= 1 concept ----
     if article.page_type == "source":
-        ac_result = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
-        concept_ids: list[str] = [ac.concept_name for ac in ac_result.scalars().all()]
+        ac_result = await session.exec(select(ArticleConcept).where(ArticleConcept.article_id == article_id))
+        concept_ids: list[str] = [ac.concept_name for ac in ac_result.all()]
         # Fallback to JSON column for pre-migration data
         if not concept_ids and article.concept_ids:
             with contextlib.suppress(TypeError, ValueError):
@@ -135,13 +135,13 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
 
     # ---- Check 2: concept pages need >= 2 synthesizes links ----
     if article.page_type == "concept":
-        synth_result = await session.execute(
+        synth_result = await session.exec(
             select(Backlink).where(
                 Backlink.source_article_id == article_id,
                 Backlink.relation_type == RelationType.SYNTHESIZES,
             )
         )
-        synth_count = len(list(synth_result.scalars().all()))
+        synth_count = len(list(synth_result.all()))
         if synth_count < 2:
             msg = f"Concept page '{article.title}' has {synth_count} synthesizes links (need >= 2)"
             result.warnings.append(msg)
@@ -155,11 +155,11 @@ async def enforce_backlinks(article_id: str, session: AsyncSession) -> EnforcerR
             )
 
     # ---- Check 3: bidirectional enforcement for symmetric types ----
-    out_result = await session.execute(select(Backlink).where(Backlink.source_article_id == article_id))
-    outbound = list(out_result.scalars().all())
+    out_result = await session.exec(select(Backlink).where(Backlink.source_article_id == article_id))
+    outbound = list(out_result.all())
 
-    in_result = await session.execute(select(Backlink).where(Backlink.target_article_id == article_id))
-    inbound = list(in_result.scalars().all())
+    in_result = await session.exec(select(Backlink).where(Backlink.target_article_id == article_id))
+    inbound = list(in_result.all())
 
     all_links = outbound + inbound
     for bl in all_links:

@@ -155,7 +155,7 @@ async def test_ask_with_file_back_creates_article_end_to_end(
     assert filed.confidence is None
 
     # Sanity: the Query row is queryable end-to-end via the session.
-    fetched = (await db_session.execute(select(Query).where(Query.id == query.id))).scalar_one()
+    fetched = (await db_session.exec(select(Query).where(Query.id == query.id))).one()
     assert fetched.filed_article_id == filed.id
 
 

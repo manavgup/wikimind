@@ -385,8 +385,8 @@ async def test_backfill_creates_conversation_for_legacy_query(tmp_path, monkeypa
     # Idempotency: a second init_db is a no-op (migration already recorded)
     await init_db()
     async with factory() as session:
-        rows_result = await session.execute(select(Conversation).where(Conversation.id == result.conversation_id))
-        rows = list(rows_result.scalars().all())
+        rows_result = await session.exec(select(Conversation).where(Conversation.id == result.conversation_id))
+        rows = list(rows_result.all())
         assert len(rows) == 1, "backfill is not idempotent — it duplicated the conversation row"
 
     await close_db()

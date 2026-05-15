@@ -155,24 +155,24 @@ class SavedSearchService:
 
         # Apply tag filter — articles must have ALL specified tags
         if tag_names:
-            tag_result = await session.execute(
+            tag_result = await session.exec(
                 select(Tag.id).where(
                     Tag.user_id == user_id,
                     Tag.name.in_(tag_names),  # type: ignore[attr-defined]
                 )
             )
-            tag_ids = [row[0] for row in tag_result.all()]
+            tag_ids = list(tag_result.all())
             for tid in tag_ids:
-                at_result = await session.execute(select(ArticleTag.article_id).where(ArticleTag.tag_id == tid))
-                tagged_ids = {row[0] for row in at_result.all()}
+                at_result = await session.exec(select(ArticleTag.article_id).where(ArticleTag.tag_id == tid))
+                tagged_ids = set(at_result.all())
                 candidate_ids &= tagged_ids
 
         # Apply concept filter — articles must have ALL specified concepts
         for concept_name in concept_names:
-            ac_result = await session.execute(
+            ac_result = await session.exec(
                 select(ArticleConcept.article_id).where(ArticleConcept.concept_name == concept_name)
             )
-            concept_ids = {row[0] for row in ac_result.all()}
+            concept_ids = set(ac_result.all())
             candidate_ids &= concept_ids
 
         return response, list(candidate_ids)

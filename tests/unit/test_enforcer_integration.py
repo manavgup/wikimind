@@ -79,8 +79,8 @@ async def test_lint_run_includes_structural_findings(db_session, _isolated_data_
     assert report.status == LintReportStatus.COMPLETE
     assert report.structural_count >= 1
     assert report.checked_articles == 1
-    result = await db_session.execute(select(StructuralFinding).where(StructuralFinding.report_id == report.id))
-    findings = list(result.scalars().all())
+    result = await db_session.exec(select(StructuralFinding).where(StructuralFinding.report_id == report.id))
+    findings = list(result.all())
     assert len(findings) >= 1
     assert any(f.violation_type == "source_no_concepts" for f in findings)
 

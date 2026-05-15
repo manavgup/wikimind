@@ -89,8 +89,8 @@ class TestUpsertConcepts:
         await upsert_concepts(["Machine Learning"], db_session, user_id=TEST_USER_ID)
         # Second call with different casing should not overwrite description
         await upsert_concepts(["machine learning"], db_session, user_id=TEST_USER_ID)
-        result = await db_session.execute(select(Concept).where(Concept.name == "machine-learning"))
-        concept = result.scalar_one()
+        result = await db_session.exec(select(Concept).where(Concept.name == "machine-learning"))
+        concept = result.one()
         assert concept.description == "Machine Learning"
 
     async def test_concurrent_upsert_no_integrity_error(self, session_factory):
@@ -162,8 +162,8 @@ class TestUpdateArticleCounts:
 
         await update_article_counts(db_session, user_id=TEST_USER_ID)
 
-        result = await db_session.execute(select(Concept))
-        concepts = {c.name: c.article_count for c in result.scalars().all()}
+        result = await db_session.exec(select(Concept))
+        concepts = {c.name: c.article_count for c in result.all()}
         assert concepts["ml"] == 2
         assert concepts["nlp"] == 1
 
@@ -172,8 +172,8 @@ class TestUpdateArticleCounts:
         await upsert_concepts(["orphan-concept"], db_session, user_id=TEST_USER_ID)
 
         # Manually set a stale count
-        result = await db_session.execute(select(Concept).where(Concept.name == "orphan-concept"))
-        concept = result.scalar_one()
+        result = await db_session.exec(select(Concept).where(Concept.name == "orphan-concept"))
+        concept = result.one()
         concept.article_count = 5
         db_session.add(concept)
         await db_session.commit()
@@ -287,8 +287,8 @@ class TestRebuildTaxonomy:
         ):
             await rebuild_taxonomy(db_session, user_id=TEST_USER_ID)
 
-        result = await db_session.execute(select(Concept))
-        concepts = {c.name: c for c in result.scalars().all()}
+        result = await db_session.exec(select(Concept))
+        concepts = {c.name: c for c in result.all()}
         assert concepts["ml"].parent_id is None
         assert concepts["deep-learning"].parent_id == concepts["ml"].id
         assert concepts["nlp"].parent_id == concepts["ml"].id
@@ -322,8 +322,8 @@ class TestRebuildTaxonomy:
         ):
             await rebuild_taxonomy(db_session, user_id=TEST_USER_ID)
 
-        result = await db_session.execute(select(Concept))
-        for concept in result.scalars().all():
+        result = await db_session.exec(select(Concept))
+        for concept in result.all():
             assert concept.parent_id is None
 
     async def test_rebuild_skips_empty_concepts(self, db_session):
@@ -368,6 +368,6 @@ class TestRebuildTaxonomy:
         ):
             await rebuild_taxonomy(db_session, user_id=TEST_USER_ID)
 
-        result = await db_session.execute(select(Concept))
-        for concept in result.scalars().all():
+        result = await db_session.exec(select(Concept))
+        for concept in result.all():
             assert concept.parent_id is None

@@ -102,8 +102,8 @@ async def test_unknown_bracket_stays(db_session: AsyncSession, tmp_path: Path) -
     content = (wiki / "unknown.md").read_text()
     assert "[[Nonexistent Topic]]" in content
 
-    result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    assert result.scalar_one_or_none() is None
+    result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    assert result.one_or_none() is None
 
 
 @pytest.mark.asyncio

@@ -168,8 +168,8 @@ async def apply_runtime_llm_preferences() -> None:
     """Apply persisted LLM runtime preferences to the in-memory settings singleton."""
     settings = get_settings()
     async with get_session_factory()() as session:
-        result = await session.execute(select(UserPreference))
-        for pref in result.scalars().all():
+        result = await session.exec(select(UserPreference))
+        for pref in result.all():
             if pref.key == "llm.default_provider":
                 settings.llm.default_provider = pref.value
             elif pref.key == "llm.monthly_budget_usd":
@@ -654,8 +654,8 @@ async def get_onboarding_status(
         return OnboardingStatusResponse(completed=True, step=int(step_val) if step_val else 5)
 
     # Implicit completion: existing articles for THIS user mean they know the app.
-    result = await session.execute(select(Article.id).where(Article.user_id == user_id).limit(1))
-    if result.scalar_one_or_none() is not None:
+    result = await session.exec(select(Article.id).where(Article.user_id == user_id).limit(1))
+    if result.one_or_none() is not None:
         return OnboardingStatusResponse(completed=True, step=5)
 
     step_val = await _get_preference(step_key)

@@ -189,8 +189,8 @@ async def list_user_api_keys(
     Returns:
         List of UserApiKey records (encrypted_key is NOT decrypted).
     """
-    result = await session.execute(select(UserApiKey).where(UserApiKey.user_id == user_id))
-    return list(result.scalars().all())
+    result = await session.exec(select(UserApiKey).where(UserApiKey.user_id == user_id))
+    return list(result.all())
 
 
 async def delete_user_api_key(

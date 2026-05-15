@@ -494,8 +494,8 @@ class TestFileBackSelection:
         article_id = result.article.id
 
         # Refresh the selected queries
-        res = await db_session.execute(select(Query).where(Query.conversation_id == "conv-sel-1"))
-        queries = {q.turn_index: q for q in res.scalars().all()}
+        res = await db_session.exec(select(Query).where(Query.conversation_id == "conv-sel-1"))
+        queries = {q.turn_index: q for q in res.all()}
 
         assert queries[0].filed_back is True
         assert queries[0].filed_article_id == article_id

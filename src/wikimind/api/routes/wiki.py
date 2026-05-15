@@ -554,8 +554,8 @@ async def recompile_article(
             detail=f"mode must be one of {sorted(_VALID_RECOMPILE_MODES)} or null",
         )
 
-    result = await session.execute(select(Article).where(Article.id == article_id, Article.user_id == user_id))
-    article = result.scalar_one_or_none()
+    result = await session.exec(select(Article).where(Article.id == article_id, Article.user_id == user_id))
+    article = result.one_or_none()
     if article is None:
         raise HTTPException(status_code=404, detail="Article not found")
 

@@ -31,7 +31,7 @@ from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -240,8 +240,8 @@ class ConceptCompiler:
         return await self._save_concept_page(compilation, concept, source_articles, session)
 
     async def _load_kind_def(self, kind_name: str, session: AsyncSession) -> ConceptKindDef | None:
-        result = await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == kind_name))
-        return result.scalar_one_or_none()
+        result = await session.exec(select(ConceptKindDef).where(ConceptKindDef.name == kind_name))
+        return result.one_or_none()
 
     async def _save_concept_page(
         self,
@@ -268,20 +268,20 @@ class ConceptCompiler:
             existing.page_type = PageType.CONCEPT
             existing.user_id = concept.user_id
             session.add(existing)
-            old_links = await session.execute(
+            old_links = await session.exec(
                 select(Backlink).where(
                     Backlink.source_article_id == existing.id,
                     Backlink.relation_type == RelationType.SYNTHESIZES,
                 )
             )
-            for bl in old_links.scalars().all():
+            for bl in old_links.all():
                 await session.delete(bl)
             # Refresh join tables
-            old_ac = await session.execute(select(ArticleConcept).where(ArticleConcept.article_id == existing.id))
-            for ac in old_ac.scalars().all():
+            old_ac = await session.exec(select(ArticleConcept).where(ArticleConcept.article_id == existing.id))
+            for ac in old_ac.all():
                 await session.delete(ac)
-            old_as = await session.execute(select(ArticleSource).where(ArticleSource.article_id == existing.id))
-            for a_s in old_as.scalars().all():
+            old_as = await session.exec(select(ArticleSource).where(ArticleSource.article_id == existing.id))
+            for a_s in old_as.all():
                 await session.delete(a_s)
             await session.commit()
             await session.refresh(existing)

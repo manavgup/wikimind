@@ -89,15 +89,15 @@ class TestConceptKindDef:
         )
         db_session.add(kind)
         await db_session.commit()
-        result = await db_session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "test-kind"))
-        assert result.scalar_one().prompt_template_key == "test_key"
+        result = await db_session.exec(select(ConceptKindDef).where(ConceptKindDef.name == "test-kind"))
+        assert result.one().prompt_template_key == "test_key"
 
     async def test_primary_key_is_name(self, db_session: AsyncSession):
         kind = ConceptKindDef(name="unique-kind", prompt_template_key="k", required_sections="[]", linter_rules="[]")
         db_session.add(kind)
         await db_session.commit()
-        result = await db_session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "unique-kind"))
-        assert result.scalar_one() is not None
+        result = await db_session.exec(select(ConceptKindDef).where(ConceptKindDef.name == "unique-kind"))
+        assert result.one() is not None
 
 
 class TestArticlePageType:
@@ -121,8 +121,8 @@ class TestArticlePageType:
         )
         db_session.add(article)
         await db_session.commit()
-        result = await db_session.execute(select(Article).where(Article.slug == "answer-page"))
-        assert result.scalar_one().page_type == PageType.ANSWER
+        result = await db_session.exec(select(Article).where(Article.slug == "answer-page"))
+        assert result.one().page_type == PageType.ANSWER
 
 
 class TestBacklinkRelationType:
@@ -196,8 +196,8 @@ class TestConceptKind:
         concept = Concept(name="openai", concept_kind="organization", user_id=TEST_USER_ID)
         db_session.add(concept)
         await db_session.commit()
-        result = await db_session.execute(select(Concept).where(Concept.name == "openai"))
-        assert result.scalar_one().concept_kind == "organization"
+        result = await db_session.exec(select(Concept).where(Concept.name == "openai"))
+        assert result.one().concept_kind == "organization"
 
 
 class TestSourceFrontmatter:
@@ -336,8 +336,8 @@ class TestSeedBuiltinKinds:
         async with session_factory() as session:
             await seed_builtin_kinds(session)
         async with session_factory() as session:
-            result = await session.execute(select(ConceptKindDef))
-            assert {k.name for k in result.scalars().all()} == {"topic", "person", "organization", "product", "paper"}
+            result = await session.exec(select(ConceptKindDef))
+            assert {k.name for k in result.all()} == {"topic", "person", "organization", "product", "paper"}
 
     async def test_idempotent(self, session_factory):
         async with session_factory() as session:
@@ -345,20 +345,20 @@ class TestSeedBuiltinKinds:
         async with session_factory() as session:
             await seed_builtin_kinds(session)
         async with session_factory() as session:
-            assert len((await session.execute(select(ConceptKindDef))).scalars().all()) == 5
+            assert len((await session.exec(select(ConceptKindDef))).all()) == 5
 
     async def test_topic_has_correct_sections(self, session_factory):
         async with session_factory() as session:
             await seed_builtin_kinds(session)
         async with session_factory() as session:
-            topic = (await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "topic"))).scalar_one()
+            topic = (await session.exec(select(ConceptKindDef).where(ConceptKindDef.name == "topic"))).one()
             assert "overview" in json.loads(topic.required_sections)
 
     async def test_person_has_correct_template_key(self, session_factory):
         async with session_factory() as session:
             await seed_builtin_kinds(session)
         async with session_factory() as session:
-            person = (await session.execute(select(ConceptKindDef).where(ConceptKindDef.name == "person"))).scalar_one()
+            person = (await session.exec(select(ConceptKindDef).where(ConceptKindDef.name == "person"))).one()
             assert person.prompt_template_key == "concept_synthesis_person"
 
 

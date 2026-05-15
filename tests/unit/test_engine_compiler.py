@@ -414,8 +414,8 @@ async def test_save_creates_backlink_rows_for_resolved_candidates(db_session, tm
     )
     article = await compiler.save_article(result, source, db_session)
 
-    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    backlinks = list(bl_result.scalars().all())
+    bl_result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.all())
     assert len(backlinks) == 1
     assert backlinks[0].target_article_id == target.id
     assert backlinks[0].context == "Existing Article"
@@ -473,8 +473,8 @@ async def test_save_dedupes_candidates_resolving_to_same_target(db_session, tmp_
     result = _result_with_backlinks("New Article", backlink_suggestions=["React", "react"])
     article = await compiler.save_article(result, source, db_session)
 
-    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    backlinks = list(bl_result.scalars().all())
+    bl_result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    backlinks = list(bl_result.all())
     assert len(backlinks) == 1
 
 
@@ -484,8 +484,8 @@ async def test_save_skips_backlinks_when_no_candidates(db_session, tmp_path) -> 
     result = _result_with_backlinks("Solo Article", backlink_suggestions=[])
     article = await compiler.save_article(result, source, db_session)
 
-    bl_result = await db_session.execute(select(Backlink).where(Backlink.source_article_id == article.id))
-    assert list(bl_result.scalars().all()) == []
+    bl_result = await db_session.exec(select(Backlink).where(Backlink.source_article_id == article.id))
+    assert list(bl_result.all()) == []
 
 
 # ---------------------------------------------------------------------------
@@ -500,8 +500,8 @@ async def test_save_article_creates_concept_rows(db_session, tmp_path) -> None:
     result = _result(concepts=["Machine Learning", "Deep Learning"])
     await compiler.save_article(result, source, db_session)
 
-    concept_result = await db_session.execute(select(Concept))
-    concepts = {c.name for c in concept_result.scalars().all()}
+    concept_result = await db_session.exec(select(Concept))
+    concepts = {c.name for c in concept_result.all()}
     assert "machine-learning" in concepts
     assert "deep-learning" in concepts
 
@@ -513,8 +513,8 @@ async def test_save_article_updates_concept_article_counts(db_session, tmp_path)
     result = _result(concepts=["ML"])
     await compiler.save_article(result, source, db_session)
 
-    concept_result = await db_session.execute(select(Concept).where(Concept.name == "ml"))
-    concept = concept_result.scalar_one()
+    concept_result = await db_session.exec(select(Concept).where(Concept.name == "ml"))
+    concept = concept_result.one()
     assert concept.article_count == 1
 
 
@@ -532,8 +532,8 @@ async def test_replace_article_upserts_new_concepts(db_session, tmp_path) -> Non
     result2 = _result(concepts=["beta", "gamma"])
     await compiler.save_article(result2, source, db_session)
 
-    concept_result = await db_session.execute(select(Concept))
-    names = {c.name for c in concept_result.scalars().all()}
+    concept_result = await db_session.exec(select(Concept))
+    names = {c.name for c in concept_result.all()}
     assert "alpha" in names
     assert "beta" in names
     assert "gamma" in names
@@ -566,7 +566,7 @@ async def test_save_article_in_place_updates_existing_row(db_session, tmp_path) 
     assert replaced.slug == original_slug
 
     # Confirm only one article exists in the DB.
-    all_articles = (await db_session.execute(select(Article))).scalars().all()
+    all_articles = (await db_session.exec(select(Article))).all()
     assert len(all_articles) == 1
 
 

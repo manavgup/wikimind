@@ -143,8 +143,8 @@ async def _fetch_sources(session: AsyncSession, source_ids: list[str]) -> list[S
     """
     if not source_ids:
         return []
-    result = await session.execute(select(Source).where(Source.id.in_(source_ids)))  # type: ignore[attr-defined]
-    by_id = {s.id: s for s in result.scalars().all()}
+    result = await session.exec(select(Source).where(Source.id.in_(source_ids)))  # type: ignore[attr-defined]
+    by_id = {s.id: s for s in result.all()}
     return [by_id[sid] for sid in source_ids if sid in by_id]
 
 
@@ -153,14 +153,14 @@ async def _fetch_source_ids_from_join(session: AsyncSession, article_id: str) ->
 
     Falls back to parsing the legacy JSON column if no join rows exist.
     """
-    result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == article_id))
-    ids = [row[0] for row in result.all()]
+    result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == article_id))
+    ids = list(result.all())
     if ids:
         return ids
     # Fallback: read from legacy JSON column
-    art_result = await session.execute(select(Article.source_ids).where(Article.id == article_id))
-    row = art_result.first()
-    return _parse_source_ids(row[0] if row else None)
+    art_result = await session.exec(select(Article.source_ids).where(Article.id == article_id))
+    val = art_result.first()
+    return _parse_source_ids(val)
 
 
 async def _fetch_concept_names_from_join(session: AsyncSession, article_id: str) -> list[str]:
@@ -168,14 +168,14 @@ async def _fetch_concept_names_from_join(session: AsyncSession, article_id: str)
 
     Falls back to parsing the legacy JSON column if no join rows exist.
     """
-    result = await session.execute(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article_id))
-    names = [row[0] for row in result.all()]
+    result = await session.exec(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article_id))
+    names = list(result.all())
     if names:
         return names
     # Fallback: read from legacy JSON column
-    art_result = await session.execute(select(Article.concept_ids).where(Article.id == article_id))
-    row = art_result.first()
-    return _parse_source_ids(row[0] if row else None)
+    art_result = await session.exec(select(Article.concept_ids).where(Article.id == article_id))
+    val = art_result.first()
+    return _parse_source_ids(val)
 
 
 async def _fetch_concepts_for_articles(
@@ -835,8 +835,8 @@ class WikiService:
         if not ranked_ids:
             return []
 
-        result = await session.execute(select(Article).where(Article.id.in_(ranked_ids)))  # type: ignore[attr-defined]
-        articles_by_id = {a.id: a for a in result.scalars().all()}
+        result = await session.exec(select(Article).where(Article.id.in_(ranked_ids)))  # type: ignore[attr-defined]
+        articles_by_id = {a.id: a for a in result.all()}
         ordered = [articles_by_id[aid] for aid in ranked_ids if aid in articles_by_id]
 
         return [await _build_article_summary(a, session) for a in ordered]

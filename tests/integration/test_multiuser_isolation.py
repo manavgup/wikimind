@@ -372,11 +372,11 @@ class TestConceptIsolation:
         await upsert_concepts(["Python", "Rust"], db_session, user_id=USER_ALICE)
         await upsert_concepts(["Go", "Java"], db_session, user_id=USER_BOB)
 
-        alice_result = await db_session.execute(select(Concept).where(Concept.user_id == USER_ALICE))
-        alice_names = {c.name for c in alice_result.scalars().all()}
+        alice_result = await db_session.exec(select(Concept).where(Concept.user_id == USER_ALICE))
+        alice_names = {c.name for c in alice_result.all()}
 
-        bob_result = await db_session.execute(select(Concept).where(Concept.user_id == USER_BOB))
-        bob_names = {c.name for c in bob_result.scalars().all()}
+        bob_result = await db_session.exec(select(Concept).where(Concept.user_id == USER_BOB))
+        bob_names = {c.name for c in bob_result.all()}
 
         assert "python" in alice_names
         assert "rust" in alice_names

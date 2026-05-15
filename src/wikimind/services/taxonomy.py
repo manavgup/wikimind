@@ -31,7 +31,7 @@ from wikimind.models import (
 )
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -196,19 +196,19 @@ async def _concept_source_set_changed(concept: Concept, session: AsyncSession, u
 
     # Look up existing concept page.
     slug = f"concept-{slugify(concept.name)}"
-    existing_result = await session.execute(
+    existing_result = await session.exec(
         select(Article).where(
             Article.slug == slug,
             Article.page_type == PageType.CONCEPT,
             Article.user_id == user_id,
         )
     )
-    existing = existing_result.scalar_one_or_none()
+    existing = existing_result.one_or_none()
     if existing is None:
         return True
 
-    prev_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == existing.id))
-    previous_ids = sorted(row[0] for row in prev_result.all())
+    prev_result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == existing.id))
+    previous_ids = sorted(prev_result.all())
 
     # Fallback to JSON if join table is empty (pre-migration data)
     if not previous_ids:

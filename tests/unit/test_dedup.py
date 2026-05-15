@@ -340,8 +340,8 @@ class TestCompilerSaveArticle:
         assert second.provider == Provider.ANTHROPIC
 
         # Only one article in DB
-        result = await db_session.execute(select(Article))
-        assert len(result.scalars().all()) == 1
+        result = await db_session.exec(select(Article))
+        assert len(result.all()) == 1
 
     async def test_different_provider_stacks_as_separate_article(
         self,
@@ -370,8 +370,8 @@ class TestCompilerSaveArticle:
         assert anthropic_article.provider == Provider.ANTHROPIC
         assert openai_article.provider == Provider.OPENAI
 
-        result = await db_session.execute(select(Article))
-        assert len(result.scalars().all()) == 2
+        result = await db_session.exec(select(Article))
+        assert len(result.all()) == 2
 
     async def test_no_tracked_provider_falls_back_to_create(
         self,

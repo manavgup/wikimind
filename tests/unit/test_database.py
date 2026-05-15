@@ -52,8 +52,8 @@ class TestSessionLifecycle:
 
         # Verify the row was persisted
         async with session_factory() as verify_session:
-            result = await verify_session.execute(select(Source).where(Source.id == source_id))
-            persisted = result.scalar_one_or_none()
+            result = await verify_session.exec(select(Source).where(Source.id == source_id))
+            persisted = result.one_or_none()
             assert persisted is not None
             assert persisted.source_url == "https://example.com"
 
@@ -72,8 +72,8 @@ class TestSessionLifecycle:
 
         # Verify the row was NOT persisted
         async with session_factory() as verify_session:
-            result = await verify_session.execute(select(Source).where(Source.id == source_id))
-            persisted = result.scalar_one_or_none()
+            result = await verify_session.exec(select(Source).where(Source.id == source_id))
+            persisted = result.one_or_none()
             assert persisted is None
 
 
@@ -129,8 +129,8 @@ class TestRepairMalformedJsonArraysMigration:
         await _repair_malformed_json_arrays(async_engine)
 
         db_session.expire_all()
-        result = await db_session.execute(select(Article).where(Article.id == article_id))
-        fixed = result.scalar_one()
+        result = await db_session.exec(select(Article).where(Article.id == article_id))
+        fixed = result.one()
         parsed = json.loads(fixed.concept_ids)
         assert parsed == ["data deduplication", "data management", "storage optimization"]
 
@@ -155,8 +155,8 @@ class TestRepairMalformedJsonArraysMigration:
         await _repair_malformed_json_arrays(async_engine)
 
         db_session.expire_all()
-        result = await db_session.execute(select(Article).where(Article.id == article_id))
-        fixed = result.scalar_one()
+        result = await db_session.exec(select(Article).where(Article.id == article_id))
+        fixed = result.one()
         assert fixed.concept_ids == valid_concepts
         assert fixed.source_ids == valid_sources
 
@@ -180,8 +180,8 @@ class TestRepairMalformedJsonArraysMigration:
         await _repair_malformed_json_arrays(async_engine)
 
         db_session.expire_all()
-        result = await db_session.execute(select(Article).where(Article.id == article_id))
-        fixed = result.scalar_one()
+        result = await db_session.exec(select(Article).where(Article.id == article_id))
+        fixed = result.one()
         parsed = json.loads(fixed.source_ids)
         assert parsed == ["id1", "id2", "id3"]
 
@@ -208,8 +208,8 @@ class TestCleanupOrphanConceptRows:
 
         await _cleanup_orphan_concept_rows(db_session)
 
-        result = await db_session.execute(select(Article).where(Article.id == article.id))
-        assert result.scalar_one_or_none() is None
+        result = await db_session.exec(select(Article).where(Article.id == article.id))
+        assert result.one_or_none() is None
 
     async def test_keeps_concept_article_with_existing_file(self, db_session, tmp_path: Path):
         """Concept article whose .md file exists on disk is preserved."""
@@ -231,8 +231,8 @@ class TestCleanupOrphanConceptRows:
 
         await _cleanup_orphan_concept_rows(db_session)
 
-        result = await db_session.execute(select(Article).where(Article.id == article.id))
-        assert result.scalar_one_or_none() is not None
+        result = await db_session.exec(select(Article).where(Article.id == article.id))
+        assert result.one_or_none() is not None
 
     async def test_leaves_source_articles_untouched(self, db_session, tmp_path: Path):
         """Source articles with missing files are NOT cleaned up (only concepts)."""
@@ -250,8 +250,8 @@ class TestCleanupOrphanConceptRows:
 
         await _cleanup_orphan_concept_rows(db_session)
 
-        result = await db_session.execute(select(Article).where(Article.id == article.id))
-        assert result.scalar_one_or_none() is not None
+        result = await db_session.exec(select(Article).where(Article.id == article.id))
+        assert result.one_or_none() is not None
 
     async def test_deletes_associated_backlinks(self, db_session, tmp_path: Path):
         """Backlinks referencing an orphaned concept article are also deleted."""
@@ -289,21 +289,21 @@ class TestCleanupOrphanConceptRows:
         await _cleanup_orphan_concept_rows(db_session)
 
         # Orphan article gone
-        result = await db_session.execute(select(Article).where(Article.id == orphan.id))
-        assert result.scalar_one_or_none() is None
+        result = await db_session.exec(select(Article).where(Article.id == orphan.id))
+        assert result.one_or_none() is None
 
         # Backlink also gone
-        result = await db_session.execute(
+        result = await db_session.exec(
             select(Backlink).where(
                 Backlink.source_article_id == survivor.id,
                 Backlink.target_article_id == orphan.id,
             )
         )
-        assert result.scalar_one_or_none() is None
+        assert result.one_or_none() is None
 
         # Survivor remains
-        result = await db_session.execute(select(Article).where(Article.id == survivor.id))
-        assert result.scalar_one_or_none() is not None
+        result = await db_session.exec(select(Article).where(Article.id == survivor.id))
+        assert result.one_or_none() is not None
 
     async def test_idempotent_no_orphans(self, db_session, tmp_path: Path):
         """Running with zero concept articles is a no-op."""

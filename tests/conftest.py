@@ -11,8 +11,9 @@ import keyring
 import pytest
 from httpx import ASGITransport, AsyncClient
 from keyring.backend import KeyringBackend
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.database import get_session
@@ -139,13 +140,13 @@ def session_factory(async_engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
     for seeding data before exercising a route, or for verifying state
     after a service call.
     """
-    return async_sessionmaker(async_engine, expire_on_commit=False)
+    return async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 @pytest.fixture
 async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Async database session backed by in-memory SQLite."""
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         yield session
         # Explicitly close the session connection before the event loop ends,
@@ -163,7 +164,7 @@ async def client(async_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]
     engine so that route handlers that call ``get_session_factory()`` directly
     (rather than through FastAPI's DI) also use the hermetic test DB.
     """
-    factory = async_sessionmaker(async_engine, expire_on_commit=False)
+    factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
     async def _override_session() -> AsyncGenerator[AsyncSession, None]:
         async with factory() as session:

@@ -648,8 +648,8 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
     from wikimind.models import Article, Backlink, PageType  # noqa: PLC0415
     from wikimind.storage import get_wiki_storage  # noqa: PLC0415
 
-    result = await session.execute(select(Article).where(Article.page_type == PageType.CONCEPT))
-    concept_articles = list(result.scalars().all())
+    result = await session.exec(select(Article).where(Article.page_type == PageType.CONCEPT))
+    concept_articles = list(result.all())
 
     cleaned = 0
     for article in concept_articles:
@@ -665,12 +665,12 @@ async def _cleanup_orphan_concept_rows(session: AsyncSession) -> None:
         await session.execute(
             sa_delete(Backlink).where(
                 sa_or(
-                    Backlink.source_article_id == article.id,
-                    Backlink.target_article_id == article.id,
+                    Backlink.source_article_id == article.id,  # type: ignore[arg-type]
+                    Backlink.target_article_id == article.id,  # type: ignore[arg-type]
                 )
             )
         )
-        await session.execute(sa_delete(Article).where(Article.id == article.id))
+        await session.execute(sa_delete(Article).where(Article.id == article.id))  # type: ignore[arg-type]
 
         from wikimind.services.search import remove_article as fts_remove_article  # noqa: PLC0415
 
@@ -700,15 +700,15 @@ async def _migrate_to_relative_paths(session: AsyncSession) -> None:
     raw_prefix = str(Path(settings.data_dir) / "raw") + "/"
 
     # Migrate Article.file_path (wiki-relative)
-    result = await session.execute(select(Article).where(Article.file_path.startswith("/")))
-    for article in result.scalars().all():
+    result = await session.exec(select(Article).where(Article.file_path.startswith("/")))
+    for article in result.all():
         if article.file_path.startswith(wiki_prefix):
             article.file_path = article.file_path[len(wiki_prefix) :]
             session.add(article)
 
     # Migrate Source.file_path (raw-relative)
-    result = await session.execute(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr]
-    for source in result.scalars().all():
+    result = await session.exec(select(Source).where(Source.file_path.startswith("/")))  # type: ignore[union-attr,arg-type]
+    for source in result.all():
         if source.file_path and source.file_path.startswith(raw_prefix):
             source.file_path = source.file_path[len(raw_prefix) :]
             session.add(source)

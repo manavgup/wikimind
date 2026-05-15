@@ -34,7 +34,7 @@ from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -383,7 +383,7 @@ provider: {provider_str}
         candidate = base
         suffix = 2
         while True:
-            existing = (await session.execute(select(Article).where(Article.slug == candidate))).scalars().first()
+            existing = (await session.exec(select(Article).where(Article.slug == candidate))).first()
             if existing is None:
                 return candidate
             candidate = f"{base}-{suffix}"

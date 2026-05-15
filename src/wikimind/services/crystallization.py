@@ -163,8 +163,8 @@ async def _check_already_crystallized(
         conversation_id=conversation.id,
         article_id=existing.id,
     )
-    turn_result = await session.execute(select(Query).where(Query.conversation_id == conversation.id))
-    turn_count = len(list(turn_result.scalars().all()))
+    turn_result = await session.exec(select(Query).where(Query.conversation_id == conversation.id))
+    turn_count = len(list(turn_result.all()))
     return CrystallizeResponse(
         article_id=existing.id,
         article_slug=existing.slug,

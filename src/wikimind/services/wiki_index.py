@@ -20,7 +20,7 @@ from wikimind.models import Article, ArticleConcept, Backlink, Concept, PageType
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
@@ -92,12 +92,12 @@ async def _group_articles_by_concept(
     Returns:
         GroupedArticles with by_concept mapping and uncategorized list.
     """
-    concepts_result = await session.execute(select(Concept))
-    concept_map: dict[str, str] = {c.id: c.name for c in concepts_result.scalars().all()}
+    concepts_result = await session.exec(select(Concept))
+    concept_map: dict[str, str] = {c.id: c.name for c in concepts_result.all()}
 
-    ac_result = await session.execute(select(ArticleConcept))
+    ac_result = await session.exec(select(ArticleConcept))
     article_concept_map: dict[str, list[str]] = defaultdict(list)
-    for ac in ac_result.scalars().all():
+    for ac in ac_result.all():
         article_concept_map[ac.article_id].append(ac.concept_name)
 
     concept_articles: dict[str, list[Article]] = defaultdict(list)

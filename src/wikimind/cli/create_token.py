@@ -48,8 +48,8 @@ async def _lookup_user_by_email(email: str) -> tuple[str, str | None]:
 
     factory = get_session_factory()
     async with factory() as session:
-        result = await session.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
+        result = await session.exec(select(User).where(User.email == email))
+        user = result.one_or_none()
 
     if user is None:
         print(f"ERROR: No user found with email '{email}'.", file=sys.stderr)

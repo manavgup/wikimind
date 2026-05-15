@@ -45,7 +45,7 @@ from wikimind.models import (
 from wikimind.services.contradiction import get_contradiction_service
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
 
