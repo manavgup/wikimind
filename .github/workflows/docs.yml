@@ -43,7 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -56,5 +60,12 @@ jobs:
       - name: Install MkDocs dependencies
         run: pip install -r docs/requirements.txt
 
-      - name: Deploy to GitHub Pages
-        run: cd docs && mkdocs gh-deploy --force
+      - name: Build documentation
+        run: cd docs && mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: docs/site
+
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac553fd0d31 # v4

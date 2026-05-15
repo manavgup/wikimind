@@ -78,6 +78,9 @@ markdown_extensions:
   - toc:
       permalink: true
 
+hooks:
+  - hooks/features.py
+
 extra:
   social:
     - icon: fontawesome/brands/github
