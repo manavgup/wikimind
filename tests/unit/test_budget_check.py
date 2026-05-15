@@ -60,8 +60,8 @@ async def test_budget_warning_fires_at_threshold() -> None:
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_not_awaited()
-    assert router._budget_warning_sent is not None
-    assert router._budget_exceeded_sent is None
+    assert TEST_USER_ID in router._budget_warning_sent
+    assert TEST_USER_ID not in router._budget_exceeded_sent
 
 
 async def test_budget_exceeded_fires_at_100pct() -> None:
@@ -77,8 +77,8 @@ async def test_budget_exceeded_fires_at_100pct() -> None:
 
     mock_warn.assert_awaited_once()
     mock_exceeded.assert_awaited_once()
-    assert router._budget_warning_sent is not None
-    assert router._budget_exceeded_sent is not None
+    assert TEST_USER_ID in router._budget_warning_sent
+    assert TEST_USER_ID in router._budget_exceeded_sent
 
 
 async def test_warning_fires_only_once() -> None:
@@ -92,7 +92,7 @@ async def test_warning_fires_only_once() -> None:
     ):
         await router._check_budget(user_id=TEST_USER_ID)
         # invalidate cache so second call re-queries
-        router._cache_expires_at = 0.0
+        router._cache_expires_at[TEST_USER_ID] = 0.0
         await router._check_budget(user_id=TEST_USER_ID)
 
     assert mock_warn.await_count == 1
@@ -108,7 +108,7 @@ async def test_exceeded_fires_only_once() -> None:
         patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
     ):
         await router._check_budget(user_id=TEST_USER_ID)
-        router._cache_expires_at = 0.0
+        router._cache_expires_at[TEST_USER_ID] = 0.0
         await router._check_budget(user_id=TEST_USER_ID)
 
     assert mock_exceeded.await_count == 1
@@ -129,7 +129,7 @@ async def test_cache_prevents_requery_within_ttl() -> None:
         first_call_count = session.execute.await_count
         # Reset warning flag so second call doesn't short-circuit at the top,
         # but cache is still valid so no DB query should happen.
-        router._budget_warning_sent = None
+        router._budget_warning_sent.pop(TEST_USER_ID, None)
         await router._check_budget(user_id=TEST_USER_ID)
 
     # session.execute should not have been called again
@@ -149,14 +149,14 @@ async def test_below_threshold_no_events() -> None:
 
     mock_warn.assert_not_awaited()
     mock_exceeded.assert_not_awaited()
-    assert router._budget_warning_sent is None
-    assert router._budget_exceeded_sent is None
+    assert TEST_USER_ID not in router._budget_warning_sent
+    assert TEST_USER_ID not in router._budget_exceeded_sent
 
 
 async def test_both_flags_set_returns_early_without_query() -> None:
     router = _make_router()
-    router._budget_warning_sent = (2026, 4)
-    router._budget_exceeded_sent = (2026, 4)
+    router._budget_warning_sent[TEST_USER_ID] = (2026, 4)
+    router._budget_exceeded_sent[TEST_USER_ID] = (2026, 4)
     factory = _mock_session_factory(spend=999.0)
 
     with (

@@ -139,10 +139,10 @@ class LLMRouter:
 
     def __init__(self):
         self.settings = get_settings()
-        self._budget_warning_sent: tuple[int, int] | None = None
-        self._budget_exceeded_sent: tuple[int, int] | None = None
-        self._cached_spend: float | None = None
-        self._cache_expires_at: float = 0.0
+        self._budget_warning_sent: dict[str, tuple[int, int]] = {}
+        self._budget_exceeded_sent: dict[str, tuple[int, int]] = {}
+        self._cached_spend: dict[str, float] = {}
+        self._cache_expires_at: dict[str, float] = {}
         self._provider_cache: dict[Provider, ProviderProtocol] = {}
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
@@ -228,40 +228,41 @@ class LLMRouter:
         cfg = getattr(self.settings.llm, provider.value, None)
         return cfg.model if cfg else "unknown"
 
-    async def _budget_flag_is_set(self, flag_name: str, month_key: tuple[int, int]) -> bool:
+    async def _budget_flag_is_set(self, flag_name: str, month_key: tuple[int, int], user_id: str) -> bool:
         """Check whether a budget notification flag is already set.
 
         Uses Redis when available for cross-replica dedup, falling back
         to the per-process in-memory flag otherwise.
         """
         # Check local cache first (fast path)
-        local_val = getattr(self, flag_name)
-        if local_val == month_key:
+        local_flags: dict[str, tuple[int, int]] = getattr(self, flag_name)
+        if local_flags.get(user_id) == month_key:
             return True
 
         redis = await _get_budget_redis()
         if redis is None:
             return False
 
-        redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
+        redis_key = f"wikimind:budget:{flag_name}:{user_id}:{month_key[0]}:{month_key[1]}"
         try:
             return bool(await redis.exists(redis_key))
         except (RedisError, OSError):
             return False
 
-    async def _set_budget_flag(self, flag_name: str, month_key: tuple[int, int]) -> None:
+    async def _set_budget_flag(self, flag_name: str, month_key: tuple[int, int], user_id: str) -> None:
         """Set a budget notification flag in both local memory and Redis.
 
         The Redis key is set with a TTL of 35 days so it auto-expires
         shortly after the month rolls over.
         """
-        setattr(self, flag_name, month_key)
+        local_flags: dict[str, tuple[int, int]] = getattr(self, flag_name)
+        local_flags[user_id] = month_key
 
         redis = await _get_budget_redis()
         if redis is None:
             return
 
-        redis_key = f"wikimind:budget:{flag_name}:{month_key[0]}:{month_key[1]}"
+        redis_key = f"wikimind:budget:{flag_name}:{user_id}:{month_key[0]}:{month_key[1]}"
         try:
             await redis.set(redis_key, "1", ex=35 * 86400)  # 35-day TTL
         except (RedisError, OSError):
@@ -272,21 +273,21 @@ class LLMRouter:
         current_month = utcnow_naive()
         month_key = (current_month.year, current_month.month)
 
-        # Reset flags when the calendar month rolls over
-        if self._budget_warning_sent and self._budget_warning_sent != month_key:
-            self._budget_warning_sent = None
-        if self._budget_exceeded_sent and self._budget_exceeded_sent != month_key:
-            self._budget_exceeded_sent = None
+        # Reset flags for this user when the calendar month rolls over
+        if user_id in self._budget_warning_sent and self._budget_warning_sent[user_id] != month_key:
+            del self._budget_warning_sent[user_id]
+        if user_id in self._budget_exceeded_sent and self._budget_exceeded_sent[user_id] != month_key:
+            del self._budget_exceeded_sent[user_id]
 
-        warning_sent = await self._budget_flag_is_set("_budget_warning_sent", month_key)
-        exceeded_sent = await self._budget_flag_is_set("_budget_exceeded_sent", month_key)
+        warning_sent = await self._budget_flag_is_set("_budget_warning_sent", month_key, user_id)
+        exceeded_sent = await self._budget_flag_is_set("_budget_exceeded_sent", month_key, user_id)
 
         if warning_sent and exceeded_sent:
             return
 
         now = time.time()
-        if self._cached_spend is not None and now < self._cache_expires_at:
-            spend = self._cached_spend
+        if user_id in self._cached_spend and now < self._cache_expires_at.get(user_id, 0.0):
+            spend = self._cached_spend[user_id]
         else:
             start_of_month = current_month.replace(day=1, hour=0, minute=0, second=0)
             async with get_session_factory()() as session:
@@ -296,8 +297,8 @@ class LLMRouter:
                 )
                 result = await session.execute(stmt)
                 spend = result.scalar() or 0.0
-            self._cached_spend = spend
-            self._cache_expires_at = now + self.settings.llm.budget_check_cache_seconds
+            self._cached_spend[user_id] = spend
+            self._cache_expires_at[user_id] = now + self.settings.llm.budget_check_cache_seconds
 
         budget = self.settings.llm.monthly_budget_usd
         if budget <= 0:
@@ -312,12 +313,12 @@ class LLMRouter:
                 pct=round(pct, 1),
             )
             await emit_budget_warning(spend, budget, pct, user_id=user_id)
-            await self._set_budget_flag("_budget_warning_sent", month_key)
+            await self._set_budget_flag("_budget_warning_sent", month_key, user_id)
 
         if pct >= 100.0 and not exceeded_sent:
             log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
             await emit_budget_exceeded(spend, budget, user_id=user_id)
-            await self._set_budget_flag("_budget_exceeded_sent", month_key)
+            await self._set_budget_flag("_budget_exceeded_sent", month_key, user_id)
 
     async def _log_cost(
         self,
