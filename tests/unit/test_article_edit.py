@@ -229,7 +229,7 @@ async def test_recompile_blocked_by_manual_edit(
 
     assert response.status_code == 409
     data = response.json()
-    assert "manual edits" in data["detail"].lower()
+    assert "manual edits" in data["error"]["message"].lower()
 
 
 async def test_recompile_force_overrides_manual_edit(

@@ -111,7 +111,7 @@ async def test_compile_route_rejects_zombie_source(client) -> None:
         "/api/jobs/compile/zombie-123",
     )
     assert resp.status_code == 422
-    assert "no content file" in resp.json()["detail"].lower()
+    assert "no content file" in resp.json()["error"]["message"].lower()
 
 
 async def test_compile_route_allows_valid_source(client) -> None:

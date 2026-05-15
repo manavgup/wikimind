@@ -83,10 +83,15 @@ export async function apiFetch<T>(
     const message =
       typeof parsed === "object" &&
       parsed !== null &&
-      "detail" in parsed &&
-      typeof (parsed as { detail: unknown }).detail === "string"
-        ? (parsed as { detail: string }).detail
-        : `Request failed: ${response.status} ${response.statusText}`;
+      "error" in parsed &&
+      typeof (parsed as { error: { message: unknown } }).error?.message === "string"
+        ? (parsed as { error: { message: string } }).error.message
+        : typeof parsed === "object" &&
+            parsed !== null &&
+            "detail" in parsed &&
+            typeof (parsed as { detail: unknown }).detail === "string"
+          ? (parsed as { detail: string }).detail
+          : `Request failed: ${response.status} ${response.statusText}`;
     throw new ApiError(response.status, message, parsed);
   }
 

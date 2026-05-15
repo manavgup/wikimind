@@ -245,9 +245,9 @@ class TestAPIRoutes:
                 json={"api_key": "sk-test-key-1234"},  # pragma: allowlist secret
             )
             assert resp.status_code == 500
-            assert resp.json()["detail"] == "Failed to store API key"
+            assert resp.json()["error"]["message"] == "Failed to store API key"
             # Internal details (e.g. JWT_SECRET_KEY) must NOT leak to client
-            assert "JWT_SECRET_KEY" not in resp.json()["detail"]
+            assert "JWT_SECRET_KEY" not in resp.json()["error"]["message"]
         finally:
             get_settings.cache_clear()
 
