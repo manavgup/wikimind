@@ -14,7 +14,12 @@ from wikimind.models import (
     CompletionResponse,
     Provider,
 )
-from wikimind.services.export import ExportService, _inline_format, _markdown_to_html
+from wikimind.services.export import (
+    ExportService,
+    _inline_format,
+    _markdown_to_html,
+    _sanitize_url,
+)
 
 # ---------------------------------------------------------------------------
 # Unit tests — ExportService (no DB, no LLM)
@@ -96,6 +101,80 @@ class TestInlineFormat:
         assert "&lt;" in result
         assert "&amp;" in result
         assert "&gt;" in result
+
+
+class TestSanitizeUrl:
+    """URL scheme validation for XSS prevention."""
+
+    def test_allows_http(self):
+        assert _sanitize_url("http://example.com") == "http://example.com"
+
+    def test_allows_https(self):
+        assert _sanitize_url("https://example.com") == "https://example.com"
+
+    def test_allows_mailto(self):
+        assert _sanitize_url("mailto:user@example.com") == "mailto:user@example.com"
+
+    def test_blocks_javascript(self):
+        assert _sanitize_url("javascript:alert(1)") is None
+
+    def test_blocks_javascript_mixed_case(self):
+        assert _sanitize_url("JaVaScRiPt:alert(1)") is None
+
+    def test_blocks_data_url(self):
+        assert _sanitize_url("data:text/html,<script>alert(1)</script>") is None
+
+    def test_blocks_vbscript(self):
+        assert _sanitize_url("vbscript:MsgBox('XSS')") is None
+
+    def test_blocks_javascript_with_whitespace_bypass(self):
+        assert _sanitize_url(" \t\njavascript:alert(1)") is None
+
+    def test_blocks_javascript_with_control_chars(self):
+        assert _sanitize_url("\x00javascript:alert(1)") is None
+
+    def test_blocks_bare_path(self):
+        assert _sanitize_url("/etc/passwd") is None
+
+    def test_blocks_empty_string(self):
+        assert _sanitize_url("") is None
+
+
+class TestLinkSanitization:
+    """Verify that _inline_format and _markdown_to_html strip dangerous URLs."""
+
+    def test_inline_format_blocks_javascript_link(self):
+        result = _inline_format("[click](javascript:alert(1))")
+        assert "javascript:" not in result
+        assert "<a" not in result
+        assert "click" in result
+
+    def test_inline_format_allows_https_link(self):
+        result = _inline_format("[Google](https://google.com)")
+        assert '<a href="https://google.com">Google</a>' in result
+
+    def test_inline_format_allows_mailto_link(self):
+        result = _inline_format("[Email](mailto:user@example.com)")
+        assert '<a href="mailto:user@example.com">Email</a>' in result
+
+    def test_inline_format_blocks_mixed_case_javascript(self):
+        result = _inline_format("[xss](JaVaScRiPt:alert(document.cookie))")
+        assert "javascript:" not in result.lower()
+        assert "<a" not in result
+
+    def test_inline_format_blocks_data_url(self):
+        result = _inline_format("[xss](data:text/html,<script>alert(1)</script>)")
+        assert "<a" not in result
+
+    def test_markdown_to_html_blocks_javascript_link(self):
+        html = _markdown_to_html("[click me](javascript:alert('XSS'))")
+        assert "javascript:" not in html
+        assert "<a" not in html
+        assert "click me" in html
+
+    def test_markdown_to_html_allows_safe_link(self):
+        html = _markdown_to_html("[safe](https://safe.example.com)")
+        assert '<a href="https://safe.example.com">safe</a>' in html
 
 
 class TestExportServicePdf:
