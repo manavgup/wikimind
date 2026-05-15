@@ -342,17 +342,20 @@ def compute_hash(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-async def find_source_by_hash(session: AsyncSession, content_hash: str) -> Source | None:
-    """Look up an existing :class:`Source` by its content hash.
+async def find_source_by_hash(session: AsyncSession, content_hash: str, user_id: str) -> Source | None:
+    """Look up an existing :class:`Source` by its content hash within a user's scope.
 
     Args:
         session: Async database session.
         content_hash: SHA-256 hex digest produced by :func:`compute_hash`.
+        user_id: Owner whose sources to search — prevents cross-tenant dedup.
 
     Returns:
         The matching `Source`, or ``None`` if no source has this hash.
     """
-    result = await session.execute(select(Source).where(Source.content_hash == content_hash))
+    result = await session.execute(
+        select(Source).where(Source.content_hash == content_hash).where(Source.user_id == user_id)
+    )
     return result.scalar_one_or_none()
 
 
@@ -360,10 +363,11 @@ async def _check_source_dedup(
     payload: bytes,
     session: AsyncSession,
     source_type: str,
+    user_id: str,
 ) -> tuple[Source, NormalizedDocument] | None:
     """Return existing (source, doc) if content was already ingested, else None."""
     content_hash = compute_hash(payload)
-    existing = await find_source_by_hash(session, content_hash)
+    existing = await find_source_by_hash(session, content_hash, user_id)
     if existing is not None:
         if existing.file_path:
             log.info(

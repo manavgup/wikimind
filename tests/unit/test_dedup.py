@@ -112,7 +112,7 @@ class TestFindSourceByHash:
     """`find_source_by_hash` returns None when nothing matches."""
 
     async def test_returns_none_when_no_match(self, db_session) -> None:
-        result = await find_source_by_hash(db_session, "deadbeef" * 8)
+        result = await find_source_by_hash(db_session, "deadbeef" * 8, TEST_USER_ID)
         assert result is None
 
     async def test_returns_source_when_present(self, db_session) -> None:
@@ -127,7 +127,7 @@ class TestFindSourceByHash:
         db_session.add(source)
         await db_session.commit()
 
-        found = await find_source_by_hash(db_session, digest)
+        found = await find_source_by_hash(db_session, digest, TEST_USER_ID)
         assert found is not None
         assert found.id == source.id
 
