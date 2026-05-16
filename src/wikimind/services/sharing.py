@@ -5,7 +5,6 @@ share links. Each share link has a cryptographically random token
 and can be set to expire or be revoked.
 """
 
-import functools
 import secrets
 from datetime import timedelta
 
@@ -238,9 +237,3 @@ class SharingService:
             created_at=article.created_at,
             updated_at=article.updated_at,
         )
-
-
-@functools.lru_cache(maxsize=1)
-def get_sharing_service() -> SharingService:
-    """Return the singleton sharing service."""
-    return SharingService()

@@ -11,6 +11,12 @@ import pytest
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
+from wikimind.api.services import (
+    get_compiler_service,
+    get_ingest_service,
+    get_query_service,
+    get_wiki_service,
+)
 from wikimind.config import get_settings
 from wikimind.errors import IngestError, NotFoundError
 from wikimind.models import (
@@ -25,22 +31,10 @@ from wikimind.models import (
     Source,
     SourceType,
 )
-from wikimind.services import (
-    compiler as compiler_mod,
-)
-from wikimind.services import (
-    ingest as ingest_mod,
-)
-from wikimind.services import (
-    query as query_mod,
-)
-from wikimind.services import (
-    wiki as wiki_mod,
-)
-from wikimind.services.compiler import CompilerService, get_compiler_service
-from wikimind.services.ingest import IngestService, get_ingest_service
-from wikimind.services.query import QueryService, get_query_service
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.compiler import CompilerService
+from wikimind.services.ingest import IngestService
+from wikimind.services.query import QueryService
+from wikimind.services.wiki import WikiService
 
 # ----- IngestService -----
 
@@ -271,9 +265,10 @@ async def test_ingest_service_delete_source_wrong_user(db_session) -> None:
 
 
 def test_ingest_service_singleton() -> None:
-    ingest_mod._ingest_service = None
+    get_ingest_service.cache_clear()
     a = get_ingest_service()
     assert a is get_ingest_service()
+    get_ingest_service.cache_clear()
 
 
 # ----- CompilerService -----
@@ -313,8 +308,9 @@ async def test_compiler_service_triggers() -> None:
 
 
 def test_compiler_service_singleton() -> None:
-    compiler_mod._compiler_service = None
+    get_compiler_service.cache_clear()
     assert get_compiler_service() is get_compiler_service()
+    get_compiler_service.cache_clear()
 
 
 # ----- QueryService -----
@@ -495,8 +491,9 @@ async def test_query_service_file_back_conversation_not_found(db_session) -> Non
 
 
 def test_query_service_singleton() -> None:
-    query_mod._query_service = None
+    get_query_service.cache_clear()
     assert get_query_service() is get_query_service()
+    get_query_service.cache_clear()
 
 
 # ----- WikiService -----
@@ -585,5 +582,6 @@ async def test_wiki_get_health_from_file(db_session, tmp_path, monkeypatch) -> N
 
 
 def test_wiki_service_singleton() -> None:
-    wiki_mod._wiki_service = None
+    get_wiki_service.cache_clear()
     assert get_wiki_service() is get_wiki_service()
+    get_wiki_service.cache_clear()

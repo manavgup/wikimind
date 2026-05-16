@@ -7,7 +7,6 @@ job system.
 
 from __future__ import annotations
 
-import functools
 from typing import TYPE_CHECKING
 
 from sqlmodel import select
@@ -262,9 +261,3 @@ class LinterService:
             kind=kind.value,
             finding_id=finding_id,
         )
-
-
-@functools.lru_cache(maxsize=1)
-def get_linter_service() -> LinterService:
-    """Return a singleton LinterService instance."""
-    return LinterService()

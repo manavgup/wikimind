@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import get_capture_service, get_rss_service
 from wikimind.database import get_session
 from wikimind.models import (
     CaptureKind,
@@ -19,8 +20,8 @@ from wikimind.models import (
     RssFeedToggleRequest,
     RssPollResponse,
 )
-from wikimind.services.capture import CaptureService, get_capture_service
-from wikimind.services.rss import RssService, get_rss_service
+from wikimind.services.capture import CaptureService
+from wikimind.services.rss import RssService
 
 router = APIRouter()
 

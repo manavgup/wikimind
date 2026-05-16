@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.conftest import TEST_USER_ID
+from wikimind.api.services import get_saved_search_service
 from wikimind.errors import NotFoundError
 from wikimind.models import Article, ArticleTag, PageType, Tag
-from wikimind.services.saved_searches import SavedSearchService, get_saved_search_service
+from wikimind.services.saved_searches import SavedSearchService
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

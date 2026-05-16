@@ -8,13 +8,14 @@ from fastapi.responses import HTMLResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import get_sharing_service
 from wikimind.database import get_session
 from wikimind.models import (
     CreateShareLinkRequest,
     PublicArticleResponse,
     ShareLinkResponse,
 )
-from wikimind.services.sharing import SharingService, get_sharing_service
+from wikimind.services.sharing import SharingService
 
 log = structlog.get_logger()
 

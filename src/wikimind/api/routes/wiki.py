@@ -5,6 +5,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import (
+    get_contradiction_service,
+    get_linter_service,
+    get_search_service,
+    get_tag_service,
+    get_wiki_service,
+)
 from wikimind.database import get_session
 from wikimind.models import (
     ArticleEditRequest,
@@ -34,12 +41,12 @@ from wikimind.models import (
     TagResponse,
     WikilinkMatch,
 )
-from wikimind.services.contradiction import ContradictionService, get_contradiction_service
-from wikimind.services.linter import LinterService, get_linter_service
-from wikimind.services.search import SearchService, get_search_service
-from wikimind.services.tags import TagService, get_tag_service
+from wikimind.services.contradiction import ContradictionService
+from wikimind.services.linter import LinterService
+from wikimind.services.search import SearchService
+from wikimind.services.tags import TagService
 from wikimind.services.taxonomy import rebuild_taxonomy
-from wikimind.services.wiki import WikiService, _staleness_score, get_wiki_service
+from wikimind.services.wiki import WikiService, _staleness_score
 
 log = structlog.get_logger()
 

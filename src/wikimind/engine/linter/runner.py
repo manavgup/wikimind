@@ -42,7 +42,6 @@ from wikimind.models import (
     OrphanFinding,
     StructuralFinding,
 )
-from wikimind.services.contradiction import get_contradiction_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -254,6 +253,8 @@ async def _persist_and_finalize(
     active_contradictions = [c for c in contradictions if not c.dismissed]
     active_orphans = [o for o in orphans if not o.dismissed]
     active_structurals = [s for s in structurals if not s.dismissed]
+
+    from wikimind.api.services import get_contradiction_service  # noqa: PLC0415
 
     contradiction_service = get_contradiction_service()
     for cf in active_contradictions:

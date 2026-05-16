@@ -222,10 +222,10 @@ class TestEmbeddingFailureResilience:
     async def test_embedding_failure_does_not_crash(self):
         """If get_embedding_service() raises, the worker should catch and log."""
         with patch(
-            "wikimind.services.embedding.get_embedding_service",
+            "wikimind.api.services.get_embedding_service",
             side_effect=RuntimeError("boom"),
         ):
-            from wikimind.services.embedding import get_embedding_service
+            from wikimind.api.services import get_embedding_service
 
             # Simulate what the worker does
             try:

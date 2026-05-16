@@ -8,7 +8,6 @@ they are not installed.
 
 from __future__ import annotations
 
-import functools
 import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
@@ -306,20 +305,3 @@ class EmbeddingService:
         return EmbeddingStats(
             total_chunks=self._collection.count(),
         )
-
-
-# ---------------------------------------------------------------------------
-# Module-level singleton (only created when search extras are available)
-# ---------------------------------------------------------------------------
-
-
-@functools.lru_cache(maxsize=1)
-def get_embedding_service() -> EmbeddingService | None:
-    """Return a singleton EmbeddingService, or None if search extras are missing."""
-    if not _SEARCH_AVAILABLE:
-        return None
-    try:
-        return EmbeddingService()
-    except (OSError, RuntimeError, ValueError):
-        log.warning("Failed to initialize EmbeddingService")
-        return None

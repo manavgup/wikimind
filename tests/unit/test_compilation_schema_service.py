@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.conftest import TEST_USER_ID
+from wikimind.api.services import get_compilation_schema_service
 from wikimind.errors import NotFoundError
-from wikimind.services.compilation_schema import (
-    CompilationSchemaService,
-    get_compilation_schema_service,
-)
+from wikimind.services.compilation_schema import CompilationSchemaService
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

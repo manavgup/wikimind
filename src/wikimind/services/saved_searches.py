@@ -4,7 +4,6 @@ Saved searches store a query string plus optional tag/concept filters so
 users can one-click re-execute common queries.
 """
 
-import functools
 import json
 
 import structlog
@@ -195,9 +194,3 @@ class SavedSearchService:
             msg = "Saved search not found"
             raise NotFoundError(msg)
         return saved
-
-
-@functools.lru_cache(maxsize=1)
-def get_saved_search_service() -> SavedSearchService:
-    """Return a singleton SavedSearchService for FastAPI dependency injection."""
-    return SavedSearchService()

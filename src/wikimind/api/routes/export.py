@@ -11,10 +11,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import get_export_service, get_wiki_export_service
 from wikimind.database import get_session
 from wikimind.models import Article, ExportFormat, ExportResponse, WikiExportFormat
-from wikimind.services.export import ExportService, get_export_service
-from wikimind.services.wiki_export import WikiExportService, get_wiki_export_service
+from wikimind.services.export import ExportService
+from wikimind.services.wiki_export import WikiExportService
 from wikimind.storage import read_article_content
 
 log = structlog.get_logger()

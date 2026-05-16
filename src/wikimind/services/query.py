@@ -7,7 +7,6 @@ chains so callers can trace every answer back to the raw source it came
 from.
 """
 
-import functools
 import json
 import re
 import uuid
@@ -725,9 +724,3 @@ def _sanitize_filename(title: str) -> str:
     sanitized = _FILENAME_UNSAFE_RE.sub("-", title)
     sanitized = re.sub(r"-{2,}", "-", sanitized)
     return sanitized.strip("- ") or "conversation"
-
-
-@functools.lru_cache(maxsize=1)
-def get_query_service() -> QueryService:
-    """Return a singleton QueryService instance for FastAPI dependency injection."""
-    return QueryService()

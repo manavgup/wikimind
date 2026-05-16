@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends
 
 from wikimind.api.deps import require_admin
+from wikimind.api.services import get_admin_service
 from wikimind.database import get_session
-from wikimind.services.admin import AdminService, get_admin_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.admin import AdminService
 
 router = APIRouter()
 

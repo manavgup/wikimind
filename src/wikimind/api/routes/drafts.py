@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import get_draft_service
 from wikimind.database import get_session
 from wikimind.models import (
     ApproveDraftRequest,
@@ -19,10 +20,11 @@ from wikimind.models import (
     CompilationDraftResponse,
     RejectDraftResponse,
 )
-from wikimind.services.draft import DraftService, get_draft_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.draft import DraftService
 
 router = APIRouter()
 

@@ -5,7 +5,6 @@ browser print-to-PDF or direct rendering. LinkedIn and slides exports
 use the LLM router to rewrite content into the target format.
 """
 
-import functools
 import re
 
 import structlog
@@ -343,9 +342,3 @@ class ExportService:
         )
         response = await self._llm.complete(request, user_id=user_id)
         return response.content.strip()
-
-
-@functools.lru_cache(maxsize=1)
-def get_export_service() -> ExportService:
-    """Return the singleton export service."""
-    return ExportService()

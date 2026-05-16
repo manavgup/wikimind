@@ -5,14 +5,15 @@ from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.api.services import get_saved_search_service, get_wiki_service
 from wikimind.database import get_session
 from wikimind.models import (
     CreateSavedSearchRequest,
     SavedSearchExecuteResponse,
     SavedSearchResponse,
 )
-from wikimind.services.saved_searches import SavedSearchService, get_saved_search_service
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.saved_searches import SavedSearchService
+from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
 

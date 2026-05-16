@@ -400,14 +400,3 @@ class AdminService:
             AdminActionResult with action result.
         """
         return AdminActionResult(action="reindex", status="scheduled")
-
-
-_admin_service: AdminService | None = None
-
-
-def get_admin_service() -> AdminService:
-    """Return a singleton AdminService instance for FastAPI DI."""
-    global _admin_service
-    if _admin_service is None:
-        _admin_service = AdminService()
-    return _admin_service

@@ -10,7 +10,6 @@ top via the existing ``EmbeddingService``.
 
 from __future__ import annotations
 
-import functools
 import hashlib
 from collections import Counter
 from datetime import timedelta
@@ -851,9 +850,3 @@ async def _facet_staleness(
             buckets=[FacetBucket(value=k, count=v) for k, v in buckets.items() if v > 0],
         )
     ]
-
-
-@functools.lru_cache(maxsize=1)
-def get_search_service() -> SearchService:
-    """Return a singleton SearchService for FastAPI dependency injection."""
-    return SearchService()

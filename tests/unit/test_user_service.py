@@ -9,10 +9,11 @@ from unittest.mock import patch as mock_patch
 import pytest
 
 from tests.conftest import TEST_JWT_SECRET
+from wikimind.api.services import get_user_service
 from wikimind.config import AuthConfig
 from wikimind.errors import NotFoundError
 from wikimind.models import Article, Conversation, OAuthUserInfo, PageType, Source, SourceType, User
-from wikimind.services.user import UserService, get_user_service
+from wikimind.services.user import UserService
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

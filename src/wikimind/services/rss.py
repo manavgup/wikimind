@@ -5,7 +5,6 @@ Manages feed CRUD and delegates polling to the RSS adapter.
 
 from __future__ import annotations
 
-import functools
 from typing import TYPE_CHECKING
 
 import structlog
@@ -231,9 +230,3 @@ class RssService:
             total_new += new_count
 
         return total_new
-
-
-@functools.lru_cache(maxsize=1)
-def get_rss_service() -> RssService:
-    """Return a singleton RssService instance for FastAPI dependency injection."""
-    return RssService()

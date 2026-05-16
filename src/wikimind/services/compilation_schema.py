@@ -5,7 +5,6 @@ article structure, style preferences, extraction directives, and concept
 taxonomy rules. Only one schema per user can be active at a time.
 """
 
-import functools
 import json
 
 import structlog
@@ -314,9 +313,3 @@ class CompilationSchemaService:
             msg = "Compilation schema not found"
             raise NotFoundError(msg)
         return schema
-
-
-@functools.lru_cache(maxsize=1)
-def get_compilation_schema_service() -> CompilationSchemaService:
-    """Return a singleton CompilationSchemaService for FastAPI dependency injection."""
-    return CompilationSchemaService()

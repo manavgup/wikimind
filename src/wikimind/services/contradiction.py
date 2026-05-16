@@ -6,7 +6,6 @@ content that users can browse, resolve, and dismiss.
 
 from __future__ import annotations
 
-import functools
 import hashlib
 from typing import TYPE_CHECKING
 
@@ -218,9 +217,3 @@ class ContradictionService:
             resolved_at=contradiction.resolved_at,
             resolved_by=contradiction.resolved_by,
         )
-
-
-@functools.lru_cache(maxsize=1)
-def get_contradiction_service() -> ContradictionService:
-    """Return a singleton ContradictionService instance."""
-    return ContradictionService()
