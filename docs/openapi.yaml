@@ -2565,20 +2565,44 @@ paths:
           content:
             application/json:
               schema: {}
-  /api/admin/docling-status:
+  /api/admin/traces:
     get:
       tags:
       - Admin
-      summary: Get Docling Status
-      description: Check connectivity to the Docling-serve PDF extraction sidecar.
-      operationId: get_docling_status_api_admin_docling_status_get
+      summary: Get Traces
+      description: Paginated LLM traces (most recent first, admin only).
+      operationId: get_traces_api_admin_traces_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DoclingStatusResponse'
+                $ref: '#/components/schemas/LLMTraceListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/articles/{id_or_slug}/export:
     post:
       tags:
@@ -5358,27 +5382,80 @@ components:
       - status
       title: LLMTestResponse
       description: Response from LLM connection test.
-    LinkedArticleSummary:
+    LLMTraceListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/LLMTraceResponse'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: LLMTraceListResponse
+      description: Paginated list of LLM traces.
+    LLMTraceResponse:
       properties:
         id:
           type: string
           title: Id
-        slug:
+        user_id:
           type: string
-          title: Slug
-        title:
+          title: User Id
+        model:
           type: string
-          title: Title
-        page_type:
-          $ref: '#/components/schemas/PageType'
-          default: source
+          title: Model
+        prompt_tokens:
+          type: integer
+          title: Prompt Tokens
+        completion_tokens:
+          type: integer
+          title: Completion Tokens
+        total_tokens:
+          type: integer
+          title: Total Tokens
+        latency_ms:
+          type: number
+          title: Latency Ms
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        prompt_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prompt Text
+        completion_text:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Completion Text
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+        operation:
+          type: string
+          title: Operation
       type: object
       required:
       - id
-      - slug
-      - title
-      title: LinkedArticleSummary
-      description: Minimal article info for the source detail view.
+      - user_id
+      - model
+      - prompt_tokens
+      - completion_tokens
+      - total_tokens
+      - latency_ms
+      - created_at
+      - operation
+      title: LLMTraceResponse
+      description: API response for a single LLM trace entry.
     LintFindingKind:
       type: string
       enum:

@@ -66,6 +66,7 @@ jobs:
       PYTHONUNBUFFERED: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       WIKIMIND_DATABASE_URL: postgresql+asyncpg://wikimind:wikimind@127.0.0.1:5432/wikimind_replay # pragma: allowlist secret
+      WIKIMIND_ENV: development
 
     steps:
       # -----------------------------------------------------------
@@ -136,6 +137,7 @@ jobs:
               'job',
               'lintpaircache',
               'lintreport',
+              'llmtrace',
               'migrationhistory',
               'orphanfinding',
               'query',
@@ -325,6 +327,7 @@ jobs:
               'job',
               'lintpaircache',
               'lintreport',
+              'llmtrace',
               'migrationhistory',
               'orphanfinding',
               'query',
