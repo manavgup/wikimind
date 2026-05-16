@@ -2,6 +2,7 @@
 
 import mimetypes
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -149,12 +150,15 @@ async def get_source_detail(
     )
     img_rows = (await session.exec(img_stmt)).all()
     images: list[SourceImageEntry] = []
-    for filename, kind in img_rows:
-        stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    # Access by index (0=filename, 1=kind) to match select() column order above.
+    for row in img_rows:
+        img_filename: str = row[0]
+        img_kind: str = row[1]
+        stem = img_filename.rsplit(".", 1)[0] if "." in img_filename else img_filename
         parts = stem.rsplit("-", 1)
         num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
-        label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
-        images.append(SourceImageEntry(filename=filename, kind=kind, label=label))
+        label = f"{'Table' if img_kind == 'table' else 'Figure'} {num}"
+        images.append(SourceImageEntry(filename=img_filename, kind=img_kind, label=label))
 
     # Query linked articles via ArticleSource join table
     art_stmt = (
@@ -186,14 +190,36 @@ async def get_source_detail(
     )
 
 
-def _build_pipeline_steps(source: Source) -> list[PipelineStep]:
+def _build_pipeline_steps(source: Source) -> list[PipelineStep]:  # noqa: PLR0911
     """Derive pipeline step statuses from the source's current state."""
     status = source.status
 
     if status == "failed":
+        # Derive the actual failure point from available data:
+        # - If clean_text exists, extraction succeeded so failure is at Compile.
+        # - If file_path exists but no clean_text, extraction failed.
+        # - Otherwise, fetch itself failed.
+        error_desc = source.error_message or "Failed"
+        if source.clean_text:
+            # Extraction and cleaning succeeded; failure is at Compile
+            return [
+                PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+                PipelineStep(name="Extract", status="complete", description="Text extracted"),
+                PipelineStep(name="Clean", status="complete", description="Text normalized"),
+                PipelineStep(name="Compile", status="failed", description=error_desc),
+            ]
+        if source.file_path:
+            # Fetch succeeded but extraction/cleaning failed
+            return [
+                PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+                PipelineStep(name="Extract", status="failed", description=error_desc),
+                PipelineStep(name="Clean", status="pending", description="Normalize text"),
+                PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
+            ]
+        # No file_path means fetch itself failed
         return [
-            PipelineStep(name="Fetch", status="complete", description="Source fetched"),
-            PipelineStep(name="Extract", status="failed", description=source.error_message or "Failed"),
+            PipelineStep(name="Fetch", status="failed", description=error_desc),
+            PipelineStep(name="Extract", status="pending", description="Extract text & images"),
             PipelineStep(name="Clean", status="pending", description="Normalize text"),
             PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
         ]
@@ -325,22 +351,28 @@ async def list_source_images(
     rows = (await session.exec(stmt)).all()
     if rows:
         entries = []
-        for filename, kind in rows:
-            stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        # Access by index (0=filename, 1=kind) to match select() column order above.
+        for row in rows:
+            img_filename: str = row[0]
+            img_kind: str = row[1]
+            stem = img_filename.rsplit(".", 1)[0] if "." in img_filename else img_filename
             parts = stem.rsplit("-", 1)
             num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
-            label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
-            entries.append({"filename": filename, "kind": kind, "label": label})
+            label = f"{'Table' if img_kind == 'table' else 'Figure'} {num}"
+            entries.append({"filename": img_filename, "kind": img_kind, "label": label})
         return entries
 
     # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
+    image_dir = PDFAdapter.get_image_dir(user_id, source_id).resolve()
     if not image_dir.is_dir():
         return []
 
     entries = []
     for path in sorted(image_dir.iterdir()):
         if not path.is_file():
+            continue
+        # Only serve files that resolve inside the image directory.
+        if not path.resolve().is_relative_to(image_dir):
             continue
         stem = path.stem
         kind = "table" if stem.startswith("table-") else "figure"
@@ -390,11 +422,13 @@ async def get_source_image(
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
-    # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
-    image_path = (image_dir / filename).resolve()
+    # Filesystem fallback for pre-migration sources.
+    # Use Path.name as defense-in-depth to strip any directory components.
+    safe_filename = Path(filename).name
+    image_dir = PDFAdapter.get_image_dir(user_id, source_id).resolve()
+    image_path = (image_dir / safe_filename).resolve()
 
-    if not image_path.is_relative_to(image_dir.resolve()):
+    if not image_path.is_relative_to(image_dir):
         raise HTTPException(status_code=404, detail="Image not found")
 
     if not image_path.is_file():

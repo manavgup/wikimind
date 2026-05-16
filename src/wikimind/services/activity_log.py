@@ -40,13 +40,21 @@ def append_log_entry(
             indented detail lines beneath the heading.
         user_id: Optional user ID for path scoping.
     """
-    wiki_dir = Path(get_settings().data_dir) / "wiki"
+    base_dir = Path(get_settings().data_dir) / "wiki"
+    wiki_dir = base_dir
     if user_id:
         # Sanitize: use only the basename to prevent path traversal.
         safe_id = Path(user_id).name
-        wiki_dir = wiki_dir / safe_id
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    log_path = wiki_dir / "log.md"
+        wiki_dir = base_dir / safe_id
+
+    # Defense-in-depth: resolve and verify the path stays under base_dir.
+    resolved_dir = wiki_dir.resolve()
+    if not resolved_dir.is_relative_to(base_dir.resolve()):
+        msg = f"Path traversal blocked for user_id={user_id!r}"
+        raise ValueError(msg)
+
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    log_path = resolved_dir / "log.md"
 
     datestamp = utcnow_naive().strftime("%Y-%m-%d")
     lines = [f"## [{datestamp}] {op} | {title}\n"]
