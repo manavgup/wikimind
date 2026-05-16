@@ -7,6 +7,8 @@ Exposes four tools to MCP clients (Claude Desktop, Cursor, etc.):
   - wiki_list_sources: list ingested sources
 
 The server supports stdio (default) and HTTP transports.
+HTTP transport requires JWT authentication (configurable via
+``WIKIMIND_MCP__REQUIRE_AUTH``). Stdio transport never requires auth.
 
 Usage:
     wikimind mcp serve
@@ -25,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastmcp import FastMCP
+from mcp.server.auth.middleware.auth_context import auth_context_var
 from pydantic import Field
 
 from wikimind.config import get_settings
@@ -86,9 +89,18 @@ mcp = FastMCP(
 async def _get_mcp_user_id() -> str:
     """Return the user ID for MCP operations.
 
-    In dev mode, uses the auto-provisioned dev user. MCP is a local
-    tool — it always runs in the same environment as the server.
+    When accessed via authenticated HTTP transport, extracts user_id
+    from the JWT token's claims (set by WikiMindJWTAuthProvider).
+    Falls back to the dev user for stdio transport or when auth is
+    disabled.
     """
+    # Check if we have an authenticated user from HTTP transport.
+    # WikiMindJWTAuthProvider sets client_id = user_id (from JWT "sub" claim).
+    auth_user = auth_context_var.get(None)
+    if auth_user is not None and auth_user.access_token.client_id:
+        return auth_user.access_token.client_id
+
+    # Fallback: stdio transport or dev mode — use dev user
     return await get_dev_user_id()
 
 
@@ -311,6 +323,8 @@ def run_server() -> None:
     """Run the WikiMind MCP server.
 
     Supports stdio (default) and HTTP transports via --transport flag.
+    HTTP transport enforces JWT authentication by default (configurable
+    via WIKIMIND_MCP__REQUIRE_AUTH).
     """
     parser = argparse.ArgumentParser(description="WikiMind MCP Server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
@@ -319,6 +333,11 @@ def run_server() -> None:
     args = parser.parse_args()
 
     if args.transport == "http":
+        settings = get_settings()
+        if settings.mcp.require_auth:
+            from wikimind.mcp.auth import WikiMindJWTAuthProvider  # noqa: PLC0415
+
+            mcp.auth = WikiMindJWTAuthProvider()
         mcp.run(transport="http", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")

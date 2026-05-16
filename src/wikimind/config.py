@@ -326,6 +326,16 @@ class AuthConfig(BaseModel):
     dev_user_email: str = "dev@wikimind.local"
 
 
+class MCPConfig(BaseModel):
+    """MCP server configuration.
+
+    Controls authentication behavior for the MCP HTTP transport.
+    Stdio transport (local Claude Desktop) never requires auth.
+    """
+
+    require_auth: bool = True
+
+
 # Mapping from provider name → (Settings field for SecretStr key, raw env var name).
 # Used by both `get_api_key` and the auto-enable validator below.
 _PROVIDER_KEY_FIELDS: dict[str, tuple[str, str]] = {
@@ -386,6 +396,7 @@ class Settings(BaseSettings):
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     concept_layer: ConceptLayerConfig = Field(default_factory=ConceptLayerConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
 
     # Storage backend: "local" creates wiki/ and raw/ on the local filesystem;
     # "r2" delegates to Cloudflare R2 (wiki_dir / raw_dir are not needed).
