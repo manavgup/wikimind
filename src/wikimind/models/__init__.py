@@ -1080,6 +1080,51 @@ class SourceResponse(BaseModel):
     ingested_at: datetime
 
 
+class PipelineStep(BaseModel):
+    """A single step in the source processing pipeline."""
+
+    name: str
+    status: str  # "complete" | "active" | "pending" | "failed"
+    description: str
+
+
+class SourceImageEntry(BaseModel):
+    """An extracted image entry for the source detail view."""
+
+    filename: str
+    kind: str  # "figure" | "table"
+    label: str
+
+
+class LinkedArticleSummary(BaseModel):
+    """Minimal article info for the source detail view."""
+
+    id: str
+    slug: str
+    title: str
+    page_type: PageType = PageType.SOURCE
+
+
+class SourceDetailResponse(BaseModel):
+    """Full source detail with pipeline steps, images, and linked articles."""
+
+    id: str
+    source_type: SourceType
+    source_url: str | None
+    title: str | None
+    author: str | None
+    published_date: date | None
+    status: IngestStatus
+    ingested_at: datetime
+    compiled_at: datetime | None
+    token_count: int | None
+    error_message: str | None
+    has_original: bool
+    pipeline_steps: list[PipelineStep]
+    images: list[SourceImageEntry]
+    linked_articles: list[LinkedArticleSummary]
+
+
 class SourceContentResponse(BaseModel):
     """Raw text content of an ingested source for side-by-side reading."""
 

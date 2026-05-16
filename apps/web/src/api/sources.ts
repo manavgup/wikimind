@@ -8,6 +8,7 @@ import type {
   RejectDraftResponse,
   Source,
   SourceContentResponse,
+  SourceDetailResponse,
   TriggerCompileResponse,
 } from "../types/api";
 
@@ -23,6 +24,12 @@ export function listSources(params: ListSourcesParams = {}): Promise<Source[]> {
 
 export function getSource(sourceId: string): Promise<Source> {
   return apiFetch<Source>(`/api/ingest/sources/${encodeURIComponent(sourceId)}`);
+}
+
+export function getSourceDetail(sourceId: string): Promise<SourceDetailResponse> {
+  return apiFetch<SourceDetailResponse>(
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/detail`,
+  );
 }
 
 export function ingestUrl(url: string, autoCompile = true): Promise<Source> {

@@ -12,11 +12,18 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import (
+    Article,
+    ArticleSource,
     IngestTextRequest,
     IngestURLRequest,
+    LinkedArticleSummary,
+    PageType,
+    PipelineStep,
     Source,
     SourceContentResponse,
+    SourceDetailResponse,
     SourceImage,
+    SourceImageEntry,
 )
 from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
@@ -119,6 +126,109 @@ async def get_source(
 ):
     """Get source by ID."""
     return await service.get_source(source_id, session, user_id=user_id)
+
+
+@router.get("/sources/{source_id}/detail", response_model=SourceDetailResponse)
+async def get_source_detail(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Get full source detail with pipeline steps, images, and linked articles."""
+    source = await service.get_source(source_id, session, user_id=user_id)
+
+    # Build pipeline steps based on source status
+    pipeline_steps = _build_pipeline_steps(source)
+
+    # Query extracted images from source_image table
+    img_stmt = (
+        select(SourceImage.filename, SourceImage.kind)
+        .where(SourceImage.source_id == source_id, SourceImage.user_id == user_id)
+        .order_by(SourceImage.filename)
+    )
+    img_rows = (await session.exec(img_stmt)).all()
+    images: list[SourceImageEntry] = []
+    for filename, kind in img_rows:
+        stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        parts = stem.rsplit("-", 1)
+        num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
+        label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
+        images.append(SourceImageEntry(filename=filename, kind=kind, label=label))
+
+    # Query linked articles via ArticleSource join table
+    art_stmt = (
+        select(Article.id, Article.slug, Article.title, Article.page_type)
+        .join(ArticleSource, ArticleSource.article_id == Article.id)  # type: ignore[arg-type]
+        .where(ArticleSource.source_id == source_id, Article.user_id == user_id)
+    )
+    art_rows = (await session.exec(art_stmt)).all()
+    linked_articles = [
+        LinkedArticleSummary(id=row[0], slug=row[1], title=row[2], page_type=PageType(row[3])) for row in art_rows
+    ]
+
+    return SourceDetailResponse(
+        id=source.id,
+        source_type=source.source_type,
+        source_url=source.source_url,
+        title=source.title,
+        author=source.author,
+        published_date=source.published_date,
+        status=source.status,
+        ingested_at=source.ingested_at,
+        compiled_at=source.compiled_at,
+        token_count=source.token_count,
+        error_message=source.error_message,
+        has_original=source.has_original,
+        pipeline_steps=pipeline_steps,
+        images=images,
+        linked_articles=linked_articles,
+    )
+
+
+def _build_pipeline_steps(source: Source) -> list[PipelineStep]:
+    """Derive pipeline step statuses from the source's current state."""
+    status = source.status
+
+    if status == "failed":
+        return [
+            PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+            PipelineStep(name="Extract", status="failed", description=source.error_message or "Failed"),
+            PipelineStep(name="Clean", status="pending", description="Normalize text"),
+            PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
+        ]
+
+    if status == "pending":
+        return [
+            PipelineStep(name="Fetch", status="pending", description="Fetch source content"),
+            PipelineStep(name="Extract", status="pending", description="Extract text & images"),
+            PipelineStep(name="Clean", status="pending", description="Normalize text"),
+            PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
+        ]
+
+    if status == "processing":
+        return [
+            PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+            PipelineStep(name="Extract", status="complete", description="Text extracted"),
+            PipelineStep(name="Clean", status="complete", description="Text normalized"),
+            PipelineStep(name="Compile", status="active", description="Compiling via LLM..."),
+        ]
+
+    if status == "review_pending":
+        return [
+            PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+            PipelineStep(name="Extract", status="complete", description="Text extracted"),
+            PipelineStep(name="Clean", status="complete", description="Text normalized"),
+            PipelineStep(name="Compile", status="complete", description="Draft ready for review"),
+        ]
+
+    # compiled
+    return [
+        PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+        PipelineStep(name="Extract", status="complete", description="Text extracted"),
+        PipelineStep(name="Clean", status="complete", description="Text normalized"),
+        PipelineStep(name="Compile", status="complete", description="Article compiled"),
+    ]
 
 
 @router.get(
