@@ -1,6 +1,6 @@
 # WikiMind
 
-[![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/test.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/test.yml)
+[![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml)
 [![Full Verify](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml)
 [![Deploy](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml)
 [![Claude Review](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml)

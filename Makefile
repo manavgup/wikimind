@@ -274,7 +274,7 @@ coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outpu
 
 .PHONY: coverage-check
 coverage-check: ## Run non-E2E tests with coverage (policy is configured in pyproject.toml)
-	$(BIN)/pytest -m "not e2e" --cov=wikimind --cov-report=term-missing --cov-report=html
+	$(BIN)/pytest -m "not e2e" --cov=wikimind --cov-report=term-missing --cov-report=html --cov-report=xml:coverage.xml
 
 ##@ 🌐 FRONTEND (React + Vite)
 

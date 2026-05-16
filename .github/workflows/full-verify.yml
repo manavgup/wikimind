@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      id-token: write
 
     env:
       PYTHONUNBUFFERED: "1"
@@ -79,3 +80,16 @@ jobs:
 
       - name: ✅  Run full verify
         run: make verify
+
+      # -----------------------------------------------------------
+      # Codecov — upload coverage from the test run within verify
+      # -----------------------------------------------------------
+      - name: 📈  Codecov upload
+        if: always()
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
+        with:
+          files: coverage.xml
+          flags: backend
+          name: full-verify-py312
+          fail_ci_if_error: false
+          use_oidc: true
