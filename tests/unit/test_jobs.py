@@ -457,14 +457,16 @@ async def test_recompile_from_source_calls_save_article_in_place(db_session, tmp
     fake_compiler.compile = AsyncMock(return_value=fake_result)
     fake_compiler.save_article_in_place = AsyncMock(return_value=article)
 
-    with patch.object(worker_mod, "Compiler", return_value=fake_compiler):
-        await _recompile_from_source(article, db_session, TEST_USER_ID)
+    with (
+        _patch_session_factory(db_session),
+        patch.object(worker_mod, "Compiler", return_value=fake_compiler),
+    ):
+        await _recompile_from_source(article.id, TEST_USER_ID)
 
     # Must call save_article_in_place, not save_article.
-    fake_compiler.save_article_in_place.assert_awaited_once_with(
-        article,
-        fake_result,
-        src,
-        db_session,
-    )
+    fake_compiler.save_article_in_place.assert_awaited_once()
+    call_args = fake_compiler.save_article_in_place.call_args[0]
+    assert call_args[0].id == article.id  # same article
+    assert call_args[1] is fake_result  # compiler result
+    assert call_args[2].id == src.id  # same source
     fake_compiler.save_article.assert_not_called()

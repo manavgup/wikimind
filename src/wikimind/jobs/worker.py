@@ -135,33 +135,43 @@ async def _compile_interactive(
     source: Source,
     doc: NormalizedDocument,
     compiler: Compiler,
-    job: Job,
-    session,
+    job_id: str,
     user_id: str,
 ) -> None:
     """Interactive compilation: create a draft for user review (issue #418)."""
     source_id = source.id
+    session_factory = get_session_factory()
 
     async def _on_chunk_progress(message: str) -> None:
         await emit_source_progress(source_id, message, user_id=user_id)
 
+    # LLM work — no DB session held open
     await emit_source_progress(source_id, "Extracting key takeaways...", user_id=user_id)
     takeaways = await compiler.extract_takeaways(doc)
 
-    result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
+    async with session_factory() as session:
+        result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
     if not result:
         msg = "Compiler returned no result"
         raise ValueError(msg)
 
+    # Write results with a short-lived session
     await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
-    draft_service = get_draft_service()
-    draft = await draft_service.create_draft(source, doc, result, takeaways, session)
+    async with session_factory() as session:
+        source_row = await session.get(Source, source_id)
+        if not source_row:
+            msg = "Source disappeared during compile"
+            raise ValueError(msg)
+        draft_service = get_draft_service()
+        draft = await draft_service.create_draft(source_row, doc, result, takeaways, session)
 
-    job.status = JobStatus.COMPLETE
-    job.completed_at = utcnow_naive()
-    job.result_summary = f"Draft created for review: {result.title}"
-    session.add(job)
-    await session.commit()
+        job = await session.get(Job, job_id)
+        if job:
+            job.status = JobStatus.COMPLETE
+            job.completed_at = utcnow_naive()
+            job.result_summary = f"Draft created for review: {result.title}"
+            session.add(job)
+        await session.commit()
 
     await emit_draft_ready(source_id, draft.id, result.title, user_id=user_id)
     log.info("compile_source draft ready", source_id=source_id, draft_id=draft.id)
@@ -171,30 +181,45 @@ async def _compile_direct(
     source: Source,
     doc: NormalizedDocument,
     compiler: Compiler,
-    job: Job,
-    session,
+    job_id: str,
     ctx,
     user_id: str,
 ) -> None:
     """Standard compilation: compile and save article directly."""
     source_id = source.id
+    session_factory = get_session_factory()
 
     async def _on_chunk_progress(message: str) -> None:
         await emit_source_progress(source_id, message, user_id=user_id)
 
-    result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
+    # LLM compilation — session is opened internally by compiler.compile()
+    # and released before the LLM call (the compiler commits before calling
+    # the router). The session returned here is used only for DB reads that
+    # inform the prompt (concept registry, compilation schema).
+    async with session_factory() as session:
+        result = await compiler.compile(doc, session, progress_callback=_on_chunk_progress)
     if not result:
         msg = "Compiler returned no result"
         raise ValueError(msg)
 
+    # Save article with a new short-lived session
     await emit_source_progress(source_id, "Saving article...", user_id=user_id)
-    article = await compiler.save_article(result, source, session)
+    async with session_factory() as session:
+        source_row = await session.get(Source, source_id)
+        if not source_row:
+            msg = "Source disappeared during compile"
+            raise ValueError(msg)
+        article = await compiler.save_article(result, source_row, session)
 
-    job.status = JobStatus.COMPLETE
-    job.completed_at = utcnow_naive()
-    job.result_summary = f"Created article: {article.slug}"
-    session.add(job)
-    await session.commit()
+    # Update job status with a short-lived session
+    async with session_factory() as session:
+        job = await session.get(Job, job_id)
+        if job:
+            job.status = JobStatus.COMPLETE
+            job.completed_at = utcnow_naive()
+            job.result_summary = f"Created article: {article.slug}"
+            session.add(job)
+            await session.commit()
 
     await emit_compilation_complete(article.slug, article.title, user_id=user_id)
     log.info("compile_source complete", source_id=source_id, slug=article.slug)
@@ -222,7 +247,10 @@ async def compile_source(
     """
     log.info("compile_source started", source_id=source_id, user_id=user_id)
 
-    async with get_session_factory()() as session:
+    session_factory = get_session_factory()
+
+    # --- Phase 1: Read source data + create job (short-lived session) ---
+    async with session_factory() as session:
         source = await session.get(Source, source_id)
         if not source:
             log.error("Source not found", source_id=source_id)
@@ -244,58 +272,63 @@ async def compile_source(
         )
         session.add(job)
         await session.commit()
+        job_id = job.id
 
-        await emit_source_progress(source_id, "Reading source...", user_id=user_id)
+    await emit_source_progress(source_id, "Reading source...", user_id=user_id)
 
-        try:
-            if doc is None:
-                await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
+    try:
+        # --- Phase 2: Build normalized doc (may read from storage, no LLM) ---
+        if doc is None:
+            await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
+            async with session_factory() as session:
+                source = await session.get(Source, source_id)
+                if not source:
+                    log.error("Source disappeared during compile", source_id=source_id)
+                    return
                 doc = await _build_normalized_doc(source)
 
-            await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
-            compiler = Compiler(user_id=user_id)
+        # --- Phase 3: LLM compilation (no session held open) ---
+        await emit_source_progress(source_id, "Compiling with LLM...", user_id=user_id)
+        compiler = Compiler(user_id=user_id)
 
-            settings = get_settings()
-            if settings.compiler.interactive:
-                await _compile_interactive(source, doc, compiler, job, session, user_id)
-            else:
-                await _compile_direct(source, doc, compiler, job, session, ctx, user_id)
+        settings = get_settings()
+        if settings.compiler.interactive:
+            await _compile_interactive(source, doc, compiler, job_id, user_id)
+        else:
+            await _compile_direct(source, doc, compiler, job_id, ctx, user_id)
 
-        except Exception as e:  # Intentional broad catch — job runner must not crash
-            log.error("compile_source failed", source_id=source_id, error=str(e))
+    except Exception as e:  # Intentional broad catch — job runner must not crash
+        log.error("compile_source failed", source_id=source_id, error=str(e))
 
-            # Record the failure using a fresh session — the original
-            # session's connection may have been killed by PgBouncer
-            # during the long LLM call, leaving it in
-            # PendingRollbackError state.
-            try:
-                async with get_session_factory()() as err_session:
-                    src = await err_session.get(Source, source_id)
-                    if src:
-                        src.status = IngestStatus.FAILED
-                        src.error_message = str(e)
+        # Record the failure with a short-lived session.
+        try:
+            async with session_factory() as err_session:
+                src = await err_session.get(Source, source_id)
+                if src:
+                    src.status = IngestStatus.FAILED
+                    src.error_message = str(e)
 
-                    err_job = (
-                        await err_session.execute(
-                            select(Job).where(
-                                Job.source_id == source_id,
-                                Job.status == JobStatus.RUNNING,
-                            )
+                err_job = (
+                    await err_session.execute(
+                        select(Job).where(
+                            Job.source_id == source_id,
+                            Job.status == JobStatus.RUNNING,
                         )
-                    ).scalar_one_or_none()
-                    if err_job:
-                        err_job.status = JobStatus.FAILED
-                        err_job.completed_at = utcnow_naive()
-                        err_job.error = str(e)
+                    )
+                ).scalar_one_or_none()
+                if err_job:
+                    err_job.status = JobStatus.FAILED
+                    err_job.completed_at = utcnow_naive()
+                    err_job.error = str(e)
 
-                    await err_session.commit()
-            except Exception:
-                log.exception(
-                    "Failed to record compile error in DB",
-                    source_id=source_id,
-                )
+                await err_session.commit()
+        except Exception:
+            log.exception(
+                "Failed to record compile error in DB",
+                source_id=source_id,
+            )
 
-            await emit_compilation_failed(source_id, str(e), user_id=user_id)
+        await emit_compilation_failed(source_id, str(e), user_id=user_id)
 
 
 async def lint_wiki(_ctx, user_id: str):
@@ -310,7 +343,10 @@ async def lint_wiki(_ctx, user_id: str):
     """
     log.info("lint_wiki started", user_id=user_id)
 
-    async with get_session_factory()() as session:
+    session_factory = get_session_factory()
+
+    # Create job record (short-lived session)
+    async with session_factory() as session:
         job = Job(
             job_type=JobType.LINT_WIKI,
             status=JobStatus.RUNNING,
@@ -319,25 +355,41 @@ async def lint_wiki(_ctx, user_id: str):
         )
         session.add(job)
         await session.commit()
+        job_id = job.id
 
-        try:
-            report = await run_lint(session, job_id=job.id, user_id=user_id)
+    try:
+        # Run the lint pipeline — uses its own sessions internally
+        # for LLM-powered contradiction detection (10-60s calls).
+        async with session_factory() as session:
+            report = await run_lint(session, job_id=job_id, user_id=user_id)
 
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans"
-            session.add(job)
-            await session.commit()
+        # Update job status (short-lived session)
+        async with session_factory() as session:
+            job = await session.get(Job, job_id)
+            if job:
+                job.status = JobStatus.COMPLETE
+                job.completed_at = utcnow_naive()
+                job.result_summary = (
+                    f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans"
+                )
+                session.add(job)
+                await session.commit()
 
-            log.info("lint_wiki complete", summary=job.result_summary)
+        log.info(
+            "lint_wiki complete",
+            summary=f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans",
+        )
 
-        except Exception as e:  # Intentional broad catch — job runner must not crash
-            log.error("lint_wiki failed", error=str(e))
-            job.status = JobStatus.FAILED
-            job.error = str(e)
-            job.completed_at = utcnow_naive()
-            session.add(job)
-            await session.commit()
+    except Exception as e:  # Intentional broad catch — job runner must not crash
+        log.error("lint_wiki failed", error=str(e))
+        async with session_factory() as session:
+            job = await session.get(Job, job_id)
+            if job:
+                job.status = JobStatus.FAILED
+                job.error = str(e)
+                job.completed_at = utcnow_naive()
+                session.add(job)
+                await session.commit()
 
 
 async def _get_article_source_ids(article: Article, session) -> list[str]:
@@ -358,65 +410,102 @@ async def _get_article_concept_names(article: Article, session) -> list[str]:
     return names
 
 
-async def _recompile_from_source(article: Article, session, user_id: str) -> None:
+async def _recompile_from_source(article_id: str, user_id: str) -> None:
     """Recompile an article by re-reading and re-compiling its primary source.
 
+    Opens short-lived sessions around DB reads/writes, keeping no session
+    open during LLM calls.
+
     Args:
-        article: The article to recompile.
-        session: Async database session.
+        article_id: The article UUID to recompile.
         user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked sources or the source file
             is missing.
     """
-    source_ids = await _get_article_source_ids(article, session)
-    if not source_ids:
-        msg = "Article has no linked sources"
-        raise ValueError(msg)
+    session_factory = get_session_factory()
 
-    source = await session.get(Source, source_ids[0])
-    if not source or not source.file_path:
-        msg = "Source or source file_path not found"
-        raise ValueError(msg)
+    # Read needed data (short-lived session)
+    async with session_factory() as session:
+        article = await session.get(Article, article_id)
+        if not article:
+            msg = "Article not found"
+            raise ValueError(msg)
+        source_ids = await _get_article_source_ids(article, session)
+        if not source_ids:
+            msg = "Article has no linked sources"
+            raise ValueError(msg)
 
-    doc = await _build_normalized_doc(source)
+        source = await session.get(Source, source_ids[0])
+        if not source or not source.file_path:
+            msg = "Source or source file_path not found"
+            raise ValueError(msg)
 
+        doc = await _build_normalized_doc(source)
+
+    # LLM compilation (no session held open)
     compiler = Compiler(user_id=user_id)
-    result = await compiler.compile(doc, session)
+    async with session_factory() as session:
+        result = await compiler.compile(doc, session)
     if not result:
         msg = "Compiler returned no result"
         raise ValueError(msg)
 
-    await compiler.save_article_in_place(article, result, source, session)
+    # Save results (short-lived session)
+    async with session_factory() as session:
+        article = await session.get(Article, article_id)
+        source = await session.get(Source, source_ids[0])
+        if not article or not source:
+            msg = "Article or source disappeared during recompile"
+            raise ValueError(msg)
+        await compiler.save_article_in_place(article, result, source, session)
 
 
-async def _recompile_from_concept(article: Article, session, user_id: str) -> None:
+async def _recompile_from_concept(article_id: str, user_id: str) -> None:
     """Recompile an article by regenerating its concept page.
 
+    Opens short-lived sessions around DB reads/writes, keeping no session
+    open during LLM calls.
+
     Args:
-        article: The article to recompile.
-        session: Async database session.
+        article_id: The article UUID to recompile.
         user_id: Owner — used to resolve BYOK API keys.
 
     Raises:
         ValueError: If the article has no linked concepts or the concept
             is not found.
     """
-    concept_names = await _get_article_concept_names(article, session)
-    if not concept_names:
-        msg = "Article has no linked concepts"
-        raise ValueError(msg)
+    session_factory = get_session_factory()
 
-    concept_name = concept_names[0]
-    result = await session.exec(select(Concept).where(Concept.name == concept_name))
-    concept = result.first()
-    if not concept:
-        msg = "Concept not found"
-        raise ValueError(msg)
+    # Read needed data (short-lived session)
+    async with session_factory() as session:
+        article = await session.get(Article, article_id)
+        if not article:
+            msg = "Article not found"
+            raise ValueError(msg)
+        concept_names = await _get_article_concept_names(article, session)
+        if not concept_names:
+            msg = "Article has no linked concepts"
+            raise ValueError(msg)
 
+        concept_name = concept_names[0]
+        result = await session.exec(select(Concept).where(Concept.name == concept_name))
+        concept = result.first()
+        if not concept:
+            msg = "Concept not found"
+            raise ValueError(msg)
+        concept_id = concept.id
+
+    # LLM compilation (session opened internally by concept compiler,
+    # released before LLM call)
     concept_compiler = ConceptCompiler(user_id=user_id)
-    result_article = await concept_compiler.compile_concept_page(concept, session)
+    async with session_factory() as session:
+        concept = await session.get(Concept, concept_id)
+        if not concept:
+            msg = "Concept disappeared during recompile"
+            raise ValueError(msg)
+        result_article = await concept_compiler.compile_concept_page(concept, session)
     if not result_article:
         msg = "ConceptCompiler returned no result"
         raise ValueError(msg)
@@ -440,7 +529,10 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
         user_id=user_id,
     )
 
-    async with get_session_factory()() as session:
+    session_factory = get_session_factory()
+
+    # Mark job as running + validate article exists (short-lived session)
+    async with session_factory() as session:
         job = await session.get(Job, _job_id)
         if not job:
             log.error("Job not found for recompile", job_id=_job_id)
@@ -461,32 +553,41 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
             await session.commit()
             await emit_article_recompiled(article_id, "unknown", "failed", user_id=user_id)
             return
+        page_type = article.page_type
 
-        try:
-            if mode == "source":
-                await _recompile_from_source(article, session, user_id=user_id)
-            elif mode == "concept":
-                await _recompile_from_concept(article, session, user_id=user_id)
+    try:
+        # LLM-heavy recompilation — manages its own short-lived sessions
+        if mode == "source":
+            await _recompile_from_source(article_id, user_id=user_id)
+        elif mode == "concept":
+            await _recompile_from_concept(article_id, user_id=user_id)
 
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Recompiled article {article_id} via {mode}"
-            session.add(job)
-            await session.commit()
+        # Update job status (short-lived session)
+        async with session_factory() as session:
+            job = await session.get(Job, _job_id)
+            if job:
+                job.status = JobStatus.COMPLETE
+                job.completed_at = utcnow_naive()
+                job.result_summary = f"Recompiled article {article_id} via {mode}"
+                session.add(job)
+                await session.commit()
 
-            await emit_article_recompiled(article_id, article.page_type, "complete", user_id=user_id)
-            log.info("recompile_article complete", article_id=article_id, mode=mode)
+        await emit_article_recompiled(article_id, page_type, "complete", user_id=user_id)
+        log.info("recompile_article complete", article_id=article_id, mode=mode)
 
-        except Exception as e:  # Intentional broad catch — job runner must not crash
-            log.error("recompile_article failed", article_id=article_id, error=str(e))
+    except Exception as e:  # Intentional broad catch — job runner must not crash
+        log.error("recompile_article failed", article_id=article_id, error=str(e))
 
-            job.status = JobStatus.FAILED
-            job.completed_at = utcnow_naive()
-            job.error = str(e)
-            session.add(job)
-            await session.commit()
+        async with session_factory() as session:
+            job = await session.get(Job, _job_id)
+            if job:
+                job.status = JobStatus.FAILED
+                job.completed_at = utcnow_naive()
+                job.error = str(e)
+                session.add(job)
+                await session.commit()
 
-            await emit_article_recompiled(article_id, article.page_type, "failed", user_id=user_id)
+        await emit_article_recompiled(article_id, page_type, "failed", user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
