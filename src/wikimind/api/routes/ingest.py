@@ -339,13 +339,17 @@ async def list_source_images(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
-    _validate_path_component(source_id, "source_id")
-    await service.get_source(source_id, session, user_id=user_id)
+    # Sanitize source_id for any filesystem use — os.path.basename is a CodeQL-recognized sanitizer
+    safe_source_id = os.path.basename(source_id)
+    if safe_source_id != source_id:
+        raise HTTPException(status_code=400, detail="Invalid source_id")
+    _validate_path_component(safe_source_id, "source_id")
+    await service.get_source(safe_source_id, session, user_id=user_id)
 
     # DB-first: query source_image table
     stmt = (
         select(SourceImage.filename, SourceImage.kind)
-        .where(SourceImage.source_id == source_id, SourceImage.user_id == user_id)
+        .where(SourceImage.source_id == safe_source_id, SourceImage.user_id == user_id)
         .order_by(SourceImage.filename)
     )
     rows = (await session.exec(stmt)).all()
@@ -363,7 +367,7 @@ async def list_source_images(
         return entries
 
     # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id).resolve()
+    image_dir = PDFAdapter.get_image_dir(user_id, safe_source_id).resolve()
     if not image_dir.is_dir():
         return []
 
@@ -400,16 +404,17 @@ async def get_source_image(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
-    _validate_path_component(source_id, "source_id")
-    _validate_path_component(filename, "filename")
-
-    # Strip ALL path components — only allow the bare filename.
-    # os.path.basename is recognized by CodeQL as a path-injection sanitizer.
+    # Sanitize inputs — os.path.basename is a CodeQL-recognized path-injection sanitizer
+    safe_source_id = os.path.basename(source_id)
+    if safe_source_id != source_id:
+        raise HTTPException(status_code=400, detail="Invalid source_id")
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
+    _validate_path_component(safe_source_id, "source_id")
+    _validate_path_component(safe_filename, "filename")
 
-    await service.get_source(source_id, session, user_id=user_id)
+    await service.get_source(safe_source_id, session, user_id=user_id)
 
     content_type, _ = mimetypes.guess_type(safe_filename)
     if content_type is None:
@@ -417,7 +422,7 @@ async def get_source_image(
 
     # DB-first: query source_image table
     stmt = select(SourceImage.image_data).where(
-        SourceImage.source_id == source_id,
+        SourceImage.source_id == safe_source_id,
         SourceImage.user_id == user_id,
         SourceImage.filename == safe_filename,
     )
@@ -430,7 +435,7 @@ async def get_source_image(
         )
 
     # Filesystem fallback for pre-migration sources.
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id).resolve()
+    image_dir = PDFAdapter.get_image_dir(user_id, safe_source_id).resolve()
     image_path = (image_dir / safe_filename).resolve()
 
     if not image_path.is_relative_to(image_dir):
