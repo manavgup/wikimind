@@ -5,7 +5,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+import httpx
+import structlog
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -13,7 +16,8 @@ from wikimind.api.deps import require_admin
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import LLMTrace, LLMTraceListResponse, LLMTraceResponse
-from wikimind.services.admin import AdminService, get_admin_service
+from wikimind.services.admin import AdminService
+from wikimind.services.factories import get_admin_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
