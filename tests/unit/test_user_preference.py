@@ -18,6 +18,24 @@ from wikimind.api.routes import settings as settings_mod
 if TYPE_CHECKING:
     from wikimind.models import UserPreference
 
+
+# ---------------------------------------------------------------------------
+# RuntimeConfig isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_config():
+    """Reset RuntimeConfig overrides between tests."""
+    from wikimind.config import get_runtime_config
+
+    rc = get_runtime_config()
+    saved = rc._overrides.copy()
+    yield
+    rc._overrides.clear()
+    rc._overrides.update(saved)
+
+
 # ---------------------------------------------------------------------------
 # Session-factory helpers
 # ---------------------------------------------------------------------------
