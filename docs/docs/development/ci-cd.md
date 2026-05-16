@@ -32,7 +32,7 @@ The following checks must pass before merging:
 ### Required vs supplemental workflows
 
 - Required: `Full Verify` runs `make verify` and therefore covers `make lint`, `make format-check`, `make typecheck`, `make pyright`, `make docstyle`, `make coverage-check`, `make desktop-verify`, and `make extension-verify`.
-- Supplemental: `Lint & Static Analysis`, `Tests & Coverage`, `Pre-commit Checks`, and the docs/smoke/e2e workflows still provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
+- Supplemental: `Tests & Coverage` and the docs/smoke/e2e workflows still provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
 - Intentional scope difference: `make verify` does not include `make frontend-verify` or `make check-docs`, so those remain separate CI checks rather than being folded into the required gate.
 
 ### Mock Provider for CI
@@ -56,7 +56,7 @@ Nightly covers the runtime and integration surfaces that path-filtered PR CI can
 - PostgreSQL integration tests via `make test-postgres-ci`
 - Playwright end-to-end coverage of the web app against the FastAPI backend
 - Docker smoke tests against the production image
-- Bandit security scanning via `make security-check`
+- Bandit security scanning via `make bandit`
 
 This workflow is intentionally broader than PR CI because its job is drift detection: dependency breakage, runtime regressions, and environment-sensitive failures that may not be exercised by a narrow diff-triggered workflow.
 

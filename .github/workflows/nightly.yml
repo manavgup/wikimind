@@ -299,4 +299,4 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: 🔒  Run Bandit
-        run: make security-check
+        run: make bandit

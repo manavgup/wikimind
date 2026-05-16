@@ -244,14 +244,11 @@ deptry: ## Detect unused/missing/transitive dependencies
 	$(BIN)/deptry src/
 
 .PHONY: dead-code
-dead-code: vulture ## Alias for vulture — find unused functions, imports, variables
+dead-code: vulture ## Alias for vulture
 
 .PHONY: doc-coverage
 doc-coverage: ## Measure docstring coverage (fails if below fail-under threshold)
 	$(BIN)/interrogate -c pyproject.toml src/wikimind
-
-.PHONY: security
-security: bandit vulture ## Run security and dead-code checks
 
 .PHONY: update-secrets-baseline
 update-secrets-baseline: ## Update detect-secrets baseline (keeps line numbers in sync)
@@ -275,9 +272,7 @@ coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outpu
 coverage-check: ## Run non-E2E tests with coverage (policy is configured in pyproject.toml)
 	$(BIN)/pytest -m "not e2e" --cov=wikimind --cov-report=term-missing --cov-report=html
 
-.PHONY: security-check
-security-check: ## Run the scheduled CI security scan set
-	$(BIN)/bandit -r src/wikimind -c pyproject.toml
+##@ 🌐 FRONTEND (React + Vite)
 
 .PHONY: frontend-install
 frontend-install: ## Install frontend dependencies
