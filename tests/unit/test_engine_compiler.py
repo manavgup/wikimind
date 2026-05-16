@@ -13,6 +13,7 @@ from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
+from wikimind.engine import base_compiler as base_compiler_mod
 from wikimind.engine import compiler as compiler_mod
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
@@ -70,8 +71,8 @@ def _fake_settings(data_dir: str = "/tmp/wm-test") -> SimpleNamespace:
 
 def _make_compiler() -> Compiler:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings()),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings()),
     ):
         return Compiler(user_id=TEST_USER_ID)
 
@@ -253,8 +254,8 @@ async def test_generate_unique_slug_skips_multiple_collisions(db_session) -> Non
 
 async def test_write_article_file(tmp_path) -> None:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id=TEST_USER_ID)
@@ -269,8 +270,8 @@ async def test_write_article_file(tmp_path) -> None:
 
 async def test_write_article_file_no_concepts(tmp_path) -> None:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         c = Compiler(user_id=TEST_USER_ID)
     r = CompilationResult(
@@ -292,8 +293,8 @@ async def test_write_article_file_no_concepts(tmp_path) -> None:
 
 async def test_save_article(db_session, tmp_path) -> None:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(
@@ -387,8 +388,8 @@ async def _make_source(session) -> Source:
 
 def _compiler_for(tmp_path: Path) -> Compiler:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         return Compiler(user_id=TEST_USER_ID)
 

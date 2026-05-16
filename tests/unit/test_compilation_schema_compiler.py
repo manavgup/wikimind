@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 from tests.conftest import TEST_USER_ID
+from wikimind.engine import base_compiler as base_compiler_mod
 from wikimind.engine import compiler as compiler_mod
 from wikimind.engine.compiler import Compiler, _build_schema_directives
 from wikimind.models import (
@@ -46,9 +47,9 @@ def _fake_settings(data_dir: str = "/tmp/wm-test") -> SimpleNamespace:
 
 def _make_compiler() -> Compiler:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_llm_router"),
         patch.object(
-            compiler_mod,
+            base_compiler_mod,
             "get_settings",
             return_value=_fake_settings(),
         ),

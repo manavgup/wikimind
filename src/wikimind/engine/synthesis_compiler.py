@@ -11,66 +11,25 @@ import json
 from typing import TYPE_CHECKING
 
 import structlog
-from slugify import slugify
-from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.base_compiler import BaseCompiler
+from wikimind.engine.prompts import SYNTHESIS_SYSTEM_PROMPT
 from wikimind.models import (
     Article,
     ArticleConcept,
-    Backlink,
-    CompletionRequest,
     ConfidenceLevel,
     PageType,
-    Provider,
-    RelationType,
     SynthesisCompilationResult,
-    TaskType,
 )
-from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
-
-SYNTHESIS_SYSTEM_PROMPT = """You are a knowledge synthesizer. Your job is to analyze \
-multiple wiki articles and produce a cross-cutting synthesis page that identifies \
-themes, comparisons, contradictions, and knowledge gaps.
-
-The user will provide a synthesis query/topic and the content of multiple source \
-articles from their personal wiki.
-
-You MUST respond with valid JSON only. No preamble, no markdown fences.
-
-Output schema:
-{{
-  "title": "Concise synthesis page title",
-  "summary": "2-3 sentences: what this synthesis covers and key findings.",
-  "themes": ["Theme 1", "Theme 2"],
-  "comparisons": "Markdown section comparing approaches/perspectives across sources.",
-  "contradictions": "Markdown section noting where sources disagree or conflict.",
-  "timeline": "Markdown section showing how the topic evolved chronologically.",
-  "gaps": ["Knowledge gap 1", "Knowledge gap 2"],
-  "open_questions": ["Question for further research"],
-  "article_body": "Full markdown body with ## headings. 500+ words. \
-Include Themes, Comparative Analysis, Contradictions, Timeline, Gaps sections.",
-  "concepts": ["concept-1", "concept-2"]
-}}
-
-Rules:
-- Synthesize ACROSS sources — do not summarize each source individually
-- Identify patterns, trends, and contradictions
-- Note where sources agree and disagree
-- Highlight knowledge gaps — what is NOT covered
-- Be specific: cite which sources support which claims
-- article_body must be substantive — at least 500 words
-- Never fabricate information not present in the sources
-"""
 
 
 async def _find_relevant_articles(
@@ -155,14 +114,8 @@ async def _build_synthesis_material(
     return "\n---\n".join(parts)
 
 
-class SynthesisCompiler:
+class SynthesisCompiler(BaseCompiler):
     """Compile synthesis pages from multiple wiki articles."""
-
-    def __init__(self, user_id: str) -> None:
-        self.router = get_llm_router()
-        self.settings = get_settings()
-        self.user_id = user_id
-        self._last_provider_used: Provider | None = None
 
     async def synthesize(
         self,
@@ -201,30 +154,27 @@ class SynthesisCompiler:
             "Synthesize a cross-cutting analysis page from these sources."
         )
 
-        request = CompletionRequest(
-            system=SYNTHESIS_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=self.settings.compiler.max_tokens,
-            temperature=0.3,
-            response_format="json",
-            task_type=TaskType.COMPILE,
-        )
+        # Release the DB connection before the long-running LLM call to
+        # avoid PgBouncer idle-connection timeouts (same pattern as Compiler).
+        await session.commit()
 
-        try:
-            response = await self.router.complete(request, user_id=self.user_id)
-            self._last_provider_used = response.provider_used
-        except (RuntimeError, ValueError):
-            log.warning("Synthesis LLM call failed", query=query, exc_info=True)
+        response = await self._call_llm(
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            user_content=prompt,
+        )
+        if response is None:
             return None
 
+        data = self._parse_json_response(response)
+        if data is None:
+            return None
         try:
-            data = self.router.parse_json_response(response)
             data["query"] = query
             data["source_article_ids"] = [a.id for a in articles]
             compilation = SynthesisCompilationResult(**data)
-        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        except (KeyError, ValueError, TypeError):
             log.warning(
-                "Synthesis response parsing failed",
+                "Synthesis response validation failed",
                 query=query,
                 exc_info=True,
             )
@@ -240,7 +190,7 @@ class SynthesisCompiler:
         session: AsyncSession,
     ) -> Article:
         """Persist a synthesis page as a wiki article."""
-        slug = await self._generate_unique_slug(compilation.title, session)
+        slug = await self._generate_unique_slug(compilation.title, session, prefix="synthesis-", max_length=70)
         source_ids = [a.id for a in source_articles]
 
         article = Article(
@@ -280,19 +230,15 @@ class SynthesisCompiler:
         await session.commit()
 
         # Update full-text search index
-        wiki_storage = get_wiki_storage(self.user_id)
-        try:
-            article_content = await wiki_storage.read(relative_path)
-        except OSError:
-            article_content = ""
-        await fts_index_article(session, article.id, article.title, article_content)
-        await session.commit()
+        await self._index_article(session, article.id, article.title, relative_path)
 
         # Create SYNTHESIZES backlinks to all source articles
         await self._create_synthesizes_links(
             article.id,
             source_ids,
             session,
+            user_id=self.user_id,
+            context="Synthesis page analyzes this source article",
         )
 
         log.info(
@@ -373,47 +319,4 @@ provider: {provider_str}
         await storage.write(relative_path, content)
         return relative_path
 
-    async def _generate_unique_slug(
-        self,
-        title: str,
-        session: AsyncSession,
-    ) -> str:
-        """Generate a unique slug prefixed with 'synthesis-'."""
-        base = f"synthesis-{slugify(title, max_length=70)}"
-        candidate = base
-        suffix = 2
-        while True:
-            existing = (await session.exec(select(Article).where(Article.slug == candidate))).first()
-            if existing is None:
-                return candidate
-            candidate = f"{base}-{suffix}"
-            suffix += 1
-
-    async def _create_synthesizes_links(
-        self,
-        synthesis_article_id: str,
-        source_article_ids: list[str],
-        session: AsyncSession,
-    ) -> None:
-        """Create SYNTHESIZES backlinks from the synthesis page to sources."""
-        for source_id in source_article_ids:
-            existing = await session.execute(
-                select(Backlink).where(
-                    Backlink.source_article_id == synthesis_article_id,
-                    Backlink.target_article_id == source_id,
-                )
-            )
-            if existing.scalars().first() is not None:
-                continue
-            bl = Backlink(
-                source_article_id=synthesis_article_id,
-                target_article_id=source_id,
-                relation_type=RelationType.SYNTHESIZES,
-                context="Synthesis page analyzes this source article",
-                user_id=self.user_id,
-            )
-            session.add(bl)
-            try:
-                await session.commit()
-            except IntegrityError:
-                await session.rollback()
+    # _generate_unique_slug and _create_synthesizes_links are inherited from BaseCompiler

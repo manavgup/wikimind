@@ -208,9 +208,9 @@ class TestSynthesizesLinks:
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -254,9 +254,9 @@ class TestConceptPageOutput:
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -291,9 +291,9 @@ class TestTriggerThreshold:
         await db_session.commit()
         mr = AsyncMock()
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -326,9 +326,9 @@ class TestTriggerThreshold:
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -350,9 +350,9 @@ class TestTriggerThreshold:
         await db_session.commit()
         mr = AsyncMock()
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=5),
@@ -387,9 +387,9 @@ class TestWithMockedLLM:
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -423,9 +423,9 @@ class TestWithMockedLLM:
         mr.complete = AsyncMock(return_value=fr)
         mr.parse_json_response = lambda r: json.loads(r.content)
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
             patch(
-                "wikimind.engine.concept_compiler.get_settings",
+                "wikimind.engine.base_compiler.get_settings",
                 return_value=SimpleNamespace(
                     data_dir=str(tmp_path),
                     taxonomy=SimpleNamespace(concept_page_min_sources=2),
@@ -462,8 +462,8 @@ class TestWithMockedLLM:
             compiler=SimpleNamespace(max_tokens=8192, source_text_max_chars=60000, concept_source_max_chars=5000),
         )
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
-            patch("wikimind.engine.concept_compiler.get_settings", return_value=s),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_settings", return_value=s),
         ):
             cc = ConceptCompiler(user_id=TEST_USER_ID)
             first = await cc.compile_concept_page(c, db_session)
