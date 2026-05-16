@@ -8,9 +8,12 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.requests import Request
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.config import get_settings
 from wikimind.database import get_session, get_session_factory
+from wikimind.middleware.rate_limit import limiter
 from wikimind.models import (
     AskResponse,
     ConversationDetail,
@@ -30,8 +33,10 @@ router = APIRouter()
 
 
 @router.post("", response_model=AskResponse)
+@limiter.limit(get_settings().rate_limit.query_limit)
 async def ask(
-    request: QueryRequest,
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
+    body: QueryRequest,
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
@@ -42,12 +47,14 @@ async def ask(
     Otherwise the question is appended as a new turn in the existing
     conversation.
     """
-    return await service.ask(request, session, user_id=user_id)
+    return await service.ask(body, session, user_id=user_id)
 
 
 @router.post("/stream")
+@limiter.limit(get_settings().rate_limit.query_limit)
 async def ask_stream(
-    request: QueryRequest,
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
+    body: QueryRequest,
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
 ) -> StreamingResponse:
@@ -61,7 +68,7 @@ async def ask_stream(
     async def _event_generator() -> AsyncIterator[str]:
         async with get_session_factory()() as session:
             try:
-                async for event in service.ask_stream(request, session, user_id=user_id):
+                async for event in service.ask_stream(body, session, user_id=user_id):
                     yield event
             except asyncio.CancelledError:
                 log.info("SSE client disconnected, aborting stream")

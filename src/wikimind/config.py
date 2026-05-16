@@ -317,6 +317,20 @@ class MCPConfig(BaseModel):
     client_enabled: bool = False
 
 
+class RateLimitConfig(BaseModel):
+    """Rate limiting configuration.
+
+    Controls per-user request rate limits for auth, query, and ingest
+    endpoints. Backed by Redis when available; falls back to in-memory
+    storage for single-process dev mode.
+    """
+
+    enabled: bool = True
+    auth_limit: str = "5/minute"
+    query_limit: str = "30/minute"
+    ingest_limit: str = "10/minute"
+
+
 class AuthConfig(BaseModel):
     """OAuth2 authentication configuration.
 
@@ -409,6 +423,7 @@ class Settings(BaseSettings):
     staleness: StalenessConfig = Field(default_factory=StalenessConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     concept_layer: ConceptLayerConfig = Field(default_factory=ConceptLayerConfig)
+    rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
 
