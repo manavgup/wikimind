@@ -35,7 +35,7 @@ async def test_recompile_source_article(client: AsyncClient, db_session: AsyncSe
     db_session.add(article)
     await db_session.commit()
 
-    with patch("wikimind.api.routes.wiki.get_background_compiler") as mock_bc:
+    with patch("wikimind.services.wiki.get_background_compiler") as mock_bc:
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
@@ -67,7 +67,7 @@ async def test_recompile_concept_article(client: AsyncClient, db_session: AsyncS
     db_session.add(article)
     await db_session.commit()
 
-    with patch("wikimind.api.routes.wiki.get_background_compiler") as mock_bc:
+    with patch("wikimind.services.wiki.get_background_compiler") as mock_bc:
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
@@ -92,7 +92,7 @@ async def test_recompile_explicit_mode(client: AsyncClient, db_session: AsyncSes
     db_session.add(article)
     await db_session.commit()
 
-    with patch("wikimind.api.routes.wiki.get_background_compiler") as mock_bc:
+    with patch("wikimind.services.wiki.get_background_compiler") as mock_bc:
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 

@@ -253,7 +253,7 @@ async def test_recompile_force_overrides_manual_edit(
     db_session.add(article)
     await db_session.commit()
 
-    with patch("wikimind.api.routes.wiki.get_background_compiler") as mock_bc:
+    with patch("wikimind.services.wiki.get_background_compiler") as mock_bc:
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 
@@ -290,7 +290,7 @@ async def test_recompile_unedited_article_no_force_needed(
     db_session.add(article)
     await db_session.commit()
 
-    with patch("wikimind.api.routes.wiki.get_background_compiler") as mock_bc:
+    with patch("wikimind.services.wiki.get_background_compiler") as mock_bc:
         mock_compiler = mock_bc.return_value
         mock_compiler.schedule_recompile = AsyncMock(return_value="job-1")
 

@@ -1,25 +1,17 @@
 """Endpoints for browsing wiki articles, knowledge graph, and search."""
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
-from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import select
+from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
-    Article,
     ArticleEditRequest,
     ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSummaryResponse,
     ArticleTagResponse,
-    Backlink,
-    Contradiction,
     ContradictionResolution,
     ContradictionResolutionOption,
     ContradictionResponse,
@@ -29,10 +21,6 @@ from wikimind.models import (
     FacetResponse,
     GraphResponse,
     HealthSummaryResponse,
-    Job,
-    JobStatus,
-    JobType,
-    PageType,
     RebuildConceptsResponse,
     RecompileResponse,
     RefreshArticleResponse,
@@ -392,6 +380,7 @@ async def get_concept_articles(
 async def get_health(
     session: AsyncSession = Depends(get_session),
     linter_service: LinterService = Depends(get_linter_service),
+    service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Latest wiki health report from linter.
@@ -399,22 +388,7 @@ async def get_health(
     DEPRECATED: Use GET /lint/reports/latest instead. This endpoint
     delegates to the new LinterService for backward compatibility.
     """
-    try:
-        detail = await linter_service.get_latest(session, user_id=user_id)
-        return HealthSummaryResponse(
-            generated_at=detail.report.generated_at,
-            total_articles=detail.report.article_count,
-            total_findings=detail.report.total_findings,
-            contradictions_count=detail.report.contradictions_count,
-            orphans_count=detail.report.orphans_count,
-            status=detail.report.status,
-        )
-    except (HTTPException, SQLAlchemyError):
-        count_result = await session.execute(select(func.count()).select_from(Article))
-        return HealthSummaryResponse(
-            total_articles=count_result.scalar() or 0,
-            message="Run the linter to generate a health report",
-        )
+    return await service.get_health_summary(session, user_id=user_id, linter_service=linter_service)
 
 
 @router.post(
@@ -427,6 +401,7 @@ async def resolve_contradiction(
     target_id: str,
     body: ResolveContradictionRequest,
     session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Resolve a contradiction between two articles.
@@ -435,62 +410,13 @@ async def resolve_contradiction(
     updates the Backlink for backward compatibility AND forwards the resolution
     to the Contradiction table (single source of truth).
     """
-    valid = {r.value for r in ContradictionResolution}
-    if body.resolution not in valid:
-        raise HTTPException(
-            status_code=422,
-            detail=f"resolution must be one of {sorted(valid)}",
-        )
-
-    # Check both directions — the finding's article_a/article_b order may not
-    # match the backlink's source/target order.
-    backlinks: list[Backlink] = []
-    for src, tgt in [(source_id, target_id), (target_id, source_id)]:
-        result = await session.execute(
-            select(Backlink).where(
-                Backlink.source_article_id == src,
-                Backlink.target_article_id == tgt,
-                Backlink.relation_type == RelationType.CONTRADICTS,
-            )
-        )
-        bl = result.scalars().first()
-        if bl:
-            backlinks.append(bl)
-    if not backlinks:
-        raise HTTPException(status_code=404, detail="Contradiction backlink not found")
-
-    now = utcnow_naive()
-    for bl in backlinks:
-        bl.resolution = body.resolution
-        bl.resolution_note = body.resolution_note
-        bl.resolved_at = now
-        bl.resolved_by = "user"
-        session.add(bl)
-
-    # Forward resolution to the Contradiction table (single source of truth)
-    ids = sorted([source_id, target_id])
-    ctr_result = await session.execute(
-        select(Contradiction).where(
-            Contradiction.user_id == user_id,
-            Contradiction.status == ContradictionStatus.ACTIVE,
-            Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
-            Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
-        )
-    )
-    for ctr in ctr_result.scalars().all():
-        ctr.status = ContradictionStatus.RESOLVED
-        ctr.resolution = body.resolution
-        ctr.resolved_at = now
-        ctr.resolved_by = user_id
-        session.add(ctr)
-
-    await session.commit()
-
-    return ResolveContradictionResponse(
-        resolved=True,
+    return await service.resolve_legacy_contradiction(
         source_id=source_id,
         target_id=target_id,
         resolution=body.resolution,
+        resolution_note=body.resolution_note,
+        session=session,
+        user_id=user_id,
     )
 
 
@@ -518,18 +444,6 @@ async def refresh_article(
     )
 
 
-_VALID_RECOMPILE_MODES = {"source", "concept"}
-
-_PAGE_TYPE_TO_MODE = {
-    PageType.SOURCE: "source",
-    PageType.CONCEPT: "concept",
-    PageType.ANSWER: "source",
-    PageType.INDEX: "source",
-    PageType.META: "source",
-    PageType.SYNTHESIS: "source",
-}
-
-
 @router.post(
     "/articles/{article_id}/recompile",
     response_model=RecompileResponse,
@@ -540,6 +454,7 @@ async def recompile_article(
     mode: str | None = Query(default=None),
     force: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Schedule an async recompilation job for an article.
@@ -548,46 +463,13 @@ async def recompile_article(
     returns 409 Conflict unless ``force=true`` is passed. When forced,
     the manual edits flag is cleared before recompilation.
     """
-    if mode is not None and mode not in _VALID_RECOMPILE_MODES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"mode must be one of {sorted(_VALID_RECOMPILE_MODES)} or null",
-        )
-
-    result = await session.exec(select(Article).where(Article.id == article_id, Article.user_id == user_id))
-    article = result.one_or_none()
-    if article is None:
-        raise HTTPException(status_code=404, detail="Article not found")
-
-    if article.manually_edited and not force:
-        raise HTTPException(
-            status_code=409,
-            detail="Article has manual edits. Use force=true to overwrite.",
-        )
-
-    # Clear manual edit flag when force-recompiling
-    if article.manually_edited and force:
-        article.manually_edited = False
-        article.edited_at = None
-        session.add(article)
-        await session.commit()
-
-    effective_mode = mode or _PAGE_TYPE_TO_MODE.get(PageType(article.page_type), "source")
-
-    job = Job(
-        job_type=JobType.RECOMPILE_ARTICLE,
-        status=JobStatus.QUEUED,
-        source_id=article_id,
+    return await service.recompile_article(
+        article_id=article_id,
+        session=session,
         user_id=user_id,
+        mode=mode,
+        force=force,
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
-
-    compiler = get_background_compiler()
-    await compiler.schedule_recompile(article_id, effective_mode, job.id, user_id=user_id)
-
-    return RecompileResponse(status="scheduled", job_id=job.id)
 
 
 # ---------------------------------------------------------------------------
