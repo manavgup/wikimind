@@ -339,3 +339,62 @@ class TestExportRoute:
             f"/api/wiki/articles/{article.slug}/export?format=docx",
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Single-article download endpoint (GET)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestArticleDownloadRoute:
+    async def test_download_markdown_returns_md_file(self, client, db_session, tmp_path):
+        article = await _seed_article(db_session, tmp_path)
+        resp = await client.get(
+            f"/api/wiki/articles/{article.slug}/export?format=markdown",
+        )
+        assert resp.status_code == 200
+        assert "text/markdown" in resp.headers["content-type"]
+        assert "attachment" in resp.headers["content-disposition"]
+        assert "test-export.md" in resp.headers["content-disposition"]
+        assert "# Test Export Article" in resp.text
+
+    async def test_download_markdown_by_id(self, client, db_session, tmp_path):
+        article = await _seed_article(db_session, tmp_path)
+        resp = await client.get(
+            f"/api/wiki/articles/{article.id}/export?format=markdown",
+        )
+        assert resp.status_code == 200
+        assert "text/markdown" in resp.headers["content-type"]
+        assert "test-export.md" in resp.headers["content-disposition"]
+
+    async def test_download_json_returns_structured_data(self, client, db_session, tmp_path):
+        article = await _seed_article(db_session, tmp_path)
+        resp = await client.get(
+            f"/api/wiki/articles/{article.slug}/export?format=json",
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == article.id
+        assert data["slug"] == "test-export"
+        assert data["title"] == "Test Export Article"
+        assert data["summary"] == "An article about AI agents."
+        assert "# Test Export Article" in data["content"]
+        assert data["page_type"] == "source"
+        assert isinstance(data["concepts"], list)
+        assert isinstance(data["sources"], list)
+        assert "created_at" in data
+        assert "updated_at" in data
+
+    async def test_download_article_not_found(self, client):
+        resp = await client.get(
+            "/api/wiki/articles/nonexistent-slug/export?format=markdown",
+        )
+        assert resp.status_code == 404
+
+    async def test_download_invalid_format(self, client, db_session, tmp_path):
+        article = await _seed_article(db_session, tmp_path)
+        resp = await client.get(
+            f"/api/wiki/articles/{article.slug}/export?format=docx",
+        )
+        assert resp.status_code == 422

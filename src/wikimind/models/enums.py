@@ -217,6 +217,13 @@ class ExportFormat(StrEnum):
     SLIDES = "slides"
 
 
+class ArticleDownloadFormat(StrEnum):
+    """Supported single-article download formats (GET endpoint)."""
+
+    MARKDOWN = "markdown"
+    JSON = "json"
+
+
 class WikiExportFormat(StrEnum):
     """Supported full-wiki export formats."""
 

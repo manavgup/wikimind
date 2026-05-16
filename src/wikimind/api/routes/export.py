@@ -1,20 +1,34 @@
 """Export wiki articles as PDF HTML, LinkedIn drafts, or Marp slide decks.
 
 Also supports full-wiki export to Obsidian-flavored markdown or plain
-markdown + JSON metadata for portability.
+markdown + JSON metadata for portability, and single-article download
+as markdown or structured JSON.
 """
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import Article, ExportFormat, ExportResponse, WikiExportFormat
+from wikimind.models import (
+    Article,
+    ArticleDownloadFormat,
+    ArticleDownloadResponse,
+    ExportFormat,
+    ExportResponse,
+    WikiExportFormat,
+)
 from wikimind.services.export import ExportService
 from wikimind.services.factories import get_export_service, get_wiki_export_service
+from wikimind.services.wiki import (
+    _fetch_concept_names_from_join,
+    _fetch_source_ids_from_join,
+    _fetch_sources,
+    _to_source_response,
+)
 from wikimind.services.wiki_export import WikiExportService
 from wikimind.storage import read_article_content
 
@@ -95,6 +109,66 @@ async def export_article(
         content=text,
         article_id=article.id,
         article_title=article.title,
+    )
+
+
+@router.get(
+    "/articles/{id_or_slug}/export",
+    response_model=None,
+    responses={
+        200: {
+            "description": "Downloadable article file (markdown or JSON)",
+            "content": {
+                "text/markdown": {},
+                "application/json": {},
+            },
+        },
+        404: {"description": "Article not found"},
+    },
+)
+async def download_article(
+    id_or_slug: str,
+    format: ArticleDownloadFormat = Query(..., description="Download format: markdown or json"),
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+) -> Response | ArticleDownloadResponse:
+    """Download a single article as a markdown file or structured JSON.
+
+    - **markdown**: Returns the article content as a downloadable ``.md`` file
+      with a ``Content-Disposition: attachment`` header.
+    - **json**: Returns structured JSON with article metadata, content,
+      sources, and concepts.
+    """
+    article = await _resolve_article(id_or_slug, session, user_id)
+    content = await read_article_content(article.file_path, user_id=user_id)
+
+    if not content:
+        raise HTTPException(status_code=404, detail="Article content not found on disk")
+
+    if format == ArticleDownloadFormat.MARKDOWN:
+        filename = f"{article.slug}.md"
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # JSON format — include metadata, content, sources, and concepts
+    source_ids = await _fetch_source_ids_from_join(session, article.id)
+    sources = await _fetch_sources(session, source_ids)
+    concepts = await _fetch_concept_names_from_join(session, article.id)
+
+    return ArticleDownloadResponse(
+        id=article.id,
+        slug=article.slug,
+        title=article.title,
+        summary=article.summary,
+        content=content,
+        page_type=article.page_type,
+        concepts=concepts,
+        sources=[_to_source_response(s) for s in sources],
+        created_at=article.created_at,
+        updated_at=article.updated_at,
     )
 
 

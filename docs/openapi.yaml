@@ -2732,6 +2732,44 @@ paths:
           description: Article not found
         '422':
           description: Invalid export format
+    get:
+      tags:
+      - Export
+      summary: Download Article
+      description: "Download a single article as a markdown file or structured JSON.\n\
+        \n- **markdown**: Returns the article content as a downloadable ``.md`` file\n\
+        \  with a ``Content-Disposition: attachment`` header.\n- **json**: Returns\
+        \ structured JSON with article metadata, content,\n  sources, and concepts."
+      operationId: download_article_api_wiki_articles__id_or_slug__export_get
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      - name: format
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/ArticleDownloadFormat'
+          description: 'Download format: markdown or json'
+        description: 'Download format: markdown or json'
+      responses:
+        '200':
+          description: Downloadable article file (markdown or JSON)
+          content:
+            application/json:
+              schema: {}
+            text/markdown: {}
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/export/wiki:
     post:
       tags:
@@ -3913,6 +3951,13 @@ components:
       - article_title
       title: ApproveDraftResponse
       description: Response after approving a compilation draft.
+    ArticleDownloadFormat:
+      type: string
+      enum:
+      - markdown
+      - json
+      title: ArticleDownloadFormat
+      description: Supported single-article download formats (GET endpoint).
     ArticleEditRequest:
       properties:
         content:

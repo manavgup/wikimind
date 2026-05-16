@@ -15,6 +15,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
 from wikimind.models.enums import (
+    ArticleDownloadFormat,
     CaptureKind,
     CaptureStatus,
     ClaimConceptRole,
@@ -40,6 +41,7 @@ from wikimind.storage import find_original_sibling, get_raw_storage
 
 # Re-export enums so that `from wikimind.models import PageType` etc. still work.
 __all__ = [
+    "ArticleDownloadFormat",
     "CaptureKind",
     "CaptureStatus",
     "ClaimConceptRole",
@@ -1830,6 +1832,21 @@ class ExportResponse(BaseModel):
     content: str
     article_id: str
     article_title: str
+
+
+class ArticleDownloadResponse(BaseModel):
+    """Structured JSON export of a single article with metadata."""
+
+    id: str
+    slug: str
+    title: str
+    summary: str | None
+    content: str
+    page_type: PageType
+    concepts: list[str] = []
+    sources: list[SourceResponse] = []
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------
