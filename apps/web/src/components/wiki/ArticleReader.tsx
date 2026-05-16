@@ -16,6 +16,7 @@ import { editArticle } from "../../api/wiki";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { PageTypeIndicator } from "./PageTypeIndicator";
 import { Badge } from "../shared/Badge";
+import { ExportDropdown } from "./ExportDropdown";
 import { ShareButton } from "./ShareButton";
 import { TagSelector } from "./TagSelector";
 
@@ -175,6 +176,7 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
             {article.title}
           </h1>
           <div className="flex items-center gap-2">
+            <ExportDropdown slug={article.slug} articleContent={article.content} />
             <ShareButton articleId={article.id} />
             {!isEditing ? (
               <button
