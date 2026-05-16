@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
@@ -10,6 +11,7 @@ import type { ShareLink } from "../../api/sharing";
 
 export function ShareLinksPanel() {
   const queryClient = useQueryClient();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: links = [], isLoading } = useQuery({
     queryKey: ["share-links-all"],
@@ -22,6 +24,22 @@ export function ShareLinksPanel() {
       queryClient.invalidateQueries({ queryKey: ["share-links-all"] });
     },
   });
+
+  const handleCopy = useCallback(async (link: ShareLink) => {
+    const url = getPublicArticleUrl(link.token);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const input = document.createElement("input");
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+    }
+    setCopiedId(link.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }, []);
 
   const activeLinks = links.filter((l: ShareLink) => !l.revoked);
 
@@ -58,15 +76,23 @@ export function ShareLinksPanel() {
               {link.view_count} view{link.view_count !== 1 ? "s" : ""}
               {link.expires_at
                 ? ` · expires ${new Date(link.expires_at).toLocaleDateString()}`
-                : ""}
+                : " · no expiry"}
               {" · created "}
               {new Date(link.created_at).toLocaleDateString()}
             </div>
           </div>
           <button
+            onClick={() => handleCopy(link)}
+            className="shrink-0 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            data-testid={`copy-link-${link.id}`}
+          >
+            {copiedId === link.id ? "Copied!" : "Copy URL"}
+          </button>
+          <button
             onClick={() => revokeMutation.mutate(link.id)}
             disabled={revokeMutation.isPending}
             className="shrink-0 rounded border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+            data-testid={`revoke-link-${link.id}`}
           >
             Revoke
           </button>

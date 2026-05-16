@@ -8,6 +8,13 @@ import {
 } from "../../api/sharing";
 import type { ShareLink } from "../../api/sharing";
 
+const EXPIRY_OPTIONS: { label: string; value: number | null }[] = [
+  { label: "1 day", value: 1 },
+  { label: "7 days", value: 7 },
+  { label: "30 days", value: 30 },
+  { label: "Never", value: null },
+];
+
 interface ShareButtonProps {
   articleId: string;
 }
@@ -15,6 +22,7 @@ interface ShareButtonProps {
 export function ShareButton({ articleId }: ShareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [expiryDays, setExpiryDays] = useState<number | null>(7);
   const queryClient = useQueryClient();
 
   const { data: links = [] } = useQuery({
@@ -24,7 +32,11 @@ export function ShareButton({ articleId }: ShareButtonProps) {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => createShareLink({ article_id: articleId }),
+    mutationFn: () =>
+      createShareLink({
+        article_id: articleId,
+        expires_in_days: expiryDays,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["share-links", articleId] });
     },
@@ -138,6 +150,29 @@ export function ShareButton({ articleId }: ShareButtonProps) {
               No active share links for this article.
             </p>
           )}
+
+          <div className="mb-3">
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              Link expiry
+            </label>
+            <div className="flex gap-1">
+              {EXPIRY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setExpiryDays(opt.value)}
+                  className={`rounded-md px-2 py-1 text-xs font-medium transition ${
+                    expiryDays === opt.value
+                      ? "bg-brand-100 text-brand-700 ring-1 ring-brand-300"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                  data-testid={`expiry-option-${opt.label.toLowerCase().replace(/\s/g, "-")}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <button
             onClick={() => createMutation.mutate()}
