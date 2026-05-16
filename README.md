@@ -1,7 +1,7 @@
 # WikiMind
 
 [![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/test.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/test.yml)
-[![Lint & Static Analysis](https://github.com/manavgup/wikimind/actions/workflows/lint.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/lint.yml)
+[![Full Verify](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml)
 [![Deploy](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml)
 [![Claude Review](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -311,14 +311,17 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make bandit` | Run bandit security scanner |
 | `make vulture` | Detect dead code (80% confidence) |
 | `make deptry` | Detect unused/missing/transitive dependencies |
-| `make dead-code` | Alias for vulture — find unused functions, imports, variables |
+| `make dead-code` | Alias for vulture |
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |
-| `make security` | Run security and dead-code checks |
 | `make update-secrets-baseline` | Update detect-secrets baseline (keeps line numbers in sync) |
 | `make verify` | Run the required full-verify suite (Python + desktop + extension + doc-sync) |
 | `make coverage-ci` | Run backend CI tests with terminal, HTML, and XML coverage outputs |
 | `make coverage-check` | Run non-E2E tests with coverage (policy is configured in pyproject.toml) |
-| `make security-check` | Run the scheduled CI security scan set |
+
+### 🌐 FRONTEND (React + Vite)
+
+| Target | Description |
+|--------|-------------|
 | `make frontend-install` | Install frontend dependencies |
 | `make frontend-dev` | Start Vite dev server on :5173 |
 | `make frontend-build` | Build frontend production bundle |
