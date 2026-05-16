@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from tests.conftest import TEST_USER_ID
-from wikimind.api.services import get_linter_service
 from wikimind.errors import NotFoundError
 from wikimind.models import (
     ContradictionFinding,
@@ -18,6 +17,7 @@ from wikimind.models import (
     OrphanFinding,
     StructuralFinding,
 )
+from wikimind.services.factories import get_linter_service
 from wikimind.services.linter import LinterService
 
 if TYPE_CHECKING:

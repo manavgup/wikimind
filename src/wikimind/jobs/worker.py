@@ -110,7 +110,7 @@ async def _try_embed_article(article: Article) -> None:
     if not _SEARCH_AVAILABLE:
         return
     try:
-        from wikimind.api.services import get_embedding_service  # noqa: PLC0415
+        from wikimind.services.factories import get_embedding_service  # noqa: PLC0415
 
         embedding_service = get_embedding_service()
         if embedding_service is not None:
@@ -158,7 +158,7 @@ async def _compile_interactive(
 
     # Write results with a short-lived session
     await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
-    from wikimind.api.services import get_draft_service  # noqa: PLC0415
+    from wikimind.services.factories import get_draft_service  # noqa: PLC0415
 
     draft_service = get_draft_service()
     draft = await draft_service.create_draft(source, doc, result, takeaways, session)

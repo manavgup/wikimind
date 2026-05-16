@@ -228,7 +228,7 @@ class CaptureService:
             )
 
         # Use the ingest service to create a real Source from the capture content
-        from wikimind.api.services import get_ingest_service  # noqa: PLC0415
+        from wikimind.services.factories import get_ingest_service  # noqa: PLC0415
 
         ingest_svc = get_ingest_service()
 

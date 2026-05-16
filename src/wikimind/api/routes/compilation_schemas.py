@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_compilation_schema_service
 from wikimind.database import get_session
 from wikimind.models import (
     CompilationSchemaResponse,
@@ -13,6 +12,7 @@ from wikimind.models import (
     UpdateCompilationSchemaRequest,
 )
 from wikimind.services.compilation_schema import CompilationSchemaService
+from wikimind.services.factories import get_compilation_schema_service
 
 log = structlog.get_logger()
 

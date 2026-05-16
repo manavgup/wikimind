@@ -10,7 +10,6 @@ from fastapi.responses import Response, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_query_service
 from wikimind.database import get_session, get_session_factory
 from wikimind.models import (
     AskResponse,
@@ -22,6 +21,7 @@ from wikimind.models import (
     QueryRequest,
 )
 from wikimind.services.crystallization import crystallize_conversation
+from wikimind.services.factories import get_query_service
 from wikimind.services.query import QueryService
 
 log = structlog.get_logger()

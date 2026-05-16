@@ -243,7 +243,7 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     concepts = await _fetch_concept_names_from_join(session, article.id)
     sources = await _fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
-    from wikimind.api.services import get_tag_service  # noqa: PLC0415
+    from wikimind.services.factories import get_tag_service  # noqa: PLC0415
 
     tag_service = get_tag_service()
     tags = await tag_service.get_tags_for_article(session, article.id)
@@ -434,7 +434,7 @@ class WikiService:
 
         concepts = await _fetch_concept_names_from_join(session, article.id)
 
-        from wikimind.api.services import get_tag_service  # noqa: PLC0415
+        from wikimind.services.factories import get_tag_service  # noqa: PLC0415
 
         tag_service = get_tag_service()
         tags = await tag_service.get_tags_for_article(session, article.id)
@@ -825,7 +825,7 @@ class WikiService:
         keyword_scores_map = await keyword_scores
 
         if _SEARCH_AVAILABLE:
-            from wikimind.api.services import get_embedding_service  # noqa: PLC0415
+            from wikimind.services.factories import get_embedding_service  # noqa: PLC0415
 
             embedding_service = get_embedding_service()
             if embedding_service is not None:

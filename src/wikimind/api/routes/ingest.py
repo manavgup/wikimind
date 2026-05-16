@@ -9,7 +9,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_ingest_service
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import (
@@ -19,6 +18,7 @@ from wikimind.models import (
     SourceContentResponse,
     SourceImage,
 )
+from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
 from wikimind.storage import find_original_sibling, get_raw_storage
 

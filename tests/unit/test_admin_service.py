@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 from tests.conftest import TEST_USER_ID
-from wikimind.api import services as services_mod
-from wikimind.api.services import get_admin_service
 from wikimind.models import Article, Concept, IngestStatus, PageType, Source, SourceType, User
 from wikimind.services import admin as admin_mod
+from wikimind.services import factories as services_mod
 from wikimind.services.admin import AdminService
+from wikimind.services.factories import get_admin_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

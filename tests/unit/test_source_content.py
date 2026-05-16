@@ -9,11 +9,11 @@ from httpx import ASGITransport, AsyncClient
 
 from tests.conftest import TEST_USER_ID
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_ingest_service
 from wikimind.database import get_session
 from wikimind.errors import NotFoundError
 from wikimind.main import app
 from wikimind.models import Source, SourceContentResponse, SourceType
+from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
 from wikimind.storage import LocalFileStorage
 

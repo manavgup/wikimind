@@ -27,7 +27,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import require_user_id
-from wikimind.api.services import get_user_service
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import (
@@ -40,6 +39,7 @@ from wikimind.models import (
     TokenCreateResponse,
     UserProfileResponse,
 )
+from wikimind.services.factories import get_user_service
 from wikimind.services.user import UserService
 
 log = structlog.get_logger()

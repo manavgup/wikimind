@@ -11,12 +11,6 @@ import pytest
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
-from wikimind.api.services import (
-    get_compiler_service,
-    get_ingest_service,
-    get_query_service,
-    get_wiki_service,
-)
 from wikimind.config import get_settings
 from wikimind.errors import IngestError, NotFoundError
 from wikimind.models import (
@@ -32,6 +26,12 @@ from wikimind.models import (
     SourceType,
 )
 from wikimind.services.compiler import CompilerService
+from wikimind.services.factories import (
+    get_compiler_service,
+    get_ingest_service,
+    get_query_service,
+    get_wiki_service,
+)
 from wikimind.services.ingest import IngestService
 from wikimind.services.query import QueryService
 from wikimind.services.wiki import WikiService

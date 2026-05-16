@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_wiki_service
 from wikimind.database import get_session
 from wikimind.engine.synthesis_compiler import SynthesisCompiler
 from wikimind.models import (
@@ -14,6 +13,7 @@ from wikimind.models import (
     PageType,
     SynthesisResponse,
 )
+from wikimind.services.factories import get_wiki_service
 from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()

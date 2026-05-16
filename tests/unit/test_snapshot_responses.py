@@ -16,8 +16,8 @@ import pytest
 
 from tests.conftest import TEST_USER_ID
 from tests.snapshot_utils import assert_matches_snapshot
-from wikimind.api.services import get_ingest_service
 from wikimind.models import Article, IngestStatus, PageType, Source, SourceType
+from wikimind.services.factories import get_ingest_service
 
 # ---------------------------------------------------------------------------
 # GET /health — top-level health check

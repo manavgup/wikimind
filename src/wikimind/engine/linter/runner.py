@@ -254,7 +254,7 @@ async def _persist_and_finalize(
     active_orphans = [o for o in orphans if not o.dismissed]
     active_structurals = [s for s in structurals if not s.dismissed]
 
-    from wikimind.api.services import get_contradiction_service  # noqa: PLC0415
+    from wikimind.services.factories import get_contradiction_service  # noqa: PLC0415
 
     contradiction_service = get_contradiction_service()
     for cf in active_contradictions:

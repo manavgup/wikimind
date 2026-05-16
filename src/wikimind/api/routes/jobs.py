@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
 from wikimind.api.deps import get_current_user_id
-from wikimind.api.services import get_compiler_service, get_linter_service
 from wikimind.database import get_session
 from wikimind.models import Job, JobTriggerResponse, Source
+from wikimind.services.factories import get_compiler_service, get_linter_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
