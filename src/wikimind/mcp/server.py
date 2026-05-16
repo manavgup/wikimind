@@ -1,10 +1,18 @@
-"""WikiMind MCP server — Phase 1 read-only tools over stdio transport.
+"""WikiMind MCP server — read and write tools over stdio transport.
 
-Exposes four tools to MCP clients (Claude Desktop, Cursor, etc.):
+Exposes tools to MCP clients (Claude Desktop, Cursor, etc.):
+
+Read tools:
   - wiki_search:       full-text search across wiki articles
   - wiki_get_article:  retrieve a full article by ID or slug
   - wiki_ask:          ask a question against the wiki (Q&A agent)
   - wiki_list_sources: list ingested sources
+
+Write tools:
+  - wiki_ingest_url:   ingest a URL source into the wiki
+  - wiki_ingest_text:  ingest raw text into the wiki
+  - wiki_list_articles: list all articles with summaries
+  - wiki_recompile:    trigger recompilation of an article
 
 The server supports stdio (default) and HTTP transports.
 
@@ -72,7 +80,8 @@ mcp = FastMCP(
     instructions=(
         "WikiMind is a personal LLM-powered knowledge OS. "
         "Use these tools to search the wiki, read articles, "
-        "ask questions, and browse ingested sources."
+        "ask questions, browse ingested sources, ingest new content, "
+        "and trigger recompilation."
     ),
     lifespan=_lifespan,
 )
@@ -298,6 +307,209 @@ async def wiki_list_sources(
             }
             for s in sources
         ],
+        default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tool: wiki_ingest_url
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="wiki_ingest_url",
+    description=(
+        "Ingest a URL (web page or YouTube video) into the WikiMind knowledge base. "
+        "The content is fetched, cleaned, and scheduled for compilation into a wiki article. "
+        "Returns the created source record with its ID and status."
+    ),
+)
+async def wiki_ingest_url(
+    url: str = Field(..., description="The URL to ingest (web page or YouTube video)"),
+    title: str | None = Field(None, description="Optional title override for the source"),
+) -> str:
+    """Ingest a URL source into the wiki."""
+    if not url or not url.strip():
+        return json.dumps({"error": "URL cannot be empty"})
+
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        return json.dumps({"error": "URL must start with http:// or https://"})
+
+    ingest_service = IngestService()
+    async with _get_session() as session:
+        try:
+            source = await ingest_service.ingest_url(
+                url=url,
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception as exc:
+            log.warning("wiki_ingest_url failed", url=url, error=str(exc))
+            return json.dumps({"error": f"Ingestion failed: {exc}"})
+
+    return json.dumps(
+        {
+            "id": source.id,
+            "source_type": source.source_type,
+            "title": source.title or title,
+            "source_url": source.source_url,
+            "status": "scheduled_for_compilation",
+        },
+        default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tool: wiki_ingest_text
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="wiki_ingest_text",
+    description=(
+        "Ingest raw text content into the WikiMind knowledge base. "
+        "The text is stored as a source and scheduled for compilation into a wiki article. "
+        "Useful for adding notes, excerpts, or any textual content to the wiki."
+    ),
+)
+async def wiki_ingest_text(
+    text: str = Field(..., description="The text content to ingest"),
+    title: str = Field(..., description="Title for the source"),
+) -> str:
+    """Ingest raw text content into the wiki."""
+    if not text or not text.strip():
+        return json.dumps({"error": "Text content cannot be empty"})
+
+    if not title or not title.strip():
+        return json.dumps({"error": "Title cannot be empty"})
+
+    ingest_service = IngestService()
+    async with _get_session() as session:
+        try:
+            source = await ingest_service.ingest_text(
+                content=text.strip(),
+                title=title.strip(),
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception as exc:
+            log.warning("wiki_ingest_text failed", title=title, error=str(exc))
+            return json.dumps({"error": f"Ingestion failed: {exc}"})
+
+    return json.dumps(
+        {
+            "id": source.id,
+            "source_type": source.source_type,
+            "title": source.title,
+            "status": "scheduled_for_compilation",
+        },
+        default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tool: wiki_list_articles
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="wiki_list_articles",
+    description=(
+        "List all wiki articles with their summaries. "
+        "Returns article titles, slugs, summaries, confidence scores, "
+        "and source counts. Use this to browse the wiki content."
+    ),
+)
+async def wiki_list_articles(
+    limit: int = Field(20, description="Maximum number of articles to return (max 100)"),
+    offset: int = Field(0, description="Pagination offset (skip this many articles)"),
+) -> str:
+    """List wiki articles with summaries."""
+    limit = min(max(1, limit), 100)
+    offset = max(0, offset)
+
+    wiki_service = WikiService()
+    async with _get_session() as session:
+        try:
+            articles = await wiki_service.list_articles(
+                session=session,
+                user_id=await _get_mcp_user_id(),
+                limit=limit,
+                offset=offset,
+            )
+        except Exception as exc:
+            log.warning("wiki_list_articles failed", error=str(exc))
+            return json.dumps({"error": f"Failed to list articles: {exc}"})
+
+    return json.dumps(
+        [
+            {
+                "id": a.id,
+                "slug": a.slug,
+                "title": a.title,
+                "summary": a.summary,
+                "confidence": a.confidence,
+                "confidence_score": a.confidence_score,
+                "source_count": a.source_count,
+                "page_type": a.page_type,
+                "created_at": a.created_at,
+                "updated_at": a.updated_at,
+            }
+            for a in articles
+        ],
+        default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tool: wiki_recompile
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="wiki_recompile",
+    description=(
+        "Trigger recompilation of a wiki article by its slug or ID. "
+        "This re-runs the LLM compiler on the article's sources to produce "
+        "an updated wiki page. Use when sources have changed or you want "
+        "to improve article quality."
+    ),
+)
+async def wiki_recompile(
+    article_slug: str = Field(..., description="Article slug or UUID to recompile"),
+) -> str:
+    """Trigger recompilation of a wiki article."""
+    if not article_slug or not article_slug.strip():
+        return json.dumps({"error": "Article slug cannot be empty"})
+
+    wiki_service = WikiService()
+    async with _get_session() as session:
+        try:
+            # First resolve the slug/id to the article's UUID
+            article_id = await wiki_service._resolve_article_id(
+                article_slug.strip(),
+                session,
+                user_id=await _get_mcp_user_id(),
+            )
+            if article_id is None:
+                return json.dumps({"error": "Article not found"})
+
+            result = await wiki_service.recompile_article(
+                article_id=article_id,
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception as exc:
+            log.warning("wiki_recompile failed", slug=article_slug, error=str(exc))
+            return json.dumps({"error": f"Recompilation failed: {exc}"})
+
+    return json.dumps(
+        {
+            "status": result.status,
+            "job_id": result.job_id,
+            "article_slug": article_slug.strip(),
+        },
         default=str,
     )
 
