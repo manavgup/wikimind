@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import keyring
 import keyring.errors
@@ -544,6 +545,93 @@ def get_settings() -> Settings:
     settings.ensure_dirs()
     _reconcile_providers(settings)
     return settings
+
+
+# ---------------------------------------------------------------------------
+# RuntimeConfig — mutable overlay that keeps the Settings singleton immutable
+# ---------------------------------------------------------------------------
+
+
+class RuntimeConfig:
+    """Thread-safe mutable overlay for DB-persisted runtime settings.
+
+    Composes over the immutable Settings singleton. Callers read runtime
+    values (e.g. ``default_provider``, ``monthly_budget_usd``) from this
+    object. Values start as ``None`` (meaning "use the Settings default")
+    and are populated from the DB at startup or on write.
+
+    This replaces the previous pattern of mutating ``get_settings()`` directly.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._overrides: dict[str, Any] = {}
+
+    def set(self, key: str, value: Any) -> None:
+        """Set a runtime override (thread-safe)."""
+        with self._lock:
+            self._overrides[key] = value
+
+    def get(self, key: str) -> Any | None:
+        """Get a runtime override, or None if not set."""
+        with self._lock:
+            return self._overrides.get(key)
+
+    def get_default_provider(self) -> str:
+        """Return the effective default LLM provider."""
+        override = self.get("llm.default_provider")
+        if override is not None:
+            return override
+        return get_settings().llm.default_provider
+
+    def get_monthly_budget_usd(self) -> float:
+        """Return the effective monthly budget."""
+        override = self.get("llm.monthly_budget_usd")
+        if override is not None:
+            return float(override)
+        return get_settings().llm.monthly_budget_usd
+
+    def get_fallback_enabled(self) -> bool:
+        """Return the effective fallback setting."""
+        override = self.get("llm.fallback_enabled")
+        if override is not None:
+            return bool(override)
+        return get_settings().llm.fallback_enabled
+
+    def get_openai_compatible_base_url(self) -> str:
+        """Return the effective OpenAI-compatible base URL."""
+        override = self.get("llm.openai_compatible.base_url")
+        if override is not None:
+            return override
+        return get_settings().llm.openai_compatible.base_url
+
+    def get_openai_compatible_model(self) -> str:
+        """Return the effective OpenAI-compatible model."""
+        override = self.get("llm.openai_compatible.model")
+        if override is not None:
+            return override
+        return get_settings().llm.openai_compatible.model
+
+    def get_openai_compatible_enabled(self) -> bool:
+        """Return whether the OpenAI-compatible provider is effectively enabled."""
+        base_url = self.get_openai_compatible_base_url()
+        model = self.get_openai_compatible_model()
+        settings = get_settings()
+        has_key = bool(settings._has_provider_key("openai_compatible") or settings.llm.openai_compatible.enabled)
+        return bool(has_key and base_url and model)
+
+    def get_openai_compatible_field(self, field_name: str) -> Any:
+        """Return an effective OpenAI-compatible config field value."""
+        override = self.get(f"llm.openai_compatible.{field_name}")
+        if override is not None:
+            return override
+        return getattr(get_settings().llm.openai_compatible, field_name)
+
+
+@lru_cache(maxsize=1)
+def get_runtime_config() -> RuntimeConfig:
+    """Return the singleton RuntimeConfig instance."""
+    return RuntimeConfig()
 
 
 # ---------------------------------------------------------------------------

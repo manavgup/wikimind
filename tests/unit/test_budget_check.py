@@ -5,9 +5,20 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from tests.conftest import TEST_USER_ID
+from wikimind.config import get_runtime_config
 from wikimind.engine import llm_router as llm_router_mod
 from wikimind.engine.llm_router import LLMRouter
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_config():
+    """Clear RuntimeConfig overrides between tests to avoid cross-pollution."""
+    rc = get_runtime_config()
+    yield
+    rc._overrides.clear()
 
 
 def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
@@ -26,7 +37,13 @@ def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
     )
     settings = SimpleNamespace(llm=llm_settings)
     with patch.object(llm_router_mod, "get_settings", return_value=settings):
-        return LLMRouter()
+        router = LLMRouter()
+    # Also set the RuntimeConfig override so that _check_budget reads the
+    # correct budget (RuntimeConfig.get_monthly_budget_usd calls get_settings()
+    # in wikimind.config, which won't see the test patch above after it exits).
+    rc = get_runtime_config()
+    rc.set("llm.monthly_budget_usd", budget_usd)
+    return router
 
 
 def _mock_session_factory(spend: float):

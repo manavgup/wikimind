@@ -317,7 +317,7 @@ async def test_ollama_provider_no_format_for_text() -> None:
     assert "format" not in call_kwargs
 
 
-def _router_with_settings(default="anthropic", **provider_overrides):
+def _router_with_settings(default="anthropic", fallback_enabled=True, **provider_overrides):
     cfgs = {
         "anthropic": SimpleNamespace(enabled=True, model="claude-sonnet-4-5"),
         "openai": SimpleNamespace(enabled=True, model="gpt-4o-mini"),
@@ -328,12 +328,28 @@ def _router_with_settings(default="anthropic", **provider_overrides):
     cfgs.update(provider_overrides)
     llm_settings = SimpleNamespace(
         default_provider=default,
-        fallback_enabled=True,
+        fallback_enabled=fallback_enabled,
         ollama_base_url="http://localhost:11434",
         **cfgs,
     )
     settings = SimpleNamespace(llm=llm_settings)
-    with patch.object(llm_router_mod, "get_settings", return_value=settings):
+
+    from wikimind.config import RuntimeConfig
+
+    rc = RuntimeConfig()
+    rc.set("llm.default_provider", default)
+    rc.set("llm.fallback_enabled", fallback_enabled)
+
+    # Populate openai_compatible RuntimeConfig overrides so they are available
+    # after the patch context exits (RuntimeConfig falls back to get_settings()).
+    oc_cfg = cfgs["openai_compatible"]
+    rc.set("llm.openai_compatible.base_url", getattr(oc_cfg, "base_url", ""))
+    rc.set("llm.openai_compatible.model", getattr(oc_cfg, "model", ""))
+
+    with (
+        patch.object(llm_router_mod, "get_settings", return_value=settings),
+        patch.object(llm_router_mod, "get_runtime_config", return_value=rc),
+    ):
         return LLMRouter()
 
 
@@ -464,8 +480,7 @@ async def test_router_complete_falls_through_to_next_provider() -> None:
 
 
 async def test_router_complete_no_fallback_raises() -> None:
-    router = _router_with_settings()
-    router.settings.llm.fallback_enabled = False
+    router = _router_with_settings(fallback_enabled=False)
     bad = SimpleNamespace(complete=AsyncMock(side_effect=openai.OpenAIError("boom")))
     with (
         patch.object(router, "_is_provider_available", return_value=True),
@@ -818,8 +833,7 @@ async def test_router_stream_complete_no_available_providers() -> None:
 
 async def test_router_stream_complete_no_fallback_raises() -> None:
     """stream_complete() raises immediately when fallback_enabled=False."""
-    router = _router_with_settings()
-    router.settings.llm.fallback_enabled = False
+    router = _router_with_settings(fallback_enabled=False)
     bad = SimpleNamespace(stream=AsyncMock(side_effect=openai.OpenAIError("boom")))
     with (
         patch.object(router, "_is_provider_available", return_value=True),

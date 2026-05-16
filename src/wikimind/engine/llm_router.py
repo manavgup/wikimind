@@ -26,7 +26,7 @@ except ImportError:  # redis package not installed
 
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
-from wikimind.config import get_api_key, get_settings
+from wikimind.config import get_api_key, get_runtime_config, get_settings
 from wikimind.database import get_session_factory
 from wikimind.errors import UpstreamError
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
@@ -142,6 +142,7 @@ class LLMRouter:
 
     def __init__(self):
         self.settings = get_settings()
+        self._rc = get_runtime_config()
         self._budget_warning_sent: dict[str, tuple[int, int]] = {}
         self._budget_exceeded_sent: dict[str, tuple[int, int]] = {}
         self._cached_spend: dict[str, float] = {}
@@ -150,7 +151,7 @@ class LLMRouter:
 
     def _get_provider_order(self, preferred: Provider | None) -> list[Provider]:
         """Return ordered list of providers to try."""
-        default = Provider(self.settings.llm.default_provider)
+        default = Provider(self._rc.get_default_provider())
         order = []
 
         if preferred:
@@ -161,21 +162,29 @@ class LLMRouter:
         # Add remaining enabled providers as fallbacks
         for p in Provider:
             if p not in order:
-                cfg = getattr(self.settings.llm, p.value, None)
-                if cfg and cfg.enabled:
-                    order.append(p)
+                if p == Provider.OPENAI_COMPATIBLE:
+                    if self._rc.get_openai_compatible_enabled():
+                        order.append(p)
+                else:
+                    cfg = getattr(self.settings.llm, p.value, None)
+                    if cfg and cfg.enabled:
+                        order.append(p)
 
         return order
 
     def _is_provider_available(self, provider: Provider) -> bool:
         """Check if a provider is enabled and has credentials."""
+        if provider == Provider.OPENAI_COMPATIBLE:
+            return bool(
+                get_api_key(provider.value)
+                and self._rc.get_openai_compatible_model()
+                and self._rc.get_openai_compatible_base_url()
+            )
         cfg = getattr(self.settings.llm, provider.value, None)
         if not cfg or not cfg.enabled:
             return False
         if provider in (Provider.OLLAMA, Provider.MOCK):
             return True  # No API key needed
-        if provider == Provider.OPENAI_COMPATIBLE:
-            return bool(get_api_key(provider.value) and cfg.model and cfg.base_url)
         return bool(get_api_key(provider.value))
 
     async def _get_provider_instance(
@@ -228,6 +237,8 @@ class LLMRouter:
 
     def _get_model(self, provider: Provider) -> str:
         """Return the configured model name for a provider."""
+        if provider == Provider.OPENAI_COMPATIBLE:
+            return self._rc.get_openai_compatible_model() or "unknown"
         cfg = getattr(self.settings.llm, provider.value, None)
         return cfg.model if cfg else "unknown"
 
@@ -303,7 +314,7 @@ class LLMRouter:
             self._cached_spend[user_id] = spend
             self._cache_expires_at[user_id] = now + self.settings.llm.budget_check_cache_seconds
 
-        budget = self.settings.llm.monthly_budget_usd
+        budget = self._rc.get_monthly_budget_usd()
         if budget <= 0:
             return
         pct = spend / budget * 100
@@ -409,7 +420,7 @@ class LLMRouter:
                     error=str(e),
                 )
                 last_error = e
-                if not self.settings.llm.fallback_enabled:
+                if not self._rc.get_fallback_enabled():
                     raise
 
         msg = f"All LLM providers failed. Last error: {last_error}"
