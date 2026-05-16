@@ -1,10 +1,18 @@
-"""WikiMind MCP server — Phase 1 read-only tools over stdio transport.
+"""WikiMind MCP server — tools, resources, and prompts over stdio transport.
 
 Exposes four tools to MCP clients (Claude Desktop, Cursor, etc.):
   - wiki_search:       full-text search across wiki articles
   - wiki_get_article:  retrieve a full article by ID or slug
   - wiki_ask:          ask a question against the wiki (Q&A agent)
   - wiki_list_sources: list ingested sources
+
+Resources (browseable URIs):
+  - wikimind://articles/{slug}:  individual article content
+  - wikimind://sources/{id}:     source metadata
+
+Prompts (pre-built templates):
+  - research_topic(topic):       search wiki + synthesize findings
+  - summarize_article(slug):     get article + create summary
 
 The server supports stdio (default) and HTTP transports.
 
@@ -299,6 +307,171 @@ async def wiki_list_sources(
             for s in sources
         ],
         default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Resource: wikimind://articles/{slug}
+# ---------------------------------------------------------------------------
+
+
+@mcp.resource(
+    "wikimind://articles/{slug}",
+    name="article",
+    description="Read a wiki article by slug. Returns the full markdown content.",
+    mime_type="text/markdown",
+)
+async def resource_article(slug: str) -> str:
+    """Return article content as a browseable MCP resource."""
+    wiki_service = WikiService()
+    async with _get_session() as session:
+        try:
+            article = await wiki_service.get_article(
+                id_or_slug=slug,
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    header = f"# {article.title}\n\n"
+    summary = f"**Summary:** {article.summary}\n\n" if article.summary else ""
+    content = article.content or ""
+    return f"{header}{summary}{content}"
+
+
+# ---------------------------------------------------------------------------
+# Resource: wikimind://sources/{id}
+# ---------------------------------------------------------------------------
+
+
+@mcp.resource(
+    "wikimind://sources/{source_id}",
+    name="source",
+    description="Read source metadata by ID. Returns ingestion details as JSON.",
+    mime_type="application/json",
+)
+async def resource_source(source_id: str) -> str:
+    """Return source metadata as a browseable MCP resource."""
+    ingest_service = IngestService()
+    async with _get_session() as session:
+        try:
+            source = await ingest_service.get_source(
+                source_id=source_id,
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception as exc:
+            return json.dumps({"error": str(exc)})
+
+    return json.dumps(
+        {
+            "id": source.id,
+            "source_type": source.source_type,
+            "title": source.title,
+            "source_url": source.source_url,
+            "author": source.author,
+            "status": source.status,
+            "ingested_at": source.ingested_at,
+            "compiled_at": source.compiled_at,
+            "token_count": source.token_count,
+        },
+        default=str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Prompt: research_topic
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt(
+    name="research_topic",
+    description=(
+        "Research a topic using the WikiMind knowledge base. "
+        "Searches for relevant articles and synthesizes findings "
+        "into a comprehensive overview."
+    ),
+)
+async def prompt_research_topic(topic: str) -> str:
+    """Generate a research prompt that searches the wiki and synthesizes findings."""
+    wiki_service = WikiService()
+    async with _get_session() as session:
+        results = await wiki_service.search(
+            q=topic,
+            session=session,
+            user_id=await _get_mcp_user_id(),
+            limit=5,
+        )
+
+    if not results:
+        return (
+            f"I want to research the topic: {topic}\n\n"
+            "No existing articles were found in the WikiMind knowledge base. "
+            "Please provide a general overview of this topic and suggest "
+            "sources that could be ingested to build knowledge on it."
+        )
+
+    articles_section = "\n".join(f"- **{r.title}** (slug: {r.slug}): {r.summary or 'No summary'}" for r in results)
+    return (
+        f"I want to research the topic: {topic}\n\n"
+        f"The following relevant articles exist in my WikiMind knowledge base:\n"
+        f"{articles_section}\n\n"
+        f"Please synthesize the key findings from these articles into a "
+        f"comprehensive overview of '{topic}'. Highlight connections between "
+        f"articles, identify gaps in coverage, and suggest follow-up questions."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Prompt: summarize_article
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt(
+    name="summarize_article",
+    description=(
+        "Summarize a specific wiki article. Retrieves the article "
+        "by slug and creates a structured summary with key points."
+    ),
+)
+async def prompt_summarize_article(slug: str) -> str:
+    """Generate a summary prompt for a specific wiki article."""
+    wiki_service = WikiService()
+    async with _get_session() as session:
+        try:
+            article = await wiki_service.get_article(
+                id_or_slug=slug,
+                session=session,
+                user_id=await _get_mcp_user_id(),
+            )
+        except Exception:
+            return (
+                f"Article with slug '{slug}' was not found in the knowledge base. "
+                "Please use wiki_search to find available articles first."
+            )
+
+    content = article.content or "No content available."
+    sources_info = ""
+    if article.sources:
+        sources_list = "\n".join(
+            f"- {s.title or s.source_url or 'Unknown source'} ({s.source_type})" for s in article.sources
+        )
+        sources_info = f"\n\nSources used:\n{sources_list}"
+
+    return (
+        f"Please summarize the following wiki article.\n\n"
+        f"**Title:** {article.title}\n"
+        f"**Confidence:** {article.confidence}\n"
+        f"**Type:** {article.page_type}\n"
+        f"{sources_info}\n\n"
+        f"---\n\n"
+        f"{content}\n\n"
+        f"---\n\n"
+        f"Provide a structured summary with:\n"
+        f"1. Key points (3-5 bullet points)\n"
+        f"2. Main conclusions or takeaways\n"
+        f"3. Any caveats or limitations noted in the article"
     )
 
 

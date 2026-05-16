@@ -16,8 +16,18 @@ from click.testing import CliRunner
 
 from tests.conftest import TEST_USER_ID
 from wikimind.cli.main import cli
-from wikimind.mcp.server import mcp as mcp_server
-from wikimind.mcp.server import wiki_get_article, wiki_list_sources, wiki_search
+from wikimind.mcp.server import (
+    mcp as mcp_server,
+)
+from wikimind.mcp.server import (
+    prompt_research_topic,
+    prompt_summarize_article,
+    resource_article,
+    resource_source,
+    wiki_get_article,
+    wiki_list_sources,
+    wiki_search,
+)
 from wikimind.models import Article, ConfidenceLevel, PageType, Source
 
 if TYPE_CHECKING:
@@ -320,3 +330,280 @@ class TestMCPServerRegistration:
         # wiki_get_article id_or_slug param should have a description
         article_props = tools_by_name["wiki_get_article"].parameters.get("properties", {})
         assert "description" in article_props.get("id_or_slug", {}), "id_or_slug param missing Field description"
+
+
+# ---------------------------------------------------------------------------
+# MCP Resources
+# ---------------------------------------------------------------------------
+
+
+class TestResourceArticle:
+    """Test the wikimind://articles/{slug} MCP resource."""
+
+    async def test_resource_article_returns_content(self, db_session, sample_article):
+        mock_response = AsyncMock()
+        mock_response.title = "Test Article"
+        mock_response.summary = "A test article about testing."
+        mock_response.content = "Full article content here."
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(return_value=mock_response)
+
+            result = await resource_article(slug="test-article")
+
+            assert "# Test Article" in result
+            assert "A test article about testing." in result
+            assert "Full article content here." in result
+
+    async def test_resource_article_not_found(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(
+                side_effect=Exception("Article not found"),
+            )
+
+            result = await resource_article(slug="nonexistent")
+            assert "Error:" in result
+            assert "not found" in result
+
+    async def test_resource_article_no_summary(self, db_session):
+        mock_response = AsyncMock()
+        mock_response.title = "No Summary Article"
+        mock_response.summary = None
+        mock_response.content = "Content only."
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(return_value=mock_response)
+
+            result = await resource_article(slug="no-summary")
+
+            assert "# No Summary Article" in result
+            assert "Content only." in result
+            assert "**Summary:**" not in result
+
+
+class TestResourceSource:
+    """Test the wikimind://sources/{id} MCP resource."""
+
+    async def test_resource_source_returns_metadata(self, db_session, sample_source):
+        mock_source = AsyncMock()
+        mock_source.id = "src-123"
+        mock_source.source_type = "url"
+        mock_source.title = "Test Source"
+        mock_source.source_url = "https://example.com/test"
+        mock_source.author = "Test Author"
+        mock_source.status = "compiled"
+        mock_source.ingested_at = "2026-01-01"
+        mock_source.compiled_at = "2026-01-02"
+        mock_source.token_count = 1500
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.IngestService") as mock_ingest_cls,
+        ):
+            mock_ingest_cls.return_value.get_source = AsyncMock(return_value=mock_source)
+
+            result = await resource_source(source_id="src-123")
+            parsed = json.loads(result)
+
+            assert parsed["id"] == "src-123"
+            assert parsed["source_type"] == "url"
+            assert parsed["title"] == "Test Source"
+            assert parsed["source_url"] == "https://example.com/test"
+            assert parsed["author"] == "Test Author"
+            assert parsed["status"] == "compiled"
+            assert parsed["token_count"] == 1500
+
+    async def test_resource_source_not_found(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.IngestService") as mock_ingest_cls,
+        ):
+            mock_ingest_cls.return_value.get_source = AsyncMock(
+                side_effect=Exception("Source not found"),
+            )
+
+            result = await resource_source(source_id="nonexistent")
+            parsed = json.loads(result)
+            assert "error" in parsed
+            assert "not found" in parsed["error"]
+
+
+# ---------------------------------------------------------------------------
+# MCP Prompts
+# ---------------------------------------------------------------------------
+
+
+class TestPromptResearchTopic:
+    """Test the research_topic MCP prompt."""
+
+    async def test_research_topic_with_results(self, db_session):
+        mock_result = AsyncMock(
+            title="Machine Learning Basics",
+            slug="machine-learning-basics",
+            summary="An intro to ML concepts.",
+        )
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=[mock_result])
+
+            result = await prompt_research_topic(topic="machine learning")
+
+            assert "machine learning" in result
+            assert "Machine Learning Basics" in result
+            assert "machine-learning-basics" in result
+            assert "synthesize" in result.lower()
+
+    async def test_research_topic_no_results(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=[])
+
+            result = await prompt_research_topic(topic="quantum computing")
+
+            assert "quantum computing" in result
+            assert "No existing articles" in result
+            assert "suggest" in result.lower()
+
+    async def test_research_topic_multiple_results(self, db_session):
+        mock_results = [
+            AsyncMock(title="Article One", slug="article-one", summary="First article."),
+            AsyncMock(title="Article Two", slug="article-two", summary="Second article."),
+        ]
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=mock_results)
+
+            result = await prompt_research_topic(topic="testing")
+
+            assert "Article One" in result
+            assert "Article Two" in result
+            assert "article-one" in result
+            assert "article-two" in result
+
+
+class TestPromptSummarizeArticle:
+    """Test the summarize_article MCP prompt."""
+
+    async def test_summarize_article_found(self, db_session):
+        mock_source = AsyncMock()
+        mock_source.title = "Original Paper"
+        mock_source.source_url = "https://example.com/paper"
+        mock_source.source_type = "url"
+
+        mock_response = AsyncMock()
+        mock_response.title = "Test Article"
+        mock_response.confidence = "sourced"
+        mock_response.page_type = "source"
+        mock_response.content = "This is the article content."
+        mock_response.sources = [mock_source]
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(return_value=mock_response)
+
+            result = await prompt_summarize_article(slug="test-article")
+
+            assert "Test Article" in result
+            assert "This is the article content." in result
+            assert "Original Paper" in result
+            assert "Key points" in result
+
+    async def test_summarize_article_not_found(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(
+                side_effect=Exception("Article not found"),
+            )
+
+            result = await prompt_summarize_article(slug="nonexistent")
+
+            assert "nonexistent" in result
+            assert "not found" in result
+            assert "wiki_search" in result
+
+    async def test_summarize_article_no_sources(self, db_session):
+        mock_response = AsyncMock()
+        mock_response.title = "Standalone Article"
+        mock_response.confidence = "inferred"
+        mock_response.page_type = "concept"
+        mock_response.content = "Content without sources."
+        mock_response.sources = []
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(return_value=mock_response)
+
+            result = await prompt_summarize_article(slug="standalone")
+
+            assert "Standalone Article" in result
+            assert "Content without sources." in result
+            assert "Sources used:" not in result
+
+
+# ---------------------------------------------------------------------------
+# Resource & Prompt registration
+# ---------------------------------------------------------------------------
+
+
+class TestMCPResourceRegistration:
+    """Test that MCP resources are properly registered on the server."""
+
+    async def test_server_lists_resource_templates(self):
+        templates = await mcp_server.list_resource_templates()
+        template_names = {t.name for t in templates}
+        assert "article" in template_names
+        assert "source" in template_names
+
+    async def test_article_resource_template_uri(self):
+        templates = await mcp_server.list_resource_templates()
+        by_name = {t.name: t for t in templates}
+        assert "wikimind://articles/{slug}" in by_name["article"].uri_template
+
+    async def test_source_resource_template_uri(self):
+        templates = await mcp_server.list_resource_templates()
+        by_name = {t.name: t for t in templates}
+        assert "wikimind://sources/{source_id}" in by_name["source"].uri_template
+
+    async def test_resource_descriptions_present(self):
+        templates = await mcp_server.list_resource_templates()
+        for t in templates:
+            assert t.description, f"Resource template {t.name} missing description"
+
+
+class TestMCPPromptRegistration:
+    """Test that MCP prompts are properly registered on the server."""
+
+    async def test_server_lists_prompts(self):
+        prompts = await mcp_server.list_prompts()
+        prompt_names = {p.name for p in prompts}
+        assert "research_topic" in prompt_names
+        assert "summarize_article" in prompt_names
+
+    async def test_prompt_descriptions_present(self):
+        prompts = await mcp_server.list_prompts()
+        for p in prompts:
+            assert p.description, f"Prompt {p.name} missing description"
+            assert len(p.description) > 20, f"Prompt {p.name} description too short"
