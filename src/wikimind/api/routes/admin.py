@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -11,6 +13,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from wikimind.api.deps import require_admin
+from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import LLMTrace, LLMTraceListResponse, LLMTraceResponse
 from wikimind.services.admin import AdminService  # noqa: TC001 — needed at runtime for Depends()
@@ -99,6 +102,29 @@ async def trigger_reindex(
 ):
     """Rebuild search index."""
     return await service.trigger_reindex()
+
+
+@router.get("/docling-status", response_model=DoclingStatusResponse)
+async def get_docling_status(
+    _admin_user_id: str = Depends(require_admin),
+):
+    """Check connectivity to the Docling-serve PDF extraction sidecar."""
+    settings = get_settings()
+    url = settings.docling_serve_url
+
+    if not url:
+        return DoclingStatusResponse(status="disconnected", url="(not configured)")
+
+    try:
+        start = time.monotonic()
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{url}/health")
+            resp.raise_for_status()
+        latency = round((time.monotonic() - start) * 1000, 1)
+        return DoclingStatusResponse(status="connected", url=url, latency_ms=latency)
+    except (httpx.HTTPError, OSError) as exc:
+        log.warning("docling-status: sidecar unreachable", url=url, error=str(exc))
+        return DoclingStatusResponse(status="disconnected", url=url)
 
 
 @router.get("/traces", response_model=LLMTraceListResponse)

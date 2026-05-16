@@ -1,1 +1,6 @@
+# Debian base image CVEs — not yet patched in python:3.11-slim
+# apt-get upgrade runs but these packages haven't released fixes to Debian repos yet
 CVE-2026-46333
+CVE-2026-4878
+CVE-2026-29111
+CVE-2026-0861

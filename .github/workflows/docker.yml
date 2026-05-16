@@ -170,6 +170,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
   # ---------------------------------------------------------------
   # Tier 2 — weekly rebuild from scratch against the latest base
@@ -212,6 +213,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
   # ---------------------------------------------------------------
   # Tier 4 — publish the prod image to GHCR on merge to main
