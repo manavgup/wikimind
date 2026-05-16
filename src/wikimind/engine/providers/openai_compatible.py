@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import openai
 
-from wikimind.config import get_api_key, get_settings
+from wikimind.config import get_api_key, get_runtime_config, get_settings
 from wikimind.engine.provider_base import StreamSession, _calc_cost
 from wikimind.models import CompletionRequest, CompletionResponse, Provider
 
@@ -231,23 +231,24 @@ class OpenAICompatibleProvider:
 
 
 class ConfiguredOpenAICompatibleProvider(OpenAICompatibleProvider):
-    """OpenAI-compatible provider configured from ``settings.llm.openai_compatible``."""
+    """OpenAI-compatible provider configured from RuntimeConfig overlay."""
 
     def __init__(self, api_key_override: str | None = None) -> None:
         settings = get_settings()
+        rc = get_runtime_config()
         cfg = settings.llm.openai_compatible
         headers = self._default_headers(cfg.site_url, cfg.app_name)
         super().__init__(
             provider=Provider.OPENAI_COMPATIBLE,
             api_key_name="openai_compatible",
             api_key_override=api_key_override,
-            base_url=cfg.base_url or None,
+            base_url=rc.get_openai_compatible_base_url() or None,
             default_headers=headers,
-            supports_json_response_format=cfg.supports_json_response_format,
-            supports_stream_usage=cfg.supports_stream_usage,
-            supports_reasoning_effort=cfg.supports_reasoning_effort,
-            max_tokens_field=cast("MaxTokensField", cfg.max_tokens_field),
-            reasoning_format=cfg.reasoning_format,
+            supports_json_response_format=rc.get_openai_compatible_field("supports_json_response_format"),
+            supports_stream_usage=rc.get_openai_compatible_field("supports_stream_usage"),
+            supports_reasoning_effort=rc.get_openai_compatible_field("supports_reasoning_effort"),
+            max_tokens_field=cast("MaxTokensField", rc.get_openai_compatible_field("max_tokens_field")),
+            reasoning_format=rc.get_openai_compatible_field("reasoning_format"),
         )
 
     @staticmethod

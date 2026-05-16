@@ -11,7 +11,7 @@ from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import get_current_user_id
-from wikimind.config import get_api_key, get_settings
+from wikimind.config import get_api_key, get_runtime_config, get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import _LLM_PROVIDER_ERRORS, get_llm_router
 from wikimind.models import Article, CompletionRequest, CostLog, Provider, TaskType, UserPreference
@@ -19,8 +19,6 @@ from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
-
-    from wikimind.config import Settings
 
 log = structlog.get_logger()
 
@@ -165,39 +163,39 @@ _OPENAI_COMPATIBLE_RUNTIME_REQUEST_FIELDS = (
 
 
 async def apply_runtime_llm_preferences() -> None:
-    """Apply persisted LLM runtime preferences to the in-memory settings singleton."""
+    """Load persisted LLM runtime preferences into the RuntimeConfig overlay.
+
+    Populates the RuntimeConfig in-memory cache from DB-stored UserPreference
+    rows. The Settings singleton is never mutated.
+    """
+    rc = get_runtime_config()
     settings = get_settings()
     async with get_session_factory()() as session:
         result = await session.exec(select(UserPreference))
         for pref in result.all():
             if pref.key == "llm.default_provider":
-                settings.llm.default_provider = pref.value
+                rc.set("llm.default_provider", pref.value)
             elif pref.key == "llm.monthly_budget_usd":
-                settings.llm.monthly_budget_usd = float(pref.value)
+                rc.set("llm.monthly_budget_usd", float(pref.value))
             elif pref.key == "llm.fallback_enabled":
-                settings.llm.fallback_enabled = pref.value.lower() == "true"
+                rc.set("llm.fallback_enabled", pref.value.lower() == "true")
             elif pref.key in _OPENAI_COMPATIBLE_PREF_MAP:
                 field_name = _OPENAI_COMPATIBLE_PREF_MAP[pref.key]
                 current_value = getattr(settings.llm.openai_compatible, field_name)
-                value = pref.value.lower() == "true" if isinstance(current_value, bool) else pref.value
-                setattr(settings.llm.openai_compatible, field_name, value)
-
-    cfg = settings.llm.openai_compatible
-    cfg.enabled = bool((cfg.enabled or get_api_key(Provider.OPENAI_COMPATIBLE.value)) and cfg.base_url and cfg.model)
+                value: object = pref.value.lower() == "true" if isinstance(current_value, bool) else pref.value
+                rc.set(f"llm.openai_compatible.{field_name}", value)
 
 
 def _has_required_provider_config(provider: Provider) -> bool:
     """Return whether non-secret runtime config exists for a provider."""
     if provider != Provider.OPENAI_COMPATIBLE:
         return True
-    cfg = get_settings().llm.openai_compatible
-    return bool(cfg.base_url and cfg.model)
+    rc = get_runtime_config()
+    return bool(rc.get_openai_compatible_base_url() and rc.get_openai_compatible_model())
 
 
-def _refresh_openai_compatible_enabled(settings: Settings) -> None:
-    """Refresh derived enabled state after runtime config changes."""
-    cfg = settings.llm.openai_compatible
-    cfg.enabled = bool((cfg.enabled or get_api_key(Provider.OPENAI_COMPATIBLE.value)) and cfg.base_url and cfg.model)
+def _refresh_openai_compatible_enabled() -> None:
+    """Invalidate provider cache after runtime config changes."""
     get_llm_router()._provider_cache.pop(Provider.OPENAI_COMPATIBLE, None)
 
 
@@ -231,7 +229,6 @@ async def _set_preference(key: str, value: str, user_id: str) -> None:
 
 async def _update_openai_compatible_base_url(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
     """Persist the configured OpenAI-compatible base URL if present."""
@@ -243,13 +240,12 @@ async def _update_openai_compatible_base_url(
         raise HTTPException(status_code=400, detail="OpenAI-compatible base URL must start with http:// or https://")
 
     await _set_preference("llm.openai_compatible.base_url", base_url, user_id)
-    settings.llm.openai_compatible.base_url = base_url
+    get_runtime_config().set("llm.openai_compatible.base_url", base_url)
     return True
 
 
 async def _update_openai_compatible_model(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
     """Persist the configured OpenAI-compatible model if present."""
@@ -261,18 +257,17 @@ async def _update_openai_compatible_model(
         raise HTTPException(status_code=400, detail="OpenAI-compatible model must not be empty")
 
     await _set_preference("llm.openai_compatible.model", model, user_id)
-    settings.llm.openai_compatible.model = model
+    get_runtime_config().set("llm.openai_compatible.model", model)
     return True
 
 
 async def _update_openai_compatible_bools(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
     """Persist OpenAI-compatible boolean capability flags."""
     updated = False
-    cfg = settings.llm.openai_compatible
+    rc = get_runtime_config()
     bool_updates = {
         "supports_json_response_format": request.openai_compatible_supports_json_response_format,
         "supports_stream_usage": request.openai_compatible_supports_stream_usage,
@@ -282,14 +277,13 @@ async def _update_openai_compatible_bools(
         if value is None:
             continue
         await _set_preference(f"llm.openai_compatible.{field_name}", str(value).lower(), user_id)
-        setattr(cfg, field_name, value)
+        rc.set(f"llm.openai_compatible.{field_name}", value)
         updated = True
     return updated
 
 
 async def _update_openai_compatible_max_tokens_field(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
     """Persist the max-tokens field selection if present."""
@@ -304,13 +298,12 @@ async def _update_openai_compatible_max_tokens_field(
         )
 
     await _set_preference("llm.openai_compatible.max_tokens_field", max_tokens_field, user_id)
-    settings.llm.openai_compatible.max_tokens_field = max_tokens_field
+    get_runtime_config().set("llm.openai_compatible.max_tokens_field", max_tokens_field)
     return True
 
 
 async def _update_openai_compatible_reasoning_format(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
     """Persist the reasoning payload style if present."""
@@ -325,22 +318,17 @@ async def _update_openai_compatible_reasoning_format(
         )
 
     await _set_preference("llm.openai_compatible.reasoning_format", reasoning_format, user_id)
-    if reasoning_format == "none":
-        settings.llm.openai_compatible.reasoning_format = "none"
-    elif reasoning_format == "openai":
-        settings.llm.openai_compatible.reasoning_format = "openai"
-    else:
-        settings.llm.openai_compatible.reasoning_format = "openrouter"
+    get_runtime_config().set("llm.openai_compatible.reasoning_format", reasoning_format)
     return True
 
 
 async def _update_openai_compatible_settings(
     request: SettingsUpdateRequest,
-    settings: Settings,
     user_id: str,
 ) -> bool:
-    """Persist runtime OpenAI-compatible settings and update the singleton."""
+    """Persist runtime OpenAI-compatible settings into RuntimeConfig."""
     updated = False
+    settings = get_settings()
 
     if not settings.is_dev and _has_openai_compatible_runtime_update(request):
         raise HTTPException(
@@ -348,11 +336,11 @@ async def _update_openai_compatible_settings(
             detail="OpenAI-compatible runtime settings are global and cannot be changed by users when auth is enabled",
         )
 
-    updated = await _update_openai_compatible_base_url(request, settings, user_id) or updated
-    updated = await _update_openai_compatible_model(request, settings, user_id) or updated
-    updated = await _update_openai_compatible_bools(request, settings, user_id) or updated
-    updated = await _update_openai_compatible_max_tokens_field(request, settings, user_id) or updated
-    updated = await _update_openai_compatible_reasoning_format(request, settings, user_id) or updated
+    updated = await _update_openai_compatible_base_url(request, user_id) or updated
+    updated = await _update_openai_compatible_model(request, user_id) or updated
+    updated = await _update_openai_compatible_bools(request, user_id) or updated
+    updated = await _update_openai_compatible_max_tokens_field(request, user_id) or updated
+    updated = await _update_openai_compatible_reasoning_format(request, user_id) or updated
 
     return updated
 
@@ -364,26 +352,32 @@ async def get_all_settings(
 ):
     """Return all application settings, with DB overrides applied."""
     settings = get_settings()
+    rc = get_runtime_config()
 
-    # Apply DB overrides
-    default_provider = await _get_preference("llm.default_provider") or settings.llm.default_provider
-    budget_pref = await _get_preference("llm.monthly_budget_usd")
-    monthly_budget = float(budget_pref) if budget_pref else settings.llm.monthly_budget_usd
-    fallback_pref = await _get_preference("llm.fallback_enabled")
-    fallback_enabled = (fallback_pref.lower() == "true") if fallback_pref else settings.llm.fallback_enabled
+    # Read effective values from RuntimeConfig (merges DB overrides with defaults)
+    default_provider = rc.get_default_provider()
+    monthly_budget = rc.get_monthly_budget_usd()
+    fallback_enabled = rc.get_fallback_enabled()
 
     # Check both env var/keyring keys and per-user BYOK database keys
     providers = {}
     for p in Provider:
         has_system_key = bool(get_api_key(p.value))
         has_user_key = bool(await get_user_api_key(session, user_id, p)) if not has_system_key else False
-        config_enabled = getattr(settings.llm, p.value).enabled
+        if p == Provider.OPENAI_COMPATIBLE:
+            config_enabled = rc.get_openai_compatible_enabled()
+            model = rc.get_openai_compatible_model()
+            base_url = rc.get_openai_compatible_base_url()
+        else:
+            config_enabled = getattr(settings.llm, p.value).enabled
+            model = getattr(settings.llm, p.value).model
+            base_url = None
         has_required_config = _has_required_provider_config(p)
         providers[p.value] = ProviderDetail(
             enabled=(config_enabled or has_user_key) and has_required_config,
-            model=getattr(settings.llm, p.value).model,
+            model=model,
             configured=has_system_key or has_user_key,
-            base_url=getattr(settings.llm, p.value).base_url if p == Provider.OPENAI_COMPATIBLE else None,
+            base_url=base_url if p == Provider.OPENAI_COMPATIBLE else None,
         )
 
     return AllSettingsResponse(
@@ -445,7 +439,7 @@ async def set_default_provider(
             )
 
     await _set_preference("llm.default_provider", request.provider, user_id)
-    settings.llm.default_provider = request.provider
+    get_runtime_config().set("llm.default_provider", request.provider)
     return DefaultProviderResponse(provider=request.provider, status="ok")
 
 
@@ -455,7 +449,7 @@ async def update_settings(
     user_id: str = Depends(get_current_user_id),
 ):
     """Update runtime settings. Changes persist to DB across restarts."""
-    settings = get_settings()
+    rc = get_runtime_config()
 
     if request.monthly_budget_usd is not None:
         if request.monthly_budget_usd <= 0:
@@ -465,7 +459,7 @@ async def update_settings(
             str(request.monthly_budget_usd),
             user_id,
         )
-        settings.llm.monthly_budget_usd = request.monthly_budget_usd
+        rc.set("llm.monthly_budget_usd", request.monthly_budget_usd)
 
     if request.fallback_enabled is not None:
         await _set_preference(
@@ -473,10 +467,10 @@ async def update_settings(
             str(request.fallback_enabled).lower(),
             user_id,
         )
-        settings.llm.fallback_enabled = request.fallback_enabled
+        rc.set("llm.fallback_enabled", request.fallback_enabled)
 
-    if await _update_openai_compatible_settings(request, settings, user_id):
-        _refresh_openai_compatible_enabled(settings)
+    if await _update_openai_compatible_settings(request, user_id):
+        _refresh_openai_compatible_enabled()
 
     if request.default_provider is not None:
         valid_providers = [p.value for p in Provider]
@@ -486,7 +480,7 @@ async def update_settings(
                 detail=(f"Unknown provider: {request.default_provider}"),
             )
         await _set_preference("llm.default_provider", request.default_provider, user_id)
-        settings.llm.default_provider = request.default_provider
+        rc.set("llm.default_provider", request.default_provider)
 
     return SettingsUpdateResponse(status="ok")
 
@@ -498,9 +492,10 @@ async def test_llm_connection(
 ):
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
+    rc = get_runtime_config()
     # Temporarily disable fallback so we only test the requested provider
-    original_fallback = router_instance.settings.llm.fallback_enabled
-    router_instance.settings.llm.fallback_enabled = False
+    original_fallback = rc.get_fallback_enabled()
+    rc.set("llm.fallback_enabled", False)
     try:
         request = CompletionRequest(
             system="You are a test assistant.",
@@ -528,7 +523,7 @@ async def test_llm_connection(
             error="Provider connection failed",
         )
     finally:
-        router_instance.settings.llm.fallback_enabled = original_fallback
+        rc.set("llm.fallback_enabled", original_fallback)
 
 
 @router.get(
@@ -540,7 +535,7 @@ async def get_llm_cost_breakdown(
 ):
     """Cost breakdown by provider and task type for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
-    settings = get_settings()
+    rc = get_runtime_config()
 
     async with get_session_factory()() as session:
         total_stmt = select(func.sum(CostLog.cost_usd)).where(
@@ -573,7 +568,7 @@ async def get_llm_cost_breakdown(
         task_result = await session.execute(task_stmt)
         task_rows = task_result.all()
 
-    budget = settings.llm.monthly_budget_usd
+    budget = rc.get_monthly_budget_usd()
     budget_pct = round(total / budget * 100, 1) if budget else 0.0
     month = utcnow_naive().strftime("%Y-%m")
 
@@ -616,11 +611,12 @@ async def get_llm_cost(
         result = await session.execute(cost_stmt)
         total = result.scalar() or 0.0
 
-    settings = get_settings()
+    rc = get_runtime_config()
+    budget = rc.get_monthly_budget_usd()
     return CostSummaryResponse(
         cost_this_month_usd=round(total, 4),
-        budget_usd=settings.llm.monthly_budget_usd,
-        budget_remaining_usd=round(settings.llm.monthly_budget_usd - total, 4),
+        budget_usd=budget,
+        budget_remaining_usd=round(budget - total, 4),
     )
 
 

@@ -8,12 +8,15 @@ Covers:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from wikimind.api.routes import settings as settings_mod
-from wikimind.models import UserPreference
+
+if TYPE_CHECKING:
+    from wikimind.models import UserPreference
 
 # ---------------------------------------------------------------------------
 # Session-factory helpers
@@ -151,35 +154,27 @@ async def test_patch_fallback(client) -> None:
 
 
 async def test_patch_openai_compatible_runtime_config(client) -> None:
-    """Patching OpenAI-compatible endpoint config updates runtime settings."""
+    """Patching OpenAI-compatible endpoint config updates RuntimeConfig (not Settings)."""
+    from wikimind.config import get_runtime_config
+
     session_factory, _ = _make_session_with_pref(None)
-    settings = settings_mod.get_settings()
-    original_base_url = settings.llm.openai_compatible.base_url
-    original_model = settings.llm.openai_compatible.model
-    original_supports_reasoning = settings.llm.openai_compatible.supports_reasoning_effort
-    original_reasoning_format = settings.llm.openai_compatible.reasoning_format
-    try:
-        with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
-            resp = await client.patch(
-                "/api/settings",
-                json={
-                    "openai_compatible_base_url": "https://openrouter.ai/api/v1/",
-                    "openai_compatible_model": "openai/gpt-4o-mini",
-                    "openai_compatible_supports_reasoning_effort": True,
-                    "openai_compatible_reasoning_format": "openrouter",
-                },
-            )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-        assert settings.llm.openai_compatible.base_url == "https://openrouter.ai/api/v1"
-        assert settings.llm.openai_compatible.model == "openai/gpt-4o-mini"
-        assert settings.llm.openai_compatible.supports_reasoning_effort is True
-        assert settings.llm.openai_compatible.reasoning_format == "openrouter"
-    finally:
-        settings.llm.openai_compatible.base_url = original_base_url
-        settings.llm.openai_compatible.model = original_model
-        settings.llm.openai_compatible.supports_reasoning_effort = original_supports_reasoning
-        settings.llm.openai_compatible.reasoning_format = original_reasoning_format
+    rc = get_runtime_config()
+    with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
+        resp = await client.patch(
+            "/api/settings",
+            json={
+                "openai_compatible_base_url": "https://openrouter.ai/api/v1/",
+                "openai_compatible_model": "openai/gpt-4o-mini",
+                "openai_compatible_supports_reasoning_effort": True,
+                "openai_compatible_reasoning_format": "openrouter",
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    assert rc.get_openai_compatible_base_url() == "https://openrouter.ai/api/v1"
+    assert rc.get_openai_compatible_model() == "openai/gpt-4o-mini"
+    assert rc.get_openai_compatible_field("supports_reasoning_effort") is True
+    assert rc.get_openai_compatible_field("reasoning_format") == "openrouter"
 
 
 async def test_patch_openai_compatible_rejects_invalid_base_url(client) -> None:
@@ -218,7 +213,7 @@ async def test_patch_openai_compatible_runtime_config_rejected_when_auth_enabled
     try:
         request = SettingsUpdateRequest(**payload)
         with pytest.raises(HTTPException) as exc_info:
-            await _update_openai_compatible_settings(request, settings, "user-1")
+            await _update_openai_compatible_settings(request, "user-1")
         assert exc_info.value.status_code == 403
         assert "runtime settings are global" in exc_info.value.detail
     finally:
@@ -238,16 +233,28 @@ async def test_patch_openai_compatible_rejects_invalid_reasoning_format(client) 
 
 
 async def test_get_settings_reflects_overrides(client) -> None:
-    """GET /settings should return DB-overridden values when preferences exist."""
-    budget_pref = UserPreference(key="llm.monthly_budget_usd", value="123.45")
-    fallback_pref = UserPreference(key="llm.fallback_enabled", value="false")
-    provider_pref = UserPreference(key="llm.default_provider", value="anthropic")
+    """GET /settings should return RuntimeConfig-overridden values."""
+    from wikimind.config import get_runtime_config
 
-    # _get_preference is called three times (default_provider, budget, fallback)
-    session_factory = _make_multi_call_session_factory([provider_pref, budget_pref, fallback_pref])
+    rc = get_runtime_config()
+    # Save originals
+    orig_budget = rc.get("llm.monthly_budget_usd")
+    orig_fallback = rc.get("llm.fallback_enabled")
+    orig_provider = rc.get("llm.default_provider")
 
-    with patch.object(settings_mod, "get_session_factory", return_value=session_factory):
+    rc.set("llm.monthly_budget_usd", 123.45)
+    rc.set("llm.fallback_enabled", False)
+    rc.set("llm.default_provider", "anthropic")
+    try:
         resp = await client.get("/api/settings")
+    finally:
+        # Restore originals
+        if orig_budget is not None:
+            rc.set("llm.monthly_budget_usd", orig_budget)
+        if orig_fallback is not None:
+            rc.set("llm.fallback_enabled", orig_fallback)
+        if orig_provider is not None:
+            rc.set("llm.default_provider", orig_provider)
 
     assert resp.status_code == 200
     data = resp.json()
