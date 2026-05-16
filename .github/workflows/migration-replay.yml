@@ -19,6 +19,7 @@ on:
     paths:
       - "alembic/**"
       - "src/wikimind/models.py"
+      - "src/wikimind/models/**"
       - "src/wikimind/database.py"
       - ".github/workflows/migration-replay.yml"
   pull_request:
@@ -27,6 +28,7 @@ on:
     paths:
       - "alembic/**"
       - "src/wikimind/models.py"
+      - "src/wikimind/models/**"
       - "src/wikimind/database.py"
       - ".github/workflows/migration-replay.yml"
 
@@ -142,6 +144,7 @@ jobs:
               'savedsearch',
               'sharelink',
               'source',
+              'sourceimage',
               'structuralfinding',
               'synclog',
               'tag',
@@ -184,8 +187,8 @@ jobs:
       # -----------------------------------------------------------
       - name: Verify alembic current matches expected head
         run: |
-          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
-          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          CURRENT=$(uv run alembic current 2>/dev/null | tail -1 | grep -oP '^\w+')
+          HEAD=$(uv run alembic heads 2>/dev/null | tail -1 | grep -oP '^\w+')
           echo "Current: $CURRENT"
           echo "Head: $HEAD"
           if [ "$CURRENT" != "$HEAD" ]; then
@@ -210,7 +213,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          HEAD=$(uv run alembic heads 2>/dev/null | tail -1 | grep -oP '^\w+')
           PREV=$(uv run alembic history 2>/dev/null | grep -oP '^\w+' | head -2 | tail -1)
           echo "HEAD=$HEAD  PREV=$PREV"
 
@@ -222,7 +225,7 @@ jobs:
           echo "Downgrading from $HEAD to $PREV..."
           uv run alembic downgrade "$PREV"
 
-          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
+          CURRENT=$(uv run alembic current 2>/dev/null | tail -1 | grep -oP '^\w+')
           if [ "$CURRENT" != "$PREV" ]; then
             echo "::error::Downgrade failed: expected $PREV, got $CURRENT"
             exit 1
@@ -232,7 +235,7 @@ jobs:
           echo "Re-upgrading to head..."
           uv run alembic upgrade head
 
-          CURRENT=$(uv run alembic current 2>/dev/null | grep -oP '^\w+')
+          CURRENT=$(uv run alembic current 2>/dev/null | tail -1 | grep -oP '^\w+')
           if [ "$CURRENT" != "$HEAD" ]; then
             echo "::error::Re-upgrade failed: expected $HEAD, got $CURRENT"
             exit 1
@@ -254,7 +257,7 @@ jobs:
           set -euo pipefail
 
           # Determine head and its parent (N-1)
-          HEAD=$(uv run alembic heads 2>/dev/null | grep -oP '^\w+')
+          HEAD=$(uv run alembic heads 2>/dev/null | tail -1 | grep -oP '^\w+')
           PREV=$(uv run alembic history 2>/dev/null \
             | grep -oP '^\w+' | head -2 | tail -1)
           echo "HEAD=$HEAD  PREV=$PREV"
@@ -330,6 +333,7 @@ jobs:
               'savedsearch',
               'sharelink',
               'source',
+              'sourceimage',
               'structuralfinding',
               'synclog',
               'tag',
