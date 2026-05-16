@@ -203,6 +203,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/detail:
+    get:
+      tags:
+      - Ingest
+      summary: Get Source Detail
+      description: Get full source detail with pipeline steps, images, and linked
+        articles.
+      operationId: get_source_detail_api_ingest_sources__source_id__detail_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/ingest/sources/{source_id}/content:
     get:
       tags:
@@ -5330,6 +5358,27 @@ components:
       - status
       title: LLMTestResponse
       description: Response from LLM connection test.
+    LinkedArticleSummary:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: source
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      title: LinkedArticleSummary
+      description: Minimal article info for the source detail view.
     LintFindingKind:
       type: string
       enum:
@@ -5618,6 +5667,24 @@ components:
       title: PageType
       description: Type of wiki page — determines compilation pipeline and validation
         rules.
+    PipelineStep:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          title: Status
+        description:
+          type: string
+          title: Description
+      type: object
+      required:
+      - name
+      - status
+      - description
+      title: PipelineStep
+      description: A single step in the source processing pipeline.
     ProviderDetail:
       properties:
         enabled:
@@ -6336,6 +6403,111 @@ components:
       - title
       title: SourceContentResponse
       description: Raw text content of an ingested source for side-by-side reading.
+    SourceDetailResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        source_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        published_date:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Published Date
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+        ingested_at:
+          type: string
+          format: date-time
+          title: Ingested At
+        compiled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Compiled At
+        token_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Token Count
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+        has_original:
+          type: boolean
+          title: Has Original
+        pipeline_steps:
+          items:
+            $ref: '#/components/schemas/PipelineStep'
+          type: array
+          title: Pipeline Steps
+        images:
+          items:
+            $ref: '#/components/schemas/SourceImageEntry'
+          type: array
+          title: Images
+        linked_articles:
+          items:
+            $ref: '#/components/schemas/LinkedArticleSummary'
+          type: array
+          title: Linked Articles
+      type: object
+      required:
+      - id
+      - source_type
+      - source_url
+      - title
+      - author
+      - published_date
+      - status
+      - ingested_at
+      - compiled_at
+      - token_count
+      - error_message
+      - has_original
+      - pipeline_steps
+      - images
+      - linked_articles
+      title: SourceDetailResponse
+      description: Full source detail with pipeline steps, images, and linked articles.
+    SourceImageEntry:
+      properties:
+        filename:
+          type: string
+          title: Filename
+        kind:
+          type: string
+          title: Kind
+        label:
+          type: string
+          title: Label
+      type: object
+      required:
+      - filename
+      - kind
+      - label
+      title: SourceImageEntry
+      description: An extracted image entry for the source detail view.
     SourceResponse:
       properties:
         id:

@@ -17,6 +17,7 @@ from wikimind.models import (
     IngestTextRequest,
     IngestURLRequest,
     LinkedArticleSummary,
+    PageType,
     PipelineStep,
     Source,
     SourceContentResponse,
@@ -162,7 +163,9 @@ async def get_source_detail(
         .where(ArticleSource.source_id == source_id, Article.user_id == user_id)
     )
     art_rows = (await session.exec(art_stmt)).all()
-    linked_articles = [LinkedArticleSummary(id=row[0], slug=row[1], title=row[2], page_type=row[3]) for row in art_rows]
+    linked_articles = [
+        LinkedArticleSummary(id=row[0], slug=row[1], title=row[2], page_type=PageType(row[3])) for row in art_rows
+    ]
 
     return SourceDetailResponse(
         id=source.id,
