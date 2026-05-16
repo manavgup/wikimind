@@ -7,7 +7,6 @@ Handles selection, fallback, cost tracking, and token budgeting.
 from __future__ import annotations
 
 import asyncio
-import functools
 import json
 import re
 import time
@@ -25,9 +24,9 @@ except ImportError:  # redis package not installed
     RedisError = OSError  # type: ignore[assignment,misc]
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.routes.ws import emit_budget_exceeded, emit_budget_warning
-from wikimind.config import get_api_key, get_runtime_config, get_settings
+from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session_factory
+from wikimind.engine.events import BudgetEventEmitter, NullBudgetEventEmitter
 from wikimind.errors import UpstreamError
 from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
 from wikimind.services.api_keys import get_user_api_key
@@ -140,9 +139,9 @@ def _sanitize_json_control_chars(text: str) -> str:
 class LLMRouter:
     """Route LLM calls to the appropriate provider with fallback and cost tracking."""
 
-    def __init__(self):
+    def __init__(self, *, event_emitter: BudgetEventEmitter | None = None):
         self.settings = get_settings()
-        self._rc = get_runtime_config()
+        self._event_emitter: BudgetEventEmitter = event_emitter or NullBudgetEventEmitter()
         self._budget_warning_sent: dict[str, tuple[int, int]] = {}
         self._budget_exceeded_sent: dict[str, tuple[int, int]] = {}
         self._cached_spend: dict[str, float] = {}
@@ -326,12 +325,12 @@ class LLMRouter:
                 budget_usd=budget,
                 pct=round(pct, 1),
             )
-            await emit_budget_warning(spend, budget, pct, user_id=user_id)
+            await self._event_emitter.emit_budget_warning(spend, budget, pct, user_id=user_id)
             await self._set_budget_flag("_budget_warning_sent", month_key, user_id)
 
         if pct >= 100.0 and not exceeded_sent:
             log.error("Budget exceeded", spend_usd=spend, budget_usd=budget)
-            await emit_budget_exceeded(spend, budget, user_id=user_id)
+            await self._event_emitter.emit_budget_exceeded(spend, budget, user_id=user_id)
             await self._set_budget_flag("_budget_exceeded_sent", month_key, user_id)
 
     async def _log_cost(
@@ -594,7 +593,24 @@ class LLMRouter:
         return json.loads(content)
 
 
-@functools.lru_cache(maxsize=1)
+_llm_router_instance: LLMRouter | None = None
+
+
 def get_llm_router() -> LLMRouter:
     """Return the singleton LLM router."""
-    return LLMRouter()
+    global _llm_router_instance
+    if _llm_router_instance is None:
+        _llm_router_instance = LLMRouter()
+    return _llm_router_instance
+
+
+def configure_llm_router(*, event_emitter: BudgetEventEmitter) -> LLMRouter:
+    """Create and cache the LLM router with an injected event emitter.
+
+    Called once at app startup to wire the concrete emitter implementation.
+    Must be called before the first ``get_llm_router()`` call for the
+    emitter to take effect.
+    """
+    global _llm_router_instance
+    _llm_router_instance = LLMRouter(event_emitter=event_emitter)
+    return _llm_router_instance

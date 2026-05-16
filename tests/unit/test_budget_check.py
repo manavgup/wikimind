@@ -13,15 +13,15 @@ from wikimind.engine import llm_router as llm_router_mod
 from wikimind.engine.llm_router import LLMRouter
 
 
-@pytest.fixture(autouse=True)
-def _reset_runtime_config():
-    """Clear RuntimeConfig overrides between tests to avoid cross-pollution."""
-    rc = get_runtime_config()
-    yield
-    rc._overrides.clear()
+def _make_emitter():
+    """Create a mock BudgetEventEmitter with trackable async methods."""
+    emitter = MagicMock()
+    emitter.emit_budget_warning = AsyncMock()
+    emitter.emit_budget_exceeded = AsyncMock()
+    return emitter
 
 
-def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
+def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60, emitter=None):
     llm_settings = SimpleNamespace(
         default_provider="anthropic",
         fallback_enabled=True,
@@ -37,13 +37,7 @@ def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
     )
     settings = SimpleNamespace(llm=llm_settings)
     with patch.object(llm_router_mod, "get_settings", return_value=settings):
-        router = LLMRouter()
-    # Also set the RuntimeConfig override so that _check_budget reads the
-    # correct budget (RuntimeConfig.get_monthly_budget_usd calls get_settings()
-    # in wikimind.config, which won't see the test patch above after it exits).
-    rc = get_runtime_config()
-    rc.set("llm.monthly_budget_usd", budget_usd)
-    return router
+        return LLMRouter(event_emitter=emitter)
 
 
 def _mock_session_factory(spend: float):
@@ -65,83 +59,68 @@ def _mock_session_factory(spend: float):
 
 
 async def test_budget_warning_fires_at_threshold() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
     factory = _mock_session_factory(spend=85.0)
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
         await router._check_budget(user_id=TEST_USER_ID)
 
-    mock_warn.assert_awaited_once()
-    mock_exceeded.assert_not_awaited()
+    emitter.emit_budget_warning.assert_awaited_once()
+    emitter.emit_budget_exceeded.assert_not_awaited()
     assert TEST_USER_ID in router._budget_warning_sent
     assert TEST_USER_ID not in router._budget_exceeded_sent
 
 
 async def test_budget_exceeded_fires_at_100pct() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
     factory = _mock_session_factory(spend=110.0)
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
         await router._check_budget(user_id=TEST_USER_ID)
 
-    mock_warn.assert_awaited_once()
-    mock_exceeded.assert_awaited_once()
+    emitter.emit_budget_warning.assert_awaited_once()
+    emitter.emit_budget_exceeded.assert_awaited_once()
     assert TEST_USER_ID in router._budget_warning_sent
     assert TEST_USER_ID in router._budget_exceeded_sent
 
 
 async def test_warning_fires_only_once() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
     factory = _mock_session_factory(spend=85.0)
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock),
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
         await router._check_budget(user_id=TEST_USER_ID)
         # invalidate cache so second call re-queries
         router._cache_expires_at[TEST_USER_ID] = 0.0
         await router._check_budget(user_id=TEST_USER_ID)
 
-    assert mock_warn.await_count == 1
+    assert emitter.emit_budget_warning.await_count == 1
 
 
 async def test_exceeded_fires_only_once() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
     factory = _mock_session_factory(spend=110.0)
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock),
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
         await router._check_budget(user_id=TEST_USER_ID)
         router._cache_expires_at[TEST_USER_ID] = 0.0
         await router._check_budget(user_id=TEST_USER_ID)
 
-    assert mock_exceeded.await_count == 1
+    assert emitter.emit_budget_exceeded.await_count == 1
 
 
 async def test_cache_prevents_requery_within_ttl() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8, cache_seconds=60)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, cache_seconds=60, emitter=emitter)
     session_factory = _mock_session_factory(spend=85.0)
     # session_factory() -> ctx, ctx.__aenter__ -> session
     session = session_factory.return_value.__aenter__.return_value
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=session_factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock),
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock),
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=session_factory):
         await router._check_budget(user_id=TEST_USER_ID)
         first_call_count = session.execute.await_count
         # Reset warning flag so second call doesn't short-circuit at the top,
@@ -154,18 +133,15 @@ async def test_cache_prevents_requery_within_ttl() -> None:
 
 
 async def test_below_threshold_no_events() -> None:
-    router = _make_router(budget_usd=100.0, warning_pct=0.8)
+    emitter = _make_emitter()
+    router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
     factory = _mock_session_factory(spend=50.0)
 
-    with (
-        patch.object(llm_router_mod, "get_session_factory", return_value=factory),
-        patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
-        patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
-    ):
+    with patch.object(llm_router_mod, "get_session_factory", return_value=factory):
         await router._check_budget(user_id=TEST_USER_ID)
 
-    mock_warn.assert_not_awaited()
-    mock_exceeded.assert_not_awaited()
+    emitter.emit_budget_warning.assert_not_awaited()
+    emitter.emit_budget_exceeded.assert_not_awaited()
     assert TEST_USER_ID not in router._budget_warning_sent
     assert TEST_USER_ID not in router._budget_exceeded_sent
 
