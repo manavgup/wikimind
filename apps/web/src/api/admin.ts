@@ -87,3 +87,15 @@ export function getTraces(
     query: { limit, offset },
   });
 }
+
+// ----- Docling Status -----
+
+export interface DoclingStatusResponse {
+  status: "connected" | "disconnected";
+  url: string;
+  latency_ms: number | null;
+}
+
+export function getDoclingStatus(): Promise<DoclingStatusResponse> {
+  return apiFetch<DoclingStatusResponse>("/api/admin/docling-status");
+}
