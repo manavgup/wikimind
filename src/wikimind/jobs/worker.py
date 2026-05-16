@@ -159,14 +159,18 @@ async def _compile_interactive(
     await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
     async with session_factory() as session:
         source_row = await session.get(Source, source_id)
+        if not source_row:
+            msg = "Source disappeared during compile"
+            raise ValueError(msg)
         draft_service = get_draft_service()
         draft = await draft_service.create_draft(source_row, doc, result, takeaways, session)
 
         job = await session.get(Job, job_id)
-        job.status = JobStatus.COMPLETE
-        job.completed_at = utcnow_naive()
-        job.result_summary = f"Draft created for review: {result.title}"
-        session.add(job)
+        if job:
+            job.status = JobStatus.COMPLETE
+            job.completed_at = utcnow_naive()
+            job.result_summary = f"Draft created for review: {result.title}"
+            session.add(job)
         await session.commit()
 
     await emit_draft_ready(source_id, draft.id, result.title, user_id=user_id)
@@ -202,16 +206,20 @@ async def _compile_direct(
     await emit_source_progress(source_id, "Saving article...", user_id=user_id)
     async with session_factory() as session:
         source_row = await session.get(Source, source_id)
+        if not source_row:
+            msg = "Source disappeared during compile"
+            raise ValueError(msg)
         article = await compiler.save_article(result, source_row, session)
 
     # Update job status with a short-lived session
     async with session_factory() as session:
         job = await session.get(Job, job_id)
-        job.status = JobStatus.COMPLETE
-        job.completed_at = utcnow_naive()
-        job.result_summary = f"Created article: {article.slug}"
-        session.add(job)
-        await session.commit()
+        if job:
+            job.status = JobStatus.COMPLETE
+            job.completed_at = utcnow_naive()
+            job.result_summary = f"Created article: {article.slug}"
+            session.add(job)
+            await session.commit()
 
     await emit_compilation_complete(article.slug, article.title, user_id=user_id)
     log.info("compile_source complete", source_id=source_id, slug=article.slug)
@@ -274,6 +282,9 @@ async def compile_source(
             await emit_source_progress(source_id, "Normalizing content...", user_id=user_id)
             async with session_factory() as session:
                 source = await session.get(Source, source_id)
+                if not source:
+                    log.error("Source disappeared during compile", source_id=source_id)
+                    return
                 doc = await _build_normalized_doc(source)
 
         # --- Phase 3: LLM compilation (no session held open) ---
@@ -355,23 +366,30 @@ async def lint_wiki(_ctx, user_id: str):
         # Update job status (short-lived session)
         async with session_factory() as session:
             job = await session.get(Job, job_id)
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans"
-            session.add(job)
-            await session.commit()
+            if job:
+                job.status = JobStatus.COMPLETE
+                job.completed_at = utcnow_naive()
+                job.result_summary = (
+                    f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans"
+                )
+                session.add(job)
+                await session.commit()
 
-        log.info("lint_wiki complete", summary=job.result_summary)
+        log.info(
+            "lint_wiki complete",
+            summary=f"Found {report.contradictions_count} contradictions, {report.orphans_count} orphans",
+        )
 
     except Exception as e:  # Intentional broad catch — job runner must not crash
         log.error("lint_wiki failed", error=str(e))
         async with session_factory() as session:
             job = await session.get(Job, job_id)
-            job.status = JobStatus.FAILED
-            job.error = str(e)
-            job.completed_at = utcnow_naive()
-            session.add(job)
-            await session.commit()
+            if job:
+                job.status = JobStatus.FAILED
+                job.error = str(e)
+                job.completed_at = utcnow_naive()
+                session.add(job)
+                await session.commit()
 
 
 async def _get_article_source_ids(article: Article, session) -> list[str]:
@@ -411,6 +429,9 @@ async def _recompile_from_source(article_id: str, user_id: str) -> None:
     # Read needed data (short-lived session)
     async with session_factory() as session:
         article = await session.get(Article, article_id)
+        if not article:
+            msg = "Article not found"
+            raise ValueError(msg)
         source_ids = await _get_article_source_ids(article, session)
         if not source_ids:
             msg = "Article has no linked sources"
@@ -435,6 +456,9 @@ async def _recompile_from_source(article_id: str, user_id: str) -> None:
     async with session_factory() as session:
         article = await session.get(Article, article_id)
         source = await session.get(Source, source_ids[0])
+        if not article or not source:
+            msg = "Article or source disappeared during recompile"
+            raise ValueError(msg)
         await compiler.save_article_in_place(article, result, source, session)
 
 
@@ -457,6 +481,9 @@ async def _recompile_from_concept(article_id: str, user_id: str) -> None:
     # Read needed data (short-lived session)
     async with session_factory() as session:
         article = await session.get(Article, article_id)
+        if not article:
+            msg = "Article not found"
+            raise ValueError(msg)
         concept_names = await _get_article_concept_names(article, session)
         if not concept_names:
             msg = "Article has no linked concepts"
@@ -475,6 +502,9 @@ async def _recompile_from_concept(article_id: str, user_id: str) -> None:
     concept_compiler = ConceptCompiler(user_id=user_id)
     async with session_factory() as session:
         concept = await session.get(Concept, concept_id)
+        if not concept:
+            msg = "Concept disappeared during recompile"
+            raise ValueError(msg)
         result_article = await concept_compiler.compile_concept_page(concept, session)
     if not result_article:
         msg = "ConceptCompiler returned no result"
@@ -535,11 +565,12 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
         # Update job status (short-lived session)
         async with session_factory() as session:
             job = await session.get(Job, _job_id)
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Recompiled article {article_id} via {mode}"
-            session.add(job)
-            await session.commit()
+            if job:
+                job.status = JobStatus.COMPLETE
+                job.completed_at = utcnow_naive()
+                job.result_summary = f"Recompiled article {article_id} via {mode}"
+                session.add(job)
+                await session.commit()
 
         await emit_article_recompiled(article_id, page_type, "complete", user_id=user_id)
         log.info("recompile_article complete", article_id=article_id, mode=mode)
@@ -549,11 +580,12 @@ async def recompile_article(_ctx, article_id: str, mode: str, _job_id: str, user
 
         async with session_factory() as session:
             job = await session.get(Job, _job_id)
-            job.status = JobStatus.FAILED
-            job.completed_at = utcnow_naive()
-            job.error = str(e)
-            session.add(job)
-            await session.commit()
+            if job:
+                job.status = JobStatus.FAILED
+                job.completed_at = utcnow_naive()
+                job.error = str(e)
+                session.add(job)
+                await session.commit()
 
         await emit_article_recompiled(article_id, page_type, "failed", user_id=user_id)
 
