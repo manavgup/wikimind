@@ -2565,6 +2565,20 @@ paths:
           content:
             application/json:
               schema: {}
+  /api/admin/docling-status:
+    get:
+      tags:
+      - Admin
+      summary: Get Docling Status
+      description: Check connectivity to the Docling-serve PDF extraction sidecar.
+      operationId: get_docling_status_api_admin_docling_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoclingStatusResponse'
   /api/admin/traces:
     get:
       tags:
@@ -3500,37 +3514,6 @@ paths:
           content:
             application/json:
               schema: {}
-  /{path}:
-    get:
-      summary: Spa Fallback
-      description: 'Serve index.html for all SPA routes (catch-all).
-
-
-        Handles SPA routes that do NOT collide with an API route (e.g.
-
-        /inbox, /wiki, /ask).  Colliding paths (/settings, /health) are
-
-        handled earlier by ``SPAFallbackMiddleware`` for browser requests.'
-      operationId: spa_fallback__path__get
-      parameters:
-      - name: path
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Path
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AllSettingsResponse:
@@ -4947,6 +4930,25 @@ components:
       - finding_id
       title: DismissFindingResponse
       description: Response after dismissing a lint finding.
+    DoclingStatusResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        url:
+          type: string
+          title: Url
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
+      type: object
+      required:
+      - status
+      - url
+      title: DoclingStatusResponse
+      description: Response model for Docling sidecar health check.
     ExportFormat:
       type: string
       enum:

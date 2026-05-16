@@ -53,6 +53,7 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: "1"
+      WIKIMIND_ENV: development
 
     steps:
       - name: ⬇️  Checkout code
@@ -76,9 +77,17 @@ jobs:
 
       - name: 📚  Verify auto-generated docs are in sync
         run: |
-          uv run python scripts/export_openapi.py --check
-          uv run python scripts/regenerate_adr_index.py --check
-          uv run python scripts/regenerate_readme_targets.py --check
+          uv run python scripts/export_openapi.py
+          uv run python scripts/regenerate_adr_index.py
+          uv run python scripts/regenerate_readme_targets.py
+          if ! git diff --quiet docs/openapi.yaml docs/adr/README.md README.md; then
+            echo "DRIFT detected — the following auto-generated files changed:"
+            git diff --stat docs/openapi.yaml docs/adr/README.md README.md
+            echo ""
+            echo "Regenerate with: make regenerate-docs && git add docs/ README.md"
+            exit 1
+          fi
+          echo "OK   All auto-generated docs are in sync."
 
   # -----------------------------------------------------------
   # Job 2 — Co-change rule engine
