@@ -57,12 +57,33 @@ export function retryStuckSource(sourceId: string): Promise<AdminActionResult> {
   );
 }
 
-export interface DoclingStatus {
-  status: "connected" | "disconnected";
-  url: string;
-  latency_ms: number | null;
+// ----- LLM Traces -----
+
+export interface LLMTrace {
+  id: string;
+  user_id: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+  created_at: string;
+  prompt_text: string | null;
+  completion_text: string | null;
+  source_id: string | null;
+  operation: string;
 }
 
-export function getDoclingStatus(): Promise<DoclingStatus> {
-  return apiFetch<DoclingStatus>("/api/admin/docling-status");
+export interface LLMTraceListResponse {
+  items: LLMTrace[];
+  total: number;
+}
+
+export function getTraces(
+  limit = 50,
+  offset = 0,
+): Promise<LLMTraceListResponse> {
+  return apiFetch<LLMTraceListResponse>("/api/admin/traces", {
+    query: { limit, offset },
+  });
 }

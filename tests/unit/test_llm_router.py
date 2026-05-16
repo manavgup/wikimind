@@ -330,6 +330,8 @@ def _router_with_settings(default="anthropic", fallback_enabled=True, **provider
         default_provider=default,
         fallback_enabled=fallback_enabled,
         ollama_base_url="http://localhost:11434",
+        trace_enabled=False,
+        trace_store_content=False,
         **cfgs,
     )
     settings = SimpleNamespace(llm=llm_settings)

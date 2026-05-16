@@ -115,6 +115,8 @@ class LLMConfig(BaseModel):
     monthly_budget_usd: float = 50.0
     budget_warning_pct: float = 0.8
     budget_check_cache_seconds: int = 60
+    trace_enabled: bool = False
+    trace_store_content: bool = False
     anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
     openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     openai_compatible: OpenAICompatibleConfig = Field(default_factory=OpenAICompatibleConfig)

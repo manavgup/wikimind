@@ -369,6 +369,27 @@ class CostLog(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
+class LLMTrace(SQLModel, table=True):
+    """Opt-in LLM call trace for debugging and cost monitoring.
+
+    Always stores lightweight metrics (tokens, latency, model, operation).
+    Prompt/completion text is only stored when ``trace_store_content`` is enabled.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    latency_ms: float
+    created_at: datetime = Field(default_factory=utcnow_naive, index=True)
+    prompt_text: str | None = Field(default=None, sa_type=Text)
+    completion_text: str | None = Field(default=None, sa_type=Text)
+    source_id: str | None = None
+    operation: str  # "compile", "query", "synthesis", etc.
+
+
 class SyncLog(SQLModel, table=True):
     """Cloud sync history."""
 
@@ -1426,6 +1447,30 @@ class SystemStats(BaseModel):
     compilation_success_rate: float | None = None
     avg_compilation_time_ms: float | None = None
     last_compilation_at: str | None = None
+
+
+class LLMTraceResponse(BaseModel):
+    """API response for a single LLM trace entry."""
+
+    id: str
+    user_id: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    latency_ms: float
+    created_at: datetime
+    prompt_text: str | None = None
+    completion_text: str | None = None
+    source_id: str | None = None
+    operation: str
+
+
+class LLMTraceListResponse(BaseModel):
+    """Paginated list of LLM traces."""
+
+    items: list[LLMTraceResponse]
+    total: int
 
 
 class OrphanArticle(BaseModel):
