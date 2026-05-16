@@ -1,8 +1,8 @@
 """Endpoints for ingesting sources (URLs, PDFs, text) into the knowledge base."""
 
 import mimetypes
+import os
 import re
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -402,9 +402,16 @@ async def get_source_image(
     """
     _validate_path_component(source_id, "source_id")
     _validate_path_component(filename, "filename")
+
+    # Strip ALL path components — only allow the bare filename.
+    # os.path.basename is recognized by CodeQL as a path-injection sanitizer.
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
     await service.get_source(source_id, session, user_id=user_id)
 
-    content_type, _ = mimetypes.guess_type(filename)
+    content_type, _ = mimetypes.guess_type(safe_filename)
     if content_type is None:
         content_type = "application/octet-stream"
 
@@ -412,7 +419,7 @@ async def get_source_image(
     stmt = select(SourceImage.image_data).where(
         SourceImage.source_id == source_id,
         SourceImage.user_id == user_id,
-        SourceImage.filename == filename,
+        SourceImage.filename == safe_filename,
     )
     row = (await session.exec(stmt)).first()
     if row is not None:
@@ -423,8 +430,6 @@ async def get_source_image(
         )
 
     # Filesystem fallback for pre-migration sources.
-    # Use Path.name as defense-in-depth to strip any directory components.
-    safe_filename = Path(filename).name
     image_dir = PDFAdapter.get_image_dir(user_id, source_id).resolve()
     image_path = (image_dir / safe_filename).resolve()
 

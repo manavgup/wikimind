@@ -5,6 +5,7 @@ Markdown file that records ingest, compile, query, and file-back events.
 The DB remains the source of truth; this file is a navigational aid.
 """
 
+import os
 from pathlib import Path
 
 import structlog
@@ -43,8 +44,12 @@ def append_log_entry(
     base_dir = Path(get_settings().data_dir) / "wiki"
     wiki_dir = base_dir
     if user_id:
-        # Sanitize: use only the basename to prevent path traversal.
-        safe_id = Path(user_id).name
+        # Strip ALL path components — os.path.basename is recognized by CodeQL
+        # as a path-injection sanitizer.
+        safe_id = os.path.basename(user_id)
+        if not safe_id or safe_id != user_id:
+            msg = f"Path traversal blocked for user_id={user_id!r}"
+            raise ValueError(msg)
         wiki_dir = base_dir / safe_id
 
     # Defense-in-depth: resolve and verify the path stays under base_dir.
