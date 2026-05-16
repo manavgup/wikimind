@@ -1448,6 +1448,15 @@ class SynthesisConfirmResponse(BaseModel):
     page_type: PageType = PageType.SYNTHESIS
 
 
+class SynthesisSuggestion(BaseModel):
+    """A suggestion for a synthesis opportunity across related articles."""
+
+    article_ids: list[str]
+    article_titles: list[str]
+    reason: str
+    suggested_type: str  # "shared_concepts" | "contradiction" | "same_topic_different_sources"
+
+
 class RecompileResponse(BaseModel):
     """Response after scheduling an article recompile."""
 

@@ -20,6 +20,7 @@ from wikimind.models import (
     SynthesisRefineRequest,
     SynthesisRefineResponse,
     SynthesisResponse,
+    SynthesisSuggestion,
 )
 from wikimind.services.factories import get_wiki_service
 from wikimind.services.wiki import WikiService
@@ -227,3 +228,23 @@ async def list_synthesis_pages(
         offset=offset,
         user_id=user_id,
     )
+
+
+@router.get(
+    "/synthesis/suggestions",
+    response_model=list[SynthesisSuggestion],
+)
+async def get_synthesis_suggestions(
+    limit: int = Query(default=10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+) -> list[SynthesisSuggestion]:
+    """Return auto-detected synthesis opportunities.
+
+    Identifies clusters of articles that would benefit from synthesis:
+    - Articles sharing 3+ concepts
+    - Articles with contradictions between them
+    - Articles on the same topic from different sources
+    """
+    return await service.get_synthesis_suggestions(session, user_id, limit=limit)

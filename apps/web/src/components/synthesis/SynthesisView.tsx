@@ -5,10 +5,11 @@ import {
   createSynthesis,
   listSynthesisPages,
   listArticles,
+  getSynthesisSuggestions,
 } from "../../api/wiki";
 import { Spinner } from "../shared/Spinner";
 import type { Article } from "../../types/api";
-import type { SynthesisResponse } from "../../api/wiki";
+import type { SynthesisResponse, SynthesisSuggestion } from "../../api/wiki";
 
 function SynthesisForm({
   onCreated,
@@ -156,6 +157,62 @@ function SynthesisCard({ article }: { article: Article }) {
   );
 }
 
+function SuggestionCard({
+  suggestion,
+  onCreateSynthesis,
+  isCreating,
+}: {
+  suggestion: SynthesisSuggestion;
+  onCreateSynthesis: (suggestion: SynthesisSuggestion) => void;
+  isCreating: boolean;
+}) {
+  const typeLabels: Record<string, string> = {
+    shared_concepts: "Shared Concepts",
+    contradiction: "Contradictions",
+    same_topic_different_sources: "Different Perspectives",
+  };
+
+  const typeColors: Record<string, string> = {
+    shared_concepts: "bg-blue-50 text-blue-700",
+    contradiction: "bg-amber-50 text-amber-700",
+    same_topic_different_sources: "bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[suggestion.suggested_type] || "bg-slate-50 text-slate-700"}`}
+          >
+            {typeLabels[suggestion.suggested_type] || suggestion.suggested_type}
+          </span>
+          <p className="mt-2 text-sm text-slate-600">{suggestion.reason}</p>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {suggestion.article_titles.map((title, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+              >
+                {title}
+              </span>
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onCreateSynthesis(suggestion)}
+          disabled={isCreating}
+          className="ml-3 shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+          data-testid="suggestion-create-btn"
+        >
+          {isCreating ? "Creating..." : "Create"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SynthesisView() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -165,8 +222,31 @@ export function SynthesisView() {
     queryFn: listSynthesisPages,
   });
 
+  const { data: suggestions, isLoading: suggestionsLoading } = useQuery({
+    queryKey: ["synthesis-suggestions"],
+    queryFn: getSynthesisSuggestions,
+  });
+
+  const suggestionMutation = useMutation({
+    mutationFn: createSynthesis,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["synthesis-pages"] });
+      queryClient.invalidateQueries({ queryKey: ["synthesis-suggestions"] });
+      queryClient.invalidateQueries({ queryKey: ["articles"] });
+      navigate(`/wiki/${encodeURIComponent(data.slug)}`);
+    },
+  });
+
+  const handleCreateFromSuggestion = (suggestion: SynthesisSuggestion) => {
+    suggestionMutation.mutate({
+      query: suggestion.reason,
+      article_ids: suggestion.article_ids,
+    });
+  };
+
   const handleCreated = (resp: SynthesisResponse) => {
     queryClient.invalidateQueries({ queryKey: ["synthesis-pages"] });
+    queryClient.invalidateQueries({ queryKey: ["synthesis-suggestions"] });
     queryClient.invalidateQueries({ queryKey: ["articles"] });
     navigate(`/wiki/${encodeURIComponent(resp.slug)}`);
   };
@@ -203,6 +283,29 @@ export function SynthesisView() {
             </h2>
             <SynthesisForm onCreated={handleCreated} />
           </div>
+
+          {/* Suggested Syntheses */}
+          {suggestionsLoading ? (
+            <div className="mt-8 flex items-center gap-2 text-sm text-slate-500">
+              <Spinner size={16} /> Loading suggestions...
+            </div>
+          ) : suggestions && suggestions.length > 0 ? (
+            <div className="mt-8">
+              <h2 className="mb-4 text-base font-semibold text-slate-800">
+                Suggested Syntheses
+              </h2>
+              <div className="space-y-3">
+                {suggestions.map((s, idx) => (
+                  <SuggestionCard
+                    key={idx}
+                    suggestion={s}
+                    onCreateSynthesis={handleCreateFromSuggestion}
+                    isCreating={suggestionMutation.isPending}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-10">
             <h2 className="mb-4 text-base font-semibold text-slate-800">

@@ -59,6 +59,7 @@ from wikimind.models import (
     ResolveContradictionResponse,
     Source,
     SourceResponse,
+    SynthesisSuggestion,
     WikiHealthReport,
     WikilinkMatch,
 )
@@ -1398,6 +1399,183 @@ class WikiService:
         await compiler.schedule_recompile(article_id, effective_mode, job.id, user_id=user_id)
 
         return RecompileResponse(status="scheduled", job_id=job.id)
+
+    async def get_synthesis_suggestions(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        limit: int = 10,
+    ) -> list["SynthesisSuggestion"]:
+        """Find clusters of related articles that would benefit from synthesis.
+
+        Detects three types of synthesis opportunities:
+        1. Articles sharing 3+ concepts (shared knowledge that could be unified)
+        2. Articles with active contradictions between them
+        3. Articles from different sources on the same topic (same concept, different source_ids)
+
+        Args:
+            session: Async database session.
+            user_id: User scope.
+            limit: Maximum number of suggestions to return.
+
+        Returns:
+            List of :class:`SynthesisSuggestion` records.
+        """
+        suggestions: list[SynthesisSuggestion] = []
+        seen_pairs: set[frozenset[str]] = set()
+
+        concept_to_articles, article_concepts = await self._build_concept_maps(session, user_id)
+
+        self._find_shared_concept_suggestions(article_concepts, suggestions, seen_pairs)
+        await self._find_contradiction_suggestions(session, user_id, suggestions, seen_pairs)
+        await self._find_different_source_suggestions(session, concept_to_articles, suggestions, seen_pairs)
+
+        await self._resolve_suggestion_titles(session, suggestions)
+        return suggestions[:limit]
+
+    async def _build_concept_maps(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+        """Build concept-to-articles and article-to-concepts mappings."""
+        ac_stmt = (
+            select(ArticleConcept.article_id, ArticleConcept.concept_name)
+            .join(Article, Article.id == ArticleConcept.article_id)  # type: ignore[arg-type]
+            .where(Article.user_id == user_id, Article.page_type != PageType.SYNTHESIS)
+        )
+        ac_result = await session.execute(ac_stmt)
+        ac_rows = ac_result.all()
+
+        concept_to_articles: dict[str, set[str]] = {}
+        article_concepts: dict[str, set[str]] = {}
+        for article_id, concept_name in ac_rows:
+            concept_to_articles.setdefault(concept_name, set()).add(article_id)
+            article_concepts.setdefault(article_id, set()).add(concept_name)
+        return concept_to_articles, article_concepts
+
+    @staticmethod
+    def _find_shared_concept_suggestions(
+        article_concepts: dict[str, set[str]],
+        suggestions: list["SynthesisSuggestion"],
+        seen_pairs: set[frozenset[str]],
+    ) -> None:
+        """Find article pairs sharing 3+ concepts."""
+        article_ids_list = list(article_concepts.keys())
+        for i in range(len(article_ids_list)):
+            for j in range(i + 1, len(article_ids_list)):
+                aid_a = article_ids_list[i]
+                aid_b = article_ids_list[j]
+                shared = article_concepts[aid_a] & article_concepts[aid_b]
+                if len(shared) >= 3:
+                    pair_key = frozenset([aid_a, aid_b])
+                    if pair_key not in seen_pairs:
+                        seen_pairs.add(pair_key)
+                        suggestions.append(
+                            SynthesisSuggestion(
+                                article_ids=[aid_a, aid_b],
+                                article_titles=[],
+                                reason=f"Share {len(shared)} concepts: " + ", ".join(sorted(shared)[:5]),
+                                suggested_type="shared_concepts",
+                            )
+                        )
+
+    async def _find_contradiction_suggestions(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        suggestions: list["SynthesisSuggestion"],
+        seen_pairs: set[frozenset[str]],
+    ) -> None:
+        """Find article pairs with active contradictions."""
+        ctr_stmt = select(Contradiction).where(
+            Contradiction.user_id == user_id,
+            Contradiction.status == ContradictionStatus.ACTIVE,
+        )
+        ctr_result = await session.execute(ctr_stmt)
+        contradictions = ctr_result.scalars().all()
+
+        contradiction_pairs: dict[frozenset[str], int] = {}
+        for ctr in contradictions:
+            pair_key = frozenset([ctr.article_a_id, ctr.article_b_id])
+            contradiction_pairs[pair_key] = contradiction_pairs.get(pair_key, 0) + 1
+
+        for pair_key, count in contradiction_pairs.items():
+            if pair_key not in seen_pairs:
+                seen_pairs.add(pair_key)
+                suggestions.append(
+                    SynthesisSuggestion(
+                        article_ids=list(pair_key),
+                        article_titles=[],
+                        reason=f"{count} active contradiction(s) between these articles",
+                        suggested_type="contradiction",
+                    )
+                )
+
+    async def _find_different_source_suggestions(
+        self,
+        session: AsyncSession,
+        concept_to_articles: dict[str, set[str]],
+        suggestions: list["SynthesisSuggestion"],
+        seen_pairs: set[frozenset[str]],
+    ) -> None:
+        """Find article pairs on the same topic from different sources."""
+        for concept_name, aids in concept_to_articles.items():
+            if len(aids) < 2:
+                continue
+            aids_list = list(aids)
+            for i in range(len(aids_list)):
+                for j in range(i + 1, len(aids_list)):
+                    aid_a = aids_list[i]
+                    aid_b = aids_list[j]
+                    pair_key = frozenset([aid_a, aid_b])
+                    if pair_key in seen_pairs:
+                        continue
+                    has_diff = await self._has_different_sources(session, aid_a, aid_b)
+                    if has_diff:
+                        seen_pairs.add(pair_key)
+                        suggestions.append(
+                            SynthesisSuggestion(
+                                article_ids=[aid_a, aid_b],
+                                article_titles=[],
+                                reason=f"Same topic ({concept_name}) from different sources",
+                                suggested_type="same_topic_different_sources",
+                            )
+                        )
+
+    @staticmethod
+    async def _has_different_sources(
+        session: AsyncSession,
+        aid_a: str,
+        aid_b: str,
+    ) -> bool:
+        """Check whether two articles were compiled from non-overlapping sources."""
+        src_a_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == aid_a))
+        src_b_result = await session.execute(select(ArticleSource.source_id).where(ArticleSource.article_id == aid_b))
+        sources_a = set(src_a_result.scalars().all())
+        sources_b = set(src_b_result.scalars().all())
+        return bool(sources_a and sources_b and not sources_a & sources_b)
+
+    @staticmethod
+    async def _resolve_suggestion_titles(
+        session: AsyncSession,
+        suggestions: list["SynthesisSuggestion"],
+    ) -> None:
+        """Resolve article titles for all suggestions in bulk."""
+        all_article_ids: set[str] = set()
+        for s in suggestions:
+            all_article_ids.update(s.article_ids)
+
+        if not all_article_ids:
+            return
+
+        title_stmt = select(Article.id, Article.title).where(
+            Article.id.in_(list(all_article_ids))  # type: ignore[attr-defined]
+        )
+        title_result = await session.execute(title_stmt)
+        titles_map = {row[0]: row[1] for row in title_result.all()}
+        for s in suggestions:
+            s.article_titles = [titles_map.get(aid, "Unknown") for aid in s.article_ids]
 
 
 @functools.lru_cache(maxsize=1)

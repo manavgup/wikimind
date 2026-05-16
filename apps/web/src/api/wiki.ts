@@ -141,3 +141,14 @@ export function createSynthesis(
 export function listSynthesisPages(): Promise<Article[]> {
   return apiFetch<Article[]>("/api/wiki/synthesis");
 }
+
+export interface SynthesisSuggestion {
+  article_ids: string[];
+  article_titles: string[];
+  reason: string;
+  suggested_type: string;
+}
+
+export function getSynthesisSuggestions(): Promise<SynthesisSuggestion[]> {
+  return apiFetch<SynthesisSuggestion[]>("/api/wiki/synthesis/suggestions");
+}
