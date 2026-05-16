@@ -3,6 +3,7 @@
 import mimetypes
 import os
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -10,6 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import (
@@ -367,7 +369,13 @@ async def list_source_images(
         return entries
 
     # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(os.path.basename(user_id), safe_source_id).resolve()
+    safe_user = os.path.basename(user_id)
+    image_dir_path = PDFAdapter.get_image_dir(safe_user, safe_source_id)
+    image_dir_real = os.path.realpath(str(image_dir_path))
+    base_real = os.path.realpath(str(get_settings().data_dir))
+    if not image_dir_real.startswith(base_real):
+        return []
+    image_dir = Path(image_dir_real)
     if not image_dir.is_dir():
         return []
 
@@ -435,11 +443,16 @@ async def get_source_image(
         )
 
     # Filesystem fallback for pre-migration sources.
-    image_dir = PDFAdapter.get_image_dir(os.path.basename(user_id), safe_source_id).resolve()
-    image_path = (image_dir / safe_filename).resolve()
-
-    if not image_path.is_relative_to(image_dir):
+    safe_user = os.path.basename(user_id)
+    image_dir_path = PDFAdapter.get_image_dir(safe_user, safe_source_id)
+    image_dir_real = os.path.realpath(str(image_dir_path))
+    base_real = os.path.realpath(str(get_settings().data_dir))
+    if not image_dir_real.startswith(base_real):
         raise HTTPException(status_code=404, detail="Image not found")
+    image_path_str = os.path.realpath(os.path.join(image_dir_real, safe_filename))
+    if not image_path_str.startswith(image_dir_real):
+        raise HTTPException(status_code=404, detail="Image not found")
+    image_path = Path(image_path_str)
 
     if not image_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
