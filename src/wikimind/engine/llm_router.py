@@ -478,10 +478,12 @@ class LLMRouter:
         async def _op(instance: ProviderProtocol, provider: Provider, model: str) -> CompletionResponse:
             response = await instance.complete(request, model)
             await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
-            # Build prompt text from messages for trace storage
-            prompt_text = "\n".join(f"[{m.get('role', 'user')}]: {m.get('content', '')}" for m in request.messages)
-            if request.system:
-                prompt_text = f"[system]: {request.system}\n{prompt_text}"
+            # Build prompt text from messages for trace storage (only when tracing)
+            prompt_text: str | None = None
+            if self.settings.llm.trace_enabled:
+                prompt_text = "\n".join(f"[{m.get('role', 'user')}]: {m.get('content', '')}" for m in request.messages)
+                if request.system:
+                    prompt_text = f"[system]: {request.system}\n{prompt_text}"
             await self._log_trace(
                 model=model,
                 task_type=request.task_type,
@@ -554,12 +556,15 @@ class LLMRouter:
                 temperature=temperature,
             )
             await self._log_cost(provider, model, task_type, response, user_id=user_id)
+            prompt_text: str | None = None
+            if self.settings.llm.trace_enabled:
+                prompt_text = f"[system]: {system}\n[multimodal: {len(content_parts)} parts]"
             await self._log_trace(
                 model=model,
                 task_type=task_type,
                 response=response,
                 user_id=user_id,
-                prompt_text=f"[system]: {system}\n[multimodal: {len(content_parts)} parts]",
+                prompt_text=prompt_text,
             )
             log.info(
                 "LLM multimodal call complete",
