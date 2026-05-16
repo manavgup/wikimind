@@ -2537,6 +2537,20 @@ paths:
           content:
             application/json:
               schema: {}
+  /api/admin/docling-status:
+    get:
+      tags:
+      - Admin
+      summary: Get Docling Status
+      description: Check connectivity to the Docling-serve PDF extraction sidecar.
+      operationId: get_docling_status_api_admin_docling_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoclingStatusResponse'
   /api/wiki/articles/{id_or_slug}/export:
     post:
       tags:
@@ -4850,6 +4864,25 @@ components:
       - finding_id
       title: DismissFindingResponse
       description: Response after dismissing a lint finding.
+    DoclingStatusResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        url:
+          type: string
+          title: Url
+        latency_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latency Ms
+      type: object
+      required:
+      - status
+      - url
+      title: DoclingStatusResponse
+      description: Response model for Docling sidecar health check.
     ExportFormat:
       type: string
       enum:

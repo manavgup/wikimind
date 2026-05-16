@@ -56,3 +56,13 @@ export function retryStuckSource(sourceId: string): Promise<AdminActionResult> {
     { method: "POST" },
   );
 }
+
+export interface DoclingStatus {
+  status: "connected" | "disconnected";
+  url: string;
+  latency_ms: number | null;
+}
+
+export function getDoclingStatus(): Promise<DoclingStatus> {
+  return apiFetch<DoclingStatus>("/api/admin/docling-status");
+}
