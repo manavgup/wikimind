@@ -52,10 +52,11 @@ async def test_hsts_absent_in_development(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_error_handling_returns_json_on_404(client):
-    """Non-existent routes should still return well-formed responses."""
-    response = await client.get("/nonexistent")
-    assert response.status_code == 404
-    # FastAPI's default 404 is JSON — middleware should not interfere
+    """Known API routes with invalid sub-paths return JSON error responses."""
+    # In dev mode, auth auto-passes and SPA catch-all serves unknown paths.
+    # Test a known API prefix with an invalid method to trigger a real error.
+    response = await client.delete("/api/wiki/articles")
+    assert response.status_code == 405
     assert response.headers["content-type"].startswith("application/json")
 
 

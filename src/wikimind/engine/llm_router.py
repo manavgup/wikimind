@@ -24,7 +24,7 @@ except ImportError:  # redis package not installed
     RedisError = OSError  # type: ignore[assignment,misc]
 
 from wikimind._datetime import utcnow_naive
-from wikimind.config import get_api_key, get_settings
+from wikimind.config import get_api_key, get_runtime_config, get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.events import BudgetEventEmitter, NullBudgetEventEmitter
 from wikimind.errors import UpstreamError
@@ -148,6 +148,7 @@ class LLMRouter:
 
     def __init__(self, *, event_emitter: BudgetEventEmitter | None = None):
         self.settings = get_settings()
+        self._rc = get_runtime_config()
         self._event_emitter: BudgetEventEmitter = event_emitter or NullBudgetEventEmitter()
         self._budget_warning_sent: dict[str, tuple[int, int]] = {}
         self._budget_exceeded_sent: dict[str, tuple[int, int]] = {}

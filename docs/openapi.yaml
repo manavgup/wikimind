@@ -3500,6 +3500,37 @@ paths:
           content:
             application/json:
               schema: {}
+  /{path}:
+    get:
+      summary: Spa Fallback
+      description: 'Serve index.html for all SPA routes (catch-all).
+
+
+        Handles SPA routes that do NOT collide with an API route (e.g.
+
+        /inbox, /wiki, /ask).  Colliding paths (/settings, /health) are
+
+        handled earlier by ``SPAFallbackMiddleware`` for browser requests.'
+      operationId: spa_fallback__path__get
+      parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AllSettingsResponse:
@@ -4916,25 +4947,6 @@ components:
       - finding_id
       title: DismissFindingResponse
       description: Response after dismissing a lint finding.
-    DoclingStatusResponse:
-      properties:
-        status:
-          type: string
-          title: Status
-        url:
-          type: string
-          title: Url
-        latency_ms:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Latency Ms
-      type: object
-      required:
-      - status
-      - url
-      title: DoclingStatusResponse
-      description: Response model for Docling sidecar health check.
     ExportFormat:
       type: string
       enum:
@@ -5456,6 +5468,27 @@ components:
       - operation
       title: LLMTraceResponse
       description: API response for a single LLM trace entry.
+    LinkedArticleSummary:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: source
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      title: LinkedArticleSummary
+      description: Minimal article info for the source detail view.
     LintFindingKind:
       type: string
       enum:

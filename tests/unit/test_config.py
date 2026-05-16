@@ -273,12 +273,16 @@ class TestDatabaseUrlRewrite:
 class TestAuthConfigJwtSecret:
     """Settings must reject empty jwt_secret_key in production (#656)."""
 
-    def test_warns_empty_secret_in_production(self, monkeypatch, capsys):
+    def test_warns_empty_secret_in_production(self, monkeypatch):
         """An empty secret in production logs a warning (CLI tools may not need auth)."""
+        from unittest.mock import patch as mock_patch
+
         monkeypatch.setenv("WIKIMIND_ENV", "production")
-        Settings()
-        captured = capsys.readouterr()
-        assert "jwt_secret_key is empty" in captured.out
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
+        with mock_patch("wikimind.config.log") as mock_log:
+            Settings()
+            mock_log.warning.assert_called_once()
+            assert "jwt_secret_key is empty" in str(mock_log.warning.call_args)
 
     def test_accepts_real_secret_in_production(self, monkeypatch):
         """A non-empty secret in production is valid."""
@@ -290,6 +294,7 @@ class TestAuthConfigJwtSecret:
     def test_allows_empty_secret_in_development(self, monkeypatch):
         """Dev mode + empty secret is fine — dev_auto_auth bypasses JWT."""
         monkeypatch.setenv("WIKIMIND_ENV", "development")
+        monkeypatch.setenv("WIKIMIND_AUTH__JWT_SECRET_KEY", "")
         s = Settings()
         assert s.is_dev
         assert s.auth.jwt_secret_key == ""

@@ -13,6 +13,16 @@ from wikimind.engine import llm_router as llm_router_mod
 from wikimind.engine.llm_router import LLMRouter
 
 
+@pytest.fixture(autouse=True)
+def _reset_runtime_config():
+    """Reset RuntimeConfig overrides between tests."""
+    rc = get_runtime_config()
+    saved = rc._overrides.copy()
+    yield
+    rc._overrides.clear()
+    rc._overrides.update(saved)
+
+
 def _make_emitter():
     """Create a mock BudgetEventEmitter with trackable async methods."""
     emitter = MagicMock()
@@ -34,10 +44,16 @@ def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60, emitter=Non
         ollama=SimpleNamespace(enabled=False, model="llama3"),
         mock=SimpleNamespace(enabled=False, model="mock-1"),
         ollama_base_url="http://localhost:11434",
+        trace_enabled=False,
+        trace_store_content=False,
     )
     settings = SimpleNamespace(llm=llm_settings)
     with patch.object(llm_router_mod, "get_settings", return_value=settings):
-        return LLMRouter(event_emitter=emitter)
+        router = LLMRouter(event_emitter=emitter)
+    # Also set RuntimeConfig so _rc.get_monthly_budget_usd() returns the test value
+    rc = get_runtime_config()
+    rc._overrides["llm.monthly_budget_usd"] = budget_usd
+    return router
 
 
 def _mock_session_factory(spend: float):
