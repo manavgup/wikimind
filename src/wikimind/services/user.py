@@ -8,7 +8,6 @@ Route handlers in ``api/routes/auth.py`` are thin delegates.
 
 import base64
 import binascii
-import functools
 import hashlib
 import hmac
 import time
@@ -460,9 +459,3 @@ class UserService:
         # 5. Delete the user
         await session.delete(user)
         await session.commit()
-
-
-@functools.lru_cache(maxsize=1)
-def get_user_service() -> UserService:
-    """Return a singleton UserService instance for FastAPI dependency injection."""
-    return UserService()

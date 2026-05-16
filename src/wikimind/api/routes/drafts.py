@@ -19,10 +19,12 @@ from wikimind.models import (
     CompilationDraftResponse,
     RejectDraftResponse,
 )
-from wikimind.services.draft import DraftService, get_draft_service
+from wikimind.services.factories import get_draft_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.draft import DraftService
 
 router = APIRouter()
 

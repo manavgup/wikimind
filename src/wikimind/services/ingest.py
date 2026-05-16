@@ -8,7 +8,6 @@ and cleaned files written by adapters under ``~/.wikimind/raw/`` (see issue
 """
 
 import asyncio
-import functools
 from contextlib import suppress
 
 import httpx
@@ -339,9 +338,3 @@ class IngestService:
             for sibling in raw_dir.glob(f"{source.id}.*"):
                 with suppress(OSError):
                     sibling.unlink(missing_ok=True)
-
-
-@functools.lru_cache(maxsize=1)
-def get_ingest_service() -> IngestService:
-    """Return a singleton IngestService instance for FastAPI dependency injection."""
-    return IngestService()

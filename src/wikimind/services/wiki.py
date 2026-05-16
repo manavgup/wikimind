@@ -11,7 +11,6 @@ vector similarity and results are merged via configurable hybrid
 scoring. Otherwise the service falls back to keyword-only search.
 """
 
-import functools
 import json
 import re
 
@@ -62,8 +61,7 @@ from wikimind.models import (
     WikiHealthReport,
     WikilinkMatch,
 )
-from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
-from wikimind.services.tags import get_tag_service
+from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_wiki_storage, read_article_content
 
 log = structlog.get_logger()
@@ -245,6 +243,8 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     concepts = await _fetch_concept_names_from_join(session, article.id)
     sources = await _fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
+    from wikimind.services.factories import get_tag_service  # noqa: PLC0415
+
     tag_service = get_tag_service()
     tags = await tag_service.get_tags_for_article(session, article.id)
     return ArticleSummaryResponse(
@@ -433,6 +433,8 @@ class WikiService:
         sources = await _fetch_sources(session, source_ids)
 
         concepts = await _fetch_concept_names_from_join(session, article.id)
+
+        from wikimind.services.factories import get_tag_service  # noqa: PLC0415
 
         tag_service = get_tag_service()
         tags = await tag_service.get_tags_for_article(session, article.id)
@@ -823,6 +825,8 @@ class WikiService:
         keyword_scores_map = await keyword_scores
 
         if _SEARCH_AVAILABLE:
+            from wikimind.services.factories import get_embedding_service  # noqa: PLC0415
+
             embedding_service = get_embedding_service()
             if embedding_service is not None:
                 try:
@@ -1191,211 +1195,3 @@ class WikiService:
             return match.group(0)
 
         return pattern.sub(replace_wikilink, markdown)
-
-    async def get_health_summary(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        linter_service: object,
-    ) -> HealthSummaryResponse:
-        """Return a lightweight health summary from the latest lint report.
-
-        Falls back to a stub response with the article count when no lint
-        report exists or the linter service raises.
-
-        Args:
-            session: Async database session.
-            user_id: User scope.
-            linter_service: A LinterService instance (typed as object to
-                avoid circular imports).
-
-        Returns:
-            :class:`HealthSummaryResponse`.
-        """
-        try:
-            detail = await linter_service.get_latest(session, user_id=user_id)  # type: ignore[attr-defined]
-            return HealthSummaryResponse(
-                generated_at=detail.report.generated_at,
-                total_articles=detail.report.article_count,
-                total_findings=detail.report.total_findings,
-                contradictions_count=detail.report.contradictions_count,
-                orphans_count=detail.report.orphans_count,
-                status=detail.report.status,
-            )
-        except (HTTPException, SQLAlchemyError):
-            count_result = await session.execute(select(func.count()).select_from(Article))
-            return HealthSummaryResponse(
-                total_articles=count_result.scalar() or 0,
-                message="Run the linter to generate a health report",
-            )
-
-    async def resolve_legacy_contradiction(
-        self,
-        source_id: str,
-        target_id: str,
-        resolution: str,
-        resolution_note: str | None,
-        session: AsyncSession,
-        user_id: str,
-    ) -> ResolveContradictionResponse:
-        """Resolve a contradiction via the deprecated backlink-based endpoint.
-
-        Updates matching Backlink records and forwards the resolution to the
-        Contradiction table (single source of truth).
-
-        Args:
-            source_id: Source article ID.
-            target_id: Target article ID.
-            resolution: Resolution string (must be a valid ContradictionResolution value).
-            resolution_note: Optional note explaining the resolution.
-            session: Async database session.
-            user_id: User performing the resolution.
-
-        Returns:
-            :class:`ResolveContradictionResponse`.
-
-        Raises:
-            HTTPException: 422 if resolution is invalid, 404 if no backlink found.
-        """
-        valid = {r.value for r in ContradictionResolution}
-        if resolution not in valid:
-            raise HTTPException(
-                status_code=422,
-                detail=f"resolution must be one of {sorted(valid)}",
-            )
-
-        # Check both directions — the finding's article_a/article_b order may not
-        # match the backlink's source/target order.
-        backlinks: list[Backlink] = []
-        for src, tgt in [(source_id, target_id), (target_id, source_id)]:
-            result = await session.execute(
-                select(Backlink).where(
-                    Backlink.source_article_id == src,
-                    Backlink.target_article_id == tgt,
-                    Backlink.relation_type == RelationType.CONTRADICTS,
-                )
-            )
-            bl = result.scalars().first()
-            if bl:
-                backlinks.append(bl)
-        if not backlinks:
-            raise HTTPException(status_code=404, detail="Contradiction backlink not found")
-
-        now = utcnow_naive()
-        for bl in backlinks:
-            bl.resolution = resolution
-            bl.resolution_note = resolution_note
-            bl.resolved_at = now
-            bl.resolved_by = "user"
-            session.add(bl)
-
-        # Forward resolution to the Contradiction table (single source of truth)
-        ids = sorted([source_id, target_id])
-        ctr_result = await session.execute(
-            select(Contradiction).where(
-                Contradiction.user_id == user_id,
-                Contradiction.status == ContradictionStatus.ACTIVE,
-                Contradiction.article_a_id.in_(ids),  # type: ignore[attr-defined]
-                Contradiction.article_b_id.in_(ids),  # type: ignore[attr-defined]
-            )
-        )
-        for ctr in ctr_result.scalars().all():
-            ctr.status = ContradictionStatus.RESOLVED
-            ctr.resolution = resolution
-            ctr.resolved_at = now
-            ctr.resolved_by = user_id
-            session.add(ctr)
-
-        await session.commit()
-
-        return ResolveContradictionResponse(
-            resolved=True,
-            source_id=source_id,
-            target_id=target_id,
-            resolution=resolution,
-        )
-
-    async def recompile_article(
-        self,
-        article_id: str,
-        session: AsyncSession,
-        user_id: str,
-        mode: str | None = None,
-        force: bool = False,
-    ) -> RecompileResponse:
-        """Schedule an async recompilation job for an article.
-
-        If the article has been manually edited (``manually_edited=True``),
-        raises 409 Conflict unless ``force=True``. When forced, the manual
-        edits flag is cleared before recompilation.
-
-        Args:
-            article_id: Article UUID to recompile.
-            session: Async database session.
-            user_id: Owner user ID.
-            mode: "source" or "concept" (auto-detected from page_type if None).
-            force: If True, overwrite manual edits.
-
-        Returns:
-            :class:`RecompileResponse` with status and job_id.
-
-        Raises:
-            HTTPException: 404 if article not found, 409 if manually edited
-                without force, 422 if mode is invalid.
-        """
-        valid_modes = {"source", "concept"}
-        page_type_to_mode = {
-            PageType.SOURCE: "source",
-            PageType.CONCEPT: "concept",
-            PageType.ANSWER: "source",
-            PageType.INDEX: "source",
-            PageType.META: "source",
-            PageType.SYNTHESIS: "source",
-        }
-
-        if mode is not None and mode not in valid_modes:
-            raise HTTPException(
-                status_code=422,
-                detail=f"mode must be one of {sorted(valid_modes)} or null",
-            )
-
-        result = await session.exec(select(Article).where(Article.id == article_id, Article.user_id == user_id))
-        article = result.one_or_none()
-        if article is None:
-            raise HTTPException(status_code=404, detail="Article not found")
-
-        if article.manually_edited and not force:
-            raise HTTPException(
-                status_code=409,
-                detail="Article has manual edits. Use force=true to overwrite.",
-            )
-
-        # Clear manual edit flag when force-recompiling
-        if article.manually_edited and force:
-            article.manually_edited = False
-            article.edited_at = None
-            session.add(article)
-            await session.commit()
-
-        effective_mode = mode or page_type_to_mode.get(PageType(article.page_type), "source")
-
-        job = Job(
-            job_type=JobType.RECOMPILE_ARTICLE,
-            status=JobStatus.QUEUED,
-            source_id=article_id,
-            user_id=user_id,
-        )
-        session.add(job)
-        await session.commit()
-        await session.refresh(job)
-
-        compiler = get_background_compiler()
-        await compiler.schedule_recompile(article_id, effective_mode, job.id, user_id=user_id)
-
-        return RecompileResponse(status="scheduled", job_id=job.id)
-
-
-@functools.lru_cache(maxsize=1)
-def get_wiki_service() -> WikiService:
-    """Return a singleton WikiService instance for FastAPI dependency injection."""
-    return WikiService()

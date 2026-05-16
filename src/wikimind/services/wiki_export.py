@@ -6,7 +6,6 @@ markdown+JSON format includes a metadata.json sidecar for lossless
 round-tripping.
 """
 
-import functools
 import io
 import json
 import zipfile
@@ -195,9 +194,3 @@ class WikiExportService:
                     indent=2,
                 ),
             )
-
-
-@functools.lru_cache(maxsize=1)
-def get_wiki_export_service() -> WikiExportService:
-    """Return the singleton wiki export service."""
-    return WikiExportService()

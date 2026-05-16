@@ -39,7 +39,8 @@ from wikimind.models import (
     TokenCreateResponse,
     UserProfileResponse,
 )
-from wikimind.services.user import UserService, get_user_service
+from wikimind.services.factories import get_user_service
+from wikimind.services.user import UserService
 
 log = structlog.get_logger()
 

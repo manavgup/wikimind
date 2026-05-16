@@ -7,7 +7,6 @@ promoting captures to full Sources for compilation, and discarding low-signal it
 
 from __future__ import annotations
 
-import functools
 import hashlib
 from typing import TYPE_CHECKING
 
@@ -25,7 +24,6 @@ from wikimind.models import (
     CaptureSource,
     CaptureStatus,
 )
-from wikimind.services.ingest import get_ingest_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -230,6 +228,8 @@ class CaptureService:
             )
 
         # Use the ingest service to create a real Source from the capture content
+        from wikimind.services.factories import get_ingest_service  # noqa: PLC0415
+
         ingest_svc = get_ingest_service()
 
         # If the capture has a URL, ingest as URL; otherwise ingest as text
@@ -305,9 +305,3 @@ class CaptureService:
             user_id=user_id,
         )
         return CaptureDiscardResponse(capture_id=capture.id)
-
-
-@functools.lru_cache(maxsize=1)
-def get_capture_service() -> CaptureService:
-    """Return a singleton CaptureService instance for FastAPI dependency injection."""
-    return CaptureService()

@@ -11,10 +11,8 @@ from wikimind.models import (
     CreateCompilationSchemaRequest,
     UpdateCompilationSchemaRequest,
 )
-from wikimind.services.compilation_schema import (
-    CompilationSchemaService,
-    get_compilation_schema_service,
-)
+from wikimind.services.compilation_schema import CompilationSchemaService
+from wikimind.services.factories import get_compilation_schema_service
 
 log = structlog.get_logger()
 

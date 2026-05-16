@@ -10,8 +10,9 @@ from wikimind.models import (
     CreateTagRequest,
     TagResponse,
 )
-from wikimind.services.tags import TagService, get_tag_service
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.factories import get_tag_service, get_wiki_service
+from wikimind.services.tags import TagService
+from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
 

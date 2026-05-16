@@ -15,10 +15,12 @@ from wikimind.models import (
     LintReportDetail,
     LintRunResponse,
 )
-from wikimind.services.linter import LinterService, get_linter_service
+from wikimind.services.factories import get_linter_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.linter import LinterService
 
 router = APIRouter()
 

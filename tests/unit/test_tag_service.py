@@ -9,7 +9,8 @@ import pytest
 from tests.conftest import TEST_USER_ID
 from wikimind.errors import NotFoundError
 from wikimind.models import Article, PageType
-from wikimind.services.tags import TagService, get_tag_service
+from wikimind.services.factories import get_tag_service
+from wikimind.services.tags import TagService
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

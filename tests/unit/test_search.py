@@ -9,13 +9,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, SearchResponse, SearchResult, User
+from wikimind.services.factories import get_search_service
 from wikimind.services.search import (
     SearchService,
     _article_id_to_rowid,
     _sanitize_fts5_query,
     _sanitize_postgres_query,
     create_fts_table,
-    get_search_service,
     index_article,
     rebuild_fts_index,
     remove_article,

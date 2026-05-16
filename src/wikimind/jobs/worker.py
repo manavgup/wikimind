@@ -51,8 +51,7 @@ from wikimind.models import (
     NormalizedDocument,
     Source,
 )
-from wikimind.services.draft import get_draft_service
-from wikimind.services.embedding import _SEARCH_AVAILABLE, get_embedding_service
+from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_raw_storage, get_wiki_storage
 
 log = structlog.get_logger()
@@ -111,6 +110,8 @@ async def _try_embed_article(article: Article) -> None:
     if not _SEARCH_AVAILABLE:
         return
     try:
+        from wikimind.services.factories import get_embedding_service  # noqa: PLC0415
+
         embedding_service = get_embedding_service()
         if embedding_service is not None:
             uid = article.user_id
@@ -157,13 +158,10 @@ async def _compile_interactive(
 
     # Write results with a short-lived session
     await emit_source_progress(source_id, "Creating draft for review...", user_id=user_id)
-    async with session_factory() as session:
-        source_row = await session.get(Source, source_id)
-        if not source_row:
-            msg = "Source disappeared during compile"
-            raise ValueError(msg)
-        draft_service = get_draft_service()
-        draft = await draft_service.create_draft(source_row, doc, result, takeaways, session)
+    from wikimind.services.factories import get_draft_service  # noqa: PLC0415
+
+    draft_service = get_draft_service()
+    draft = await draft_service.create_draft(source, doc, result, takeaways, session)
 
         job = await session.get(Job, job_id)
         if job:

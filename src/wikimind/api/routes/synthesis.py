@@ -13,7 +13,8 @@ from wikimind.models import (
     PageType,
     SynthesisResponse,
 )
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.factories import get_wiki_service
+from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
 

@@ -18,7 +18,8 @@ from wikimind.models import (
     SourceContentResponse,
     SourceImage,
 )
-from wikimind.services.ingest import IngestService, get_ingest_service
+from wikimind.services.factories import get_ingest_service
+from wikimind.services.ingest import IngestService
 from wikimind.storage import find_original_sibling, get_raw_storage
 
 # Strict pattern: only alphanumeric, hyphens, underscores, dots (no path separators)

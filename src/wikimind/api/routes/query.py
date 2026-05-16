@@ -21,7 +21,8 @@ from wikimind.models import (
     QueryRequest,
 )
 from wikimind.services.crystallization import crystallize_conversation
-from wikimind.services.query import QueryService, get_query_service
+from wikimind.services.factories import get_query_service
+from wikimind.services.query import QueryService
 
 log = structlog.get_logger()
 

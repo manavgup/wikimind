@@ -226,7 +226,7 @@ class TestCaptureService:
         mock_ingest.ingest_text = AsyncMock(return_value=mock_source)
         mock_ingest.ingest_url = AsyncMock(return_value=mock_source)
 
-        with patch("wikimind.services.capture.get_ingest_service", return_value=mock_ingest):
+        with patch("wikimind.services.factories.get_ingest_service", return_value=mock_ingest):
             ingest_resp = await service.ingest_capture(resp.id, db_session, TEST_USER_ID)
 
         assert ingest_resp.capture_id == resp.id
@@ -255,7 +255,7 @@ class TestCaptureService:
         mock_ingest = AsyncMock()
         mock_ingest.ingest_url = AsyncMock(return_value=mock_source)
 
-        with patch("wikimind.services.capture.get_ingest_service", return_value=mock_ingest):
+        with patch("wikimind.services.factories.get_ingest_service", return_value=mock_ingest):
             ingest_resp = await service.ingest_capture(resp.id, db_session, TEST_USER_ID)
 
         assert ingest_resp.source_id == "source-url-456"

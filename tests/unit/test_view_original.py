@@ -12,7 +12,7 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.main import app
 from wikimind.models import Source, SourceType
-from wikimind.services.ingest import get_ingest_service
+from wikimind.services.factories import get_ingest_service
 from wikimind.storage import LocalFileStorage
 
 

@@ -10,11 +10,13 @@ from sqlmodel import select
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import Job, JobTriggerResponse, Source
-from wikimind.services.compiler import CompilerService, get_compiler_service
-from wikimind.services.linter import LinterService, get_linter_service
+from wikimind.services.factories import get_compiler_service, get_linter_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.compiler import CompilerService
+    from wikimind.services.linter import LinterService
 
 router = APIRouter()
 

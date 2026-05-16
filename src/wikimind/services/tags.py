@@ -4,8 +4,6 @@ Tags are user-asserted labels (``read-later``, ``favorite``, ``to-revisit``)
 that provide an organizational layer separate from LLM-derived concepts.
 """
 
-import functools
-
 import structlog
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -274,9 +272,3 @@ class TagService:
             msg = "Article not found"
             raise NotFoundError(msg)
         return article
-
-
-@functools.lru_cache(maxsize=1)
-def get_tag_service() -> TagService:
-    """Return a singleton TagService instance for FastAPI dependency injection."""
-    return TagService()

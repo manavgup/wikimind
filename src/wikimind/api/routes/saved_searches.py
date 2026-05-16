@@ -11,8 +11,9 @@ from wikimind.models import (
     SavedSearchExecuteResponse,
     SavedSearchResponse,
 )
-from wikimind.services.saved_searches import SavedSearchService, get_saved_search_service
-from wikimind.services.wiki import WikiService, get_wiki_service
+from wikimind.services.factories import get_saved_search_service, get_wiki_service
+from wikimind.services.saved_searches import SavedSearchService
+from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
 

@@ -19,8 +19,9 @@ from wikimind.models import (
     RssFeedToggleRequest,
     RssPollResponse,
 )
-from wikimind.services.capture import CaptureService, get_capture_service
-from wikimind.services.rss import RssService, get_rss_service
+from wikimind.services.capture import CaptureService
+from wikimind.services.factories import get_capture_service, get_rss_service
+from wikimind.services.rss import RssService
 
 router = APIRouter()
 

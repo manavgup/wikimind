@@ -14,7 +14,8 @@ from wikimind.models import (
     PublicArticleResponse,
     ShareLinkResponse,
 )
-from wikimind.services.sharing import SharingService, get_sharing_service
+from wikimind.services.factories import get_sharing_service
+from wikimind.services.sharing import SharingService
 
 log = structlog.get_logger()
 

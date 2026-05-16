@@ -13,7 +13,8 @@ from wikimind.database import get_session
 from wikimind.errors import NotFoundError
 from wikimind.main import app
 from wikimind.models import Source, SourceContentResponse, SourceType
-from wikimind.services.ingest import IngestService, get_ingest_service
+from wikimind.services.factories import get_ingest_service
+from wikimind.services.ingest import IngestService
 from wikimind.storage import LocalFileStorage
 
 

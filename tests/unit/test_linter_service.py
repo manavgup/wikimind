@@ -17,7 +17,8 @@ from wikimind.models import (
     OrphanFinding,
     StructuralFinding,
 )
-from wikimind.services.linter import LinterService, get_linter_service
+from wikimind.services.factories import get_linter_service
+from wikimind.services.linter import LinterService
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession

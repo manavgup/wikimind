@@ -8,18 +8,20 @@ from unittest.mock import AsyncMock, patch
 from tests.conftest import TEST_USER_ID
 from wikimind.models import Article, Concept, IngestStatus, PageType, Source, SourceType, User
 from wikimind.services import admin as admin_mod
-from wikimind.services.admin import AdminService, get_admin_service
+from wikimind.services import factories as services_mod
+from wikimind.services.admin import AdminService
+from wikimind.services.factories import get_admin_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 def test_admin_service_singleton() -> None:
-    admin_mod._admin_service = None
+    services_mod._admin_service = None
     a = get_admin_service()
     b = get_admin_service()
     assert a is b
-    admin_mod._admin_service = None
+    services_mod._admin_service = None
 
 
 async def test_get_stats_empty(db_session: AsyncSession) -> None:

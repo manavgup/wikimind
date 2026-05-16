@@ -6,7 +6,6 @@ takeaways, optionally provides guidance, and approves or rejects the
 draft via the API.
 """
 
-import functools
 import json
 
 import structlog
@@ -250,9 +249,3 @@ class DraftService:
 
         log.info("draft rejected", draft_id=draft.id, source_id=source_id)
         return RejectDraftResponse(status="rejected", source_id=source_id)
-
-
-@functools.lru_cache(maxsize=1)
-def get_draft_service() -> DraftService:
-    """Return a singleton DraftService instance for FastAPI DI."""
-    return DraftService()
