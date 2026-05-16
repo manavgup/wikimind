@@ -310,6 +310,7 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 | `make docstyle` | Run pydocstyle docstring checks |
 | `make bandit` | Run bandit security scanner |
 | `make vulture` | Detect dead code (80% confidence) |
+| `make check-layers` | Detect cross-layer import violations (architecture guardrail) |
 | `make deptry` | Detect unused/missing/transitive dependencies |
 | `make dead-code` | Alias for vulture |
 | `make doc-coverage` | Measure docstring coverage (fails if below fail-under threshold) |

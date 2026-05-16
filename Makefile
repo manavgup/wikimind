@@ -239,6 +239,10 @@ bandit: ## Run bandit security scanner
 vulture: ## Detect dead code (80% confidence)
 	$(BIN)/vulture src/wikimind vulture_whitelist.py --min-confidence 80
 
+.PHONY: check-layers
+check-layers: ## Detect cross-layer import violations (architecture guardrail)
+	$(PYTHON) scripts/check_layer_boundaries.py
+
 .PHONY: deptry
 deptry: ## Detect unused/missing/transitive dependencies
 	$(BIN)/deptry src/
@@ -255,7 +259,7 @@ update-secrets-baseline: ## Update detect-secrets baseline (keeps line numbers i
 	@uv run python scripts/update_secrets_baseline.py
 
 .PHONY: verify
-verify: update-secrets-baseline export-openapi check-docs check-doc-sync lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension + doc-sync)
+verify: update-secrets-baseline export-openapi check-docs check-doc-sync check-layers lint format-check typecheck pyright docstyle coverage-check desktop-verify extension-verify ## Run the required full-verify suite (Python + desktop + extension + doc-sync)
 
 .PHONY: coverage-ci
 coverage-ci: ## Run backend CI tests with terminal, HTML, and XML coverage outputs
