@@ -85,11 +85,9 @@ def extract_imports(filepath: Path) -> list[tuple[int, str]]:
     imports: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                imports.append((node.lineno, alias.name))
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append((node.lineno, node.module))
+            imports.extend((node.lineno, alias.name) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append((node.lineno, node.module))
     return imports
 
 
@@ -153,16 +151,12 @@ def main() -> int:
             print(f"  {rel}:{v.line}: {v.importer_layer}/ imports {v.imported_module}")
         print()
         print(
-            f"FAILED: {len(errors)} new violation(s) found. "
-            "Fix the imports or update KNOWN_VIOLATIONS if intentional."
+            f"FAILED: {len(errors)} new violation(s) found. Fix the imports or update KNOWN_VIOLATIONS if intentional."
         )
         return 1
 
     if strict:
-        print(
-            f"FAILED (--strict): {len(warnings)} known violation(s) still present. "
-            "Refactor to remove them."
-        )
+        print(f"FAILED (--strict): {len(warnings)} known violation(s) still present. Refactor to remove them.")
         return 1
 
     print("check-layers: OK — only known (pre-existing) violations remain.")
