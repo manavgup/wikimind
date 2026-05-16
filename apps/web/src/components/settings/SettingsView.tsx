@@ -6,6 +6,7 @@ import { Spinner } from "../shared/Spinner";
 import { ProviderCard } from "./ProviderCard";
 import { ApiKeyModal } from "./ApiKeyModal";
 import { CostDashboard } from "./CostDashboard";
+import { DoclingStatus } from "./DoclingStatus";
 import { SyncStatus } from "./SyncStatus";
 import { WikiExportPanel } from "./WikiExportPanel";
 import { ShareLinksPanel } from "./ShareLinksPanel";
@@ -75,6 +76,11 @@ export function SettingsView() {
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Sync</h2>
           <SyncStatus sync={settings.sync} />
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold text-slate-700">Services</h2>
+          <DoclingStatus />
         </section>
 
         <section className="mb-8">
