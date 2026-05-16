@@ -152,3 +152,63 @@ export interface SynthesisSuggestion {
 export function getSynthesisSuggestions(): Promise<SynthesisSuggestion[]> {
   return apiFetch<SynthesisSuggestion[]>("/api/wiki/synthesis/suggestions");
 }
+
+// ---------------------------------------------------------------------------
+// Synthesis wizard (preview → refine → confirm)
+// ---------------------------------------------------------------------------
+
+export type SynthesisType =
+  | "comparative"
+  | "chronological"
+  | "thematic"
+  | "gap_analysis";
+
+export interface PreviewSynthesisRequest {
+  synthesis_type: SynthesisType;
+  article_ids: string[];
+  guidance?: string;
+}
+
+export interface SynthesisPreviewResponse {
+  preview_id: string;
+  title: string;
+  draft_markdown: string;
+  themes: string[];
+  source_count: number;
+}
+
+export interface RefineSynthesisRequest {
+  preview_id: string;
+  feedback: string;
+}
+
+export interface ConfirmSynthesisRequest {
+  preview_id: string;
+}
+
+export function previewSynthesis(
+  body: PreviewSynthesisRequest,
+): Promise<SynthesisPreviewResponse> {
+  return apiFetch<SynthesisPreviewResponse>("/api/wiki/synthesis/preview", {
+    method: "POST",
+    body,
+  });
+}
+
+export function refineSynthesis(
+  body: RefineSynthesisRequest,
+): Promise<SynthesisPreviewResponse> {
+  return apiFetch<SynthesisPreviewResponse>("/api/wiki/synthesis/refine", {
+    method: "POST",
+    body,
+  });
+}
+
+export function confirmSynthesis(
+  body: ConfirmSynthesisRequest,
+): Promise<SynthesisResponse> {
+  return apiFetch<SynthesisResponse>("/api/wiki/synthesis/confirm", {
+    method: "POST",
+    body,
+  });
+}
