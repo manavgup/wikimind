@@ -5,15 +5,15 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-import httpx
-import structlog
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
+from sqlmodel import select
 
 from wikimind.api.deps import require_admin
 from wikimind.config import get_settings
 from wikimind.database import get_session
-from wikimind.services.factories import get_admin_service
+from wikimind.models import LLMTrace, LLMTraceListResponse, LLMTraceResponse
+from wikimind.services.admin import AdminService, get_admin_service
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -100,22 +100,42 @@ async def trigger_reindex(
     return await service.trigger_reindex()
 
 
-@router.get("/docling-status", response_model=DoclingStatusResponse)
-async def get_docling_status(
+@router.get("/traces", response_model=LLMTraceListResponse)
+async def get_traces(
+    session: AsyncSession = Depends(get_session),
     _admin_user_id: str = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ):
-    """Check connectivity to the Docling-serve PDF extraction sidecar."""
-    settings = get_settings()
-    url = settings.docling_serve_url
+    """Paginated LLM traces (most recent first, admin only)."""
+    count_result = await session.execute(select(func.count()).select_from(LLMTrace))
+    total = count_result.scalar() or 0
 
-    start = time.monotonic()
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{url}/health")
-            resp.raise_for_status()
-        latency_ms = round((time.monotonic() - start) * 1000, 1)
-        return DoclingStatusResponse(status="connected", url=url, latency_ms=latency_ms)
-    except (httpx.HTTPError, httpx.ConnectError, OSError) as exc:
-        latency_ms = round((time.monotonic() - start) * 1000, 1)
-        log.warning("docling-status: sidecar unreachable", url=url, error=str(exc))
-        return DoclingStatusResponse(status="disconnected", url=url, latency_ms=latency_ms)
+    result = await session.exec(
+        select(LLMTrace)
+        .order_by(LLMTrace.created_at.desc())  # type: ignore[attr-defined]
+        .offset(offset)
+        .limit(limit)
+    )
+    traces = list(result.all())
+
+    return LLMTraceListResponse(
+        items=[
+            LLMTraceResponse(
+                id=t.id,
+                user_id=t.user_id,
+                model=t.model,
+                prompt_tokens=t.prompt_tokens,
+                completion_tokens=t.completion_tokens,
+                total_tokens=t.total_tokens,
+                latency_ms=t.latency_ms,
+                created_at=t.created_at,
+                prompt_text=t.prompt_text,
+                completion_text=t.completion_text,
+                source_id=t.source_id,
+                operation=t.operation,
+            )
+            for t in traces
+        ],
+        total=total,
+    )

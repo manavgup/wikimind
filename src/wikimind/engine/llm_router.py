@@ -28,7 +28,14 @@ from wikimind.config import get_api_key, get_settings
 from wikimind.database import get_session_factory
 from wikimind.engine.events import BudgetEventEmitter, NullBudgetEventEmitter
 from wikimind.errors import UpstreamError
-from wikimind.models import CompletionRequest, CompletionResponse, CostLog, Provider, TaskType
+from wikimind.models import (
+    CompletionRequest,
+    CompletionResponse,
+    CostLog,
+    LLMTrace,
+    Provider,
+    TaskType,
+)
 from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
@@ -359,6 +366,38 @@ class LLMRouter:
         except SQLAlchemyError:
             log.debug("cost log write failed (table may not exist)", exc_info=True)
 
+    async def _log_trace(
+        self,
+        *,
+        model: str,
+        task_type: TaskType,
+        response: CompletionResponse,
+        user_id: str,
+        prompt_text: str | None = None,
+    ) -> None:
+        """Write an LLMTrace entry when tracing is enabled."""
+        if not self.settings.llm.trace_enabled:
+            return
+
+        store_content = self.settings.llm.trace_store_content
+        trace = LLMTrace(
+            user_id=user_id,
+            model=model,
+            prompt_tokens=response.input_tokens,
+            completion_tokens=response.output_tokens,
+            total_tokens=response.input_tokens + response.output_tokens,
+            latency_ms=response.latency_ms,
+            prompt_text=prompt_text if store_content else None,
+            completion_text=response.content if store_content else None,
+            operation=task_type.value,
+        )
+        try:
+            async with get_session_factory()() as trace_session:
+                trace_session.add(trace)
+                await trace_session.commit()
+        except SQLAlchemyError:
+            log.debug("trace log write failed (table may not exist)", exc_info=True)
+
     async def _execute_with_fallback(
         self,
         *,
@@ -439,6 +478,19 @@ class LLMRouter:
         async def _op(instance: ProviderProtocol, provider: Provider, model: str) -> CompletionResponse:
             response = await instance.complete(request, model)
             await self._log_cost(provider, model, request.task_type, response, user_id=user_id)
+            # Build prompt text from messages for trace storage (only when tracing)
+            prompt_text: str | None = None
+            if self.settings.llm.trace_enabled:
+                prompt_text = "\n".join(f"[{m.get('role', 'user')}]: {m.get('content', '')}" for m in request.messages)
+                if request.system:
+                    prompt_text = f"[system]: {request.system}\n{prompt_text}"
+            await self._log_trace(
+                model=model,
+                task_type=request.task_type,
+                response=response,
+                user_id=user_id,
+                prompt_text=prompt_text,
+            )
             log.info(
                 "LLM call complete",
                 provider=provider,
@@ -504,6 +556,16 @@ class LLMRouter:
                 temperature=temperature,
             )
             await self._log_cost(provider, model, task_type, response, user_id=user_id)
+            prompt_text: str | None = None
+            if self.settings.llm.trace_enabled:
+                prompt_text = f"[system]: {system}\n[multimodal: {len(content_parts)} parts]"
+            await self._log_trace(
+                model=model,
+                task_type=task_type,
+                response=response,
+                user_id=user_id,
+                prompt_text=prompt_text,
+            )
             log.info(
                 "LLM multimodal call complete",
                 provider=provider,

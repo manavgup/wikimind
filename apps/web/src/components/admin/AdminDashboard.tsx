@@ -10,6 +10,7 @@ import {
   type SystemStats,
   type StuckSource,
 } from "../../api/admin";
+import { TraceViewer } from "./TraceViewer";
 
 // ---------------------------------------------------------------------------
 // Overview cards
@@ -288,6 +289,10 @@ export function AdminDashboard() {
         <OverviewSection stats={stats} />
         <ContentBreakdownSection stats={stats} />
         <OperationalHealthSection stats={stats} />
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-slate-700">LLM Traces</h2>
+          <TraceViewer />
+        </section>
       </div>
     </div>
   );
