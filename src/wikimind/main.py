@@ -42,9 +42,10 @@ from wikimind.api.routes import (
 )
 from wikimind.api.routes import settings as settings_router
 from wikimind.api.routes.settings import apply_runtime_llm_preferences
-from wikimind.api.routes.ws import _start_redis_subscriber, stop_redis_subscriber
+from wikimind.api.routes.ws import WebSocketBudgetEmitter, _start_redis_subscriber, stop_redis_subscriber
 from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
+from wikimind.engine.llm_router import configure_llm_router
 from wikimind.jobs.background import get_background_compiler
 from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
@@ -165,6 +166,7 @@ async def lifespan(_app: FastAPI):
 
     log.info("WikiMind gateway starting", port=settings.gateway_port)
     await init_db()
+    configure_llm_router(event_emitter=WebSocketBudgetEmitter())
     await apply_runtime_llm_preferences()
     log.info("Database initialized")
 

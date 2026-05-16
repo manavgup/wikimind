@@ -405,6 +405,34 @@ async def emit_budget_exceeded(spend_usd: float, budget_usd: float, *, user_id: 
     )
 
 
+class WebSocketBudgetEmitter:
+    """Concrete BudgetEventEmitter that broadcasts via WebSocket.
+
+    Satisfies :class:`wikimind.engine.events.BudgetEventEmitter` Protocol.
+    """
+
+    async def emit_budget_warning(
+        self,
+        spend_usd: float,
+        budget_usd: float,
+        pct: float,
+        *,
+        user_id: str,
+    ) -> None:
+        """Broadcast budget warning via WebSocket."""
+        await emit_budget_warning(spend_usd, budget_usd, pct, user_id=user_id)
+
+    async def emit_budget_exceeded(
+        self,
+        spend_usd: float,
+        budget_usd: float,
+        *,
+        user_id: str,
+    ) -> None:
+        """Broadcast budget exceeded via WebSocket."""
+        await emit_budget_exceeded(spend_usd, budget_usd, user_id=user_id)
+
+
 async def emit_draft_ready(
     source_id: str,
     draft_id: str,

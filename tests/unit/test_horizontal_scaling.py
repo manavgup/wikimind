@@ -134,15 +134,15 @@ class TestPublishToRedis:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _reset_runtime_config():
-    """Clear RuntimeConfig overrides between tests to avoid cross-pollution."""
-    rc = get_runtime_config()
-    yield
-    rc._overrides.clear()
+def _make_emitter():
+    """Create a mock BudgetEventEmitter with trackable async methods."""
+    emitter = MagicMock()
+    emitter.emit_budget_warning = AsyncMock()
+    emitter.emit_budget_exceeded = AsyncMock()
+    return emitter
 
 
-def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
+def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60, emitter=None):
     llm_settings = SimpleNamespace(
         default_provider="anthropic",
         fallback_enabled=True,
@@ -158,13 +158,7 @@ def _make_router(budget_usd=50.0, warning_pct=0.8, cache_seconds=60):
     )
     settings = SimpleNamespace(llm=llm_settings)
     with patch.object(llm_router_mod, "get_settings", return_value=settings):
-        router = LLMRouter()
-    # Set the RuntimeConfig override so _check_budget reads the correct budget.
-    # RuntimeConfig.get_monthly_budget_usd() calls get_settings() in wikimind.config,
-    # not the patched reference in llm_router.
-    rc = get_runtime_config()
-    rc.set("llm.monthly_budget_usd", budget_usd)
-    return router
+        return LLMRouter(event_emitter=emitter)
 
 
 def _mock_session_factory(spend: float):
@@ -228,7 +222,8 @@ class TestBudgetFlagRedisDedup:
 
     async def test_check_budget_uses_redis_flags(self) -> None:
         """When Redis says warning was already sent, skip emitting."""
-        router = _make_router(budget_usd=100.0, warning_pct=0.8)
+        emitter = _make_emitter()
+        router = _make_router(budget_usd=100.0, warning_pct=0.8, emitter=emitter)
         factory = _mock_session_factory(spend=85.0)
 
         mock_redis = AsyncMock()
@@ -239,14 +234,12 @@ class TestBudgetFlagRedisDedup:
         with (
             patch.object(llm_router_mod, "get_session_factory", return_value=factory),
             patch.object(llm_router_mod, "_get_budget_redis", return_value=mock_redis),
-            patch("wikimind.engine.llm_router.emit_budget_warning", new_callable=AsyncMock) as mock_warn,
-            patch("wikimind.engine.llm_router.emit_budget_exceeded", new_callable=AsyncMock) as mock_exceeded,
         ):
             await router._check_budget(user_id=TEST_USER_ID)
 
         # Warning should NOT fire — Redis says it was already sent
-        mock_warn.assert_not_awaited()
-        mock_exceeded.assert_not_awaited()
+        emitter.emit_budget_warning.assert_not_awaited()
+        emitter.emit_budget_exceeded.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
