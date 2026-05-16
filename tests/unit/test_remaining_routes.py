@@ -315,7 +315,7 @@ class TestWikiRoutes:
     async def test_recompile_article_not_found(self, client: AsyncClient):
         mock_bg = MagicMock()
         mock_bg.schedule_recompile = AsyncMock()
-        with patch("wikimind.api.routes.wiki.get_background_compiler", return_value=mock_bg):
+        with patch("wikimind.services.wiki.get_background_compiler", return_value=mock_bg):
             resp = await client.post("/api/wiki/articles/nonexistent-id/recompile")
         assert resp.status_code == 404
 
@@ -359,7 +359,7 @@ class TestWikiRoutesWithData:
 
         mock_bg = MagicMock()
         mock_bg.schedule_recompile = AsyncMock()
-        with patch("wikimind.api.routes.wiki.get_background_compiler", return_value=mock_bg):
+        with patch("wikimind.services.wiki.get_background_compiler", return_value=mock_bg):
             resp = await client.post(f"/api/wiki/articles/{art.id}/recompile")
         assert resp.status_code == 200
         data = resp.json()
