@@ -5,6 +5,7 @@ Markdown file that records ingest, compile, query, and file-back events.
 The DB remains the source of truth; this file is a navigational aid.
 """
 
+import os
 from pathlib import Path
 
 import structlog
@@ -40,13 +41,27 @@ def append_log_entry(
             indented detail lines beneath the heading.
         user_id: Optional user ID for path scoping.
     """
-    wiki_dir = Path(get_settings().data_dir) / "wiki"
+    base_dir = Path(get_settings().data_dir) / "wiki"
     if user_id:
-        # Sanitize: use only the basename to prevent path traversal.
-        safe_id = Path(user_id).name
-        wiki_dir = wiki_dir / safe_id
-    wiki_dir.mkdir(parents=True, exist_ok=True)
-    log_path = wiki_dir / "log.md"
+        # Sanitize: os.path.basename strips directory components (CodeQL sanitizer)
+        safe_id = os.path.basename(user_id)
+        if not safe_id or safe_id != user_id:
+            msg = f"Path traversal blocked for user_id={user_id!r}"
+            raise ValueError(msg)
+    else:
+        safe_id = ""
+
+    # Build and verify path using os.path.realpath + startswith (CodeQL-safe pattern)
+    base_real = os.path.realpath(str(base_dir))
+    target = os.path.join(base_real, safe_id) if safe_id else base_real
+    target_real = os.path.realpath(target)
+    if not target_real.startswith(base_real):
+        msg = f"Path traversal blocked for user_id={user_id!r}"
+        raise ValueError(msg)
+
+    resolved_dir = Path(target_real)
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    log_path = resolved_dir / "log.md"
 
     datestamp = utcnow_naive().strftime("%Y-%m-%d")
     lines = [f"## [{datestamp}] {op} | {title}\n"]

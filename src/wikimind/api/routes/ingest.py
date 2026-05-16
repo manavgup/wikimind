@@ -1,7 +1,9 @@
 """Endpoints for ingesting sources (URLs, PDFs, text) into the knowledge base."""
 
 import mimetypes
+import os
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -9,6 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import get_current_user_id
+from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
 from wikimind.models import (
@@ -149,12 +152,15 @@ async def get_source_detail(
     )
     img_rows = (await session.exec(img_stmt)).all()
     images: list[SourceImageEntry] = []
-    for filename, kind in img_rows:
-        stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    # Access by index (0=filename, 1=kind) to match select() column order above.
+    for row in img_rows:
+        img_filename: str = row[0]
+        img_kind: str = row[1]
+        stem = img_filename.rsplit(".", 1)[0] if "." in img_filename else img_filename
         parts = stem.rsplit("-", 1)
         num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
-        label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
-        images.append(SourceImageEntry(filename=filename, kind=kind, label=label))
+        label = f"{'Table' if img_kind == 'table' else 'Figure'} {num}"
+        images.append(SourceImageEntry(filename=img_filename, kind=img_kind, label=label))
 
     # Query linked articles via ArticleSource join table
     art_stmt = (
@@ -186,14 +192,36 @@ async def get_source_detail(
     )
 
 
-def _build_pipeline_steps(source: Source) -> list[PipelineStep]:
+def _build_pipeline_steps(source: Source) -> list[PipelineStep]:  # noqa: PLR0911
     """Derive pipeline step statuses from the source's current state."""
     status = source.status
 
     if status == "failed":
+        # Derive the actual failure point from available data:
+        # - If clean_text exists, extraction succeeded so failure is at Compile.
+        # - If file_path exists but no clean_text, extraction failed.
+        # - Otherwise, fetch itself failed.
+        error_desc = source.error_message or "Failed"
+        if source.clean_text:
+            # Extraction and cleaning succeeded; failure is at Compile
+            return [
+                PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+                PipelineStep(name="Extract", status="complete", description="Text extracted"),
+                PipelineStep(name="Clean", status="complete", description="Text normalized"),
+                PipelineStep(name="Compile", status="failed", description=error_desc),
+            ]
+        if source.file_path:
+            # Fetch succeeded but extraction/cleaning failed
+            return [
+                PipelineStep(name="Fetch", status="complete", description="Source fetched"),
+                PipelineStep(name="Extract", status="failed", description=error_desc),
+                PipelineStep(name="Clean", status="pending", description="Normalize text"),
+                PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
+            ]
+        # No file_path means fetch itself failed
         return [
-            PipelineStep(name="Fetch", status="complete", description="Source fetched"),
-            PipelineStep(name="Extract", status="failed", description=source.error_message or "Failed"),
+            PipelineStep(name="Fetch", status="failed", description=error_desc),
+            PipelineStep(name="Extract", status="pending", description="Extract text & images"),
             PipelineStep(name="Clean", status="pending", description="Normalize text"),
             PipelineStep(name="Compile", status="pending", description="Generate article via LLM"),
         ]
@@ -313,34 +341,50 @@ async def list_source_images(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
-    _validate_path_component(source_id, "source_id")
-    await service.get_source(source_id, session, user_id=user_id)
+    # Sanitize source_id for any filesystem use — os.path.basename is a CodeQL-recognized sanitizer
+    safe_source_id = os.path.basename(source_id)
+    if safe_source_id != source_id:
+        raise HTTPException(status_code=400, detail="Invalid source_id")
+    _validate_path_component(safe_source_id, "source_id")
+    await service.get_source(safe_source_id, session, user_id=user_id)
 
     # DB-first: query source_image table
     stmt = (
         select(SourceImage.filename, SourceImage.kind)
-        .where(SourceImage.source_id == source_id, SourceImage.user_id == user_id)
+        .where(SourceImage.source_id == safe_source_id, SourceImage.user_id == user_id)
         .order_by(SourceImage.filename)
     )
     rows = (await session.exec(stmt)).all()
     if rows:
         entries = []
-        for filename, kind in rows:
-            stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        # Access by index (0=filename, 1=kind) to match select() column order above.
+        for row in rows:
+            img_filename: str = row[0]
+            img_kind: str = row[1]
+            stem = img_filename.rsplit(".", 1)[0] if "." in img_filename else img_filename
             parts = stem.rsplit("-", 1)
             num = parts[1] if len(parts) == 2 and parts[1].isdigit() else stem
-            label = f"{'Table' if kind == 'table' else 'Figure'} {num}"
-            entries.append({"filename": filename, "kind": kind, "label": label})
+            label = f"{'Table' if img_kind == 'table' else 'Figure'} {num}"
+            entries.append({"filename": img_filename, "kind": img_kind, "label": label})
         return entries
 
     # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
+    safe_user = os.path.basename(user_id)
+    image_dir_path = PDFAdapter.get_image_dir(safe_user, safe_source_id)
+    image_dir_real = os.path.realpath(str(image_dir_path))
+    base_real = os.path.realpath(str(get_settings().data_dir))
+    if not image_dir_real.startswith(base_real):
+        return []
+    image_dir = Path(image_dir_real)
     if not image_dir.is_dir():
         return []
 
     entries = []
     for path in sorted(image_dir.iterdir()):
         if not path.is_file():
+            continue
+        # Only serve files that resolve inside the image directory.
+        if not path.resolve().is_relative_to(image_dir):
             continue
         stem = path.stem
         kind = "table" if stem.startswith("table-") else "figure"
@@ -368,19 +412,27 @@ async def get_source_image(
     Reads from the ``source_image`` table first (DB-backed storage),
     falling back to the filesystem for pre-migration sources.
     """
-    _validate_path_component(source_id, "source_id")
-    _validate_path_component(filename, "filename")
-    await service.get_source(source_id, session, user_id=user_id)
+    # Sanitize inputs — os.path.basename is a CodeQL-recognized path-injection sanitizer
+    safe_source_id = os.path.basename(source_id)
+    if safe_source_id != source_id:
+        raise HTTPException(status_code=400, detail="Invalid source_id")
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    _validate_path_component(safe_source_id, "source_id")
+    _validate_path_component(safe_filename, "filename")
 
-    content_type, _ = mimetypes.guess_type(filename)
+    await service.get_source(safe_source_id, session, user_id=user_id)
+
+    content_type, _ = mimetypes.guess_type(safe_filename)
     if content_type is None:
         content_type = "application/octet-stream"
 
     # DB-first: query source_image table
     stmt = select(SourceImage.image_data).where(
-        SourceImage.source_id == source_id,
+        SourceImage.source_id == safe_source_id,
         SourceImage.user_id == user_id,
-        SourceImage.filename == filename,
+        SourceImage.filename == safe_filename,
     )
     row = (await session.exec(stmt)).first()
     if row is not None:
@@ -390,12 +442,17 @@ async def get_source_image(
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
-    # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, source_id)
-    image_path = (image_dir / filename).resolve()
-
-    if not image_path.is_relative_to(image_dir.resolve()):
+    # Filesystem fallback for pre-migration sources.
+    safe_user = os.path.basename(user_id)
+    image_dir_path = PDFAdapter.get_image_dir(safe_user, safe_source_id)
+    image_dir_real = os.path.realpath(str(image_dir_path))
+    base_real = os.path.realpath(str(get_settings().data_dir))
+    if not image_dir_real.startswith(base_real):
         raise HTTPException(status_code=404, detail="Image not found")
+    image_path_str = os.path.realpath(os.path.join(image_dir_real, safe_filename))
+    if not image_path_str.startswith(image_dir_real):
+        raise HTTPException(status_code=404, detail="Image not found")
+    image_path = Path(image_path_str)
 
     if not image_path.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
