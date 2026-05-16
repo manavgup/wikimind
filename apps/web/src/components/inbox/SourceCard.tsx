@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { IngestStatus, Source, SourceType } from "../../types/api";
 import { getOriginalUrl } from "../../api/sources";
 import { Badge, type BadgeTone } from "../shared/Badge";
@@ -94,7 +95,12 @@ export function SourceCard({ source, onRetry, retrying, onDelete, deleting, onRe
             </Badge>
           </div>
           <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">
-            {titleText}
+            <Link
+              to={`/sources/${encodeURIComponent(source.id)}`}
+              className="hover:text-brand-700 hover:underline"
+            >
+              {titleText}
+            </Link>
           </h3>
           {source.source_url ? (
             <a

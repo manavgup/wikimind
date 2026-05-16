@@ -44,6 +44,9 @@ const AdminDashboard = lazy(() =>
 const OnboardingWizard = lazy(() =>
   import("./components/onboarding/OnboardingWizard").then((m) => ({ default: m.OnboardingWizard }))
 );
+const SourceDetailView = lazy(() =>
+  import("./components/inbox/SourceDetailView").then((m) => ({ default: m.SourceDetailView }))
+);
 
 function AuthenticatedApp() {
   const navigate = useNavigate();
@@ -64,6 +67,7 @@ function AuthenticatedApp() {
         ) : (
           <Routes>
             <Route path="/inbox" element={<InboxView />} />
+            <Route path="/sources/:id" element={<SourceDetailView />} />
             <Route path="/ask" element={<AskView />} />
             <Route path="/ask/:conversationId" element={<AskView />} />
             <Route path="/wiki" element={<WikiExplorerView />} />

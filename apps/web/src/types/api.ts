@@ -58,6 +58,43 @@ export interface SourceContentResponse {
   title: string | null;
 }
 
+export interface PipelineStep {
+  name: string;
+  status: "complete" | "active" | "pending" | "failed";
+  description: string;
+}
+
+export interface SourceImageEntry {
+  filename: string;
+  kind: "figure" | "table";
+  label: string;
+}
+
+export interface LinkedArticleSummary {
+  id: string;
+  slug: string;
+  title: string;
+  page_type: PageType;
+}
+
+export interface SourceDetailResponse {
+  id: string;
+  source_type: SourceType;
+  source_url: string | null;
+  title: string | null;
+  author: string | null;
+  published_date: string | null;
+  status: IngestStatus;
+  ingested_at: string;
+  compiled_at: string | null;
+  token_count: number | null;
+  error_message: string | null;
+  has_original: boolean;
+  pipeline_steps: PipelineStep[];
+  images: SourceImageEntry[];
+  linked_articles: LinkedArticleSummary[];
+}
+
 export interface TagRef {
   id: string;
   name: string;

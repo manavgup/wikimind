@@ -8,6 +8,7 @@ import {
   approveDraft,
   deleteSource,
   getDraft,
+  getSourceDetail,
   ingestPdf,
   ingestUrl,
   listSources,
@@ -15,7 +16,7 @@ import {
   retryCompile,
   type ListSourcesParams,
 } from "../api/sources";
-import type { Source } from "../types/api";
+import type { Source, SourceDetailResponse } from "../types/api";
 
 const SOURCES_KEY = ["sources"] as const;
 
@@ -70,6 +71,18 @@ export function useDeleteSource() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SOURCES_KEY });
     },
+  });
+}
+
+const SOURCE_DETAIL_KEY = ["source-detail"] as const;
+
+export function useSourceDetail(
+  sourceId: string | undefined,
+): UseQueryResult<SourceDetailResponse> {
+  return useQuery({
+    queryKey: [...SOURCE_DETAIL_KEY, sourceId],
+    queryFn: () => getSourceDetail(sourceId!),
+    enabled: !!sourceId,
   });
 }
 
