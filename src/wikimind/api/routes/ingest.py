@@ -367,7 +367,7 @@ async def list_source_images(
         return entries
 
     # Filesystem fallback for pre-migration sources
-    image_dir = PDFAdapter.get_image_dir(user_id, safe_source_id).resolve()
+    image_dir = PDFAdapter.get_image_dir(os.path.basename(user_id), safe_source_id).resolve()
     if not image_dir.is_dir():
         return []
 
@@ -435,7 +435,7 @@ async def get_source_image(
         )
 
     # Filesystem fallback for pre-migration sources.
-    image_dir = PDFAdapter.get_image_dir(user_id, safe_source_id).resolve()
+    image_dir = PDFAdapter.get_image_dir(os.path.basename(user_id), safe_source_id).resolve()
     image_path = (image_dir / safe_filename).resolve()
 
     if not image_path.is_relative_to(image_dir):

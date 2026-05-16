@@ -42,22 +42,24 @@ def append_log_entry(
         user_id: Optional user ID for path scoping.
     """
     base_dir = Path(get_settings().data_dir) / "wiki"
-    wiki_dir = base_dir
     if user_id:
-        # Strip ALL path components — os.path.basename is recognized by CodeQL
-        # as a path-injection sanitizer.
+        # Sanitize: os.path.basename strips directory components (CodeQL sanitizer)
         safe_id = os.path.basename(user_id)
         if not safe_id or safe_id != user_id:
             msg = f"Path traversal blocked for user_id={user_id!r}"
             raise ValueError(msg)
-        wiki_dir = base_dir / safe_id
+    else:
+        safe_id = ""
 
-    # Defense-in-depth: resolve and verify the path stays under base_dir.
-    resolved_dir = wiki_dir.resolve()
-    if not resolved_dir.is_relative_to(base_dir.resolve()):
+    # Build and verify path using os.path.realpath + startswith (CodeQL-safe pattern)
+    base_real = os.path.realpath(str(base_dir))
+    target = os.path.join(base_real, safe_id) if safe_id else base_real
+    target_real = os.path.realpath(target)
+    if not target_real.startswith(base_real):
         msg = f"Path traversal blocked for user_id={user_id!r}"
         raise ValueError(msg)
 
+    resolved_dir = Path(target_real)
     resolved_dir.mkdir(parents=True, exist_ok=True)
     log_path = resolved_dir / "log.md"
 
