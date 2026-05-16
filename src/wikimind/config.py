@@ -178,6 +178,33 @@ class TaxonomyConfig(BaseModel):
     concept_page_min_sources: int = 2
 
 
+class MCPServerEntry(BaseModel):
+    """Configuration for a single external MCP server connection."""
+
+    name: str
+    transport: Literal["stdio", "http"] = "stdio"
+    # stdio transport fields
+    command: str = ""
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] | None = None
+    # http transport fields
+    url: str = ""
+    headers: dict[str, str] | None = None
+    # shared
+    timeout: float = 30.0
+
+
+class MCPConfig(BaseModel):
+    """MCP (Model Context Protocol) configuration.
+
+    Controls both the MCP server (exposing WikiMind tools) and the MCP client
+    (connecting to external MCP servers for the Q&A agent to use).
+    """
+
+    external_servers: list[MCPServerEntry] = Field(default_factory=list)
+    client_enabled: bool = False
+
+
 class CaptureConfig(BaseModel):
     """Ambient capture configuration (issue #442)."""
 

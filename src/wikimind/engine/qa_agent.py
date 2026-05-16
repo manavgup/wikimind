@@ -19,6 +19,7 @@ from wikimind.config import get_settings
 from wikimind.engine.conversation_serializer import serialize_conversation_to_markdown
 from wikimind.engine.llm_router import _sanitize_json_control_chars, get_llm_router
 from wikimind.errors import NotFoundError
+from wikimind.mcp.client import ExternalToolInfo, get_mcp_client_manager
 from wikimind.models import (
     Article,
     CompletionRequest,
@@ -154,6 +155,41 @@ async def _score_wiki_worthiness(
         passed=passed,
         auto_filed=False,
     )
+
+
+def _format_external_tools_block(tools: list[ExternalToolInfo]) -> str:
+    """Format external MCP tools into a text block for the system prompt.
+
+    Args:
+        tools: List of discovered external tool info.
+
+    Returns:
+        A formatted string describing available tools, or empty string if none.
+    """
+    if not tools:
+        return ""
+
+    lines = [
+        "",
+        "You also have access to external tools. If the wiki context is insufficient, "
+        "you MAY suggest calling one of these tools by including a 'tool_calls' array "
+        "in your response:",
+        "",
+    ]
+    for info in tools:
+        desc = info.tool.description or "No description"
+        params = ""
+        if info.tool.inputSchema and info.tool.inputSchema.get("properties"):
+            param_names = list(info.tool.inputSchema["properties"].keys())
+            params = f" (params: {', '.join(param_names)})"
+        lines.append(f"  - {info.server_name}/{info.tool.name}: {desc}{params}")
+
+    lines.append("")
+    lines.append(
+        'To call a tool, add "tool_calls": [{"server": "name", "tool": "tool_name", '
+        '"arguments": {...}}] to your JSON response.'
+    )
+    return "\n".join(lines)
 
 
 class QAAgent:
@@ -335,6 +371,18 @@ class QAAgent:
             no_context_result=None,
         )
 
+    def _get_external_tools(self) -> list[ExternalToolInfo]:
+        """Return external MCP tools if the client is enabled and connected.
+
+        Returns:
+            List of external tool info, or empty list if MCP client is disabled.
+        """
+        mcp_cfg = getattr(self.settings, "mcp", None)
+        if mcp_cfg is None or not mcp_cfg.client_enabled:
+            return []
+        manager = get_mcp_client_manager()
+        return manager.list_tools()
+
     def _build_completion_request(
         self,
         question: str,
@@ -378,8 +426,12 @@ Answer based on the wiki context above. Use the conversation history
 to disambiguate references like "it" or "that approach". If the
 conversation context contradicts the wiki, prefer the wiki."""
 
+        # Include external MCP tools in the system prompt when available
+        external_tools = self._get_external_tools()
+        system_prompt = QA_SYSTEM_PROMPT + _format_external_tools_block(external_tools)
+
         return CompletionRequest(
-            system=QA_SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
             max_tokens=self.settings.qa.max_tokens,
             temperature=0.3,

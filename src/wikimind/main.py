@@ -49,6 +49,7 @@ from wikimind.config import get_settings
 from wikimind.database import close_db, get_session_factory, init_db
 from wikimind.engine.llm_router import configure_llm_router
 from wikimind.jobs.background import get_background_compiler
+from wikimind.mcp.client import get_mcp_client_manager
 from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
@@ -177,9 +178,20 @@ async def lifespan(_app: FastAPI):
     await _reset_stuck_sources()
     await _start_redis_subscriber()
 
+    # Start MCP client connections to external servers (if configured)
+    if settings.mcp.client_enabled:
+        mcp_manager = get_mcp_client_manager()
+        await mcp_manager.start()
+
     yield
 
     log.info("WikiMind gateway shutting down")
+
+    # Stop MCP client connections
+    if settings.mcp.client_enabled:
+        mcp_manager = get_mcp_client_manager()
+        await mcp_manager.stop()
+
     await get_background_compiler().close()
     await stop_redis_subscriber()
     await close_db()
