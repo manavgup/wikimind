@@ -12,97 +12,26 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import _dialect_insert
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.base_compiler import BaseCompiler
+from wikimind.engine.prompts import CONCEPT_PROMPT_TEMPLATES as PROMPT_TEMPLATES
 from wikimind.models import (
     Article,
     ArticleConcept,
     ArticleSource,
     Backlink,
-    CompletionRequest,
+    CompletionResponse,
     Concept,
     ConceptCompilationResult,
     ConceptKindDef,
     PageType,
-    Provider,
     RelationType,
-    TaskType,
 )
-from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
-
-PROMPT_TEMPLATES: dict[str, str] = {
-    "concept_synthesis_topic": """You are synthesizing a concept page for a personal knowledge wiki.
-The concept is "{concept_name}" ({concept_description}).
-Below are summaries from {source_count} source articles tagged with this concept.
-
-{source_material}
-
-{contradiction_section}
-
-Produce a synthesis: Overview, Key Themes (JSON list), Consensus & Conflicts,
-Open Questions (JSON list), Timeline, Sources Summary, Article Body (## headings, 300+ words),
-Related Concepts (JSON list).
-
-Rich content rules for article_body:
-- Preserve math expressions in LaTeX: $...$ inline, $$...$$ display blocks. Copy formulas verbatim from source articles.
-- Preserve markdown tables (pipe-delimited) from source articles.
-- Preserve fenced code blocks (```language) from source articles.
-- Preserve image references ![alt](url) from source articles.
-- These blocks are opaque -- do not paraphrase or rewrite their contents.
-
-Output as JSON:
-{{"title": "string", "overview": "string", "key_themes": ["string"],
-"consensus_conflicts": "string", "open_questions": ["string"],
-"timeline": "string", "sources_summary": "string",
-"article_body": "string", "related_concepts": ["string"]}}
-
-Valid JSON only. No preamble, no markdown fences.""",
-    "concept_synthesis_person": """You are synthesizing a concept page about a person.
-The person is "{concept_name}" ({concept_description}).
-Below are summaries from {source_count} source articles.
-
-{source_material}
-
-{contradiction_section}
-
-Produce a synthesis with the same JSON schema as above.
-Valid JSON only. No preamble, no markdown fences.""",
-    "concept_synthesis_org": """You are synthesizing a concept page about an organization.
-The organization is "{concept_name}" ({concept_description}).
-Below are summaries from {source_count} source articles.
-
-{source_material}
-
-{contradiction_section}
-
-Produce a synthesis with the same JSON schema as above.
-Valid JSON only. No preamble, no markdown fences.""",
-    "concept_synthesis_product": """You are synthesizing a concept page about a product.
-The product is "{concept_name}" ({concept_description}).
-Below are summaries from {source_count} source articles.
-
-{source_material}
-
-{contradiction_section}
-
-Produce a synthesis with the same JSON schema as above.
-Valid JSON only. No preamble, no markdown fences.""",
-    "concept_synthesis_paper": """You are synthesizing a concept page about a research paper.
-The paper is "{concept_name}" ({concept_description}).
-Below are summaries from {source_count} source articles.
-
-{source_material}
-
-{contradiction_section}
-
-Produce a synthesis with the same JSON schema as above.
-Valid JSON only. No preamble, no markdown fences.""",
-}
 
 
 def get_prompt_template(template_key: str) -> str | None:
@@ -175,23 +104,15 @@ async def _collect_contradictions(source_article_ids: list[str], session: AsyncS
     return "\n".join(lines)
 
 
-class ConceptCompiler:
+class ConceptCompiler(BaseCompiler):
     """Registry-driven compiler that synthesizes concept pages from source articles."""
-
-    def __init__(self, user_id: str) -> None:
-        self.router = get_llm_router()
-        self.settings = get_settings()
-        self.user_id = user_id
-        self._last_provider_used: Provider | None = None
 
     async def compile_concept_page(self, concept: Concept, session: AsyncSession) -> Article | None:
         """Compile a concept page by synthesizing all source articles tagged with this concept."""
         kind_def = await self._load_kind_def(concept.concept_kind, session)
         if kind_def is None:
             kind_def = await self._load_kind_def("topic", session)
-            if kind_def is None:
-                return None
-        template = get_prompt_template(kind_def.prompt_template_key)
+        template = get_prompt_template(kind_def.prompt_template_key) if kind_def else None
         if template is None:
             return None
         source_articles = await _collect_source_articles(concept.name, session, user_id=self.user_id)
@@ -209,35 +130,39 @@ class ConceptCompiler:
             source_material=source_material,
             contradiction_section=contradiction_section,
         )
-        request = CompletionRequest(
+
+        # Release the DB connection before the long-running LLM call to
+        # avoid PgBouncer idle-connection timeouts (same pattern as Compiler).
+        await session.commit()
+
+        response = await self._call_llm(
             system=prompt,
-            messages=[{"role": "user", "content": "Synthesize a concept page from these sources."}],
-            max_tokens=self.settings.compiler.max_tokens,
-            temperature=0.3,
-            response_format="json",
-            task_type=TaskType.COMPILE,
+            user_content="Synthesize a concept page from these sources.",
         )
-        try:
-            response = await self.router.complete(request, user_id=self.user_id)
-            self._last_provider_used = response.provider_used
-        except (RuntimeError, ValueError):
-            log.warning(
-                "Concept page LLM call failed",
-                concept=concept.name,
-                exc_info=True,
-            )
+        if response is None:
             return None
-        try:
-            data = self.router.parse_json_response(response)
-            compilation = ConceptCompilationResult(**data)
-        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-            log.warning(
-                "Concept page response parsing failed",
-                concept=concept.name,
-                exc_info=True,
-            )
+
+        compilation = self._parse_concept_response(response, concept.name)
+        if compilation is None:
             return None
         return await self._save_concept_page(compilation, concept, source_articles, session)
+
+    def _parse_concept_response(
+        self, response: CompletionResponse, concept_name: str
+    ) -> ConceptCompilationResult | None:
+        """Parse and validate an LLM response into a ConceptCompilationResult."""
+        data = self._parse_json_response(response)
+        if data is None:
+            return None
+        try:
+            return ConceptCompilationResult(**data)
+        except (KeyError, ValueError, TypeError):
+            log.warning(
+                "Concept page response validation failed",
+                concept=concept_name,
+                exc_info=True,
+            )
+            return None
 
     async def _load_kind_def(self, kind_name: str, session: AsyncSession) -> ConceptKindDef | None:
         result = await session.exec(select(ConceptKindDef).where(ConceptKindDef.name == kind_name))
@@ -311,15 +236,15 @@ class ConceptCompiler:
         await session.commit()
 
         # Update full-text search index
-        wiki_storage = get_wiki_storage(self.user_id)
-        try:
-            article_content = await wiki_storage.read(relative_path)
-        except OSError:
-            article_content = ""
-        await fts_index_article(session, article.id, article.title, article_content)
-        await session.commit()
+        await self._index_article(session, article.id, article.title, relative_path)
 
-        await self._create_synthesizes_links(article.id, source_ids, session, user_id=self.user_id)
+        await self._create_synthesizes_links(
+            article.id,
+            source_ids,
+            session,
+            user_id=self.user_id,
+            context="Concept page synthesizes from source article",
+        )
         await self._create_related_to_links(article, compilation.related_concepts, session, user_id=self.user_id)
         return article
 
@@ -398,29 +323,7 @@ provider: {self._last_provider_used or "unknown"}
         await storage.write(relative_path, content)
         return relative_path
 
-    async def _create_synthesizes_links(
-        self,
-        concept_article_id: str,
-        source_article_ids: list[str],
-        session: AsyncSession,
-        user_id: str,
-    ) -> None:
-        conn = await session.connection()
-        insert_fn = _dialect_insert(conn)
-        for source_id in source_article_ids:
-            stmt = (
-                insert_fn(Backlink)
-                .values(
-                    source_article_id=concept_article_id,
-                    target_article_id=source_id,
-                    relation_type=RelationType.SYNTHESIZES,
-                    context="Concept page synthesizes from source article",
-                    user_id=user_id,
-                )
-                .on_conflict_do_nothing()
-            )
-            await session.execute(stmt)
-        await session.commit()
+    # _create_synthesizes_links is inherited from BaseCompiler
 
     async def _create_related_to_links(
         self,

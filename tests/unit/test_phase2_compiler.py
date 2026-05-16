@@ -12,7 +12,7 @@ from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
-from wikimind.engine import compiler as compiler_mod
+from wikimind.engine import base_compiler as base_compiler_mod
 from wikimind.engine.compiler import Compiler, _extract_typed_suggestions, _normalize_backlink_suggestions
 from wikimind.engine.frontmatter_validator import parse_frontmatter, validate_frontmatter
 from wikimind.engine.wikilink_resolver import resolve_backlink_candidates
@@ -68,8 +68,8 @@ def _fake_settings(data_dir: str = "/tmp/wm-test") -> SimpleNamespace:
 
 def _compiler_for(tmp_path):
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         return Compiler(user_id=TEST_USER_ID)
 
@@ -295,8 +295,8 @@ def test_parse_frontmatter_extracts_yaml():
 
 async def test_write_article_file_includes_page_type(tmp_path):
     with (
-        patch.object(compiler_mod, "get_llm_router"),
-        patch.object(compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
+        patch.object(base_compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings(str(tmp_path))),
     ):
         c = Compiler(user_id=TEST_USER_ID)
     src = Source(source_type=SourceType.URL, source_url="http://x", title="X", user_id=TEST_USER_ID)

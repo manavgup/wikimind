@@ -19,7 +19,7 @@ from sqlmodel import select
 
 from tests.conftest import TEST_USER_ID
 from wikimind._datetime import utcnow_naive
-from wikimind.engine import compiler as compiler_mod
+from wikimind.engine import base_compiler as base_compiler_mod
 from wikimind.engine.compiler import Compiler
 from wikimind.models import (
     Article,
@@ -298,9 +298,9 @@ def _fake_settings(data_dir: str) -> SimpleNamespace:
 
 def _compiler_for(tmp_path: Path) -> Compiler:
     with (
-        patch.object(compiler_mod, "get_llm_router"),
+        patch.object(base_compiler_mod, "get_llm_router"),
         patch.object(
-            compiler_mod,
+            base_compiler_mod,
             "get_settings",
             return_value=_fake_settings(str(tmp_path)),
         ),

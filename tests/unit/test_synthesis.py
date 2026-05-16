@@ -173,7 +173,7 @@ async def test_synthesize_success(
     )
 
     with patch(
-        "wikimind.engine.synthesis_compiler.get_llm_router",
+        "wikimind.engine.base_compiler.get_llm_router",
         return_value=mock_router,
     ):
         compiler = SynthesisCompiler(TEST_USER_ID)

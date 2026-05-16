@@ -19,9 +19,10 @@ from sqlmodel import select
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import _dialect_insert, get_session_factory
+from wikimind.engine.base_compiler import BaseCompiler
 from wikimind.engine.confidence import compute_confidence
 from wikimind.engine.frontmatter_validator import validate_frontmatter
-from wikimind.engine.llm_router import get_llm_router
+from wikimind.engine.prompts import COMPILER_SYSTEM_PROMPT, TAKEAWAY_SYSTEM_PROMPT
 from wikimind.engine.wikilink_resolver import (
     ResolvedBacklink,
     resolve_backlink_candidates,
@@ -110,69 +111,9 @@ def _extract_typed_suggestions(raw: list[str | dict]) -> list[TypedBacklinkSugge
     return suggestions
 
 
-TAKEAWAY_SYSTEM_PROMPT = """You are a knowledge analyst. Your job is to extract the most important takeaways from raw source material so a user can decide what the resulting wiki article should focus on.
-
-You MUST respond with valid JSON only. No preamble, no markdown fences.
-
-Output schema:
-{
-  "takeaways": [
-    "A concise one-sentence takeaway (10 max)"
-  ]
-}
-
-Rules:
-- Extract 3-10 key takeaways from the source
-- Each takeaway should be a single sentence
-- Prioritize surprising, counter-intuitive, or high-impact findings
-- Include the most important facts, claims, and insights
-- Order from most to least important
-"""
-
-COMPILER_SYSTEM_PROMPT = """You are a knowledge compiler. Your job is to transform raw source material into a structured wiki article for a personal knowledge base.
-
-The user is building a living wiki -- every article should connect to others, surface open questions, and make their knowledge compound over time.
-
-You MUST respond with valid JSON only. No preamble, no markdown fences.
-
-Output schema:
-{
-  "title": "Concise, specific article title",
-  "page_type": "source",
-  "summary": "Exactly 2 sentences. What this is and why it matters.",
-  "key_claims": [
-    {
-      "claim": "Specific, falsifiable claim from the source",
-      "confidence": "sourced|inferred|opinion",
-      "quote": "Optional direct quote under 15 words if the exact wording matters"
-    }
-  ],
-  "concepts": ["concept-name-1", "concept-name-2"],
-  "backlink_suggestions": [
-    {"target": "Title of related article", "relation_type": "references|extends|supersedes"}
-  ],
-  "open_questions": ["Question this source raises but does not answer"],
-  "article_body": "Full markdown article. Use ## headings. Include Key Claims, Analysis, Open Questions sections."
-}
-
-Rules:
-- page_type is always "source" for source compilations
-- Every claim must be attributable to the source
-- Mark LLM inferences as confidence=inferred explicitly
-- Suggest backlinks only to concepts genuinely related
-- For backlink_suggestions, use relation_type "references" (mentions related topic), "extends" (builds on/adds to claims), or "supersedes" (newer source replaces older claims)
-- Open questions should drive future research
-- article_body must be substantive -- at least 300 words
-- Never fabricate quotes or statistics not in the source
-- For concepts: reuse existing concept names when they match your intent -- do not invent synonyms or near-duplicates
-
-Rich content preservation:
-- Math: if the source contains mathematical expressions, reproduce them in LaTeX using $...$ for inline math and $$...$$ for display math blocks. Copy formulas verbatim from the source -- do not simplify or rewrite them.
-- Tables: if the source contains tabular data, reproduce it as GitHub-flavored markdown tables (pipe-delimited). Preserve column headers and data exactly.
-- Code: if the source contains code snippets, reproduce them in fenced code blocks (```language). Preserve the code exactly as it appears in the source.
-- Images: if the source references images, preserve the markdown image syntax ![alt](url) with the original URL or path. Do not remove or rewrite image references.
-- These rich content blocks are OPAQUE -- do not paraphrase, summarize, or rewrite their contents. They must survive round-trip compilation unchanged.
-"""
+# Re-export prompt constants for backward compatibility with tests that
+# import them from this module.
+__all__ = ["COMPILER_SYSTEM_PROMPT", "TAKEAWAY_SYSTEM_PROMPT", "Compiler"]
 
 
 def _safe_json_list(value: str | None) -> list[str] | None:
@@ -248,15 +189,11 @@ def _build_schema_directives(schema: CompilationSchema) -> str:
     return "\n\nUser-defined compilation rules (FOLLOW THESE):\n" + "\n".join(lines)
 
 
-class Compiler:
+class Compiler(BaseCompiler):
     """Compile normalized documents into wiki articles."""
 
     def __init__(self, user_id: str):
-        self.router = get_llm_router()
-        self.settings = get_settings()
-        self.user_id = user_id
-        # Provider that handled the most recent successful `complete()` call.
-        self._last_provider_used: Provider | None = None
+        super().__init__(user_id)
         # Typed backlink suggestions from the most recent `compile()` call.
         self._last_typed_suggestions: dict[str, str] = {}
         # Compilation monitoring — set during compile(), read during save_article().
@@ -881,28 +818,7 @@ Compile this into a wiki article following the JSON schema exactly."""
             session.add(claim)
         await session.commit()
 
-    async def _generate_unique_slug(self, title: str, session: AsyncSession) -> str:
-        """Generate a URL-safe slug from a title, avoiding collisions.
-
-        Tries the base slug first; if it already exists, appends ``-2``,
-        ``-3``, etc. until a unique value is found.
-
-        Raises:
-            ValueError: If no unique slug is found within
-                ``settings.compiler.slug_max_attempts`` iterations.
-        """
-        max_attempts = self.settings.compiler.slug_max_attempts
-        base = slugify(title, max_length=80)
-        candidate = base
-        suffix = 2
-        for _ in range(max_attempts):
-            existing = (await session.exec(select(Article).where(Article.slug == candidate))).first()
-            if existing is None:
-                return candidate
-            candidate = f"{base}-{suffix}"
-            suffix += 1
-        msg = f"Could not generate unique slug for {title!r} after {max_attempts} attempts"
-        raise ValueError(msg)
+    # _generate_unique_slug is inherited from BaseCompiler
 
     async def _write_article_file(
         self,

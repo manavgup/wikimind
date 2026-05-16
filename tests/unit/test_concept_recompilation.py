@@ -131,8 +131,8 @@ class TestSourceSetUnchangedSkipsRecompilation:
 
         # First: compile the concept page so source_ids are stored.
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
-            patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_settings", return_value=settings),
         ):
             first = await ConceptCompiler(user_id=TEST_USER_ID).compile_concept_page(concept, db_session)
             assert first is not None
@@ -155,8 +155,8 @@ class TestSourceSetUnchangedSkipsRecompilation:
 
         # First: compile the concept page.
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
-            patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_settings", return_value=settings),
         ):
             first = await ConceptCompiler(user_id=TEST_USER_ID).compile_concept_page(concept, db_session)
             assert first is not None
@@ -165,8 +165,8 @@ class TestSourceSetUnchangedSkipsRecompilation:
         # Call maybe_trigger_concept_pages — should skip compilation.
         with (
             patch("wikimind.services.taxonomy.get_settings", return_value=settings),
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
-            patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_settings", return_value=settings),
         ):
             compiled = await maybe_trigger_concept_pages(db_session, user_id=TEST_USER_ID)
             assert compiled == []
@@ -201,8 +201,8 @@ class TestSourceSetChangedTriggersRecompilation:
 
         # Compile the concept page.
         with (
-            patch("wikimind.engine.concept_compiler.get_llm_router", return_value=mr),
-            patch("wikimind.engine.concept_compiler.get_settings", return_value=settings),
+            patch("wikimind.engine.base_compiler.get_llm_router", return_value=mr),
+            patch("wikimind.engine.base_compiler.get_settings", return_value=settings),
         ):
             first = await ConceptCompiler(user_id=TEST_USER_ID).compile_concept_page(concept, db_session)
             assert first is not None
