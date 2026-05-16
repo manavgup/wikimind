@@ -163,13 +163,13 @@ async def _compile_interactive(
     draft_service = get_draft_service()
     draft = await draft_service.create_draft(source, doc, result, takeaways, session)
 
-        job = await session.get(Job, job_id)
-        if job:
-            job.status = JobStatus.COMPLETE
-            job.completed_at = utcnow_naive()
-            job.result_summary = f"Draft created for review: {result.title}"
-            session.add(job)
-        await session.commit()
+    job = await session.get(Job, job_id)
+    if job:
+        job.status = JobStatus.COMPLETE
+        job.completed_at = utcnow_naive()
+        job.result_summary = f"Draft created for review: {result.title}"
+        session.add(job)
+    await session.commit()
 
     await emit_draft_ready(source_id, draft.id, result.title, user_id=user_id)
     log.info("compile_source draft ready", source_id=source_id, draft_id=draft.id)
