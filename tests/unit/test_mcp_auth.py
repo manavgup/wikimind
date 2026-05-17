@@ -1,4 +1,5 @@
 """Tests for MCP JWT authentication."""
+
 from __future__ import annotations
 
 import time
@@ -34,26 +35,26 @@ class TestJWTValidation:
     async def test_expired_token_raises(self):
         provider = WikiMindJWTAuthProvider(secret=SECRET)
         token = _make_token(_valid_payload(exp=int(time.time()) - 100))
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="Token expired"):
             await provider.verify_token(token)
 
     @pytest.mark.asyncio
     async def test_wrong_secret_raises(self):
         provider = WikiMindJWTAuthProvider(secret=SECRET)
         token = _make_token(_valid_payload(), secret="wrong-secret")
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="Invalid token"):
             await provider.verify_token(token)
 
     @pytest.mark.asyncio
     async def test_missing_sub_raises(self):
         provider = WikiMindJWTAuthProvider(secret=SECRET)
         token = _make_token({"email": "x@y.com", "exp": int(time.time()) + 3600})
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="missing 'sub' claim"):
             await provider.verify_token(token)
 
     @pytest.mark.asyncio
     async def test_non_hs256_algorithm_rejected(self):
         provider = WikiMindJWTAuthProvider(secret=SECRET)
         token = jwt.encode(_valid_payload(), SECRET, algorithm="HS384")
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError, match="Invalid token"):
             await provider.verify_token(token)

@@ -2,6 +2,23 @@
 
 Exposes the WikiMind knowledge base to MCP clients (Claude Desktop,
 AI agents). Supports stdio (local, no auth) and HTTP (JWT auth) transports.
+
+Tools by tier:
+  - Discovery (Tier 1): wiki_overview, wiki_list_articles, wiki_list_concepts
+  - Read/Search (Tier 2): wiki_search, wiki_get_article, wiki_ask
+  - Write (Tier 3): wiki_ingest_url, wiki_ingest_text, wiki_get_source_status
+  - Analysis (Tier 4): wiki_synthesize, wiki_get_health, wiki_list_sources, wiki_get_graph
+
+Resources:
+  - wikimind://index — article table of contents
+  - wikimind://articles/{slug} — full article markdown
+  - wikimind://sources/{source_id} — source metadata JSON
+
+Prompts:
+  - wiki_onboarding — orient with the knowledge base
+  - research_topic — search + read + synthesize workflow
+  - compare_articles — fetch and compare two articles
+  - knowledge_gaps — identify gaps in coverage
 """
 
 from __future__ import annotations
@@ -12,15 +29,13 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from fastmcp import Context, FastMCP  # noqa: F401 — Context used by tool handlers in later tasks
+from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory, init_db
-from wikimind.mcp.auth import WikiMindJWTAuthProvider  # noqa: F401 — used in run_server (Task 9)
 from wikimind.models import QueryRequest
-from wikimind.services.ingest import IngestService
 from wikimind.services.query import QueryService
 from wikimind.services.wiki import WikiService
 
@@ -41,7 +56,7 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     settings = get_settings()
     settings.ensure_dirs()
     await init_db()
-    log.info("WikiMind MCP server started", tool_count=len(server._tool_manager._tools))
+    log.info("WikiMind MCP server started", tool_count=len(server._tool_manager._tools))  # type: ignore[attr-defined]
     yield {}
 
 
@@ -90,7 +105,7 @@ async def _get_session():
 
 
 # ---------------------------------------------------------------------------
-# Tool: wiki_search
+# Tier 2 — Read/Search tools
 # ---------------------------------------------------------------------------
 
 
@@ -101,6 +116,7 @@ async def _get_session():
         "summaries, and IDs ranked by relevance. Use this to find "
         "articles on a topic before reading the full content."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
 async def wiki_search(
     query: str = Field(..., description="Search query string (minimum 2 characters)"),
@@ -136,11 +152,6 @@ async def wiki_search(
     )
 
 
-# ---------------------------------------------------------------------------
-# Tool: wiki_get_article
-# ---------------------------------------------------------------------------
-
-
 @mcp.tool(
     name="wiki_get_article",
     description=(
@@ -148,6 +159,7 @@ async def wiki_search(
         "Returns the article title, markdown content, sources, and metadata. "
         "Use wiki_search first to find the article ID."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
 async def wiki_get_article(
     id_or_slug: str = Field(..., description="Article UUID or URL slug"),
@@ -189,11 +201,6 @@ async def wiki_get_article(
     )
 
 
-# ---------------------------------------------------------------------------
-# Tool: wiki_ask
-# ---------------------------------------------------------------------------
-
-
 @mcp.tool(
     name="wiki_ask",
     description=(
@@ -202,6 +209,7 @@ async def wiki_get_article(
         "an answer with citations. Use this for complex questions "
         "that span multiple articles."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True},
 )
 async def wiki_ask(
     question: str = Field(..., description="The question to ask against the wiki knowledge base"),
@@ -242,213 +250,135 @@ async def wiki_ask(
 
 
 # ---------------------------------------------------------------------------
-# Tool: wiki_list_sources
+# Tier 1 — Discovery tools (registered from tools_discovery module)
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool(
-    name="wiki_list_sources",
+    name="wiki_overview",
     description=(
-        "List ingested sources in the WikiMind knowledge base. "
-        "Shows what content has been fed into the wiki (URLs, PDFs, "
-        "text, YouTube). Optionally filter by status."
+        "Get a high-level overview of the knowledge base. Returns article counts, "
+        "concept taxonomy, recent articles, and page type breakdown. "
+        "Call this first to understand what's in the wiki."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
-async def wiki_list_sources(
-    status: str | None = Field(None, description="Optional status filter (e.g. 'compiled', 'pending')"),
-    limit: int = Field(20, description="Maximum number of results (default 20, max 100)"),
-) -> str:
-    """List ingested sources with optional status filtering."""
-    limit = min(max(1, limit), 100)
-    ingest_service = IngestService()
+async def _tool_wiki_overview(ctx: Context) -> dict[str, Any]:
+    """Delegate to discovery module."""
+    from wikimind.mcp.tools_discovery import wiki_overview  # noqa: PLC0415
 
-    async with _get_session() as session:
-        sources = await ingest_service.list_sources(
-            session=session,
-            user_id=await _get_mcp_user_id(),
-            status=status,
-            limit=limit,
-        )
-
-    return json.dumps(
-        [
-            {
-                "id": s.id,
-                "source_type": s.source_type,
-                "title": s.title,
-                "source_url": s.source_url,
-                "ingested_at": s.ingested_at,
-                "compiled_at": s.compiled_at,
-            }
-            for s in sources
-        ],
-        default=str,
-    )
+    return await wiki_overview(ctx)
 
 
-# ---------------------------------------------------------------------------
-# Resource: wikimind://articles/{slug}
-# ---------------------------------------------------------------------------
-
-
-@mcp.resource(
-    "wikimind://articles/{slug}",
-    name="article",
-    description="Read a wiki article by slug. Returns the full markdown content.",
-    mime_type="text/markdown",
-)
-async def resource_article(slug: str) -> str:
-    """Return article content as a browseable MCP resource."""
-    wiki_service = WikiService()
-    async with _get_session() as session:
-        try:
-            article = await wiki_service.get_article(
-                id_or_slug=slug,
-                session=session,
-                user_id=await _get_mcp_user_id(),
-            )
-        except Exception as exc:
-            return f"Error: {exc}"
-
-    header = f"# {article.title}\n\n"
-    summary = f"**Summary:** {article.summary}\n\n" if article.summary else ""
-    content = article.content or ""
-    return f"{header}{summary}{content}"
-
-
-# ---------------------------------------------------------------------------
-# Resource: wikimind://sources/{id}
-# ---------------------------------------------------------------------------
-
-
-@mcp.resource(
-    "wikimind://sources/{source_id}",
-    name="source",
-    description="Read source metadata by ID. Returns ingestion details as JSON.",
-    mime_type="application/json",
-)
-async def resource_source(source_id: str) -> str:
-    """Return source metadata as a browseable MCP resource."""
-    ingest_service = IngestService()
-    async with _get_session() as session:
-        try:
-            source = await ingest_service.get_source(
-                source_id=source_id,
-                session=session,
-                user_id=await _get_mcp_user_id(),
-            )
-        except Exception as exc:
-            return json.dumps({"error": str(exc)})
-
-    return json.dumps(
-        {
-            "id": source.id,
-            "source_type": source.source_type,
-            "title": source.title,
-            "source_url": source.source_url,
-            "author": source.author,
-            "status": source.status,
-            "ingested_at": source.ingested_at,
-            "compiled_at": source.compiled_at,
-            "token_count": source.token_count,
-        },
-        default=str,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Prompt: research_topic
-# ---------------------------------------------------------------------------
-
-
-@mcp.prompt(
-    name="research_topic",
+@mcp.tool(
+    name="wiki_list_articles",
     description=(
-        "Research a topic using the WikiMind knowledge base. "
-        "Searches for relevant articles and synthesizes findings "
-        "into a comprehensive overview."
+        "List wiki articles with optional filtering by concept or page type. "
+        "Supports pagination. Use to browse the knowledge base contents."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
-async def prompt_research_topic(topic: str) -> str:
-    """Generate a research prompt that searches the wiki and synthesizes findings."""
-    wiki_service = WikiService()
-    async with _get_session() as session:
-        results = await wiki_service.search(
-            q=topic,
-            session=session,
-            user_id=await _get_mcp_user_id(),
-            limit=5,
-        )
+async def _tool_wiki_list_articles(
+    ctx: Context,
+    concept: str | None = Field(None, description="Optional concept name to filter by"),
+    page_type: str | None = Field(None, description="Optional page type: source, concept, synthesis, or answer"),
+    limit: int = Field(20, description="Maximum results (default 20, max 100)"),
+    offset: int = Field(0, description="Pagination offset (>= 0)"),
+) -> dict[str, Any]:
+    """Delegate to discovery module."""
+    from wikimind.mcp.tools_discovery import wiki_list_articles  # noqa: PLC0415
 
-    if not results:
-        return (
-            f"I want to research the topic: {topic}\n\n"
-            "No existing articles were found in the WikiMind knowledge base. "
-            "Please provide a general overview of this topic and suggest "
-            "sources that could be ingested to build knowledge on it."
-        )
-
-    articles_section = "\n".join(f"- **{r.title}** (slug: {r.slug}): {r.summary or 'No summary'}" for r in results)
-    return (
-        f"I want to research the topic: {topic}\n\n"
-        f"The following relevant articles exist in my WikiMind knowledge base:\n"
-        f"{articles_section}\n\n"
-        f"Please synthesize the key findings from these articles into a "
-        f"comprehensive overview of '{topic}'. Highlight connections between "
-        f"articles, identify gaps in coverage, and suggest follow-up questions."
-    )
+    return await wiki_list_articles(ctx, concept=concept, page_type=page_type, limit=limit, offset=offset)
 
 
-# ---------------------------------------------------------------------------
-# Prompt: summarize_article
-# ---------------------------------------------------------------------------
-
-
-@mcp.prompt(
-    name="summarize_article",
+@mcp.tool(
+    name="wiki_list_concepts",
     description=(
-        "Summarize a specific wiki article. Retrieves the article "
-        "by slug and creates a structured summary with key points."
+        "List concept taxonomy with article counts. Shows how the knowledge base is organized into topic areas."
     ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
-async def prompt_summarize_article(slug: str) -> str:
-    """Generate a summary prompt for a specific wiki article."""
-    wiki_service = WikiService()
-    async with _get_session() as session:
-        try:
-            article = await wiki_service.get_article(
-                id_or_slug=slug,
-                session=session,
-                user_id=await _get_mcp_user_id(),
-            )
-        except Exception:
-            return (
-                f"Article with slug '{slug}' was not found in the knowledge base. "
-                "Please use wiki_search to find available articles first."
-            )
+async def _tool_wiki_list_concepts(
+    ctx: Context,
+    include_empty: bool = Field(False, description="Include concepts with zero articles"),
+) -> dict[str, Any]:
+    """Delegate to discovery module."""
+    from wikimind.mcp.tools_discovery import wiki_list_concepts  # noqa: PLC0415
 
-    content = article.content or "No content available."
-    sources_info = ""
-    if article.sources:
-        sources_list = "\n".join(
-            f"- {s.title or s.source_url or 'Unknown source'} ({s.source_type})" for s in article.sources
-        )
-        sources_info = f"\n\nSources used:\n{sources_list}"
+    return await wiki_list_concepts(ctx, include_empty=include_empty)
 
-    return (
-        f"Please summarize the following wiki article.\n\n"
-        f"**Title:** {article.title}\n"
-        f"**Confidence:** {article.confidence}\n"
-        f"**Type:** {article.page_type}\n"
-        f"{sources_info}\n\n"
-        f"---\n\n"
-        f"{content}\n\n"
-        f"---\n\n"
-        f"Provide a structured summary with:\n"
-        f"1. Key points (3-5 bullet points)\n"
-        f"2. Main conclusions or takeaways\n"
-        f"3. Any caveats or limitations noted in the article"
-    )
+
+# ---------------------------------------------------------------------------
+# Tier 3 — Write tools (registered from tools_write module)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="wiki_ingest_url",
+    description=(
+        "Ingest a web page or PDF into the wiki. Returns immediately with a "
+        "source_id. Use wiki_get_source_status to check progress. "
+        "Only http:// and https:// URLs are allowed."
+    ),
+    annotations={"readOnlyHint": False, "idempotentHint": False, "openWorldHint": True},
+)
+async def _tool_wiki_ingest_url(
+    url: str = Field(..., description="URL to ingest (http/https only)"),
+    title: str = Field("", description="Optional title override (max 200 chars)"),
+) -> dict[str, Any]:
+    """Ingest a URL into the wiki."""
+    from wikimind.mcp.tools_write import wiki_ingest_url  # noqa: PLC0415
+
+    user_id = await _get_mcp_user_id()
+    return await wiki_ingest_url(url=url, title=title, user_id=user_id)
+
+
+@mcp.tool(
+    name="wiki_ingest_text",
+    description=(
+        "Ingest raw text content into the wiki. Returns immediately with a "
+        "source_id. Use wiki_get_source_status to check progress."
+    ),
+    annotations={"readOnlyHint": False, "idempotentHint": False, "openWorldHint": True},
+)
+async def _tool_wiki_ingest_text(
+    text: str = Field(..., description="Text content to ingest (1-100000 chars)"),
+    title: str = Field(..., description="Title for the source (1-200 chars, required)"),
+) -> dict[str, Any]:
+    """Ingest raw text into the wiki."""
+    from wikimind.mcp.tools_write import wiki_ingest_text  # noqa: PLC0415
+
+    user_id = await _get_mcp_user_id()
+    return await wiki_ingest_text(text=text, title=title, user_id=user_id)
+
+
+@mcp.tool(
+    name="wiki_get_source_status",
+    description=(
+        "Check the ingestion status of a source. Use the source_id returned by wiki_ingest_url or wiki_ingest_text."
+    ),
+    annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
+)
+async def _tool_wiki_get_source_status(
+    source_id: str = Field(..., description="Source ID to check"),
+) -> dict[str, Any]:
+    """Check ingestion progress."""
+    from wikimind.mcp.tools_write import wiki_get_source_status  # noqa: PLC0415
+
+    user_id = await _get_mcp_user_id()
+    return await wiki_get_source_status(source_id=source_id, user_id=user_id)
+
+
+# ---------------------------------------------------------------------------
+# Tier 4 — Analysis tools, resources, prompts (self-registering modules)
+# ---------------------------------------------------------------------------
+
+# These modules import `mcp` from this file and register their own tools,
+# resources, and prompts via decorators. We import them here to trigger
+# registration at module load time.
+import wikimind.mcp.prompts as _prompts_module  # noqa: E402, F401, I001
+import wikimind.mcp.resources as _resources_module  # noqa: E402, F401
+import wikimind.mcp.tools_analysis as _analysis_module  # noqa: E402, F401
 
 
 # ---------------------------------------------------------------------------
@@ -460,6 +390,7 @@ def run_server() -> None:
     """Run the WikiMind MCP server.
 
     Supports stdio (default) and HTTP transports via --transport flag.
+    HTTP transport enables JWT authentication.
     """
     parser = argparse.ArgumentParser(description="WikiMind MCP Server")
     parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
@@ -468,7 +399,14 @@ def run_server() -> None:
     args = parser.parse_args()
 
     if args.transport == "http":
-        mcp.run(transport="http", host=args.host, port=args.port)
+        from wikimind.mcp.auth import WikiMindJWTAuthProvider  # noqa: PLC0415
+
+        settings = get_settings()
+        if settings.mcp.require_auth:
+            auth_provider = WikiMindJWTAuthProvider(secret=settings.auth.jwt_secret_key)
+            mcp.run(transport="http", host=args.host, port=args.port, auth=auth_provider)
+        else:
+            mcp.run(transport="http", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")
 
