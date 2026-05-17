@@ -1,1 +1,1 @@
-"""WikiMind MCP server — exposes read-only wiki tools via Model Context Protocol."""
+"""WikiMind MCP server — tools, resources, and prompts for knowledge base access."""

@@ -1,25 +1,7 @@
-"""WikiMind MCP server — tools, resources, and prompts over stdio transport.
+"""WikiMind MCP server — 13 tools, 3 resources, 4 prompts.
 
-Exposes four tools to MCP clients (Claude Desktop, Cursor, etc.):
-  - wiki_search:       full-text search across wiki articles
-  - wiki_get_article:  retrieve a full article by ID or slug
-  - wiki_ask:          ask a question against the wiki (Q&A agent)
-  - wiki_list_sources: list ingested sources
-
-Resources (browseable URIs):
-  - wikimind://articles/{slug}:  individual article content
-  - wikimind://sources/{id}:     source metadata
-
-Prompts (pre-built templates):
-  - research_topic(topic):       search wiki + synthesize findings
-  - summarize_article(slug):     get article + create summary
-
-The server supports stdio (default) and HTTP transports.
-
-Usage:
-    wikimind mcp serve
-    wikimind mcp serve --transport http --port 9100
-    python -m wikimind.mcp.server
+Exposes the WikiMind knowledge base to MCP clients (Claude Desktop,
+AI agents). Supports stdio (local, no auth) and HTTP (JWT auth) transports.
 """
 
 from __future__ import annotations
@@ -27,90 +9,84 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
-import logging
-import sys
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP  # noqa: F401 — Context used by tool handlers in later tasks
+from fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from wikimind.config import get_settings
-from wikimind.database import get_dev_user_id, get_session_factory, init_db
+from wikimind.database import get_session_factory, init_db
+from wikimind.mcp.auth import WikiMindJWTAuthProvider  # noqa: F401 — used in run_server (Task 9)
 from wikimind.models import QueryRequest
 from wikimind.services.ingest import IngestService
 from wikimind.services.query import QueryService
 from wikimind.services.wiki import WikiService
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-# ---------------------------------------------------------------------------
-# Logging — stderr so it does not interfere with stdio transport
-# ---------------------------------------------------------------------------
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stderr)],
-)
+    from collections.abc import AsyncIterator
 
 log = structlog.get_logger()
 
-# MCP spec version pinned for stability (see issue #447 risk: spec churn).
-MCP_SPEC_VERSION = "2025-03-26"
+# Valid enum values for input validation
+_VALID_PAGE_TYPES = {"source", "concept", "synthesis", "answer"}
+_VALID_INGEST_STATUSES = {"pending", "processing", "compiled", "failed"}
+_VALID_SYNTHESIS_TYPES = {"comparative", "chronological", "thematic", "gap_analysis"}
 
 
 @contextlib.asynccontextmanager
-async def _lifespan(_server: FastMCP) -> AsyncGenerator[dict[str, Any], None]:
-    """Initialize the database on server startup."""
+async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
+    """Initialize database on MCP server startup."""
     settings = get_settings()
     settings.ensure_dirs()
     await init_db()
-    log.info(
-        "WikiMind MCP server started",
-        mcp_spec_version=MCP_SPEC_VERSION,
-        data_dir=settings.data_dir,
-    )
+    log.info("WikiMind MCP server started", tool_count=len(server._tool_manager._tools))
     yield {}
 
 
 mcp = FastMCP(
     name="wikimind",
     instructions=(
-        "WikiMind is a personal LLM-powered knowledge OS. "
-        "Use these tools to search the wiki, read articles, "
-        "ask questions, and browse ingested sources."
+        "WikiMind is your personal knowledge base. Start with wiki_overview() to see "
+        "what's in it. Browse with wiki_list_articles() or wiki_list_concepts(). "
+        "Search with wiki_search(). Read articles with wiki_get_article(). For deep "
+        "analysis, use wiki_synthesize(). To add knowledge, use wiki_ingest_url() "
+        "or wiki_ingest_text(). Check ingestion progress with wiki_get_source_status()."
     ),
     lifespan=_lifespan,
 )
 
 
 # ---------------------------------------------------------------------------
-# Session helper — standalone (not FastAPI DI)
+# Helpers
 # ---------------------------------------------------------------------------
 
 
 async def _get_mcp_user_id() -> str:
     """Return the user ID for MCP operations.
 
-    In dev mode, uses the auto-provisioned dev user. MCP is a local
-    tool — it always runs in the same environment as the server.
+    In dev mode, uses the auto-provisioned dev user.
+    In production, this should be overridden by auth context.
     """
+    settings = get_settings()
+    if not settings.is_dev:
+        msg = "Authentication required (production mode)"
+        raise ToolError(msg)
+    from wikimind.database import get_dev_user_id  # noqa: PLC0415
+
     return await get_dev_user_id()
 
 
 @contextlib.asynccontextmanager
 async def _get_session():
-    """Yield an async database session for MCP tool handlers."""
+    """Yield an async database session for MCP tool handlers.
+
+    Read-only tools should NOT commit. Write tools commit explicitly.
+    """
     factory = get_session_factory()
     async with factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+        yield session
 
 
 # ---------------------------------------------------------------------------
