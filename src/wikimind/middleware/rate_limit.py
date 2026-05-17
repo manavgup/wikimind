@@ -11,6 +11,8 @@ unauthenticated endpoints (e.g. login).
 
 from __future__ import annotations
 
+import contextlib
+
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded  # noqa: TC002 — used at runtime in handler signature
 from slowapi.util import get_remote_address
@@ -35,6 +37,7 @@ def _create_limiter() -> Limiter:
         key_func=_key_func,
         storage_uri=settings.redis_url,
         enabled=settings.rate_limit.enabled,
+        in_memory_fallback_enabled=True,
     )
 
 
@@ -49,10 +52,12 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
     """
     request_id = getattr(getattr(request, "state", None), "request_id", "unknown")
 
-    # Extract retry-after seconds from the exception headers if available
+    # Derive retry window from the rate limit that was exceeded.
+    # exc.limit is a slowapi Limit wrapper whose .limit is a
+    # limits.RateLimitItem with .get_expiry() returning seconds.
     retry_after_seconds = "60"
-    if hasattr(exc, "headers") and exc.headers:
-        retry_after_seconds = exc.headers.get("Retry-After", "60")
+    with contextlib.suppress(Exception):
+        retry_after_seconds = str(exc.limit.limit.get_expiry())
 
     return JSONResponse(
         status_code=429,

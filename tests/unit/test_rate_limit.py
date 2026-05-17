@@ -70,7 +70,7 @@ class TestRateLimitKeyFunc:
 class TestRateLimitExceededHandler:
     """Test the 429 error response format."""
 
-    def test_handler_returns_429_with_retry_after(self):
+    def test_handler_derives_retry_after_from_limit_window(self):
         from wikimind.middleware.rate_limit import rate_limit_exceeded_handler
 
         request = MagicMock()
@@ -78,17 +78,17 @@ class TestRateLimitExceededHandler:
 
         exc = MagicMock()
         exc.detail = "5 per 1 minute"
-        exc.headers = {"Retry-After": "42"}
+        exc.limit.limit.get_expiry.return_value = 120
 
         response = rate_limit_exceeded_handler(request, exc)
         assert response.status_code == 429
-        assert response.headers.get("Retry-After") == "42"
+        assert response.headers.get("Retry-After") == "120"
         body = json.loads(response.body.decode())
         assert body["error"]["code"] == "rate_limited"
         assert body["error"]["request_id"] == "req-abc"
         assert "5 per 1 minute" in body["error"]["message"]
 
-    def test_handler_defaults_retry_after_to_60(self):
+    def test_handler_defaults_retry_after_to_60_on_error(self):
         from wikimind.middleware.rate_limit import rate_limit_exceeded_handler
 
         request = MagicMock()
@@ -96,7 +96,7 @@ class TestRateLimitExceededHandler:
 
         exc = MagicMock()
         exc.detail = "10 per 1 minute"
-        exc.headers = {}
+        exc.limit.limit.get_expiry.side_effect = AttributeError("no expiry")
 
         response = rate_limit_exceeded_handler(request, exc)
         assert response.headers.get("Retry-After") == "60"
@@ -109,7 +109,7 @@ class TestRateLimitExceededHandler:
 
         exc = MagicMock()
         exc.detail = "rate limited"
-        exc.headers = {"Retry-After": "30"}
+        exc.limit.limit.get_expiry.return_value = 30
 
         response = rate_limit_exceeded_handler(request, exc)
         body = json.loads(response.body.decode())
