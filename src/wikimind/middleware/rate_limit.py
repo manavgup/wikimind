@@ -57,7 +57,8 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
     # limits.RateLimitItem with .get_expiry() returning seconds.
     retry_after_seconds = "60"
     with contextlib.suppress(Exception):
-        retry_after_seconds = str(exc.limit.limit.get_expiry())
+        if exc.limit and exc.limit.limit:
+            retry_after_seconds = str(exc.limit.limit.get_expiry())
 
     return JSONResponse(
         status_code=429,
