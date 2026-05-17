@@ -61,7 +61,7 @@ _VALID_SYNTHESIS_TYPES = {"comparative", "chronological", "thematic", "gap_analy
 
 
 @contextlib.asynccontextmanager
-async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
+async def _lifespan(_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     """Initialize database on MCP server startup."""
     settings = get_settings()
     settings.ensure_dirs()
