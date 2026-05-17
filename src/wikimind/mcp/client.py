@@ -17,10 +17,9 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport, StreamableHttpTransport
+from mcp.types import TextContent
 
 from wikimind.config import get_settings
-
-from mcp.types import TextContent
 
 if TYPE_CHECKING:
     from mcp.types import Tool
