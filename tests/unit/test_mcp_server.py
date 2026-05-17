@@ -16,8 +16,21 @@ from click.testing import CliRunner
 
 from tests.conftest import TEST_USER_ID
 from wikimind.cli.main import cli
-from wikimind.mcp.server import mcp as mcp_server
-from wikimind.mcp.server import wiki_get_article, wiki_list_sources, wiki_search
+from wikimind.mcp.server import (
+    compare_articles,
+    fact_check,
+    knowledge_gaps,
+    wiki_get_article,
+    wiki_get_graph,
+    wiki_get_health,
+    wiki_list_contradictions,
+    wiki_list_sources,
+    wiki_search,
+    wiki_synthesize,
+)
+from wikimind.mcp.server import (
+    mcp as mcp_server,
+)
 from wikimind.models import Article, ConfidenceLevel, PageType, Source
 
 if TYPE_CHECKING:
@@ -285,6 +298,10 @@ class TestMCPServerRegistration:
         assert "wiki_get_article" in tool_names
         assert "wiki_ask" in tool_names
         assert "wiki_list_sources" in tool_names
+        assert "wiki_synthesize" in tool_names
+        assert "wiki_list_contradictions" in tool_names
+        assert "wiki_get_health" in tool_names
+        assert "wiki_get_graph" in tool_names
 
     async def test_tool_descriptions_present(self):
         tools = await mcp_server.list_tools()
@@ -320,3 +337,410 @@ class TestMCPServerRegistration:
         # wiki_get_article id_or_slug param should have a description
         article_props = tools_by_name["wiki_get_article"].parameters.get("properties", {})
         assert "description" in article_props.get("id_or_slug", {}), "id_or_slug param missing Field description"
+
+    async def test_server_lists_prompts(self):
+        prompts = await mcp_server.list_prompts()
+        prompt_names = {p.name for p in prompts}
+        assert "compare_articles" in prompt_names
+        assert "knowledge_gaps" in prompt_names
+        assert "fact_check" in prompt_names
+
+    async def test_prompt_descriptions_present(self):
+        prompts = await mcp_server.list_prompts()
+        for prompt in prompts:
+            assert prompt.description, f"Prompt {prompt.name} missing description"
+            assert len(prompt.description) > 20, f"Prompt {prompt.name} description too short"
+
+
+# ---------------------------------------------------------------------------
+# wiki_synthesize
+# ---------------------------------------------------------------------------
+
+
+class TestWikiSynthesize:
+    """Test the wiki_synthesize MCP tool."""
+
+    async def test_synthesize_too_few_articles(self):
+        result = await wiki_synthesize(article_ids=["one"])
+        parsed = json.loads(result)
+        assert "error" in parsed
+        assert "At least 2" in parsed["error"]
+
+    async def test_synthesize_invalid_type(self):
+        result = await wiki_synthesize(article_ids=["a", "b"], synthesis_type="invalid")
+        parsed = json.loads(result)
+        assert "error" in parsed
+        assert "Invalid synthesis_type" in parsed["error"]
+
+    async def test_synthesize_success(self, db_session):
+        mock_article = AsyncMock()
+        mock_article.id = "synth-article-id"
+        mock_article.slug = "synth-slug"
+
+        mock_compilation = AsyncMock()
+        mock_compilation.title = "Synthesis Title"
+        mock_compilation.summary = "A synthesis summary"
+        mock_compilation.themes = ["theme1", "theme2"]
+        mock_compilation.gaps = ["gap1"]
+        mock_compilation.open_questions = ["q1"]
+        mock_compilation.source_article_ids = ["a", "b"]
+        mock_compilation.article_body = "# Synthesis body"
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.SynthesisCompiler") as mock_compiler_cls,
+        ):
+            mock_compiler_cls.return_value.synthesize = AsyncMock(return_value=(mock_article, mock_compilation))
+
+            result = await wiki_synthesize(
+                article_ids=["a", "b"],
+                synthesis_type="comparative",
+                guidance="Focus on differences",
+            )
+            parsed = json.loads(result)
+
+            assert parsed["title"] == "Synthesis Title"
+            assert parsed["summary"] == "A synthesis summary"
+            assert parsed["themes"] == ["theme1", "theme2"]
+            assert parsed["gaps"] == ["gap1"]
+            assert parsed["article_id"] == "synth-article-id"
+
+    async def test_synthesize_returns_none(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.SynthesisCompiler") as mock_compiler_cls,
+        ):
+            mock_compiler_cls.return_value.synthesize = AsyncMock(return_value=None)
+
+            result = await wiki_synthesize(article_ids=["a", "b"], synthesis_type=None, guidance=None)
+            parsed = json.loads(result)
+            assert "error" in parsed
+            assert "could not be performed" in parsed["error"]
+
+
+# ---------------------------------------------------------------------------
+# wiki_list_contradictions
+# ---------------------------------------------------------------------------
+
+
+class TestWikiListContradictions:
+    """Test the wiki_list_contradictions MCP tool."""
+
+    async def test_list_contradictions_returns_results(self, db_session):
+        mock_contradiction = AsyncMock()
+        mock_contradiction.id = "c-1"
+        mock_contradiction.claim_a = "Claim A"
+        mock_contradiction.claim_b = "Claim B"
+        mock_contradiction.article_a_id = "art-a"
+        mock_contradiction.article_b_id = "art-b"
+        mock_contradiction.article_a_title = "Article A"
+        mock_contradiction.article_b_title = "Article B"
+        mock_contradiction.status = "active"
+        mock_contradiction.detected_at = "2026-01-01"
+        mock_contradiction.resolution = None
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.ContradictionService") as mock_cls,
+        ):
+            mock_cls.return_value.list_contradictions = AsyncMock(return_value=[mock_contradiction])
+
+            result = await wiki_list_contradictions(status=None, limit=50)
+            parsed = json.loads(result)
+
+            assert isinstance(parsed, list)
+            assert len(parsed) == 1
+            assert parsed[0]["claim_a"] == "Claim A"
+            assert parsed[0]["article_a_title"] == "Article A"
+
+    async def test_list_contradictions_invalid_status(self):
+        result = await wiki_list_contradictions(status="invalid", limit=50)
+        parsed = json.loads(result)
+        assert "error" in parsed
+        assert "Invalid status" in parsed["error"]
+
+    async def test_list_contradictions_empty(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.ContradictionService") as mock_cls,
+        ):
+            mock_cls.return_value.list_contradictions = AsyncMock(return_value=[])
+
+            result = await wiki_list_contradictions(status=None, limit=50)
+            parsed = json.loads(result)
+            assert parsed == []
+
+    async def test_list_contradictions_clamps_limit(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.ContradictionService") as mock_cls,
+        ):
+            mock_cls.return_value.list_contradictions = AsyncMock(return_value=[])
+
+            await wiki_list_contradictions(status=None, limit=999)
+            call_kwargs = mock_cls.return_value.list_contradictions.call_args
+            assert call_kwargs.kwargs["limit"] == 100
+
+
+# ---------------------------------------------------------------------------
+# wiki_get_health
+# ---------------------------------------------------------------------------
+
+
+class TestWikiGetHealth:
+    """Test the wiki_get_health MCP tool."""
+
+    async def test_get_health_returns_report(self, db_session):
+        mock_report = AsyncMock()
+        mock_report.generated_at = "2026-01-01T00:00:00"
+        mock_report.total_articles = 42
+        mock_report.total_sources = 15
+        mock_report.total_findings = 5
+        mock_report.contradictions_count = 2
+        mock_report.orphans_count = 3
+        mock_report.status = "healthy"
+        mock_report.message = None
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_health = AsyncMock(return_value=mock_report)
+
+            result = await wiki_get_health()
+            parsed = json.loads(result)
+
+            assert parsed["total_articles"] == 42
+            assert parsed["total_sources"] == 15
+            assert parsed["contradictions_count"] == 2
+            assert parsed["orphans_count"] == 3
+
+    async def test_get_health_handles_error(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_health = AsyncMock(side_effect=Exception("DB error"))
+
+            result = await wiki_get_health()
+            parsed = json.loads(result)
+            assert "error" in parsed
+
+
+# ---------------------------------------------------------------------------
+# wiki_get_graph
+# ---------------------------------------------------------------------------
+
+
+class TestWikiGetGraph:
+    """Test the wiki_get_graph MCP tool."""
+
+    async def test_get_graph_returns_nodes_and_edges(self, db_session):
+        mock_node = AsyncMock()
+        mock_node.id = "node-1"
+        mock_node.label = "Article One"
+        mock_node.concept_cluster = "testing"
+        mock_node.connection_count = 2
+        mock_node.confidence = "sourced"
+        mock_node.effective_confidence = 0.85
+
+        mock_edge = AsyncMock()
+        mock_edge.source = "node-1"
+        mock_edge.target = "node-2"
+        mock_edge.relation_type = "references"
+        mock_edge.context = "Related topic"
+
+        mock_graph = AsyncMock()
+        mock_graph.nodes = [mock_node]
+        mock_graph.edges = [mock_edge]
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_graph = AsyncMock(return_value=mock_graph)
+
+            result = await wiki_get_graph(article_slug=None)
+            parsed = json.loads(result)
+
+            assert parsed["node_count"] == 1
+            assert parsed["edge_count"] == 1
+            assert parsed["nodes"][0]["label"] == "Article One"
+            assert parsed["edges"][0]["relation_type"] == "references"
+
+    async def test_get_graph_with_article_filter(self, db_session):
+        mock_graph = AsyncMock()
+        mock_graph.nodes = []
+        mock_graph.edges = []
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_graph = AsyncMock(return_value=mock_graph)
+
+            result = await wiki_get_graph(article_slug="test-article")
+            parsed = json.loads(result)
+
+            assert parsed["node_count"] == 0
+            assert parsed["edge_count"] == 0
+
+            # Verify from_article was passed
+            call_kwargs = mock_wiki_cls.return_value.get_graph.call_args
+            assert call_kwargs.kwargs["from_article"] == "test-article"
+
+
+# ---------------------------------------------------------------------------
+# compare_articles prompt
+# ---------------------------------------------------------------------------
+
+
+class TestCompareArticlesPrompt:
+    """Test the compare_articles MCP prompt."""
+
+    async def test_compare_articles_builds_prompt(self, db_session):
+        mock_a = AsyncMock()
+        mock_a.title = "Article A"
+        mock_a.content = "Content of article A"
+
+        mock_b = AsyncMock()
+        mock_b.title = "Article B"
+        mock_b.content = "Content of article B"
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(side_effect=[mock_a, mock_b])
+
+            result = await compare_articles(slug_a="slug-a", slug_b="slug-b")
+
+            assert "Article A" in result
+            assert "Article B" in result
+            assert "agreements" in result
+            assert "disagreements" in result
+            assert "Synthesis opportunities" in result
+
+    async def test_compare_articles_handles_error(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_article = AsyncMock(side_effect=Exception("Not found"))
+
+            result = await compare_articles(slug_a="bad", slug_b="also-bad")
+            assert "Error" in result
+
+
+# ---------------------------------------------------------------------------
+# knowledge_gaps prompt
+# ---------------------------------------------------------------------------
+
+
+class TestKnowledgeGapsPrompt:
+    """Test the knowledge_gaps MCP prompt."""
+
+    async def test_knowledge_gaps_general(self, db_session):
+        mock_health = AsyncMock()
+        mock_health.total_articles = 10
+        mock_health.total_sources = 5
+        mock_health.total_findings = 3
+        mock_health.contradictions_count = 1
+        mock_health.orphans_count = 2
+        mock_health.message = None
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_health = AsyncMock(return_value=mock_health)
+
+            result = await knowledge_gaps(topic=None)
+
+            assert "Total articles: 10" in result
+            assert "knowledge gaps" in result.lower()
+            assert "missing" in result.lower()
+
+    async def test_knowledge_gaps_with_topic(self, db_session):
+        mock_health = AsyncMock()
+        mock_health.total_articles = 10
+        mock_health.total_sources = 5
+        mock_health.total_findings = None
+        mock_health.contradictions_count = None
+        mock_health.orphans_count = None
+        mock_health.message = "Run the linter"
+
+        mock_result = AsyncMock()
+        mock_result.title = "ML Overview"
+        mock_result.confidence = "sourced"
+        mock_result.summary = "Overview of machine learning"
+        mock_result.source_count = 3
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.get_health = AsyncMock(return_value=mock_health)
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=[mock_result])
+
+            result = await knowledge_gaps(topic="machine learning")
+
+            assert "machine learning" in result
+            assert "ML Overview" in result
+
+
+# ---------------------------------------------------------------------------
+# fact_check prompt
+# ---------------------------------------------------------------------------
+
+
+class TestFactCheckPrompt:
+    """Test the fact_check MCP prompt."""
+
+    async def test_fact_check_with_evidence(self, db_session):
+        mock_result = AsyncMock()
+        mock_result.title = "Climate Science"
+        mock_result.confidence = "sourced"
+        mock_result.summary = "An article about climate science"
+        mock_result.source_count = 5
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=[mock_result])
+
+            result = await fact_check(claim="The earth is warming")
+
+            assert "The earth is warming" in result
+            assert "Climate Science" in result
+            assert "Supported" in result
+            assert "Contradicted" in result
+            assert "Verdict" in result
+
+    async def test_fact_check_no_evidence(self, db_session):
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server._get_mcp_user_id", return_value=TEST_USER_ID),
+            patch("wikimind.mcp.server.WikiService") as mock_wiki_cls,
+        ):
+            mock_wiki_cls.return_value.search = AsyncMock(return_value=[])
+
+            result = await fact_check(claim="Aliens built the pyramids")
+
+            assert "Aliens built the pyramids" in result
+            assert "No relevant articles" in result
