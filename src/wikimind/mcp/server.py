@@ -411,4 +411,12 @@ def run_server() -> None:
 
 
 if __name__ == "__main__":
+    # When run as `python -m wikimind.mcp.server`, this module is __main__.
+    # Side-effect imports (tools_analysis, resources, prompts) do
+    # `from wikimind.mcp.server import mcp` which would create a SECOND
+    # module instance with its own `mcp`. Register __main__ under the
+    # package name so all modules share the same `mcp` instance.
+    import sys
+
+    sys.modules.setdefault("wikimind.mcp.server", sys.modules[__name__])
     run_server()
