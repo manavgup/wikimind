@@ -269,6 +269,27 @@ class TestWikiIngestUrl:
             assert parsed["title"] == "Example Page"
             assert parsed["status"] == "scheduled_for_compilation"
 
+    async def test_ingest_url_with_title_override(self, db_session):
+        mock_source = AsyncMock()
+        mock_source.id = "src-123"
+        mock_source.source_type = "url"
+        mock_source.title = "Fetched Title"
+        mock_source.source_url = "https://example.com/page"
+
+        with (
+            patch("wikimind.mcp.server._get_session", return_value=_mock_session_ctx(db_session)),
+            patch("wikimind.mcp.server.IngestService") as mock_ingest_cls,
+        ):
+            mock_ingest_cls.return_value.ingest_url = AsyncMock(return_value=mock_source)
+
+            result = await wiki_ingest_url(
+                url="https://example.com/page", title="My Custom Title"
+            )
+            parsed = json.loads(result)
+
+            assert parsed["title"] == "My Custom Title"
+            assert mock_source.title == "My Custom Title"
+
     async def test_ingest_url_empty_returns_error(self):
         result = await wiki_ingest_url(url="", title=None)
         parsed = json.loads(result)

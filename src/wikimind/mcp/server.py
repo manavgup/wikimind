@@ -348,11 +348,15 @@ async def wiki_ingest_url(
             log.warning("wiki_ingest_url failed", url=url, error=str(exc))
             return json.dumps({"error": f"Ingestion failed: {exc}"})
 
+        # Apply user-provided title override (persisted by session commit)
+        if title and title.strip():
+            source.title = title.strip()
+
     return json.dumps(
         {
             "id": source.id,
             "source_type": source.source_type,
-            "title": source.title or title,
+            "title": source.title,
             "source_url": source.source_url,
             "status": "scheduled_for_compilation",
         },
