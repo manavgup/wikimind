@@ -56,7 +56,7 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     settings = get_settings()
     settings.ensure_dirs()
     await init_db()
-    log.info("WikiMind MCP server started", tool_count=len(server._tool_manager._tools))  # type: ignore[attr-defined]
+    log.info("WikiMind MCP server started")
     yield {}
 
 
