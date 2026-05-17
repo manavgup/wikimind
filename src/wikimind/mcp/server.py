@@ -23,6 +23,16 @@ Prompts:
 
 from __future__ import annotations
 
+# When run as `python -m wikimind.mcp.server`, this module is __main__.
+# Side-effect imports at the bottom (tools_analysis, resources, prompts) do
+# `from wikimind.mcp.server import mcp` — without this alias they'd create
+# a second module instance with its own mcp. Must be set before any of
+# those imports execute.
+import sys
+
+if __name__ == "__main__":
+    sys.modules.setdefault("wikimind.mcp.server", sys.modules[__name__])
+
 import argparse
 import contextlib
 import json
@@ -411,12 +421,4 @@ def run_server() -> None:
 
 
 if __name__ == "__main__":
-    # When run as `python -m wikimind.mcp.server`, this module is __main__.
-    # Side-effect imports (tools_analysis, resources, prompts) do
-    # `from wikimind.mcp.server import mcp` which would create a SECOND
-    # module instance with its own `mcp`. Register __main__ under the
-    # package name so all modules share the same `mcp` instance.
-    import sys
-
-    sys.modules.setdefault("wikimind.mcp.server", sys.modules[__name__])
     run_server()
