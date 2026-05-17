@@ -337,16 +337,13 @@ class TestMCPClientManagerCallTool:
         """call_tool returns text content from the tool result."""
         manager = MCPClientManager()
 
-        @dataclass
-        class TextContent:
-            text: str
-            type: str = "text"
+        from mcp.types import TextContent
 
         @dataclass
         class CallToolResult:
             content: list[Any]
 
-        mock_result = CallToolResult(content=[TextContent(text="Sunny, 72F")])
+        mock_result = CallToolResult(content=[TextContent(type="text", text="Sunny, 72F")])
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -400,16 +397,13 @@ class TestMCPClientManagerCallTool:
         """call_tool concatenates multiple text content items."""
         manager = MCPClientManager()
 
-        @dataclass
-        class TextContent:
-            text: str
-            type: str = "text"
+        from mcp.types import TextContent
 
         @dataclass
         class CallToolResult:
             content: list[Any]
 
-        mock_result = CallToolResult(content=[TextContent(text="Line 1"), TextContent(text="Line 2")])
+        mock_result = CallToolResult(content=[TextContent(type="text", text="Line 1"), TextContent(type="text", text="Line 2")])
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
