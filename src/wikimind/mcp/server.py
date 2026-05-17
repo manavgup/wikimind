@@ -380,7 +380,6 @@ import wikimind.mcp.prompts as _prompts_module  # noqa: E402, F401 — side-effe
 import wikimind.mcp.resources as _resources_module  # noqa: E402, F401 — side-effect registration
 import wikimind.mcp.tools_analysis as _analysis_module  # noqa: E402, F401 — side-effect registration
 
-
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
