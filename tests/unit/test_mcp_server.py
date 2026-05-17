@@ -282,9 +282,7 @@ class TestWikiIngestUrl:
         ):
             mock_ingest_cls.return_value.ingest_url = AsyncMock(return_value=mock_source)
 
-            result = await wiki_ingest_url(
-                url="https://example.com/page", title="My Custom Title"
-            )
+            result = await wiki_ingest_url(url="https://example.com/page", title="My Custom Title")
             parsed = json.loads(result)
 
             assert parsed["title"] == "My Custom Title"
