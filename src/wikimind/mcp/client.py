@@ -20,6 +20,8 @@ from fastmcp.client.transports import StdioTransport, StreamableHttpTransport
 
 from wikimind.config import get_settings
 
+from mcp.types import TextContent
+
 if TYPE_CHECKING:
     from mcp.types import Tool
 
@@ -162,7 +164,7 @@ class MCPClientManager:
         try:
             result = await client.call_tool(tool_name, arguments)
             # Extract text content from the result
-            parts = [content_item.text for content_item in result.content if hasattr(content_item, "text")]
+            parts = [content_item.text for content_item in result.content if isinstance(content_item, TextContent)]
             return "\n".join(parts) if parts else ""
         except Exception as exc:
             log.error(
