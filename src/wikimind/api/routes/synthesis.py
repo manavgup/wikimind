@@ -1,5 +1,7 @@
 """Synthesis page endpoints — cross-cutting analysis across multiple sources."""
 
+import json
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -142,14 +144,17 @@ async def confirm_synthesis(
             detail="Could not save synthesis (need at least 2 valid articles).",
         )
 
+    persisted_source_ids = json.loads(article.source_ids or "[]")
+    persisted_concepts = json.loads(article.concept_ids or "[]")
+
     return SynthesisConfirmResponse(
         id=article.id,
         slug=article.slug,
         title=article.title,
         summary=article.summary or "",
-        themes=[],
-        source_count=len(body.article_ids),
-        source_article_ids=body.article_ids,
+        themes=persisted_concepts,
+        source_count=len(persisted_source_ids),
+        source_article_ids=persisted_source_ids,
         created_at=article.created_at,
         page_type=PageType.SYNTHESIS,
     )

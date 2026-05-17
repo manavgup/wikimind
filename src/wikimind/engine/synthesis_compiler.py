@@ -274,12 +274,21 @@ class SynthesisCompiler(BaseCompiler):
         if len(draft_content) > 200:
             summary += "..."
 
+        # Extract concepts from source articles (union of all source concepts)
+        concepts: list[str] = []
+        seen: set[str] = set()
+        for a in articles:
+            for c in json.loads(a.concept_ids or "[]"):
+                if c not in seen:
+                    seen.add(c)
+                    concepts.append(c)
+
         article = Article(
             slug=slug,
             title=title,
             file_path="",
             summary=summary,
-            concept_ids=json.dumps([]),
+            concept_ids=json.dumps(concepts),
             source_ids=json.dumps(source_ids),
             provider=self._last_provider_used,
             page_type=PageType.SYNTHESIS,
@@ -297,6 +306,16 @@ class SynthesisCompiler(BaseCompiler):
 
         article.file_path = relative_path
         session.add(article)
+        await session.commit()
+
+        # Populate concept join table
+        for concept_name in concepts:
+            session.add(
+                ArticleConcept(
+                    article_id=article.id,
+                    concept_name=concept_name,
+                )
+            )
         await session.commit()
 
         # Update full-text search index
