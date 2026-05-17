@@ -403,7 +403,9 @@ class TestMCPClientManagerCallTool:
         class CallToolResult:
             content: list[Any]
 
-        mock_result = CallToolResult(content=[TextContent(type="text", text="Line 1"), TextContent(type="text", text="Line 2")])
+        mock_result = CallToolResult(
+            content=[TextContent(type="text", text="Line 1"), TextContent(type="text", text="Line 2")]
+        )
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
