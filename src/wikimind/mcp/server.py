@@ -376,9 +376,9 @@ async def _tool_wiki_get_source_status(
 # These modules import `mcp` from this file and register their own tools,
 # resources, and prompts via decorators. We import them here to trigger
 # registration at module load time.
-import wikimind.mcp.prompts as _prompts_module  # noqa: E402, F401, I001
-import wikimind.mcp.resources as _resources_module  # noqa: E402, F401
-import wikimind.mcp.tools_analysis as _analysis_module  # noqa: E402, F401
+import wikimind.mcp.prompts as _prompts_module  # noqa: E402, F401 — side-effect registration
+import wikimind.mcp.resources as _resources_module  # noqa: E402, F401 — side-effect registration
+import wikimind.mcp.tools_analysis as _analysis_module  # noqa: E402, F401 — side-effect registration
 
 
 # ---------------------------------------------------------------------------
