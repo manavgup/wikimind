@@ -15,8 +15,8 @@ from sqlalchemy import inspect as sa_inspect
 
 from alembic import op
 
-revision: str = "0016"
-down_revision: str = "0015"
+revision: str = "0017"
+down_revision: str = "0016"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
