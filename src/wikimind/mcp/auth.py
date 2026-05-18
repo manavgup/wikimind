@@ -9,10 +9,14 @@ entirely. See ADR-027.
 from __future__ import annotations
 
 import hashlib
+from typing import TYPE_CHECKING
 
 import jwt
 import structlog
 from fastmcp.server.auth import AccessToken, TokenVerifier
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind._datetime import utcnow_naive
 from wikimind.database import get_session_factory
