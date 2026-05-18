@@ -98,7 +98,7 @@ async def _get_mcp_user_id() -> str:
     if not settings.is_dev:
         msg = "Authentication required (production mode)"
         raise ToolError(msg)
-    from wikimind.database import get_dev_user_id  # noqa: PLC0415
+    from wikimind.database import get_dev_user_id
 
     return await get_dev_user_id()
 
@@ -275,7 +275,7 @@ async def wiki_ask(
 )
 async def _tool_wiki_overview(ctx: Context) -> dict[str, Any]:
     """Delegate to discovery module."""
-    from wikimind.mcp.tools_discovery import wiki_overview  # noqa: PLC0415
+    from wikimind.mcp.tools_discovery import wiki_overview
 
     return await wiki_overview(ctx)
 
@@ -296,7 +296,7 @@ async def _tool_wiki_list_articles(
     offset: int = Field(0, description="Pagination offset (>= 0)"),
 ) -> dict[str, Any]:
     """Delegate to discovery module."""
-    from wikimind.mcp.tools_discovery import wiki_list_articles  # noqa: PLC0415
+    from wikimind.mcp.tools_discovery import wiki_list_articles
 
     return await wiki_list_articles(ctx, concept=concept, page_type=page_type, limit=limit, offset=offset)
 
@@ -313,7 +313,7 @@ async def _tool_wiki_list_concepts(
     include_empty: bool = Field(False, description="Include concepts with zero articles"),
 ) -> dict[str, Any]:
     """Delegate to discovery module."""
-    from wikimind.mcp.tools_discovery import wiki_list_concepts  # noqa: PLC0415
+    from wikimind.mcp.tools_discovery import wiki_list_concepts
 
     return await wiki_list_concepts(ctx, include_empty=include_empty)
 
@@ -337,7 +337,7 @@ async def _tool_wiki_ingest_url(
     title: str = Field("", description="Optional title override (max 200 chars)"),
 ) -> dict[str, Any]:
     """Ingest a URL into the wiki."""
-    from wikimind.mcp.tools_write import wiki_ingest_url  # noqa: PLC0415
+    from wikimind.mcp.tools_write import wiki_ingest_url
 
     user_id = await _get_mcp_user_id()
     return await wiki_ingest_url(url=url, title=title, user_id=user_id)
@@ -356,7 +356,7 @@ async def _tool_wiki_ingest_text(
     title: str = Field(..., description="Title for the source (1-200 chars, required)"),
 ) -> dict[str, Any]:
     """Ingest raw text into the wiki."""
-    from wikimind.mcp.tools_write import wiki_ingest_text  # noqa: PLC0415
+    from wikimind.mcp.tools_write import wiki_ingest_text
 
     user_id = await _get_mcp_user_id()
     return await wiki_ingest_text(text=text, title=title, user_id=user_id)
@@ -373,7 +373,7 @@ async def _tool_wiki_get_source_status(
     source_id: str = Field(..., description="Source ID to check"),
 ) -> dict[str, Any]:
     """Check ingestion progress."""
-    from wikimind.mcp.tools_write import wiki_get_source_status  # noqa: PLC0415
+    from wikimind.mcp.tools_write import wiki_get_source_status
 
     user_id = await _get_mcp_user_id()
     return await wiki_get_source_status(source_id=source_id, user_id=user_id)
@@ -383,12 +383,14 @@ async def _tool_wiki_get_source_status(
 # Tier 4 — Analysis tools, resources, prompts (self-registering modules)
 # ---------------------------------------------------------------------------
 
-# These modules import `mcp` from this file and register their own tools,
-# resources, and prompts via decorators. We import them here to trigger
-# registration at module load time.
-import wikimind.mcp.prompts as _prompts_module  # noqa: E402, F401 — side-effect registration
-import wikimind.mcp.resources as _resources_module  # noqa: E402, F401 — side-effect registration
-import wikimind.mcp.tools_analysis as _analysis_module  # noqa: E402, F401 — side-effect registration
+def _register_modules() -> None:
+    """Import side-effect modules that register tools, resources, and prompts on `mcp`."""
+    import wikimind.mcp.prompts  # registers 4 prompts
+    import wikimind.mcp.resources  # registers 3 resources
+    import wikimind.mcp.tools_analysis  # registers 4 tier-4 tools
+
+
+_register_modules()
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -408,7 +410,7 @@ def run_server() -> None:
     args = parser.parse_args()
 
     if args.transport == "http":
-        from wikimind.mcp.auth import WikiMindAuthProvider  # noqa: PLC0415
+        from wikimind.mcp.auth import WikiMindAuthProvider
 
         settings = get_settings()
         if settings.mcp.require_auth:

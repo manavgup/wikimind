@@ -492,7 +492,7 @@ class MCPAccessToken(SQLModel, table=True):
     never persisted. See ADR-027.
     """
 
-    __tablename__ = "mcp_access_token"
+    __tablename__: str = "mcp_access_token"  # pyright: declared_attr workaround
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id", index=True)
