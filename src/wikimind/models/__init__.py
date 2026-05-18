@@ -2417,3 +2417,48 @@ class MCPTokenRevokeResponse(BaseModel):
     """Response after revoking an MCP token."""
 
     status: str
+
+
+# ---------------------------------------------------------------------------
+# Admin per-user detail response models (issue #772)
+# ---------------------------------------------------------------------------
+
+
+class AdminUserSummary(BaseModel):
+    """Summary metrics for a single user in the admin users list."""
+
+    id: str
+    email: str
+    name: str | None
+    avatar_url: str | None
+    article_count: int = 0
+    source_count: int = 0
+    total_cost_usd: float = 0.0
+    last_active_at: datetime | None = None
+
+
+class RecentSourceEntry(BaseModel):
+    """A recently ingested source entry for the admin user detail view."""
+
+    id: str
+    title: str | None
+    source_type: str
+    status: str
+    ingested_at: datetime
+
+
+class AdminUserDetail(BaseModel):
+    """Full per-user detail for the admin user detail endpoint."""
+
+    id: str
+    email: str
+    name: str | None
+    avatar_url: str | None
+    article_count: int = 0
+    source_count: int = 0
+    total_cost_usd: float = 0.0
+    last_active_at: datetime | None = None
+    articles_by_type: dict[str, int] = {}
+    sources_by_status: dict[str, int] = {}
+    cost_by_provider: dict[str, float] = {}
+    recent_sources: list[RecentSourceEntry] = []

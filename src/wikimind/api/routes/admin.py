@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
@@ -15,7 +15,13 @@ from sqlmodel import select
 from wikimind.api.deps import require_admin
 from wikimind.config import get_settings
 from wikimind.database import get_session
-from wikimind.models import LLMTrace, LLMTraceListResponse, LLMTraceResponse
+from wikimind.models import (
+    AdminUserDetail,
+    AdminUserSummary,
+    LLMTrace,
+    LLMTraceListResponse,
+    LLMTraceResponse,
+)
 from wikimind.services.admin import AdminService  # noqa: TC001 — needed at runtime for Depends()
 from wikimind.services.factories import get_admin_service
 
@@ -125,6 +131,30 @@ async def get_docling_status(
     except (httpx.HTTPError, OSError) as exc:
         log.warning("docling-status: sidecar unreachable", url=url, error=str(exc))
         return DoclingStatusResponse(status="disconnected", url=url)
+
+
+@router.get("/users", response_model=list[AdminUserSummary])
+async def list_users(
+    session: AsyncSession = Depends(get_session),
+    service: AdminService = Depends(get_admin_service),
+    _admin_user_id: str = Depends(require_admin),
+):
+    """List all users with summary metrics (admin only)."""
+    return await service.list_users(session)
+
+
+@router.get("/users/{user_id}", response_model=AdminUserDetail)
+async def get_user_detail(
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: AdminService = Depends(get_admin_service),
+    _admin_user_id: str = Depends(require_admin),
+):
+    """Full stats breakdown for a single user (admin only)."""
+    detail = await service.get_user_detail(session, user_id=user_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return detail
 
 
 @router.get("/traces", response_model=LLMTraceListResponse)
