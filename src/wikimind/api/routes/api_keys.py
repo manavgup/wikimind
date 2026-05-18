@@ -3,6 +3,11 @@
 Lets authenticated users store, list, and delete their own LLM provider
 API keys.  Keys are encrypted at rest (Fernet + PBKDF2).  Responses
 never expose raw keys -- only provider names and masked hints.
+
+Note: These are *provider* API keys (e.g. OpenAI, Anthropic) for LLM
+access.  User-facing *API tokens* (Bearer tokens used by the browser
+extension, MCP clients, and other API consumers) are managed in
+``auth.py`` via the ``POST /auth/token`` endpoint.
 """
 
 from datetime import datetime

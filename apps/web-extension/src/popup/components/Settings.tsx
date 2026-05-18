@@ -162,14 +162,14 @@ export function Settings({ onBack }: Props) {
           boxSizing: "border-box",
           outline: "none",
         }}
-        placeholder="Paste your API token"
+        placeholder="Paste your wmk_ API token"
       />
       <a
         href="#"
         onClick={(e) => {
           e.preventDefault();
           const cleanUrl = url.replace(/\/$/, "");
-          chrome.tabs.create({ url: `${cleanUrl}/auth/tokens` });
+          chrome.tabs.create({ url: `${cleanUrl}/settings` });
         }}
         style={{
           display: "block",
@@ -179,7 +179,7 @@ export function Settings({ onBack }: Props) {
           textDecoration: "none",
         }}
       >
-        Generate a token on your server &rarr;
+        Generate a token in Settings &rarr;
       </a>
 
       {error && (

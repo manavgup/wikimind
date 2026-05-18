@@ -10,6 +10,7 @@ import { DoclingStatus } from "./DoclingStatus";
 import { SyncStatus } from "./SyncStatus";
 import { WikiExportPanel } from "./WikiExportPanel";
 import { ShareLinksPanel } from "./ShareLinksPanel";
+import { ApiTokens } from "./ApiTokens";
 import { MCPTokens } from "./MCPTokens";
 import { getSettings, updateSettings } from "../../api/settings";
 
@@ -97,6 +98,11 @@ export function SettingsView() {
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Share Links</h2>
           <ShareLinksPanel />
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold text-slate-700">API Tokens</h2>
+          <ApiTokens />
         </section>
 
         <section className="mb-8">

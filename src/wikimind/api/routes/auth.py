@@ -114,7 +114,7 @@ def _callback_url(request: Request) -> str:
     return f"{scheme}://{host}/auth/callback"
 
 
-_SAFE_REDIRECT_PATHS = ("/auth/tokens", "/mcp/authorize/resume")
+_SAFE_REDIRECT_PATHS = ("/auth/tokens", "/settings", "/mcp/authorize/resume")
 
 
 @router.get("/login/{provider}")
