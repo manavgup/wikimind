@@ -114,7 +114,7 @@ def _callback_url(request: Request) -> str:
     return f"{scheme}://{host}/auth/callback"
 
 
-_SAFE_REDIRECT_PATHS = ("/auth/tokens",)
+_SAFE_REDIRECT_PATHS = ("/auth/tokens", "/mcp/authorize/resume")
 
 
 @router.get("/login/{provider}")
@@ -154,7 +154,7 @@ async def login(provider: str, request: Request) -> RedirectResponse:
     # If a ?next= param was provided, store it in a short-lived cookie
     # so the callback can redirect back after login.
     next_url = request.query_params.get("next", "")
-    if next_url and next_url in _SAFE_REDIRECT_PATHS:
+    if next_url and any(next_url.startswith(p) for p in _SAFE_REDIRECT_PATHS):
         response.set_cookie(
             "wikimind_next",
             next_url,
@@ -199,7 +199,7 @@ async def callback(
     # The cookie value is validated against a strict allowlist to prevent
     # open redirect attacks (CodeQL py/url-redirection).
     next_url = request.cookies.get("wikimind_next", "")
-    if next_url not in _SAFE_REDIRECT_PATHS:
+    if not any(next_url.startswith(p) for p in _SAFE_REDIRECT_PATHS):
         next_url = "/callback"
     response = RedirectResponse(url=next_url, status_code=302)
     response.delete_cookie("wikimind_next", path="/")
