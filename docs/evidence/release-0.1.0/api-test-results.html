@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WikiMind API Test Results</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 1000px; margin: 0 auto; }
+  h1 { color: #58a6ff; font-size: 1.5rem; margin-bottom: 0.5rem; }
+  .meta { color: #8b949e; font-size: 0.85rem; margin-bottom: 1.5rem; border-bottom: 1px solid #21262d; padding-bottom: 1rem; }
+  .meta code { color: #79c0ff; background: #21262d; padding: 1px 5px; border-radius: 3px; }
+  .stats { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; }
+  .stat .v { font-size: 1.5rem; font-weight: 700; } .stat .l { font-size: 0.7rem; color: #8b949e; }
+  .green { color: #3fb950; } .red { color: #f85149; } .gray { color: #8b949e; }
+  h2 { color: #f0883e; font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+  th { text-align: left; padding: 0.3rem 0.5rem; color: #8b949e; font-size: 0.75rem; border-bottom: 1px solid #30363d; }
+  td { padding: 0.25rem 0.5rem; font-size: 0.78rem; border-bottom: 1px solid #161b22; }
+  tr:hover { background: #161b22; }
+  .pass { color: #3fb950; font-weight: 600; } .fail { color: #f85149; font-weight: 700; } .skip { color: #8b949e; }
+  .m { color: #d2a8ff; font-family: monospace; font-size: 0.75rem; }
+  .p { color: #79c0ff; font-family: monospace; font-size: 0.75rem; }
+  .c { font-family: monospace; }
+  a { color: #58a6ff; }
+  footer { color: #484f58; font-size: 0.75rem; margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #21262d; }
+</style>
+</head>
+<body>
+<h1>WikiMind API Test Results</h1>
+<div class="meta">
+  <strong>Date:</strong> 2026-05-18T21:44:26Z &nbsp;|&nbsp;
+  <strong>Target:</strong> <code>http://localhost:7842</code> &nbsp;|&nbsp;
+  <a href="api-test.sh">Test script source</a> &nbsp;|&nbsp;
+  <a href="index.html">Full evidence page</a>
+</div>
+<div class="stats">
+  <div class="stat"><div class="v green">89</div><div class="l">Pass</div></div>
+  <div class="stat"><div class="v red">0</div><div class="l">Fail</div></div>
+  <div class="stat"><div class="v gray">51</div><div class="l">Skip</div></div>
+  <div class="stat"><div class="v">140</div><div class="l">Total</div></div>
+</div>
+<h2>0. Health &amp; Connectivity</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/health</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/health/deep</td><td class="c">200</td></tr>
+</table>
+<h2>1. Authentication</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/auth/me</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/auth/magic-link</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/auth/tokens</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/auth/tokens.js</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">OAuth login redirect</td><td class="c">requires browser redirect</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">OAuth callback</td><td class="c">requires valid OAuth code</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Magic link verify</td><td class="c">requires valid token</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Create API token</td><td class="c">would create persistent token</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Logout</td><td class="c">would end session</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Delete account</td><td class="c">destructive</td></tr>
+</table>
+<h2>2. Content Ingestion</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/b1bd487a-ca9d-49b6-bebc-10a68b1125e9</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/b1bd487a-ca9d-49b6-bebc-10a68b1125e9/detail</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/b1bd487a-ca9d-49b6-bebc-10a68b1125e9/content</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/b1bd487a-ca9d-49b6-bebc-10a68b1125e9/images</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/ingest/text</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/0f2b2584-a66f-4c01-991e-f510d7374c03/images</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/0f2b2584-a66f-4c01-991e-f510d7374c03/images/picture-1.png</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Ingest URL</td><td class="c">would trigger LLM compilation (costly)</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Ingest PDF</td><td class="c">would trigger LLM compilation (costly)</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Get source original</td><td class="c">binary download; tested via browser</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Delete source</td><td class="c">destructive; would remove data</td></tr>
+</table>
+<h2>3. Draft Review</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/ingest/sources/b1bd487a-ca9d-49b6-bebc-10a68b1125e9/draft</td><td class="c">404</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Approve draft</td><td class="c">requires pending draft</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Reject draft</td><td class="c">requires pending draft</td></tr>
+</table>
+<h2>4. Wiki &amp; Knowledge Base</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles?page_type=source&amp;limit=5</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/mock-article</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/mock-article/relationships</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/tags</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/random</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/search?q=transformer&amp;limit=5</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/search/facets?q=transformer</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/wikilinks/resolve?q=attention&amp;limit=5</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/graph</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Get wiki health</td><td class="c">deprecated; use /lint/reports/latest</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Create stub article</td><td class="c">would create persistent data</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Edit article</td><td class="c">would modify existing article</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Refresh article</td><td class="c">would reset staleness timer</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Recompile article</td><td class="c">would trigger LLM compilation</td></tr>
+</table>
+<h2>5. Concept Taxonomy</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/concepts</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/concepts/testing</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/concepts/testing/articles</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Rebuild taxonomy</td><td class="c">would trigger LLM call</td></tr>
+</table>
+<h2>6. Contradictions &amp; Quality</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/contradictions</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/contradiction-resolutions</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Get contradiction</td><td class="c">no contradictions found</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Resolve contradiction</td><td class="c">would modify state</td></tr>
+</table>
+<h2>7. Export &amp; Download</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/export?format=markdown</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/export?format=json</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/export?format=csv</td><td class="c">422</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Export as PDF</td><td class="c">requires wkhtmltopdf</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Export full wiki</td><td class="c">large download</td></tr>
+</table>
+<h2>8. Sharing &amp; Public Access</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/share-links</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/wiki/share-links</td><td class="c">201</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/public/articles/HfvnEJee3-PYlqqjm751wVXLbrVqgFX3kh2AyomSRw4</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/public/articles/HfvnEJee3-PYlqqjm751wVXLbrVqgFX3kh2AyomSRw4/json</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/share-links?article_id=3e38435d-e06f-453d-b344-0caf4433ac86</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/public/articles/nonexistent-token</td><td class="c">404</td></tr>
+</table>
+<h2>9. Synthesis</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/synthesis</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/synthesis/suggestions</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/synthesis/suggestions?limit=3</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/wiki/synthesis/preview</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Synthesis refine</td><td class="c">requires previous preview draft</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Synthesis confirm</td><td class="c">would create persistent article</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Create synthesis (direct)</td><td class="c">would trigger LLM call</td></tr>
+</table>
+<h2>10. Query &amp; Conversations</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/query/conversations</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/query/history?limit=5</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/query/conversations/42542608-692e-436e-931d-0394f7e5779a</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/query/conversations/42542608-692e-436e-931d-0394f7e5779a/export</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Ask question</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Ask (streaming)</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Fork conversation</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">File back</td><td class="c">would create article</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Crystallize</td><td class="c">would trigger LLM call</td></tr>
+</table>
+<h2>11. Tags</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/tags</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/tags</td><td class="c">201</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/tags</td><td class="c">201</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/tags/502dd00f-304a-47a0-8635-7c3ab2508a10/articles</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/wiki/articles/3e38435d-e06f-453d-b344-0caf4433ac86/tags/502dd00f-304a-47a0-8635-7c3ab2508a10</td><td class="c">204</td></tr>
+</table>
+<h2>12. Saved Searches</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/saved-searches</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/saved-searches</td><td class="c">201</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/saved-searches/f36496a1-fe90-4e63-9f36-ff8fc33e5760/execute</td><td class="c">200</td></tr>
+</table>
+<h2>13. Compilation Schemas</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/compilation-schemas</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/compilation-schemas</td><td class="c">201</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/compilation-schemas/048a5909-2066-42a7-84d2-498b1a86a4e3</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">PATCH</td><td class="p">/api/compilation-schemas/048a5909-2066-42a7-84d2-498b1a86a4e3</td><td class="c">200</td></tr>
+</table>
+<h2>14. Ambient Capture</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/capture</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/capture/rss/feeds</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/capture/clipboard</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Ingest capture</td><td class="c">would trigger compilation</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Subscribe RSS</td><td class="c">would create persistent subscription</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Poll RSS</td><td class="c">would fetch external content</td></tr>
+</table>
+<h2>15. Background Jobs</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/jobs</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Trigger compile</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Trigger lint</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Trigger reindex</td><td class="c">modifies search index</td></tr>
+</table>
+<h2>16. Linting &amp; Quality</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/lint/reports</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/lint/reports/latest</td><td class="c">404</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Run lint</td><td class="c">would trigger LLM call</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Dismiss finding</td><td class="c">would modify state</td></tr>
+</table>
+<h2>17. Settings &amp; Configuration</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings/llm/cost</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings/llm/cost/breakdown</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings/onboarding-status</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Set default provider</td><td class="c">would change config</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Update settings</td><td class="c">would change config</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Test LLM connection</td><td class="c">would make external call</td></tr>
+</table>
+<h2>18. API Keys (BYOK)</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings/api-keys</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Set API key</td><td class="c">would store secret</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Delete API key</td><td class="c">destructive</td></tr>
+</table>
+<h2>19. MCP Tokens</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/settings/mcp-tokens</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Create MCP token</td><td class="c">would create persistent token</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Revoke MCP token</td><td class="c">destructive</td></tr>
+</table>
+<h2>20. MCP OAuth</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/.well-known/oauth-authorization-server</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">MCP authorize</td><td class="c">requires browser interaction</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">MCP token exchange</td><td class="c">requires valid auth code</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">MCP revoke</td><td class="c">requires valid token</td></tr>
+</table>
+<h2>21. Admin Dashboard</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/stats</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/orphans</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/concepts/eligible</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/stuck-sources</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/docling-status</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/admin/traces</td><td class="c">200</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Retry stuck source</td><td class="c">would re-queue compilation</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Sweep wikilinks</td><td class="c">modifies graph</td></tr>
+<tr><td class="skip">SKIP</td><td class="m">—</td><td class="p">Reindex</td><td class="c">modifies search index</td></tr>
+</table>
+<h2>22. Rate Limiting</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/auth/magic-link</td><td class="c">429</td></tr>
+</table>
+<h2>23. Error Handling</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/nonexistent</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">GET</td><td class="p">/api/wiki/articles/nonexistent-slug-12345</td><td class="c">404</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/ingest/text</td><td class="c">422</td></tr>
+</table>
+<h2>CLEANUP</h2>
+<table><tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/wiki/share-links/6f170c93-0360-4bbd-9163-cc1c0cadcb01</td><td class="c">204</td></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/tags/502dd00f-304a-47a0-8635-7c3ab2508a10</td><td class="c">204</td></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/saved-searches/f36496a1-fe90-4e63-9f36-ff8fc33e5760</td><td class="c">204</td></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/compilation-schemas/048a5909-2066-42a7-84d2-498b1a86a4e3</td><td class="c">204</td></tr>
+<tr><td class="pass">PASS</td><td class="m">POST</td><td class="p">/api/capture/cd92e62b-dc2f-41ed-a26a-50bbe41e5ead/discard</td><td class="c">200</td></tr>
+<tr><td class="pass">PASS</td><td class="m">DELETE</td><td class="p">/api/ingest/sources/000718b9-e9a3-4b91-af8b-75fb107d73ab</td><td class="c">200</td></tr>
+</table>
+<h2>Summary</h2>
+<footer>
+  Generated by api-test.sh &nbsp;|&nbsp; WikiMind v0.1.0
+</footer>
+</body>
+</html>

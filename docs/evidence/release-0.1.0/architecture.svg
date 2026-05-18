@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="feed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3fb950"/>
+      <stop offset="100%" style="stop-color:#238636"/>
+    </linearGradient>
+    <linearGradient id="extract" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#58a6ff"/>
+      <stop offset="100%" style="stop-color:#1f6feb"/>
+    </linearGradient>
+    <linearGradient id="compile" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#bc8cff"/>
+      <stop offset="100%" style="stop-color:#8957e5"/>
+    </linearGradient>
+    <linearGradient id="link" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0883e"/>
+      <stop offset="100%" style="stop-color:#d29922"/>
+    </linearGradient>
+    <linearGradient id="ask" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f778ba"/>
+      <stop offset="100%" style="stop-color:#da3633"/>
+    </linearGradient>
+    <linearGradient id="lint" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#79c0ff"/>
+      <stop offset="100%" style="stop-color:#388bfd"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="520" rx="16" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="550" y="40" text-anchor="middle" fill="#58a6ff" font-size="20" font-weight="700">WikiMind Architecture</text>
+  <text x="550" y="60" text-anchor="middle" fill="#484f58" font-size="12">Feed sources. LLM compiles wiki articles. Ask questions. Detect contradictions.</text>
+
+  <!-- ===== MAIN PIPELINE (Row 1) ===== -->
+
+  <!-- Step 1: Feed -->
+  <g filter="url(#shadow)">
+    <rect x="30" y="90" width="150" height="120" rx="12" fill="url(#feed)" opacity="0.15"/>
+    <rect x="30" y="90" width="150" height="120" rx="12" fill="none" stroke="url(#feed)" stroke-width="1.5"/>
+    <text x="105" y="120" text-anchor="middle" fill="#3fb950" font-size="22">&#128196;</text>
+    <text x="105" y="145" text-anchor="middle" fill="#3fb950" font-size="15" font-weight="700">Feed</text>
+    <text x="105" y="165" text-anchor="middle" fill="#8b949e" font-size="10">URL / PDF / Text</text>
+    <text x="105" y="180" text-anchor="middle" fill="#8b949e" font-size="10">YouTube / RSS</text>
+    <text x="105" y="200" text-anchor="middle" fill="#6e7681" font-size="9">POST /ingest/*</text>
+  </g>
+
+  <!-- Arrow 1 -->
+  <line x1="185" y1="150" x2="215" y2="150" stroke="#30363d" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <polygon points="213,146 221,150 213,154" fill="#484f58"/>
+
+  <!-- Step 2: Extract -->
+  <g filter="url(#shadow)">
+    <rect x="220" y="90" width="150" height="120" rx="12" fill="url(#extract)" opacity="0.15"/>
+    <rect x="220" y="90" width="150" height="120" rx="12" fill="none" stroke="url(#extract)" stroke-width="1.5"/>
+    <text x="295" y="120" text-anchor="middle" fill="#58a6ff" font-size="22">&#128270;</text>
+    <text x="295" y="145" text-anchor="middle" fill="#58a6ff" font-size="15" font-weight="700">Extract</text>
+    <text x="295" y="165" text-anchor="middle" fill="#8b949e" font-size="10">Fetch &amp; clean content</text>
+    <text x="295" y="180" text-anchor="middle" fill="#8b949e" font-size="10">Chunk &amp; tokenize</text>
+    <text x="295" y="200" text-anchor="middle" fill="#6e7681" font-size="9">Docling PDF extraction</text>
+  </g>
+
+  <!-- Arrow 2 -->
+  <polygon points="403,146 411,150 403,154" fill="#484f58"/>
+
+  <!-- Step 3: Compile -->
+  <g filter="url(#shadow)">
+    <rect x="410" y="90" width="150" height="120" rx="12" fill="url(#compile)" opacity="0.15"/>
+    <rect x="410" y="90" width="150" height="120" rx="12" fill="none" stroke="url(#compile)" stroke-width="1.5"/>
+    <text x="485" y="120" text-anchor="middle" fill="#bc8cff" font-size="22">&#129302;</text>
+    <text x="485" y="145" text-anchor="middle" fill="#bc8cff" font-size="15" font-weight="700">Compile</text>
+    <text x="485" y="165" text-anchor="middle" fill="#8b949e" font-size="10">LLM writes wiki article</text>
+    <text x="485" y="180" text-anchor="middle" fill="#8b949e" font-size="10">Claims + confidence</text>
+    <text x="485" y="200" text-anchor="middle" fill="#6e7681" font-size="9">6 providers w/ fallback</text>
+  </g>
+
+  <!-- Arrow 3 -->
+  <polygon points="593,146 601,150 593,154" fill="#484f58"/>
+
+  <!-- Step 4: Link -->
+  <g filter="url(#shadow)">
+    <rect x="600" y="90" width="150" height="120" rx="12" fill="url(#link)" opacity="0.15"/>
+    <rect x="600" y="90" width="150" height="120" rx="12" fill="none" stroke="url(#link)" stroke-width="1.5"/>
+    <text x="675" y="120" text-anchor="middle" fill="#f0883e" font-size="22">&#128279;</text>
+    <text x="675" y="145" text-anchor="middle" fill="#f0883e" font-size="15" font-weight="700">Link</text>
+    <text x="675" y="165" text-anchor="middle" fill="#8b949e" font-size="10">Concepts &amp; backlinks</text>
+    <text x="675" y="180" text-anchor="middle" fill="#8b949e" font-size="10">Knowledge graph</text>
+    <text x="675" y="200" text-anchor="middle" fill="#6e7681" font-size="9">Wikilink resolution</text>
+  </g>
+
+  <!-- Arrow 4 -->
+  <polygon points="783,146 791,150 783,154" fill="#484f58"/>
+
+  <!-- Step 5: Ask -->
+  <g filter="url(#shadow)">
+    <rect x="790" y="90" width="150" height="120" rx="12" fill="url(#ask)" opacity="0.15"/>
+    <rect x="790" y="90" width="150" height="120" rx="12" fill="none" stroke="url(#ask)" stroke-width="1.5"/>
+    <text x="865" y="120" text-anchor="middle" fill="#f778ba" font-size="22">&#128172;</text>
+    <text x="865" y="145" text-anchor="middle" fill="#f778ba" font-size="15" font-weight="700">Ask</text>
+    <text x="865" y="165" text-anchor="middle" fill="#8b949e" font-size="10">RAG with citations</text>
+    <text x="865" y="180" text-anchor="middle" fill="#8b949e" font-size="10">Streaming answers</text>
+    <text x="865" y="200" text-anchor="middle" fill="#6e7681" font-size="9">Conversation threads</text>
+  </g>
+
+  <!-- Arrow 5 -->
+  <polygon points="973,146 981,150 973,154" fill="#484f58"/>
+
+  <!-- Step 6: Lint -->
+  <g filter="url(#shadow)">
+    <rect x="980" y="90" width="100" height="120" rx="12" fill="url(#lint)" opacity="0.15"/>
+    <rect x="980" y="90" width="100" height="120" rx="12" fill="none" stroke="url(#lint)" stroke-width="1.5"/>
+    <text x="1030" y="120" text-anchor="middle" fill="#79c0ff" font-size="22">&#128269;</text>
+    <text x="1030" y="145" text-anchor="middle" fill="#79c0ff" font-size="15" font-weight="700">Lint</text>
+    <text x="1030" y="165" text-anchor="middle" fill="#8b949e" font-size="10">Contradictions</text>
+    <text x="1030" y="180" text-anchor="middle" fill="#8b949e" font-size="10">Gaps &amp; staleness</text>
+    <text x="1030" y="200" text-anchor="middle" fill="#6e7681" font-size="9">Quality checks</text>
+  </g>
+
+  <!-- ===== ROW 2: Supporting capabilities ===== -->
+
+  <!-- Synthesis -->
+  <g filter="url(#shadow)">
+    <rect x="30" y="260" width="240" height="100" rx="12" fill="#8957e5" opacity="0.1"/>
+    <rect x="30" y="260" width="240" height="100" rx="12" fill="none" stroke="#8957e5" stroke-width="1"/>
+    <text x="150" y="290" text-anchor="middle" fill="#bc8cff" font-size="14" font-weight="700">&#10024; Synthesis</text>
+    <text x="150" y="310" text-anchor="middle" fill="#8b949e" font-size="10">Cross-cutting analysis across articles</text>
+    <text x="150" y="325" text-anchor="middle" fill="#8b949e" font-size="10">Comparative / Chronological / Thematic / Gap</text>
+    <text x="150" y="345" text-anchor="middle" fill="#6e7681" font-size="9">Preview &#x2192; Refine &#x2192; Confirm workflow</text>
+  </g>
+
+  <!-- Export & Share -->
+  <g filter="url(#shadow)">
+    <rect x="290" y="260" width="240" height="100" rx="12" fill="#3fb950" opacity="0.1"/>
+    <rect x="290" y="260" width="240" height="100" rx="12" fill="none" stroke="#3fb950" stroke-width="1"/>
+    <text x="410" y="290" text-anchor="middle" fill="#3fb950" font-size="14" font-weight="700">&#128230; Export &amp; Share</text>
+    <text x="410" y="310" text-anchor="middle" fill="#8b949e" font-size="10">Markdown / JSON / PDF / Obsidian</text>
+    <text x="410" y="325" text-anchor="middle" fill="#8b949e" font-size="10">Public share links with expiry</text>
+    <text x="410" y="345" text-anchor="middle" fill="#6e7681" font-size="9">Full wiki export for portability</text>
+  </g>
+
+  <!-- MCP -->
+  <g filter="url(#shadow)">
+    <rect x="550" y="260" width="240" height="100" rx="12" fill="#da3633" opacity="0.1"/>
+    <rect x="550" y="260" width="240" height="100" rx="12" fill="none" stroke="#da3633" stroke-width="1"/>
+    <text x="670" y="290" text-anchor="middle" fill="#f85149" font-size="14" font-weight="700">&#129520; MCP Server</text>
+    <text x="670" y="310" text-anchor="middle" fill="#8b949e" font-size="10">13 tools / 3 resources / 4 prompts</text>
+    <text x="670" y="325" text-anchor="middle" fill="#8b949e" font-size="10">Claude Desktop &amp; AI agent access</text>
+    <text x="670" y="345" text-anchor="middle" fill="#6e7681" font-size="9">stdio + HTTP (OAuth 2.1 + JWT)</text>
+  </g>
+
+  <!-- Security -->
+  <g filter="url(#shadow)">
+    <rect x="810" y="260" width="270" height="100" rx="12" fill="#d29922" opacity="0.1"/>
+    <rect x="810" y="260" width="270" height="100" rx="12" fill="none" stroke="#d29922" stroke-width="1"/>
+    <text x="945" y="290" text-anchor="middle" fill="#d29922" font-size="14" font-weight="700">&#128274; Security &amp; Auth</text>
+    <text x="945" y="310" text-anchor="middle" fill="#8b949e" font-size="10">OAuth (GitHub, Google) / Magic Link / API Keys</text>
+    <text x="945" y="325" text-anchor="middle" fill="#8b949e" font-size="10">Rate limiting / User data isolation</text>
+    <text x="945" y="345" text-anchor="middle" fill="#6e7681" font-size="9">CSP headers / Path traversal protection</text>
+  </g>
+
+  <!-- ===== ROW 3: Infrastructure ===== -->
+  <line x1="30" y1="390" x2="1080" y2="390" stroke="#21262d" stroke-width="1"/>
+  <text x="550" y="410" text-anchor="middle" fill="#484f58" font-size="11" font-weight="600">INFRASTRUCTURE</text>
+
+  <!-- Infra boxes -->
+  <g>
+    <rect x="30" y="425" width="155" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="108" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">FastAPI</text>
+    <text x="108" y="468" text-anchor="middle" fill="#6e7681" font-size="10">Python 3.11+ async</text>
+    <text x="108" y="482" text-anchor="middle" fill="#6e7681" font-size="9">~93 API endpoints</text>
+  </g>
+  <g>
+    <rect x="200" y="425" width="155" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="278" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">React + Vite</text>
+    <text x="278" y="468" text-anchor="middle" fill="#6e7681" font-size="10">TypeScript frontend</text>
+    <text x="278" y="482" text-anchor="middle" fill="#6e7681" font-size="9">15 views, code-split</text>
+  </g>
+  <g>
+    <rect x="370" y="425" width="155" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="448" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">PostgreSQL</text>
+    <text x="448" y="468" text-anchor="middle" fill="#6e7681" font-size="10">SQLModel ORM</text>
+    <text x="448" y="482" text-anchor="middle" fill="#6e7681" font-size="9">Alembic migrations</text>
+  </g>
+  <g>
+    <rect x="540" y="425" width="155" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="618" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">Redis + ARQ</text>
+    <text x="618" y="468" text-anchor="middle" fill="#6e7681" font-size="10">Job queue + cache</text>
+    <text x="618" y="482" text-anchor="middle" fill="#6e7681" font-size="9">Background workers</text>
+  </g>
+  <g>
+    <rect x="710" y="425" width="155" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="788" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">Docker + Fly.io</text>
+    <text x="788" y="468" text-anchor="middle" fill="#6e7681" font-size="10">Staging + Production</text>
+    <text x="788" y="482" text-anchor="middle" fill="#6e7681" font-size="9">Auto-deploy from main</text>
+  </g>
+  <g>
+    <rect x="880" y="425" width="200" height="65" rx="8" fill="#161b22" stroke="#30363d"/>
+    <text x="980" y="450" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">WebSocket + SSE</text>
+    <text x="980" y="468" text-anchor="middle" fill="#6e7681" font-size="10">Real-time progress events</text>
+    <text x="980" y="482" text-anchor="middle" fill="#6e7681" font-size="9">Live compilation updates</text>
+  </g>
+</svg>

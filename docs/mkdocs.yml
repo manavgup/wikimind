@@ -146,3 +146,5 @@ nav:
       - Settings: configuration/settings.md
       - Authentication: configuration/auth.md
       - LLM Providers: configuration/llm-providers.md
+  - Evidence:
+      - "v0.1.0 Release": https://manavgup.github.io/wikimind/evidence/release-0.1.0/

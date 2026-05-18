@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WikiMind — Feature Evidence &amp; Capabilities</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117; color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    padding: 2rem; max-width: 1400px; margin: 0 auto;
+  }
+  h1 { color: #58a6ff; font-size: 2rem; margin-bottom: 0.25rem; }
+  h2 { color: #f0883e; font-size: 1.3rem; margin: 2.5rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid #21262d; }
+  h3 { color: #58a6ff; font-size: 1.05rem; margin: 1.25rem 0 0.5rem 0; }
+  p { line-height: 1.6; margin-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; font-size: 0.95rem; margin-bottom: 2rem; border-bottom: 1px solid #21262d; padding-bottom: 1rem; }
+  .stats { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin-bottom: 2rem; display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
+  .stat { text-align: center; min-width: 100px; }
+  .stat-value { color: #58a6ff; font-size: 1.8rem; font-weight: 700; }
+  .stat-value.green { color: #3fb950; }
+  .stat-label { color: #8b949e; font-size: 0.75rem; margin-top: 0.25rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; vertical-align: middle; }
+  .badge-api { background: #1f6feb; color: #fff; }
+  .badge-ui { background: #8957e5; color: #fff; }
+  .badge-security { background: #bf8700; color: #fff; }
+  .badge-cli { background: #238636; color: #fff; }
+  .badge-mcp { background: #da3633; color: #fff; }
+  .badge-engine { background: #388bfd; color: #fff; }
+  .screenshot { width: 100%; border-radius: 8px; border: 1px solid #30363d; margin: 0.5rem 0; cursor: pointer; transition: transform 0.2s; }
+  .screenshot:hover { transform: scale(1.02); }
+  .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem; }
+  .screenshot-item { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; }
+  .screenshot-item h4 { color: #58a6ff; font-size: 0.9rem; margin-bottom: 0.4rem; }
+  .screenshot-item p { color: #8b949e; font-size: 0.8rem; margin-bottom: 0.5rem; line-height: 1.4; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: 0.78rem; line-height: 1.5; color: #c9d1d9; margin: 0.5rem 0; max-height: 260px; }
+  code { color: #79c0ff; }
+  .ok { color: #3fb950; } .err { color: #f85149; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #21262d; font-size: 0.82rem; }
+  th { color: #8b949e; font-weight: 600; }
+  td code { background: #21262d; padding: 1px 5px; border-radius: 4px; font-size: 0.78rem; }
+  a { color: #58a6ff; text-decoration: none; } a:hover { text-decoration: underline; }
+  .fc { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+  .fc h3 { margin-top: 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) { .two-col, .three-col { grid-template-columns: 1fr; } }
+  nav.toc { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.25rem; margin-bottom: 2rem; }
+  nav.toc h3 { color: #f0883e; margin: 0 0 0.75rem 0; font-size: 1rem; }
+  nav.toc ul { list-style: none; columns: 2; gap: 2rem; }
+  nav.toc li { margin-bottom: 0.3rem; font-size: 0.85rem; }
+  @media (max-width: 600px) { nav.toc ul { columns: 1; } }
+  .lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 1000; cursor: pointer; justify-content: center; align-items: center; }
+  .lightbox.active { display: flex; }
+  .lightbox img { max-width: 95%; max-height: 95%; border-radius: 8px; }
+  footer { color: #484f58; font-size: 0.8rem; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #21262d; }
+  details { margin-bottom: 0.75rem; }
+  details summary { cursor: pointer; color: #58a6ff; font-weight: 600; font-size: 0.95rem; padding: 0.5rem 0; }
+  details summary:hover { color: #79c0ff; }
+  details[open] summary { margin-bottom: 0.5rem; }
+  .test-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .test-table th { color: #8b949e; font-weight: 600; text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #30363d; }
+  .test-table td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #161b22; }
+  .test-table tr:hover { background: #161b22; }
+  .t-pass { color: #3fb950; font-weight: 600; }
+  .t-fail { color: #f85149; font-weight: 700; }
+  .t-skip { color: #8b949e; }
+  .t-method { color: #d2a8ff; font-family: monospace; font-size: 0.75rem; }
+  .t-path { color: #79c0ff; font-family: monospace; font-size: 0.75rem; }
+  .t-code { font-family: monospace; }
+  .test-summary { display: flex; gap: 2rem; margin: 1rem 0; flex-wrap: wrap; }
+  .test-summary .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; }
+  .test-summary .stat-value { font-size: 1.5rem; font-weight: 700; }
+  .test-summary .stat-label { font-size: 0.7rem; color: #8b949e; margin-top: 0.15rem; }
+</style>
+</head>
+<body>
+
+<h1>WikiMind — Feature Evidence &amp; Capabilities</h1>
+<div class="subtitle">
+  Production: <a href="https://wikimind.fly.dev">wikimind.fly.dev</a> &nbsp;|&nbsp;
+  Source: <a href="https://github.com/manavgup/wikimind">github.com/manavgup/wikimind</a> &nbsp;|&nbsp;
+  Docs: <a href="https://manavgup.github.io/wikimind/">manavgup.github.io/wikimind</a> &nbsp;|&nbsp;
+  <a href="api-test-results.html">API test results</a> &nbsp;|&nbsp;
+  <a href="api-test.sh">Test script</a> &nbsp;|&nbsp;
+  v0.1.0 &nbsp;|&nbsp; 2026-05-18
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-value">138</div><div class="stat-label">API Endpoints</div></div>
+  <div class="stat"><div class="stat-value">6</div><div class="stat-label">LLM Providers</div></div>
+  <div class="stat"><div class="stat-value">13</div><div class="stat-label">MCP Tools</div></div>
+  <div class="stat"><div class="stat-value">15</div><div class="stat-label">Frontend Views</div></div>
+  <div class="stat"><div class="stat-value">16</div><div class="stat-label">Screenshots</div></div>
+  <div class="stat"><div class="stat-value green">100%</div><div class="stat-label">Compile Rate</div></div>
+</div>
+
+<nav class="toc">
+  <h3>Capabilities</h3>
+  <ul>
+    <li><a href="#arch">Architecture Overview</a></li>
+    <li><a href="#ingest">Content Ingestion</a></li>
+    <li><a href="#wiki">Wiki &amp; Knowledge Base</a></li>
+    <li><a href="#query">Ask &amp; Query</a></li>
+    <li><a href="#synthesis">Synthesis &amp; Cross-Cutting Analysis</a></li>
+    <li><a href="#export">Export &amp; Sharing</a></li>
+    <li><a href="#graph">Knowledge Graph</a></li>
+    <li><a href="#qa">Quality Assurance &amp; Linting</a></li>
+    <li><a href="#mcp">MCP Server (AI Agent Integration)</a></li>
+    <li><a href="#admin">Admin Dashboard &amp; Monitoring</a></li>
+    <li><a href="#settings">Settings &amp; LLM Providers</a></li>
+    <li><a href="#security">Security &amp; Auth</a></li>
+    <li><a href="#cli">CLI</a></li>
+    <li><a href="#infra">Infrastructure</a></li>
+    <li><a href="#endpoints">Full Endpoint Inventory</a></li>
+    <li><a href="#api-tests">API Test Results (140 tests)</a></li>
+  </ul>
+</nav>
+
+<!-- ================================================================ -->
+<h2 id="arch">Architecture Overview</h2>
+
+<img src="architecture.svg" alt="WikiMind Architecture" style="width:100%; border-radius:12px; margin: 0.5rem 0;"/>
+
+<div class="fc">
+  <p>WikiMind is a personal LLM-powered knowledge OS. Drop in articles, papers, PDFs, or YouTube links. The LLM compiles them into structured wiki articles. Ask questions against the wiki. The system detects contradictions, orphans, and knowledge gaps. Synthesis generates cross-cutting analyses across sources.</p>
+  <p>Backend: FastAPI + PostgreSQL + Redis + ARQ workers. Frontend: React + TypeScript + Vite. Deployed on Fly.io with Docker.</p>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="ingest">Content Ingestion <span class="badge badge-api">api</span> <span class="badge badge-ui">ui</span> <span class="badge badge-cli">cli</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Inbox &mdash; Sources awaiting processing</h3>
+    <p>Drop URLs, PDFs, or text. Each source is fetched, cleaned, chunked, and compiled into a wiki article by the LLM. Real-time progress via WebSocket.</p>
+    <img src="01-inbox-arxiv.png" class="screenshot" onclick="openLightbox(this)" alt="Inbox with arxiv papers"/>
+  </div>
+  <div class="fc">
+    <h3>Source Detail &mdash; Pipeline artifacts</h3>
+    <p>Full processing pipeline: Fetch &rarr; Extract &rarr; Clean &rarr; Compile. Shows author, token count, ingestion time, and compiled articles.</p>
+    <img src="12-source-detail.png" class="screenshot" onclick="openLightbox(this)" alt="Source detail for Attention Is All You Need"/>
+  </div>
+</div>
+
+<div class="fc">
+  <h3>Supported formats</h3>
+  <table>
+    <thead><tr><th>Format</th><th>Endpoint</th><th>Details</th></tr></thead>
+    <tbody>
+      <tr><td>Web URL</td><td><code>POST /api/ingest/url</code></td><td>Articles, blog posts, documentation. Readability extraction.</td></tr>
+      <tr><td>YouTube</td><td><code>POST /api/ingest/url</code></td><td>Auto-detects YouTube URLs, extracts transcript.</td></tr>
+      <tr><td>PDF</td><td><code>POST /api/ingest/pdf</code></td><td>Upload up to 50 MB. Docling extraction for tables and figures.</td></tr>
+      <tr><td>Plain text</td><td><code>POST /api/ingest/text</code></td><td>Paste or send raw text content.</td></tr>
+      <tr><td>RSS feeds</td><td><code>POST /api/capture/rss/feeds</code></td><td>Subscribe to feeds. Auto-poll for new items.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="fc">
+  <h3>API Evidence &mdash; Ingest arxiv paper</h3>
+  <pre>$ curl -X POST http://localhost:7842/api/ingest/url \
+    -H "Content-Type: application/json" \
+    -d '{"url":"https://arxiv.org/abs/1706.03762"}'
+
+{
+  "source_type": "url",
+  "title": "Attention Is All You Need",
+  "source_url": "https://arxiv.org/abs/1706.03762",
+  "id": "393d1cac-83d0-4ec9-88a3-8b43b0f607bc",
+  "ingested_at": "2026-05-18T19:28:27",
+  "compiled_at": null   <span class="ok">&larr; compiling in background</span>
+}</pre>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="wiki">Wiki &amp; Knowledge Base <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Wiki Explorer</h3>
+    <p>Browse articles with concept facets. Filter by topic, confidence level, page type. Full-text search with ranking.</p>
+    <img src="02-wiki-articles.png" class="screenshot" onclick="openLightbox(this)" alt="Wiki explorer"/>
+  </div>
+  <div class="fc">
+    <h3>Article Detail</h3>
+    <p>Structured articles with Summary, Key Claims (with confidence), Analysis, Open Questions, Related links, and Sources. Table of contents, backlinks, and concept tags in sidebar.</p>
+    <img src="03-article-detail.png" class="screenshot" onclick="openLightbox(this)" alt="Article detail"/>
+  </div>
+</div>
+
+<div class="fc">
+  <h3>Key capabilities</h3>
+  <ul style="color: #8b949e; font-size: 0.85rem; padding-left: 1.5rem; line-height: 1.8;">
+    <li>LLM-compiled articles with key claims, confidence scores, and source citations</li>
+    <li>Concept taxonomy auto-extracted from content</li>
+    <li>Bidirectional backlinks (<code>[[wiki links]]</code>) resolved across articles</li>
+    <li>Interactive draft review: approve or reject compilations before publishing</li>
+    <li>Custom compilation schemas for different article types</li>
+    <li>Faceted search: filter by concepts, tags, confidence, page type</li>
+    <li>User-defined tags and saved searches</li>
+  </ul>
+</div>
+
+<!-- ================================================================ -->
+<h2>Rich Content Rendering <span class="badge badge-ui">ui</span></h2>
+
+<div class="fc">
+  <p>Articles rendered with full rich content support: extracted PDF figures and tables, LaTeX math, syntax-highlighted code blocks, and sanitized HTML. Images extracted via Docling are embedded inline with captions.</p>
+</div>
+
+<div class="screenshot-grid">
+  <div class="screenshot-item">
+    <h4>PDF Figures in Article</h4>
+    <p>5 figures extracted from "The Geometry of Forgetting" (arxiv 2604.06222) rendered in the article's Figures &amp; Tables panel with filter tabs and lightbox zoom.</p>
+    <img src="21-article-figures-panel.png" class="screenshot" onclick="openLightbox(this)" alt="Figures panel in article view"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>PDF Image Extraction (Docling)</h4>
+    <p>Figures extracted from PDFs via Docling/pymupdf, stored in Postgres, served via authenticated API.</p>
+    <img src="15-pdf-image-rendering.png" class="screenshot" onclick="openLightbox(this)" alt="PDF image rendering"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Table Rendering</h4>
+    <p>Tables from PDFs preserved and rendered as styled HTML with zebra rows.</p>
+    <img src="16-pdf-table-rendering.png" class="screenshot" onclick="openLightbox(this)" alt="Table rendering"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Math &amp; Code</h4>
+    <p>KaTeX for LaTeX math. Syntax-highlighted code blocks with GitHub theme.</p>
+    <img src="17-math-rendering.png" class="screenshot" onclick="openLightbox(this)" alt="Math rendering"/>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="query">Ask &amp; Query <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span> <span class="badge badge-cli">cli</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Conversational Q&amp;A</h3>
+    <p>Ask questions against your wiki. RAG-powered answers with citations. Conversation threading with history. Fork conversations to explore tangents.</p>
+    <img src="10-ask-view.png" class="screenshot" onclick="openLightbox(this)" alt="Ask view"/>
+  </div>
+  <div class="fc">
+    <h3>API &amp; CLI</h3>
+    <pre>$ curl -X POST http://localhost:7842/api/query \
+    -H "Content-Type: application/json" \
+    -d '{"question":"How does BERT differ from GPT?"}'
+
+{
+  "answer": "BERT uses bidirectional attention...",
+  "citations": [
+    {"article": "BERT: Pre-training of...",
+     "claim": "BERT pre-trains deep bidirectional
+               representations..."}
+  ],
+  "conversation_id": "abc123"
+}
+
+<span class="ok"># Streaming via SSE</span>
+POST /api/query/stream
+
+<span class="ok"># CLI</span>
+$ wikimind ask "How does BERT differ from GPT?"</pre>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="synthesis">Synthesis &amp; Cross-Cutting Analysis <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>4-Step Synthesis Wizard</h3>
+    <p>Guided wizard: choose type (Comparative, Chronological, Thematic, Gap Analysis), select articles, add guidance, review draft.</p>
+    <img src="06-synthesis-page.png" class="screenshot" onclick="openLightbox(this)" alt="Synthesis wizard"/>
+  </div>
+  <div class="fc">
+    <h3>Auto-Detected Suggestions</h3>
+    <p>System detects synthesis opportunities: shared concepts, active contradictions, same topic from different sources. One-click create.</p>
+    <img src="07-synthesis-suggestions.png" class="screenshot" onclick="openLightbox(this)" alt="Synthesis suggestions"/>
+  </div>
+</div>
+
+<div class="fc">
+  <h3>Preview &rarr; Refine &rarr; Confirm workflow</h3>
+  <div class="three-col">
+    <div>
+      <h3>Preview</h3>
+      <pre>POST /api/wiki/synthesis/preview
+{
+  "article_ids": ["bert","gpt","transformer"],
+  "synthesis_type": "thematic",
+  "guidance": "Focus on attention"
+}
+
+<span class="ok">Returns draft without saving</span></pre>
+    </div>
+    <div>
+      <h3>Refine</h3>
+      <pre>POST /api/wiki/synthesis/refine
+{
+  "draft_content": "&lt;previous&gt;",
+  "article_ids": [...],
+  "guidance": "More detail on
+               cross-attention"
+}
+
+<span class="ok">Iterates with feedback</span></pre>
+    </div>
+    <div>
+      <h3>Confirm</h3>
+      <pre>POST /api/wiki/synthesis/confirm
+{
+  "title": "Attention Mechanisms",
+  "draft_content": "...",
+  "article_ids": [...]
+}
+
+<span class="ok">Saves as real wiki article</span></pre>
+    </div>
+  </div>
+</div>
+
+<div class="fc">
+  <h3>API Evidence &mdash; Comparative synthesis across 3 arxiv papers</h3>
+  <pre>POST /api/wiki/synthesize
+{ "query": "Compare transformer architectures", "synthesis_type": "comparative",
+  "article_ids": ["bert-id", "gpt-id", "transformer-id"] }
+
+{
+  "title": "Comparative Analysis of Transformer Architectures: BERT, GPT-3, and Original Transformer",
+  "themes": ["Bidirectional vs. Autoregressive Models", "Attention Mechanisms", "Task Versatility"],
+  "source_count": 3,
+  "page_type": "synthesis"
+}</pre>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="export">Export &amp; Sharing <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Export Dropdown</h3>
+    <p>Download as Markdown, Download as JSON, Copy as Markdown. Appears on every article detail page.</p>
+    <img src="04-export-dropdown.png" class="screenshot" onclick="openLightbox(this)" alt="Export dropdown"/>
+  </div>
+  <div class="fc">
+    <h3>Share with Expiry</h3>
+    <p>Create public share links with configurable expiry: 1 day, 7 days, 30 days, or never. Track view count per link.</p>
+    <img src="05-share-expiry.png" class="screenshot" onclick="openLightbox(this)" alt="Share expiry"/>
+  </div>
+</div>
+
+<div class="fc">
+  <h3>API Evidence</h3>
+  <div class="two-col">
+    <pre><span class="ok"># Markdown export</span>
+GET /api/wiki/articles/{id}/export?format=markdown
+
+HTTP/1.1 200 OK
+content-type: text/markdown; charset=utf-8
+content-disposition: attachment; filename="bert-...md"
+
+---
+title: "BERT: Pre-training of Deep Bidirectional..."
+concepts: [language representation, NLP, transformers]
+---
+
+## Summary
+BERT is a language representation model...</pre>
+    <pre><span class="ok"># Share link with 7-day expiry</span>
+POST /api/wiki/share-links
+{ "article_id": "d65e8c6b-...", "expires_in_days": 7 }
+
+{
+  "token": "o8K1dltPkbfFT-c48...",
+  <span class="ok">"expires_at": "2026-05-25T19:29:53"</span>,
+  "view_count": 0,
+  "article_title": "BERT: Pre-training..."
+}
+
+<span class="ok"># Full wiki export</span>
+POST /api/wiki/export/wiki
+Formats: obsidian, markdown_json</pre>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="graph">Knowledge Graph <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Interactive Visualization</h3>
+    <p>Force-directed graph of articles linked by relationships: contradicts, supersedes, extends, synthesizes, references. Filter by concept, confidence, page type. Click nodes to navigate.</p>
+    <img src="09-knowledge-graph.png" class="screenshot" onclick="openLightbox(this)" alt="Knowledge graph"/>
+  </div>
+  <div class="fc">
+    <h3>Relationship Types</h3>
+    <table>
+      <tr><td style="color:#f85149">&#9644;</td><td><strong>contradicts</strong></td><td>Conflicting claims between articles</td></tr>
+      <tr><td style="color:#8957e5">&#9644;</td><td><strong>supersedes</strong></td><td>Newer article replaces older</td></tr>
+      <tr><td style="color:#3fb950">&#9644;</td><td><strong>extends</strong></td><td>Builds on another article</td></tr>
+      <tr><td style="color:#58a6ff">&#9644;</td><td><strong>synthesizes</strong></td><td>Cross-cutting analysis</td></tr>
+      <tr><td style="color:#8b949e">&#9644;</td><td><strong>references</strong></td><td>Backlinks / wikilinks</td></tr>
+    </table>
+    <pre>GET /api/wiki/graph
+
+{ "nodes": [...], "edges": [...] }
+<span class="ok">Used by frontend GraphView component</span></pre>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="qa">Quality Assurance &amp; Linting <span class="badge badge-engine">engine</span> <span class="badge badge-api">api</span></h2>
+
+<div class="fc">
+  <p>Automated wiki quality checks run on demand or via background jobs. Detects contradictions, orphaned articles, stale content, and missing links.</p>
+  <div class="three-col">
+    <div>
+      <h3>Contradiction Detection</h3>
+      <p style="color:#8b949e; font-size:0.85rem">LLM analyzes overlapping claims across articles. Surface conflicting statements with article context for resolution.</p>
+    </div>
+    <div>
+      <h3>Orphan Detection</h3>
+      <p style="color:#8b949e; font-size:0.85rem">Finds articles with no inbound links. Suggests connections to related articles.</p>
+    </div>
+    <div>
+      <h3>Staleness Tracking</h3>
+      <p style="color:#8b949e; font-size:0.85rem">Identifies articles not recompiled recently. Flags when source content has changed.</p>
+    </div>
+  </div>
+  <pre>POST /api/lint/run          <span class="ok"># Trigger lint</span>
+GET  /api/lint/reports       <span class="ok"># List reports</span>
+GET  /api/wiki/contradictions <span class="ok"># List contradictions with status</span>
+PATCH /api/wiki/contradictions/{id} <span class="ok"># Resolve or dismiss</span></pre>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="mcp">MCP Server &mdash; AI Agent Integration <span class="badge badge-mcp">mcp</span> <span class="badge badge-api">api</span></h2>
+
+<div class="fc">
+  <p>Exposes WikiMind as an MCP server for Claude Desktop, Cursor, and other AI agents. Two transports: <code>stdio</code> (local) and <code>HTTP</code> (JWT-authenticated remote).</p>
+
+  <div class="three-col">
+    <div>
+      <h3>13 Tools</h3>
+      <table>
+        <tr><td><code>wiki_overview</code></td><td>Stats</td></tr>
+        <tr><td><code>wiki_list_articles</code></td><td>Browse</td></tr>
+        <tr><td><code>wiki_list_concepts</code></td><td>Taxonomy</td></tr>
+        <tr><td><code>wiki_search</code></td><td>Full-text</td></tr>
+        <tr><td><code>wiki_get_article</code></td><td>Read</td></tr>
+        <tr><td><code>wiki_ask</code></td><td>Q&A</td></tr>
+        <tr><td><code>wiki_ingest_url</code></td><td>Add URL</td></tr>
+        <tr><td><code>wiki_ingest_text</code></td><td>Add text</td></tr>
+        <tr><td><code>wiki_get_source_status</code></td><td>Progress</td></tr>
+        <tr><td><code>wiki_synthesize</code></td><td>Analyze</td></tr>
+        <tr><td><code>wiki_get_health</code></td><td>Health</td></tr>
+        <tr><td><code>wiki_list_sources</code></td><td>Sources</td></tr>
+        <tr><td><code>wiki_get_graph</code></td><td>Graph</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>3 Resources</h3>
+      <table>
+        <tr><td><code>wikimind://index</code></td><td>Article TOC</td></tr>
+        <tr><td><code>wikimind://articles/{slug}</code></td><td>Article content</td></tr>
+        <tr><td><code>wikimind://sources/{id}</code></td><td>Source metadata</td></tr>
+      </table>
+      <h3 style="margin-top:1rem">4 Prompts</h3>
+      <table>
+        <tr><td><code>wiki_onboarding</code></td><td>Orientation</td></tr>
+        <tr><td><code>research_topic</code></td><td>Research workflow</td></tr>
+        <tr><td><code>compare_articles</code></td><td>Comparison</td></tr>
+        <tr><td><code>knowledge_gaps</code></td><td>Gap analysis</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Auth</h3>
+      <p style="color:#8b949e; font-size:0.85rem">OAuth 2.1 Authorization Server for Claude Desktop. JWT tokens for HTTP transport. Per-user access control.</p>
+      <pre style="font-size:0.75rem"># Start MCP server
+$ wikimind mcp serve
+$ wikimind mcp serve --transport http
+
+# Claude Desktop config
+$ wikimind mcp config</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="admin">Admin Dashboard &amp; Monitoring <span class="badge badge-ui">ui</span> <span class="badge badge-api">api</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>Admin Dashboard</h3>
+    <p>System overview: users, articles, sources, concepts, claims, backlinks, orphans, compile rate. Content breakdown by page type, source type, status, and confidence. Operational health: queue depth, stuck sources, LLM traces.</p>
+    <img src="11-admin-traces.png" class="screenshot" onclick="openLightbox(this)" alt="Admin dashboard"/>
+  </div>
+  <div class="fc">
+    <h3>Endpoints</h3>
+    <pre>GET  /admin/stats          <span class="ok"># System statistics</span>
+GET  /admin/orphans        <span class="ok"># Orphaned articles</span>
+GET  /admin/stuck-sources  <span class="ok"># Stuck in compilation</span>
+POST /admin/retry-stuck/{id} <span class="ok"># Retry</span>
+POST /admin/sweep          <span class="ok"># Link sweep</span>
+POST /admin/reindex        <span class="ok"># Rebuild search</span>
+GET  /admin/docling-status <span class="ok"># PDF extractor status</span>
+GET  /admin/traces         <span class="ok"># LLM trace logs</span>
+GET  /health/deep          <span class="ok"># DB + service health</span></pre>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="settings">Settings &amp; LLM Providers <span class="badge badge-ui">ui</span></h2>
+
+<div class="two-col">
+  <div class="fc">
+    <h3>LLM Provider Configuration</h3>
+    <p>6 providers supported: Anthropic (Claude), OpenAI (GPT), Google (Gemini), Ollama (local), OpenAI-compatible, Mock (testing). Automatic fallback routing. Per-user cost tracking with monthly budget limits.</p>
+    <img src="08-settings.png" class="screenshot" onclick="openLightbox(this)" alt="Settings"/>
+  </div>
+  <div class="fc">
+    <h3>Cost Tracking</h3>
+    <p>Real-time spend tracking per provider. Budget enforcement prevents runaway costs. API call counting and breakdown by task type (compilation, query, synthesis, lint).</p>
+    <img src="13-settings-tokens.png" class="screenshot" onclick="openLightbox(this)" alt="Settings cost"/>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="security">Security &amp; Auth <span class="badge badge-security">security</span></h2>
+
+<div class="fc">
+  <div class="three-col">
+    <div>
+      <h3>Authentication</h3>
+      <ul style="color:#8b949e; font-size:0.82rem; padding-left:1.2rem; line-height:1.7">
+        <li>OAuth2: GitHub, Google</li>
+        <li>Magic Link: email-based passwordless</li>
+        <li>API Keys: long-lived tokens</li>
+        <li>MCP OAuth 2.1: dedicated flow</li>
+        <li>JWT session tokens</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Data Isolation</h3>
+      <ul style="color:#8b949e; font-size:0.82rem; padding-left:1.2rem; line-height:1.7">
+        <li>All data scoped to authenticated user</li>
+        <li>No anonymous access (enforced)</li>
+        <li>Path traversal protection</li>
+        <li>PDF size limits (50 MB)</li>
+        <li>Field max_length validation</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Rate Limiting</h3>
+      <pre style="font-size:0.75rem">auth:   5/minute
+query:  30/minute
+ingest: 10/minute
+
+Request 6: HTTP <span class="err">429</span>
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "Rate limit exceeded:
+                5 per 1 minute"
+  }
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="cli">CLI <span class="badge badge-cli">cli</span></h2>
+
+<div class="fc">
+  <pre>$ wikimind status                              <span class="ok"># Check server and auth</span>
+$ wikimind login                               <span class="ok"># Magic link login</span>
+$ wikimind whoami                              <span class="ok"># Show authenticated user</span>
+
+$ wikimind ingest url https://arxiv.org/abs/1706.03762  <span class="ok"># Ingest URL</span>
+$ wikimind ingest file paper.pdf               <span class="ok"># Ingest PDF</span>
+$ wikimind ingest text "Some content"          <span class="ok"># Ingest text</span>
+
+$ wikimind ask "How does BERT work?"           <span class="ok"># Ask against wiki</span>
+$ wikimind ask --conversation abc123 "And GPT?" <span class="ok"># Continue conversation</span>
+
+$ wikimind wiki list                           <span class="ok"># List articles</span>
+$ wikimind wiki list --concept transformers    <span class="ok"># Filter by concept</span>
+$ wikimind wiki show bert-pre-training-of...   <span class="ok"># View article</span>
+$ wikimind wiki delete some-article            <span class="ok"># Delete (with confirmation)</span>
+
+$ wikimind mcp serve                           <span class="ok"># Start MCP server (stdio)</span>
+$ wikimind mcp serve --transport http          <span class="ok"># HTTP transport</span>
+$ wikimind mcp config                          <span class="ok"># Print Claude Desktop config</span></pre>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="infra">Infrastructure</h2>
+
+<div class="fc">
+  <div class="three-col">
+    <div>
+      <h3>Stack</h3>
+      <ul style="color:#8b949e; font-size:0.82rem; padding-left:1.2rem; line-height:1.7">
+        <li>FastAPI (Python 3.11+)</li>
+        <li>React + TypeScript + Vite</li>
+        <li>PostgreSQL (SQLModel ORM)</li>
+        <li>Redis (job queue + caching)</li>
+        <li>ARQ (async background workers)</li>
+        <li>Alembic (schema migrations)</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Deployment</h3>
+      <ul style="color:#8b949e; font-size:0.82rem; padding-left:1.2rem; line-height:1.7">
+        <li>Docker + Docker Compose</li>
+        <li>Fly.io (staging + production)</li>
+        <li>GHCR image registry</li>
+        <li>CI/CD: GitHub Actions</li>
+        <li>Staging &rarr; smoke test &rarr; prod</li>
+        <li>Automatic rollback on failure</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Real-time</h3>
+      <ul style="color:#8b949e; font-size:0.82rem; padding-left:1.2rem; line-height:1.7">
+        <li>WebSocket for live updates</li>
+        <li>Compilation progress events</li>
+        <li>Draft ready notifications</li>
+        <li>SSE streaming for Q&A</li>
+        <li>Per-user message broadcasting</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="endpoints">Full Endpoint Inventory (138 endpoints)</h2>
+
+<table>
+  <thead><tr><th>Area</th><th>Count</th><th>Key Endpoints</th></tr></thead>
+  <tbody>
+    <tr><td>Wiki Management</td><td>13</td><td><code>GET/PATCH /articles/{id}</code>, <code>GET /concepts</code>, <code>GET /search</code>, <code>GET /graph</code></td></tr>
+    <tr><td>Content Ingestion</td><td>11</td><td><code>POST /ingest/url|pdf|text</code>, <code>GET /sources/{id}/detail</code>, RSS feeds</td></tr>
+    <tr><td>Ambient Capture</td><td>7</td><td><code>POST /capture/{kind}</code>, <code>POST /capture/{id}/ingest|discard</code></td></tr>
+    <tr><td>Query &amp; Conversations</td><td>8</td><td><code>POST /query</code>, <code>POST /query/stream</code>, <code>GET /conversations/{id}</code>, fork, file-back</td></tr>
+    <tr><td>Synthesis</td><td>6</td><td><code>POST /synthesize</code>, <code>preview</code>, <code>refine</code>, <code>confirm</code>, <code>GET /suggestions</code></td></tr>
+    <tr><td>Quality / Linting</td><td>8</td><td><code>POST /lint/run</code>, <code>GET /contradictions</code>, <code>PATCH /contradictions/{id}</code></td></tr>
+    <tr><td>Drafts &amp; Schemas</td><td>8</td><td><code>GET /sources/{id}/draft</code>, <code>POST /draft/approve|reject</code>, CRUD schemas</td></tr>
+    <tr><td>Tags &amp; Searches</td><td>8</td><td><code>POST /tags</code>, <code>POST /saved-searches</code>, execute</td></tr>
+    <tr><td>Export &amp; Sharing</td><td>6</td><td><code>GET /articles/{id}/export</code>, <code>POST /share-links</code>, <code>GET /public/articles/{token}</code></td></tr>
+    <tr><td>Jobs</td><td>5</td><td><code>GET /jobs</code>, <code>POST /jobs/compile/{id}</code>, lint, reindex</td></tr>
+    <tr><td>Settings &amp; Auth</td><td>17</td><td>OAuth, magic-link, API keys, MCP tokens, LLM config, cost tracking</td></tr>
+    <tr><td>Admin</td><td>9</td><td><code>GET /admin/stats</code>, orphans, stuck sources, traces, sweep, reindex</td></tr>
+  </tbody>
+</table>
+
+<!-- ================================================================ -->
+<h2>All Screenshots</h2>
+
+<div class="screenshot-grid">
+  <div class="screenshot-item">
+    <h4>Inbox</h4><p>3 arxiv papers ingested and compiled</p>
+    <img src="01-inbox-arxiv.png" class="screenshot" onclick="openLightbox(this)" alt="Inbox"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Wiki Explorer</h4><p>Articles with concept facets</p>
+    <img src="02-wiki-articles.png" class="screenshot" onclick="openLightbox(this)" alt="Wiki"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Article Detail</h4><p>Export, Share, Edit buttons. Backlinks sidebar.</p>
+    <img src="03-article-detail.png" class="screenshot" onclick="openLightbox(this)" alt="Article"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Export Dropdown</h4><p>Markdown, JSON, clipboard copy</p>
+    <img src="04-export-dropdown.png" class="screenshot" onclick="openLightbox(this)" alt="Export"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Share with Expiry</h4><p>1 day, 7 days, 30 days, Never</p>
+    <img src="05-share-expiry.png" class="screenshot" onclick="openLightbox(this)" alt="Share"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Synthesis Wizard</h4><p>4-step guided synthesis creation</p>
+    <img src="06-synthesis-page.png" class="screenshot" onclick="openLightbox(this)" alt="Synthesis"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Ask / Query</h4><p>Conversational Q&A with history</p>
+    <img src="10-ask-view.png" class="screenshot" onclick="openLightbox(this)" alt="Ask"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Knowledge Graph</h4><p>Articles connected by synthesis links</p>
+    <img src="09-knowledge-graph.png" class="screenshot" onclick="openLightbox(this)" alt="Graph"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Source Detail</h4><p>Processing pipeline: Fetch &rarr; Extract &rarr; Clean &rarr; Compile</p>
+    <img src="12-source-detail.png" class="screenshot" onclick="openLightbox(this)" alt="Source"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Admin Dashboard</h4><p>System stats, content breakdown, operational health</p>
+    <img src="11-admin-traces.png" class="screenshot" onclick="openLightbox(this)" alt="Admin"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Settings</h4><p>LLM providers and cost tracking</p>
+    <img src="08-settings.png" class="screenshot" onclick="openLightbox(this)" alt="Settings"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Settings (API Tokens)</h4><p>Token management and cost dashboard</p>
+    <img src="13-settings-tokens.png" class="screenshot" onclick="openLightbox(this)" alt="Tokens"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>PDF Figures in Article</h4><p>5 figures from arxiv PDF in Figures &amp; Tables panel</p>
+    <img src="21-article-figures-panel.png" class="screenshot" onclick="openLightbox(this)" alt="Figures panel"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Rich Content: Images</h4><p>Docling-extracted figures with captions</p>
+    <img src="15-pdf-image-rendering.png" class="screenshot" onclick="openLightbox(this)" alt="PDF images"/>
+  </div>
+  <div class="screenshot-item">
+    <h4>Rich Content: Tables &amp; Math</h4><p>Styled tables, KaTeX math, syntax-highlighted code</p>
+    <img src="16-pdf-table-rendering.png" class="screenshot" onclick="openLightbox(this)" alt="Tables"/>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="api-tests">API Test Results <span class="badge badge-api">140 tests</span></h2>
+
+<div class="fc">
+  <p>Automated test of 138 API endpoints. Idempotent script creates test data and cleans up after itself. Endpoints that trigger LLM calls, require browser OAuth, or are destructive are skipped intentionally.</p>
+  <p style="color:#8b949e; font-size:0.82rem;">Run: <code>./api-test.sh</code> &nbsp;|&nbsp; <a href="api-test.sh">View script source</a> &nbsp;|&nbsp; <a href="api-test-results.html">Standalone results page</a></p>
+</div>
+
+<div class="test-summary">
+  <div class="stat"><div class="stat-value green">89</div><div class="stat-label">Pass</div></div>
+  <div class="stat"><div class="stat-value" style="color:#f85149">0</div><div class="stat-label">Fail</div></div>
+  <div class="stat"><div class="stat-value" style="color:#8b949e">51</div><div class="stat-label">Skip</div></div>
+  <div class="stat"><div class="stat-value">140</div><div class="stat-label">Total</div></div>
+</div>
+
+<details open>
+<summary>0. Health &amp; Connectivity</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/health</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/health/deep</td><td class="t-code">200</td></tr>
+</table>
+</details>
+
+<details>
+<summary>1. Authentication (4 pass, 6 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/auth/me</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/auth/magic-link</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/auth/tokens</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/auth/tokens.js</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>OAuth login, callback, magic-link verify, create token, logout, delete account</td><td><em>browser/destructive</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>2. Content Ingestion (8 pass, 4 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{id}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{id}/detail</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{id}/content</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{id}/images</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/ingest/text</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{pdf_id}/images</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{pdf_id}/images/picture-1.png</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Ingest URL, ingest PDF, get original, delete source</td><td><em>LLM cost/destructive</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>3. Draft Review (1 pass, 2 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/ingest/sources/{id}/draft</td><td class="t-code">404</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Approve draft, reject draft</td><td><em>requires pending draft</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>4. Wiki &amp; Knowledge Base (11 pass, 5 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles?page_type=source&amp;limit=5</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{slug}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{id}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{slug}/relationships</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{id}/tags</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/random</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/search?q=transformer</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/search/facets?q=transformer</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/wikilinks/resolve?q=attention</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/graph</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Wiki health, create stub, edit, refresh, recompile</td><td><em>deprecated/mutating</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>5. Concept Taxonomy (3 pass, 1 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/concepts</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/concepts/{name}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/concepts/{name}/articles</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Rebuild taxonomy</td><td><em>LLM call</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>6. Contradictions (2 pass, 2 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/contradictions</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/contradiction-resolutions</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Get/resolve contradiction</td><td><em>none found / mutating</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>7. Export &amp; Download (3 pass, 2 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{id}/export?format=markdown</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{id}/export?format=json</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/{id}/export?format=csv</td><td class="t-code">422</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Export PDF, full wiki export</td><td><em>heavy operation</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>8. Sharing &amp; Public Access (6 pass)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/share-links</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/wiki/share-links</td><td class="t-code">201</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/public/articles/{token}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/public/articles/{token}/json</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/share-links?article_id={id}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/public/articles/nonexistent-token</td><td class="t-code">404</td></tr>
+</table>
+</details>
+
+<details>
+<summary>9. Synthesis (4 pass, 3 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/synthesis</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/synthesis/suggestions</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/synthesis/suggestions?limit=3</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/wiki/synthesis/preview</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Refine, confirm, create (direct)</td><td><em>LLM call / persistent</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>10. Query &amp; Conversations (4 pass, 5 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/query/conversations</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/query/history?limit=5</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/query/conversations/{id}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/query/conversations/{id}/export</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Ask, stream, fork, file-back, crystallize</td><td><em>LLM call</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>11. Tags (5 pass &mdash; full CRUD cycle)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/tags</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/tags</td><td class="t-code">201</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/wiki/articles/{id}/tags</td><td class="t-code">201</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/tags/{id}/articles</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/wiki/articles/{id}/tags/{tag_id}</td><td class="t-code">204</td></tr>
+</table>
+</details>
+
+<details>
+<summary>12. Saved Searches (3 pass &mdash; full CRUD cycle)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/saved-searches</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/saved-searches</td><td class="t-code">201</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/saved-searches/{id}/execute</td><td class="t-code">200</td></tr>
+</table>
+</details>
+
+<details>
+<summary>13. Compilation Schemas (4 pass &mdash; full CRUD cycle)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/compilation-schemas</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/compilation-schemas</td><td class="t-code">201</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/compilation-schemas/{id}</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">PATCH</td><td class="t-path">/api/compilation-schemas/{id}</td><td class="t-code">200</td></tr>
+</table>
+</details>
+
+<details>
+<summary>14. Ambient Capture (3 pass, 3 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/capture</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/capture/rss/feeds</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/capture/clipboard</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Ingest capture, subscribe RSS, poll RSS</td><td><em>compilation/external</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>15-16. Jobs &amp; Linting (3 pass, 5 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/jobs</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/lint/reports</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/lint/reports/latest</td><td class="t-code">404</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Trigger compile/lint/reindex, dismiss finding</td><td><em>LLM call / mutating</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>17. Settings &amp; Configuration (4 pass, 3 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings/llm/cost</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings/llm/cost/breakdown</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings/onboarding-status</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Set provider, update settings, test LLM</td><td><em>config change / external</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>18-20. API Keys, MCP Tokens &amp; OAuth (3 pass, 8 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings/api-keys</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/settings/mcp-tokens</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/.well-known/oauth-authorization-server</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Set/delete API key, create/revoke MCP token, OAuth flow</td><td><em>secrets / browser</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>21. Admin Dashboard (6 pass, 3 skip)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/stats</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/orphans</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/concepts/eligible</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/stuck-sources</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/docling-status</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/admin/traces</td><td class="t-code">200</td></tr>
+<tr><td class="t-skip">SKIP</td><td></td><td>Retry stuck, sweep, reindex</td><td><em>mutating</em></td></tr>
+</table>
+</details>
+
+<details>
+<summary>22. Rate Limiting (1 pass)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/auth/magic-link</td><td class="t-code" style="color:#f85149">429</td></tr>
+</table>
+</details>
+
+<details>
+<summary>23. Error Handling (3 pass)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/nonexistent</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">GET</td><td class="t-path">/api/wiki/articles/nonexistent-slug</td><td class="t-code">404</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/ingest/text (empty body)</td><td class="t-code">422</td></tr>
+</table>
+</details>
+
+<details>
+<summary>Cleanup (6 pass &mdash; all test artifacts removed)</summary>
+<table class="test-table">
+<tr><th>Status</th><th>Method</th><th>Path</th><th>Code</th></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/wiki/share-links/{id}</td><td class="t-code">204</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/tags/{id}</td><td class="t-code">204</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/saved-searches/{id}</td><td class="t-code">204</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/compilation-schemas/{id}</td><td class="t-code">204</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">POST</td><td class="t-path">/api/capture/{id}/discard</td><td class="t-code">200</td></tr>
+<tr><td class="t-pass">PASS</td><td class="t-method">DELETE</td><td class="t-path">/api/ingest/sources/{id}</td><td class="t-code">200</td></tr>
+</table>
+</details>
+
+<footer>
+  Generated 2026-05-18 &nbsp;|&nbsp; WikiMind v0.1.0 &nbsp;|&nbsp;
+  <a href="https://github.com/manavgup/wikimind">github.com/manavgup/wikimind</a> &nbsp;|&nbsp;
+  <a href="https://manavgup.github.io/wikimind/">Documentation</a> &nbsp;|&nbsp;
+  <a href="api-test-results.html">API test results (138 endpoints)</a> &nbsp;|&nbsp;
+  <a href="api-test.sh">Test script (source)</a>
+</footer>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt=""/>
+</div>
+
+<script>
+function openLightbox(el) {
+  document.getElementById('lightbox-img').src = el.src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+</script>
+
+</body>
+</html>
