@@ -194,17 +194,6 @@ class MCPServerEntry(BaseModel):
     timeout: float = 30.0
 
 
-class MCPConfig(BaseModel):
-    """MCP (Model Context Protocol) configuration.
-
-    Controls both the MCP server (exposing WikiMind tools) and the MCP client
-    (connecting to external MCP servers for the Q&A agent to use).
-    """
-
-    external_servers: list[MCPServerEntry] = Field(default_factory=list)
-    client_enabled: bool = False
-
-
 class CaptureConfig(BaseModel):
     """Ambient capture configuration (issue #442)."""
 
@@ -324,6 +313,8 @@ class MCPConfig(BaseModel):
     """MCP server configuration."""
 
     require_auth: bool = True  # applies to HTTP transport only
+    external_servers: list[MCPServerEntry] = Field(default_factory=list)
+    client_enabled: bool = False
 
 
 class AuthConfig(BaseModel):
