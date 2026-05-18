@@ -46,6 +46,9 @@ def downgrade() -> None:
     conn = op.get_bind()
     inspector = sa_inspect(conn)
     if "mcp_access_token" in inspector.get_table_names():
-        op.drop_index("ix_mcp_access_token_token_hash", table_name="mcp_access_token")
-        op.drop_index("ix_mcp_access_token_user_id", table_name="mcp_access_token")
+        indexes = [idx["name"] for idx in inspector.get_indexes("mcp_access_token")]
+        if "ix_mcp_access_token_token_hash" in indexes:
+            op.drop_index("ix_mcp_access_token_token_hash", table_name="mcp_access_token")
+        if "ix_mcp_access_token_user_id" in indexes:
+            op.drop_index("ix_mcp_access_token_user_id", table_name="mcp_access_token")
         op.drop_table("mcp_access_token")
