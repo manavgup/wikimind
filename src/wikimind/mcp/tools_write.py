@@ -84,7 +84,13 @@ async def wiki_ingest_url(url: str, title: str, user_id: str) -> dict[str, Any]:
     try:
         ingest_svc = get_ingest_service()
         async with _get_session() as session:
-            source = await ingest_svc.ingest_url(url, session, user_id=user_id)
+            # Disable auto_compile so we can apply title override before compilation
+            source = await ingest_svc.ingest_url(
+                url,
+                session,
+                user_id=user_id,
+                auto_compile=False,
+            )
 
             # Detect dedup hit: compiled_at is already set for existing sources
             if source.compiled_at is not None:
@@ -98,11 +104,14 @@ async def wiki_ingest_url(url: str, title: str, user_id: str) -> dict[str, Any]:
                     result["article_slug"] = article_slug
                 return result
 
-            # Apply title override for new sources
+            # Apply title override BEFORE committing so the compiler sees it
             if title:
                 source.title = title
 
             await session.commit()
+
+            # Schedule compilation after title is persisted
+            await ingest_svc._schedule_compile(source)
 
             return {"source_id": source.id, "status": "queued"}
     except ToolError:

@@ -70,7 +70,15 @@ class WikiMindAuthProvider(TokenVerifier):
     async def _verify_jwt(self, token: str) -> AccessToken:
         """Decode and validate a JWT token, returning an AccessToken."""
         try:
-            payload = jwt.decode(token, self._secret, algorithms=["HS256"])
+            from wikimind.config import get_settings  # noqa: PLC0415
+
+            settings = get_settings()
+            payload = jwt.decode(
+                token,
+                self._secret,
+                algorithms=[settings.auth.jwt_algorithm],
+                options={"verify_aud": False},
+            )
         except jwt.ExpiredSignatureError as exc:
             msg = "Token expired"
             raise ValueError(msg) from exc

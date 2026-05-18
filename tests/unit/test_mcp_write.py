@@ -64,6 +64,7 @@ class TestWikiIngestUrl:
             mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=session)
             mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_factory.return_value.ingest_url = AsyncMock(return_value=source)
+            mock_factory.return_value._schedule_compile = AsyncMock()
 
             result = await wiki_ingest_url(
                 url="https://example.com/article",
@@ -72,6 +73,8 @@ class TestWikiIngestUrl:
             )
 
             assert result == {"source_id": "src-001", "status": "queued"}
+            # Verify compilation was scheduled after commit
+            mock_factory.return_value._schedule_compile.assert_called_once_with(source)
 
     @pytest.mark.asyncio
     async def test_ingest_url_rejects_file_scheme(self):
@@ -112,6 +115,7 @@ class TestWikiIngestUrl:
             mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=session)
             mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_factory.return_value.ingest_url = AsyncMock(return_value=source)
+            mock_factory.return_value._schedule_compile = AsyncMock()
 
             await wiki_ingest_url(
                 url="https://example.com/article",
@@ -119,10 +123,11 @@ class TestWikiIngestUrl:
                 user_id=TEST_USER_ID,
             )
 
-            # Verify title was set on the source object
+            # Verify title was set on the source object BEFORE compilation
             assert source.title == "Custom Title"
-            # Verify session.commit() was called
+            # Verify session.commit() was called before _schedule_compile
             session.commit.assert_called_once()
+            mock_factory.return_value._schedule_compile.assert_called_once_with(source)
 
     @pytest.mark.asyncio
     async def test_ingest_url_dedup_returns_already_exists(self):
@@ -172,6 +177,7 @@ class TestWikiIngestUrl:
             mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=session)
             mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
             mock_factory.return_value.ingest_url = AsyncMock(return_value=source)
+            mock_factory.return_value._schedule_compile = AsyncMock()
 
             result = await wiki_ingest_url(
                 url="https://example.com/duplicate",

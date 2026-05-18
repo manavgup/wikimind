@@ -91,9 +91,20 @@ mcp = FastMCP(
 async def _get_mcp_user_id() -> str:
     """Return the user ID for MCP operations.
 
-    In dev mode, uses the auto-provisioned dev user.
-    In production, this should be overridden by auth context.
+    Checks FastMCP's auth context first (set by WikiMindAuthProvider for HTTP
+    transport). Falls back to the auto-provisioned dev user in dev mode.
     """
+    # Try to get user from FastMCP auth context (HTTP transport)
+    try:
+        from fastmcp.server.dependencies import get_access_token
+
+        token = get_access_token()
+        if token and token.client_id:
+            return token.client_id
+    except Exception:
+        log.debug("No FastMCP auth context available, falling back")
+
+    # Fall back to dev user in dev mode
     settings = get_settings()
     if not settings.is_dev:
         msg = "Authentication required (production mode)"

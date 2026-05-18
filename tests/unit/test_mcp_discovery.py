@@ -97,22 +97,28 @@ class TestWikiOverview:
     @pytest.mark.asyncio
     async def test_returns_article_and_concept_counts(self):
         ctx = _mock_ctx()
-        stats = _mock_stats(article_count=42, source_count=15)
         concepts = [
             _mock_concept("Machine Learning", article_count=10),
             _mock_concept("NLP", article_count=5),
         ]
-        articles = [
+        recent_articles = [
             _mock_article(slug="recent-1", title="Recent One"),
             _mock_article(slug="recent-2", title="Recent Two"),
         ]
+        all_articles = [
+            _mock_article(slug="a1", page_type="source"),
+            _mock_article(slug="a2", page_type="source"),
+            _mock_article(slug="a3", page_type="concept"),
+        ]
+        mock_sources = [MagicMock(), MagicMock(), MagicMock()]  # 3 sources
 
         mock_wiki_svc = MagicMock()
         mock_wiki_svc.get_concepts = AsyncMock(return_value=concepts)
-        mock_wiki_svc.list_articles = AsyncMock(return_value=articles)
+        # First call returns recent (limit=5), second call returns all (limit=10000)
+        mock_wiki_svc.list_articles = AsyncMock(side_effect=[recent_articles, all_articles])
 
-        mock_admin_svc = MagicMock()
-        mock_admin_svc.get_stats = AsyncMock(return_value=stats)
+        mock_ingest_svc = MagicMock()
+        mock_ingest_svc.list_sources = AsyncMock(return_value=mock_sources)
 
         with (
             patch(
@@ -129,37 +135,36 @@ class TestWikiOverview:
                 return_value=mock_wiki_svc,
             ),
             patch(
-                "wikimind.services.admin.AdminService",
-                return_value=mock_admin_svc,
+                "wikimind.services.ingest.IngestService",
+                return_value=mock_ingest_svc,
             ),
         ):
             result = await wiki_overview(ctx)
 
-            assert result["article_count"] == 42
-            assert result["source_count"] == 15
+            assert result["article_count"] == 3
+            assert result["source_count"] == 3
             assert result["concept_count"] == 2
             assert len(result["concepts"]) == 2
             assert result["concepts"][0]["name"] == "Machine Learning"
             assert result["concepts"][0]["article_count"] == 10
             assert result["page_type_breakdown"] == {
-                "source": 7,
-                "concept": 2,
-                "synthesis": 1,
+                "source": 2,
+                "concept": 1,
             }
 
     @pytest.mark.asyncio
     async def test_returns_max_5_recent_articles(self):
         ctx = _mock_ctx()
-        stats = _mock_stats()
         concepts = [_mock_concept("Topic")]
         articles = [_mock_article(slug=f"article-{i}") for i in range(7)]
+        all_articles = [_mock_article(slug=f"all-{i}") for i in range(7)]
 
         mock_wiki_svc = MagicMock()
         mock_wiki_svc.get_concepts = AsyncMock(return_value=concepts)
-        mock_wiki_svc.list_articles = AsyncMock(return_value=articles)
+        mock_wiki_svc.list_articles = AsyncMock(side_effect=[articles, all_articles])
 
-        mock_admin_svc = MagicMock()
-        mock_admin_svc.get_stats = AsyncMock(return_value=stats)
+        mock_ingest_svc = MagicMock()
+        mock_ingest_svc.list_sources = AsyncMock(return_value=[])
 
         with (
             patch(
@@ -176,8 +181,8 @@ class TestWikiOverview:
                 return_value=mock_wiki_svc,
             ),
             patch(
-                "wikimind.services.admin.AdminService",
-                return_value=mock_admin_svc,
+                "wikimind.services.ingest.IngestService",
+                return_value=mock_ingest_svc,
             ),
         ):
             result = await wiki_overview(ctx)
@@ -187,15 +192,16 @@ class TestWikiOverview:
     @pytest.mark.asyncio
     async def test_logs_info_message(self):
         ctx = _mock_ctx()
-        stats = _mock_stats(article_count=3)
         concepts = [_mock_concept("A"), _mock_concept("B")]
+        all_articles = [_mock_article(slug=f"a{i}") for i in range(3)]
 
         mock_wiki_svc = MagicMock()
         mock_wiki_svc.get_concepts = AsyncMock(return_value=concepts)
-        mock_wiki_svc.list_articles = AsyncMock(return_value=[])
+        # First call: recent articles (limit=5), second call: all articles (limit=10000)
+        mock_wiki_svc.list_articles = AsyncMock(side_effect=[[], all_articles])
 
-        mock_admin_svc = MagicMock()
-        mock_admin_svc.get_stats = AsyncMock(return_value=stats)
+        mock_ingest_svc = MagicMock()
+        mock_ingest_svc.list_sources = AsyncMock(return_value=[])
 
         with (
             patch(
@@ -212,8 +218,8 @@ class TestWikiOverview:
                 return_value=mock_wiki_svc,
             ),
             patch(
-                "wikimind.services.admin.AdminService",
-                return_value=mock_admin_svc,
+                "wikimind.services.ingest.IngestService",
+                return_value=mock_ingest_svc,
             ),
         ):
             await wiki_overview(ctx)
@@ -224,8 +230,8 @@ class TestWikiOverview:
     async def test_wraps_unexpected_errors_in_tool_error(self):
         ctx = _mock_ctx()
 
-        mock_admin_svc = MagicMock()
-        mock_admin_svc.get_stats = AsyncMock(side_effect=RuntimeError("DB connection lost"))
+        mock_wiki_svc = MagicMock()
+        mock_wiki_svc.get_concepts = AsyncMock(side_effect=RuntimeError("DB connection lost"))
 
         with (
             patch(
@@ -238,8 +244,8 @@ class TestWikiOverview:
                 return_value=_mock_session_ctx(),
             ),
             patch(
-                "wikimind.services.admin.AdminService",
-                return_value=mock_admin_svc,
+                "wikimind.services.wiki.WikiService",
+                return_value=mock_wiki_svc,
             ),
             pytest.raises(ToolError, match="Failed to get wiki overview"),
         ):

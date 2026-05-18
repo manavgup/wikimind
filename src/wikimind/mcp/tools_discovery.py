@@ -36,9 +36,20 @@ _VALID_PAGE_TYPES = {"source", "concept", "synthesis", "answer"}
 async def _get_mcp_user_id() -> str:
     """Return the user ID for MCP operations.
 
-    In dev mode, uses the auto-provisioned dev user.
-    In production, this should be overridden by auth context.
+    Checks FastMCP's auth context first (set by WikiMindAuthProvider for HTTP
+    transport). Falls back to the auto-provisioned dev user in dev mode.
     """
+    # Try to get user from FastMCP auth context (HTTP transport)
+    try:
+        from fastmcp.server.dependencies import get_access_token  # noqa: PLC0415
+
+        token = get_access_token()
+        if token and token.client_id:
+            return token.client_id
+    except Exception:
+        log.debug("No FastMCP auth context available, falling back")
+
+    # Fall back to dev user in dev mode
     from wikimind.config import get_settings  # noqa: PLC0415
 
     settings = get_settings()
@@ -77,24 +88,34 @@ async def wiki_overview(ctx: Context) -> dict[str, Any]:
     try:
         user_id = await _get_mcp_user_id()
         async with _get_session() as session:
-            from wikimind.services.admin import AdminService  # noqa: PLC0415
+            from wikimind.services.ingest import IngestService  # noqa: PLC0415
             from wikimind.services.wiki import WikiService  # noqa: PLC0415
 
             wiki_svc = WikiService()
-            admin_svc = AdminService()
+            ingest_svc = IngestService()
 
-            stats = await admin_svc.get_stats(session)
             concepts = await wiki_svc.get_concepts(session, user_id, include_empty=False)
             articles = await wiki_svc.list_articles(session, user_id, limit=5, offset=0)
+            # Use a large limit to count all user sources instead of system-wide stats
+            user_sources = await ingest_svc.list_sources(session, user_id=user_id, limit=10000)
+
+            source_count = len(user_sources)
+
+            # Compute page type breakdown from recent articles (fetch a larger batch)
+            all_articles = await wiki_svc.list_articles(session, user_id, limit=10000, offset=0)
+            page_type_breakdown: dict[str, int] = {}
+            for a in all_articles:
+                pt = a.page_type or "unknown"
+                page_type_breakdown[pt] = page_type_breakdown.get(pt, 0) + 1
 
             await ctx.log(
-                f"Wiki has {stats.article_count} articles across {len(concepts)} concepts",
+                f"Wiki has {len(all_articles)} articles across {len(concepts)} concepts",
                 level="info",
             )
 
             return {
-                "article_count": stats.article_count,
-                "source_count": stats.source_count,
+                "article_count": len(all_articles),
+                "source_count": source_count,
                 "concept_count": len(concepts),
                 "concepts": [{"name": c.name, "article_count": c.article_count} for c in concepts[:20]],
                 "recent_articles": [
@@ -106,7 +127,7 @@ async def wiki_overview(ctx: Context) -> dict[str, Any]:
                     }
                     for a in articles[:5]
                 ],
-                "page_type_breakdown": stats.articles_by_page_type,
+                "page_type_breakdown": page_type_breakdown,
             }
     except ToolError:
         raise
