@@ -52,6 +52,8 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0.0",
     # MCP (Model Context Protocol)
     "fastmcp>=3.0.2",
+    # Rate limiting
+    "slowapi>=0.1.9",
     # Utilities
     "python-slugify>=8.0.4",
     "python-dateutil>=2.9.0",

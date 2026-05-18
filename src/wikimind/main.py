@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi.errors import RateLimitExceeded
 from sqlmodel import select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import FileResponse, HTMLResponse
@@ -54,6 +55,7 @@ from wikimind.middleware.auth import AuthMiddleware
 from wikimind.middleware.correlation import CorrelationIdMiddleware
 from wikimind.middleware.error_handling import ErrorHandlingMiddleware
 from wikimind.middleware.logging_config import configure_logging
+from wikimind.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
 from wikimind.models import IngestStatus, Source
@@ -221,6 +223,12 @@ app = FastAPI(
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
+
+# ---------------------------------------------------------------------------
+# Rate limiting — register slowapi limiter and 429 handler
+# ---------------------------------------------------------------------------
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics — exposes /metrics for scraping

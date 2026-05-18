@@ -29,6 +29,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.api.deps import require_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
+from wikimind.middleware.rate_limit import limiter
 from wikimind.models import (
     DeleteAccountResponse,
     MagicLinkRequest,
@@ -118,6 +119,7 @@ _SAFE_REDIRECT_PATHS = ("/auth/tokens", "/settings", "/mcp/authorize/resume")
 
 
 @router.get("/login/{provider}")
+@limiter.limit(get_settings().rate_limit.auth_limit)
 async def login(provider: str, request: Request) -> RedirectResponse:
     """Redirect to OAuth2 provider's authorize URL."""
     settings = get_settings()
@@ -238,7 +240,9 @@ async def me(
 
 
 @router.post("/magic-link")
+@limiter.limit(get_settings().rate_limit.auth_limit)
 async def request_magic_link(
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
     body: MagicLinkRequest,
     service: UserService = Depends(get_user_service),
 ) -> MagicLinkResponse:
@@ -266,7 +270,9 @@ async def request_magic_link(
 
 
 @router.post("/magic-link/verify")
+@limiter.limit(get_settings().rate_limit.auth_limit)
 async def verify_magic_link(
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
     body: MagicLinkVerifyRequest,
     session: AsyncSession = Depends(get_session),
     service: UserService = Depends(get_user_service),

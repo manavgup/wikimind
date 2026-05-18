@@ -9,11 +9,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.requests import Request
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
+from wikimind.middleware.rate_limit import limiter
 from wikimind.models import (
     Article,
     ArticleSource,
@@ -53,18 +55,22 @@ router = APIRouter()
 
 
 @router.post("/url", response_model=Source)
+@limiter.limit(get_settings().rate_limit.ingest_limit)
 async def ingest_url(
-    request: IngestURLRequest,
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
+    body: IngestURLRequest,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Ingest a web URL or YouTube video."""
-    return await service.ingest_url(str(request.url), session, auto_compile=request.auto_compile, user_id=user_id)
+    return await service.ingest_url(str(body.url), session, auto_compile=body.auto_compile, user_id=user_id)
 
 
 @router.post("/pdf", response_model=Source)
+@limiter.limit(get_settings().rate_limit.ingest_limit)
 async def ingest_pdf(
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
     file: UploadFile = File(...),
     auto_compile: bool = True,
     session: AsyncSession = Depends(get_session),
@@ -91,18 +97,20 @@ async def ingest_pdf(
 
 
 @router.post("/text", response_model=Source)
+@limiter.limit(get_settings().rate_limit.ingest_limit)
 async def ingest_text(
-    request: IngestTextRequest,
+    request: Request,  # noqa: ARG001 — required by slowapi limiter
+    body: IngestTextRequest,
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
 ):
     """Ingest raw text or a note."""
     return await service.ingest_text(
-        request.content,
-        request.title,
+        body.content,
+        body.title,
         session,
-        auto_compile=request.auto_compile,
+        auto_compile=body.auto_compile,
         user_id=user_id,
     )
 
