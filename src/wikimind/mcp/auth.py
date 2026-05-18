@@ -141,6 +141,6 @@ async def validate_mcp_token(token: str, session: AsyncSession) -> str | None:
                 return None
             return oauth.user_id
     except Exception:
-        pass
+        log.debug("OAuthAccessToken table not available or query failed")
 
     return None
