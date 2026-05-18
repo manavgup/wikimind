@@ -1,1 +1,1 @@
-"""WikiMind MCP server — tools, resources, and prompts for knowledge base access."""
+"""WikiMind MCP — server (tools, resources, prompts) and client for external MCP servers."""

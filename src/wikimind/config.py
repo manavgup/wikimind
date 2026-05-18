@@ -178,6 +178,22 @@ class TaxonomyConfig(BaseModel):
     concept_page_min_sources: int = 2
 
 
+class MCPServerEntry(BaseModel):
+    """Configuration for a single external MCP server connection."""
+
+    name: str
+    transport: Literal["stdio", "http"] = "stdio"
+    # stdio transport fields
+    command: str = ""
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] | None = None
+    # http transport fields
+    url: str = ""
+    headers: dict[str, str] | None = None
+    # shared
+    timeout: float = 30.0
+
+
 class CaptureConfig(BaseModel):
     """Ambient capture configuration (issue #442)."""
 
@@ -297,6 +313,8 @@ class MCPConfig(BaseModel):
     """MCP server configuration."""
 
     require_auth: bool = True  # applies to HTTP transport only
+    external_servers: list[MCPServerEntry] = Field(default_factory=list)
+    client_enabled: bool = False
 
 
 class AuthConfig(BaseModel):
