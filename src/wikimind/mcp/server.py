@@ -383,6 +383,7 @@ async def _tool_wiki_get_source_status(
 # Tier 4 — Analysis tools, resources, prompts (self-registering modules)
 # ---------------------------------------------------------------------------
 
+
 def _register_modules() -> None:
     """Import side-effect modules that register tools, resources, and prompts on `mcp`."""
     import wikimind.mcp.prompts  # registers 4 prompts
