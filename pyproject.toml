@@ -250,6 +250,7 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 reportMissingImports = false
 reportMissingTypeStubs = false
+reportAssignmentType = false  # SQLModel __tablename__ = "..." triggers false positive
 
 # ---------- Pytest ----------
 [tool.pytest.ini_options]
