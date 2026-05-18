@@ -12,17 +12,21 @@ from wikimind.config import get_settings
 from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     AdminActionResult,
+    AdminUserDetail,
+    AdminUserSummary,
     Article,
     Backlink,
     CompiledClaim,
     Concept,
     Conversation,
+    CostLog,
     EligibleConcept,
     IngestStatus,
     Job,
     JobStatus,
     JobType,
     OrphanArticle,
+    RecentSourceEntry,
     Source,
     StuckSource,
     SystemStats,
@@ -400,3 +404,147 @@ class AdminService:
             AdminActionResult with action result.
         """
         return AdminActionResult(action="reindex", status="scheduled")
+
+    async def list_users(
+        self,
+        session: AsyncSession,
+    ) -> list[AdminUserSummary]:
+        """List all users with summary metrics (article/source counts, cost).
+
+        Args:
+            session: Async database session.
+
+        Returns:
+            List of AdminUserSummary for each user.
+        """
+        result = await session.exec(select(User))
+        users = list(result.all())
+
+        summaries: list[AdminUserSummary] = []
+        for user in users:
+            # Article count
+            art_stmt = select(func.count()).select_from(Article).where(Article.user_id == user.id)
+            art_result = await session.execute(art_stmt)
+            article_count = art_result.scalar() or 0
+
+            # Source count
+            src_stmt = select(func.count()).select_from(Source).where(Source.user_id == user.id)
+            src_result = await session.execute(src_stmt)
+            source_count = src_result.scalar() or 0
+
+            # Total cost
+            cost_stmt = select(func.coalesce(func.sum(CostLog.cost_usd), 0.0)).where(CostLog.user_id == user.id)
+            cost_result = await session.execute(cost_stmt)
+            total_cost_usd = float(cost_result.scalar() or 0.0)
+
+            # Last active: most recent source ingested_at
+            active_stmt = select(func.max(Source.ingested_at)).where(Source.user_id == user.id)
+            active_result = await session.execute(active_stmt)
+            last_active_at = active_result.scalar()
+
+            summaries.append(
+                AdminUserSummary(
+                    id=user.id,
+                    email=user.email,
+                    name=user.name,
+                    avatar_url=user.avatar_url,
+                    article_count=article_count,
+                    source_count=source_count,
+                    total_cost_usd=total_cost_usd,
+                    last_active_at=last_active_at,
+                )
+            )
+
+        return summaries
+
+    async def get_user_detail(
+        self,
+        session: AsyncSession,
+        user_id: str,
+    ) -> AdminUserDetail | None:
+        """Get detailed stats for a single user.
+
+        Args:
+            session: Async database session.
+            user_id: The user UUID to look up.
+
+        Returns:
+            AdminUserDetail with full breakdown, or None if user not found.
+        """
+        result = await session.exec(select(User).where(User.id == user_id))
+        user = result.one_or_none()
+        if user is None:
+            return None
+
+        # Article count
+        art_count_stmt = select(func.count()).select_from(Article).where(Article.user_id == user_id)
+        art_count_result = await session.execute(art_count_stmt)
+        article_count = art_count_result.scalar() or 0
+
+        # Source count
+        src_count_stmt = select(func.count()).select_from(Source).where(Source.user_id == user_id)
+        src_count_result = await session.execute(src_count_stmt)
+        source_count = src_count_result.scalar() or 0
+
+        # Total cost
+        cost_stmt = select(func.coalesce(func.sum(CostLog.cost_usd), 0.0)).where(CostLog.user_id == user_id)
+        cost_result = await session.execute(cost_stmt)
+        total_cost_usd = float(cost_result.scalar() or 0.0)
+
+        # Last active
+        active_stmt = select(func.max(Source.ingested_at)).where(Source.user_id == user_id)
+        active_result = await session.execute(active_stmt)
+        last_active_at = active_result.scalar()
+
+        # Articles by page_type
+        abt_stmt = select(Article.page_type, func.count()).where(Article.user_id == user_id).group_by(Article.page_type)
+        abt_result = await session.execute(abt_stmt)
+        articles_by_type = {row[0]: row[1] for row in abt_result.all()}
+
+        # Sources by status
+        sbs_stmt = select(Source.status, func.count()).where(Source.user_id == user_id).group_by(Source.status)
+        sbs_result = await session.execute(sbs_stmt)
+        sources_by_status = {row[0]: row[1] for row in sbs_result.all()}
+
+        # Cost by provider
+        cbp_stmt = (
+            select(CostLog.provider, func.sum(CostLog.cost_usd))
+            .where(CostLog.user_id == user_id)
+            .group_by(CostLog.provider)
+        )
+        cbp_result = await session.execute(cbp_stmt)
+        cost_by_provider = {row[0]: float(row[1]) for row in cbp_result.all()}
+
+        # Recent sources (last 10)
+        recent_stmt = (
+            select(Source)
+            .where(Source.user_id == user_id)
+            .order_by(Source.ingested_at.desc())  # type: ignore[attr-defined]
+            .limit(10)
+        )
+        recent_result = await session.exec(recent_stmt)
+        recent_sources = [
+            RecentSourceEntry(
+                id=s.id,
+                title=s.title,
+                source_type=s.source_type,
+                status=s.status,
+                ingested_at=s.ingested_at,
+            )
+            for s in recent_result.all()
+        ]
+
+        return AdminUserDetail(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            avatar_url=user.avatar_url,
+            article_count=article_count,
+            source_count=source_count,
+            total_cost_usd=total_cost_usd,
+            last_active_at=last_active_at,
+            articles_by_type=articles_by_type,
+            sources_by_status=sources_by_status,
+            cost_by_provider=cost_by_provider,
+            recent_sources=recent_sources,
+        )

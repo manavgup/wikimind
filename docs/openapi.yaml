@@ -2653,6 +2653,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DoclingStatusResponse'
+  /api/admin/users:
+    get:
+      tags:
+      - Admin
+      summary: List Users
+      description: List all users with summary metrics (admin only).
+      operationId: list_users_api_admin_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AdminUserSummary'
+                type: array
+                title: Response List Users Api Admin Users Get
+  /api/admin/users/{user_id}:
+    get:
+      tags:
+      - Admin
+      summary: Get User Detail
+      description: Full stats breakdown for a single user (admin only).
+      operationId: get_user_detail_api_admin_users__user_id__get
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/admin/traces:
     get:
       tags:
@@ -3088,6 +3132,89 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/synthesis/preview:
+    post:
+      tags:
+      - Synthesis
+      summary: Preview Synthesis
+      description: 'Generate a synthesis draft without saving it.
+
+
+        Returns draft content, suggested title, and key themes for user review.
+
+        The draft can be refined with feedback or confirmed to save.'
+      operationId: preview_synthesis_api_wiki_synthesis_preview_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesisPreviewRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesisPreviewResponse'
+        '422':
+          description: Not enough articles or synthesis failed
+  /api/wiki/synthesis/refine:
+    post:
+      tags:
+      - Synthesis
+      summary: Refine Synthesis
+      description: 'Refine a synthesis draft with user feedback.
+
+
+        Takes a previous draft and user guidance, regenerates the synthesis
+
+        incorporating the feedback. Can be called multiple times for iterative
+
+        refinement before confirming.'
+      operationId: refine_synthesis_api_wiki_synthesis_refine_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesisRefineRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesisRefineResponse'
+        '422':
+          description: Refinement failed
+  /api/wiki/synthesis/confirm:
+    post:
+      tags:
+      - Synthesis
+      summary: Confirm Synthesis
+      description: 'Save a confirmed synthesis draft as a real wiki article.
+
+
+        Takes the final draft content and title from a preview/refine cycle
+
+        and persists it as a synthesis article in the wiki.'
+      operationId: confirm_synthesis_api_wiki_synthesis_confirm_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesisConfirmRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesisConfirmResponse'
+        '422':
+          description: Could not save synthesis
   /api/wiki/synthesize:
     post:
       tags:
@@ -3153,6 +3280,49 @@ paths:
                 items:
                   $ref: '#/components/schemas/ArticleSummaryResponse'
                 title: Response List Synthesis Pages Api Wiki Synthesis Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/synthesis/suggestions:
+    get:
+      tags:
+      - Synthesis
+      summary: Get Synthesis Suggestions
+      description: 'Return auto-detected synthesis opportunities.
+
+
+        Identifies clusters of articles that would benefit from synthesis:
+
+        - Articles sharing 3+ concepts
+
+        - Articles with contradictions between them
+
+        - Articles on the same topic from different sources'
+      operationId: get_synthesis_suggestions_api_wiki_synthesis_suggestions_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 10
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SynthesisSuggestion'
+                title: Response Get Synthesis Suggestions Api Wiki Synthesis Suggestions
+                  Get
         '422':
           description: Validation Error
           content:
@@ -3633,7 +3803,7 @@ paths:
       tags:
       - Auth
       summary: Authorize
-      description: 'OAuth 2.1 authorization endpoint.
+      description: 'Handle OAuth 2.1 authorization request.
 
 
         Validates the authorization request parameters, stores them, and
@@ -3835,6 +4005,118 @@ paths:
               schema: {}
 components:
   schemas:
+    AdminUserDetail:
+      properties:
+        id:
+          type: string
+          title: Id
+        email:
+          type: string
+          title: Email
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        avatar_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Avatar Url
+        article_count:
+          type: integer
+          title: Article Count
+          default: 0
+        source_count:
+          type: integer
+          title: Source Count
+          default: 0
+        total_cost_usd:
+          type: number
+          title: Total Cost Usd
+          default: 0.0
+        last_active_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Active At
+        articles_by_type:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Articles By Type
+          default: {}
+        sources_by_status:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Sources By Status
+          default: {}
+        cost_by_provider:
+          additionalProperties:
+            type: number
+          type: object
+          title: Cost By Provider
+          default: {}
+        recent_sources:
+          items:
+            $ref: '#/components/schemas/RecentSourceEntry'
+          type: array
+          title: Recent Sources
+          default: []
+      type: object
+      required:
+      - id
+      - email
+      - name
+      - avatar_url
+      title: AdminUserDetail
+      description: Full per-user detail for the admin user detail endpoint.
+    AdminUserSummary:
+      properties:
+        id:
+          type: string
+          title: Id
+        email:
+          type: string
+          title: Email
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        avatar_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Avatar Url
+        article_count:
+          type: integer
+          title: Article Count
+          default: 0
+        source_count:
+          type: integer
+          title: Source Count
+          default: 0
+        total_cost_usd:
+          type: number
+          title: Total Cost Usd
+          default: 0.0
+        last_active_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Active At
+      type: object
+      required:
+      - id
+      - email
+      - name
+      - avatar_url
+      title: AdminUserSummary
+      description: Summary metrics for a single user in the admin users list.
     AllSettingsResponse:
       properties:
         data_dir:
@@ -6416,6 +6698,35 @@ components:
       - status
       title: RebuildConceptsResponse
       description: Response after triggering taxonomy rebuild.
+    RecentSourceEntry:
+      properties:
+        id:
+          type: string
+          title: Id
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        source_type:
+          type: string
+          title: Source Type
+        status:
+          type: string
+          title: Status
+        ingested_at:
+          type: string
+          format: date-time
+          title: Ingested At
+      type: object
+      required:
+      - id
+      - title
+      - source_type
+      - status
+      - ingested_at
+      title: RecentSourceEntry
+      description: A recently ingested source entry for the admin user detail view.
     RecompileResponse:
       properties:
         status:
@@ -7203,6 +7514,186 @@ components:
       - bucket
       title: SyncSettingsResponse
       description: Cloud sync configuration section.
+    SynthesisConfirmRequest:
+      properties:
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        draft_content:
+          type: string
+          title: Draft Content
+        article_ids:
+          items:
+            type: string
+          type: array
+          minItems: 2
+          title: Article Ids
+      type: object
+      required:
+      - title
+      - draft_content
+      - article_ids
+      title: SynthesisConfirmRequest
+      description: Request to save a confirmed synthesis draft as a real article.
+    SynthesisConfirmResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        summary:
+          type: string
+          title: Summary
+        themes:
+          items:
+            type: string
+          type: array
+          title: Themes
+        source_count:
+          type: integer
+          title: Source Count
+        source_article_ids:
+          items:
+            type: string
+          type: array
+          title: Source Article Ids
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        page_type:
+          $ref: '#/components/schemas/PageType'
+          default: synthesis
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - summary
+      - themes
+      - source_count
+      - source_article_ids
+      - created_at
+      title: SynthesisConfirmResponse
+      description: Response after confirming and saving a synthesis article.
+    SynthesisPreviewRequest:
+      properties:
+        article_ids:
+          items:
+            type: string
+          type: array
+          minItems: 2
+          title: Article Ids
+        synthesis_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Synthesis Type
+        guidance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guidance
+      type: object
+      required:
+      - article_ids
+      title: SynthesisPreviewRequest
+      description: Request to generate a synthesis draft without saving it.
+    SynthesisPreviewResponse:
+      properties:
+        draft_content:
+          type: string
+          title: Draft Content
+        suggested_title:
+          type: string
+          title: Suggested Title
+        summary:
+          type: string
+          title: Summary
+        themes:
+          items:
+            type: string
+          type: array
+          title: Themes
+        article_ids:
+          items:
+            type: string
+          type: array
+          title: Article Ids
+        source_count:
+          type: integer
+          title: Source Count
+      type: object
+      required:
+      - draft_content
+      - suggested_title
+      - summary
+      - themes
+      - article_ids
+      - source_count
+      title: SynthesisPreviewResponse
+      description: Draft synthesis content returned for preview (not yet persisted).
+    SynthesisRefineRequest:
+      properties:
+        draft_content:
+          type: string
+          title: Draft Content
+        article_ids:
+          items:
+            type: string
+          type: array
+          minItems: 2
+          title: Article Ids
+        guidance:
+          type: string
+          title: Guidance
+      type: object
+      required:
+      - draft_content
+      - article_ids
+      - guidance
+      title: SynthesisRefineRequest
+      description: Request to refine a previous synthesis draft with user feedback.
+    SynthesisRefineResponse:
+      properties:
+        draft_content:
+          type: string
+          title: Draft Content
+        suggested_title:
+          type: string
+          title: Suggested Title
+        summary:
+          type: string
+          title: Summary
+        themes:
+          items:
+            type: string
+          type: array
+          title: Themes
+        article_ids:
+          items:
+            type: string
+          type: array
+          title: Article Ids
+        source_count:
+          type: integer
+          title: Source Count
+      type: object
+      required:
+      - draft_content
+      - suggested_title
+      - summary
+      - themes
+      - article_ids
+      - source_count
+      title: SynthesisRefineResponse
+      description: Refined draft synthesis content.
     SynthesisResponse:
       properties:
         id:
@@ -7253,6 +7744,32 @@ components:
       - created_at
       title: SynthesisResponse
       description: Response after creating a synthesis page.
+    SynthesisSuggestion:
+      properties:
+        article_ids:
+          items:
+            type: string
+          type: array
+          title: Article Ids
+        article_titles:
+          items:
+            type: string
+          type: array
+          title: Article Titles
+        reason:
+          type: string
+          title: Reason
+        suggested_type:
+          type: string
+          title: Suggested Type
+      type: object
+      required:
+      - article_ids
+      - article_titles
+      - reason
+      - suggested_type
+      title: SynthesisSuggestion
+      description: A suggestion for a synthesis opportunity across related articles.
     TagArticleRequest:
       properties:
         tag_id:

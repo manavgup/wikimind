@@ -57,6 +57,44 @@ export function retryStuckSource(sourceId: string): Promise<AdminActionResult> {
   );
 }
 
+// ----- Admin Users -----
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+  article_count: number;
+  source_count: number;
+  total_cost_usd: number;
+  last_active_at: string | null;
+}
+
+export interface RecentSourceEntry {
+  id: string;
+  title: string | null;
+  source_type: string;
+  status: string;
+  ingested_at: string;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  articles_by_type: Record<string, number>;
+  sources_by_status: Record<string, number>;
+  cost_by_provider: Record<string, number>;
+  recent_sources: RecentSourceEntry[];
+}
+
+export function getAdminUsers(): Promise<AdminUserSummary[]> {
+  return apiFetch<AdminUserSummary[]>("/api/admin/users");
+}
+
+export function getAdminUserDetail(userId: string): Promise<AdminUserDetail> {
+  return apiFetch<AdminUserDetail>(
+    `/api/admin/users/${encodeURIComponent(userId)}`,
+  );
+}
+
 // ----- LLM Traces -----
 
 export interface LLMTrace {
