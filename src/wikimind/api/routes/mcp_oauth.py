@@ -236,12 +236,12 @@ async def authorize(
         return HTMLResponse(
             content=_CONSENT_PAGE_HTML.format(
                 client_id=html.escape(client_id),
-                request_id=request_id,
+                request_id=html.escape(request_id),
             )
         )
 
     # Not logged in — show login page
-    return HTMLResponse(content=_LOGIN_REDIRECT_HTML.format(request_id=request_id))
+    return HTMLResponse(content=_LOGIN_REDIRECT_HTML.format(request_id=html.escape(request_id)))
 
 
 @router.get("/authorize/resume")
@@ -272,7 +272,7 @@ async def authorize_resume(
     return HTMLResponse(
         content=_CONSENT_PAGE_HTML.format(
             client_id=html.escape(pending["client_id"]),
-            request_id=rid,
+            request_id=html.escape(rid),
         )
     )
 
