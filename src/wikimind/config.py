@@ -293,6 +293,12 @@ class EmbeddingConfig(BaseModel):
         return self
 
 
+class MCPConfig(BaseModel):
+    """MCP server configuration."""
+
+    require_auth: bool = True  # applies to HTTP transport only
+
+
 class AuthConfig(BaseModel):
     """OAuth2 authentication configuration.
 
@@ -386,6 +392,7 @@ class Settings(BaseSettings):
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     concept_layer: ConceptLayerConfig = Field(default_factory=ConceptLayerConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
 
     # Storage backend: "local" creates wiki/ and raw/ on the local filesystem;
     # "r2" delegates to Cloudflare R2 (wiki_dir / raw_dir are not needed).

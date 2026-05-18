@@ -191,6 +191,7 @@ ignore = [
 "scripts/**/*.py" = ["T20", "S", "EM"]
 "alembic/**/*.py" = ["N"]
 "vulture_whitelist.py" = ["B018", "F405", "PGH004"]  # Intentional dead-code references for vulture
+"src/wikimind/mcp/server.py" = ["PLC0415", "F401"]  # Side-effect imports deferred until after mcp instance creation
 
 [tool.ruff.lint.isort]
 known-first-party = ["wikimind"]
@@ -249,6 +250,7 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 reportMissingImports = false
 reportMissingTypeStubs = false
+reportAssignmentType = false  # SQLModel __tablename__ = "..." triggers false positive
 
 # ---------- Pytest ----------
 [tool.pytest.ini_options]

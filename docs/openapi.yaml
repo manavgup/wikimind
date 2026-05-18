@@ -2461,6 +2461,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiKeyListResponse'
+  /api/settings/mcp-tokens:
+    get:
+      tags:
+      - Settings
+      summary: List Mcp Tokens
+      description: List all MCP tokens for the current user (never returns plaintext).
+      operationId: list_mcp_tokens_api_settings_mcp_tokens_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MCPTokenResponse'
+                type: array
+                title: Response List Mcp Tokens Api Settings Mcp Tokens Get
+    post:
+      tags:
+      - Settings
+      summary: Create Mcp Token
+      description: 'Generate a new MCP personal access token.
+
+
+        The plaintext token is returned ONCE in the response. It is never
+
+        stored — only the SHA-256 hash is persisted.'
+      operationId: create_mcp_token_api_settings_mcp_tokens_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPTokenCreateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPTokenCreateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/settings/mcp-tokens/{token_id}:
+    delete:
+      tags:
+      - Settings
+      summary: Revoke Mcp Token
+      description: Revoke an MCP token (soft delete — sets revoked=True).
+      operationId: revoke_mcp_token_api_settings_mcp_tokens__token_id__delete
+      parameters:
+      - name: token_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Token Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPTokenRevokeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/admin/stats:
     get:
       tags:
@@ -5642,6 +5716,85 @@ components:
       - error
       title: LintSeverity
       description: Severity level for a lint finding.
+    MCPTokenCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+      type: object
+      required:
+      - name
+      title: MCPTokenCreateRequest
+      description: Request to generate a new MCP personal access token.
+    MCPTokenCreateResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        token:
+          type: string
+          title: Token
+        name:
+          type: string
+          title: Name
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - token
+      - name
+      - created_at
+      title: MCPTokenCreateResponse
+      description: Response after creating an MCP token (plaintext shown ONCE).
+    MCPTokenResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        token_prefix:
+          type: string
+          title: Token Prefix
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        last_used_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Used At
+        revoked:
+          type: boolean
+          title: Revoked
+      type: object
+      required:
+      - id
+      - name
+      - token_prefix
+      - created_at
+      - last_used_at
+      - revoked
+      title: MCPTokenResponse
+      description: API response for an existing MCP token (never includes plaintext).
+    MCPTokenRevokeResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - status
+      title: MCPTokenRevokeResponse
+      description: Response after revoking an MCP token.
     MagicLinkRequest:
       properties:
         email:

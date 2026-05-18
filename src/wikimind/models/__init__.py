@@ -484,6 +484,27 @@ class ArticleTag(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
+class MCPAccessToken(SQLModel, table=True):
+    """Personal access token for MCP API authentication.
+
+    Tokens use the ``wmk_`` prefix for easy identification. Only the
+    SHA-256 hash is stored; the plaintext is shown once at creation and
+    never persisted. See ADR-027.
+    """
+
+    __tablename__ = "mcp_access_token"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    name: str = Field(max_length=100)
+    token_hash: str  # SHA-256 hash (never store plaintext)
+    token_prefix: str = Field(max_length=12)  # "wmk_ab12..." for display
+    created_at: datetime = Field(default_factory=utcnow_naive)
+    last_used_at: datetime | None = None
+    expires_at: datetime | None = None
+    revoked: bool = False
+
+
 class ShareLink(SQLModel, table=True):
     """A signed, revocable read-only share link for a single article.
 
@@ -2236,3 +2257,40 @@ class WikiExportResponse(BaseModel):
     format: WikiExportFormat
     article_count: int
     filename: str
+
+
+# ---------------------------------------------------------------------------
+# MCP Personal Access Token request/response models (ADR-027)
+# ---------------------------------------------------------------------------
+
+
+class MCPTokenCreateRequest(BaseModel):
+    """Request to generate a new MCP personal access token."""
+
+    name: str = Field(min_length=1, max_length=100)
+
+
+class MCPTokenCreateResponse(BaseModel):
+    """Response after creating an MCP token (plaintext shown ONCE)."""
+
+    id: str
+    token: str  # Plaintext — shown only at creation, never stored
+    name: str
+    created_at: datetime
+
+
+class MCPTokenResponse(BaseModel):
+    """API response for an existing MCP token (never includes plaintext)."""
+
+    id: str
+    name: str
+    token_prefix: str
+    created_at: datetime
+    last_used_at: datetime | None
+    revoked: bool
+
+
+class MCPTokenRevokeResponse(BaseModel):
+    """Response after revoking an MCP token."""
+
+    status: str
