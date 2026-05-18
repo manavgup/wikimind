@@ -94,7 +94,7 @@ class WikiMindAuthProvider(TokenVerifier):
         return AccessToken(token=token, client_id=user_id, scopes=[])
 
 
-async def validate_mcp_token(token: str, session: "AsyncSession") -> str | None:
+async def validate_mcp_token(token: str, session: AsyncSession) -> str | None:
     """Validate an MCP access token (PAT or OAuth) and return the user_id.
 
     Checks both ``mcp_access_token`` and ``oauthaccesstoken`` tables.
