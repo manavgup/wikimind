@@ -12,8 +12,6 @@ import {
   retryStuckSource,
   type SystemStats,
   type StuckSource,
-  type AdminUserSummary,
-  type AdminUserDetail,
 } from "../../api/admin";
 import { TraceViewer } from "./TraceViewer";
 
