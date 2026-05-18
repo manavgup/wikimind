@@ -104,18 +104,15 @@ async def validate_mcp_token(token: str, session: AsyncSession) -> str | None:
     Checks both ``mcp_access_token`` and ``oauthaccesstoken`` tables.
     Returns the user_id if the token is valid, or None if invalid/expired/revoked.
     """
-    import hashlib
+    from sqlmodel import select  # noqa: PLC0415
 
-    from sqlmodel import select
-
-    from wikimind._datetime import utcnow_naive
+    from wikimind._datetime import utcnow_naive  # noqa: PLC0415
+    from wikimind.models import MCPAccessToken  # noqa: PLC0415
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     now = utcnow_naive()
 
     # Check MCPAccessToken table (PATs)
-    from wikimind.models import MCPAccessToken
-
     stmt = select(MCPAccessToken).where(
         MCPAccessToken.token_hash == token_hash,
         MCPAccessToken.revoked == False,  # noqa: E712
@@ -131,7 +128,7 @@ async def validate_mcp_token(token: str, session: AsyncSession) -> str | None:
 
     # Check OAuthAccessToken table
     try:
-        from wikimind.models import OAuthAccessToken
+        from wikimind.models import OAuthAccessToken  # noqa: PLC0415
 
         stmt2 = select(OAuthAccessToken).where(
             OAuthAccessToken.token_hash == token_hash,
