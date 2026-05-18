@@ -35,6 +35,11 @@ const HealthView = lazy(() =>
 const SettingsView = lazy(() =>
   import("./components/settings/SettingsView").then((m) => ({ default: m.SettingsView }))
 );
+const ShareManagementView = lazy(() =>
+  import("./components/settings/ShareManagementView").then((m) => ({
+    default: m.ShareManagementView,
+  }))
+);
 const SynthesisView = lazy(() =>
   import("./components/synthesis/SynthesisView").then((m) => ({ default: m.SynthesisView }))
 );
@@ -77,6 +82,7 @@ function AuthenticatedApp() {
             <Route path="/graph" element={<GraphView />} />
             <Route path="/health" element={<HealthView />} />
             <Route path="/settings" element={<SettingsView />} />
+            <Route path="/settings/shares" element={<ShareManagementView />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/inbox" replace />} />
           </Routes>

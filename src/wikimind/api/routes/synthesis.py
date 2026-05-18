@@ -1,5 +1,7 @@
 """Synthesis page endpoints — cross-cutting analysis across multiple sources."""
 
+import json
+
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -11,7 +13,14 @@ from wikimind.models import (
     ArticleSummaryResponse,
     CreateSynthesisRequest,
     PageType,
+    SynthesisConfirmRequest,
+    SynthesisConfirmResponse,
+    SynthesisPreviewRequest,
+    SynthesisPreviewResponse,
+    SynthesisRefineRequest,
+    SynthesisRefineResponse,
     SynthesisResponse,
+    SynthesisSuggestion,
 )
 from wikimind.services.factories import get_wiki_service
 from wikimind.services.wiki import WikiService
@@ -19,6 +28,137 @@ from wikimind.services.wiki import WikiService
 log = structlog.get_logger()
 
 router = APIRouter()
+
+
+@router.post(
+    "/synthesis/preview",
+    response_model=SynthesisPreviewResponse,
+    responses={
+        422: {"description": "Not enough articles or synthesis failed"},
+    },
+)
+async def preview_synthesis(
+    body: SynthesisPreviewRequest,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+) -> SynthesisPreviewResponse:
+    """Generate a synthesis draft without saving it.
+
+    Returns draft content, suggested title, and key themes for user review.
+    The draft can be refined with feedback or confirmed to save.
+    """
+    compiler = SynthesisCompiler(user_id)
+    result = await compiler.preview(
+        session=session,
+        article_ids=body.article_ids,
+        synthesis_type=body.synthesis_type,
+        guidance=body.guidance,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not generate synthesis preview (need at least 2 articles).",
+        )
+
+    return SynthesisPreviewResponse(
+        draft_content=result.article_body,
+        suggested_title=result.title,
+        summary=result.summary,
+        themes=result.themes,
+        article_ids=result.source_article_ids,
+        source_count=len(result.source_article_ids),
+    )
+
+
+@router.post(
+    "/synthesis/refine",
+    response_model=SynthesisRefineResponse,
+    responses={
+        422: {"description": "Refinement failed"},
+    },
+)
+async def refine_synthesis(
+    body: SynthesisRefineRequest,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+) -> SynthesisRefineResponse:
+    """Refine a synthesis draft with user feedback.
+
+    Takes a previous draft and user guidance, regenerates the synthesis
+    incorporating the feedback. Can be called multiple times for iterative
+    refinement before confirming.
+    """
+    compiler = SynthesisCompiler(user_id)
+    result = await compiler.refine(
+        session=session,
+        article_ids=body.article_ids,
+        previous_draft=body.draft_content,
+        guidance=body.guidance,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not refine synthesis (need at least 2 articles).",
+        )
+
+    return SynthesisRefineResponse(
+        draft_content=result.article_body,
+        suggested_title=result.title,
+        summary=result.summary,
+        themes=result.themes,
+        article_ids=result.source_article_ids,
+        source_count=len(result.source_article_ids),
+    )
+
+
+@router.post(
+    "/synthesis/confirm",
+    response_model=SynthesisConfirmResponse,
+    status_code=201,
+    responses={
+        422: {"description": "Could not save synthesis"},
+    },
+)
+async def confirm_synthesis(
+    body: SynthesisConfirmRequest,
+    session: AsyncSession = Depends(get_session),
+    user_id: str = Depends(get_current_user_id),
+) -> SynthesisConfirmResponse:
+    """Save a confirmed synthesis draft as a real wiki article.
+
+    Takes the final draft content and title from a preview/refine cycle
+    and persists it as a synthesis article in the wiki.
+    """
+    compiler = SynthesisCompiler(user_id)
+    article = await compiler.confirm(
+        session=session,
+        title=body.title,
+        draft_content=body.draft_content,
+        article_ids=body.article_ids,
+    )
+
+    if article is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not save synthesis (need at least 2 valid articles).",
+        )
+
+    persisted_source_ids = json.loads(article.source_ids or "[]")
+    persisted_concepts = json.loads(article.concept_ids or "[]")
+
+    return SynthesisConfirmResponse(
+        id=article.id,
+        slug=article.slug,
+        title=article.title,
+        summary=article.summary or "",
+        themes=persisted_concepts,
+        source_count=len(persisted_source_ids),
+        source_article_ids=persisted_source_ids,
+        created_at=article.created_at,
+        page_type=PageType.SYNTHESIS,
+    )
 
 
 @router.post(
@@ -88,3 +228,23 @@ async def list_synthesis_pages(
         offset=offset,
         user_id=user_id,
     )
+
+
+@router.get(
+    "/synthesis/suggestions",
+    response_model=list[SynthesisSuggestion],
+)
+async def get_synthesis_suggestions(
+    limit: int = Query(default=10, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+    service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+) -> list[SynthesisSuggestion]:
+    """Return auto-detected synthesis opportunities.
+
+    Identifies clusters of articles that would benefit from synthesis:
+    - Articles sharing 3+ concepts
+    - Articles with contradictions between them
+    - Articles on the same topic from different sources
+    """
+    return await service.get_synthesis_suggestions(session, user_id, limit=limit)

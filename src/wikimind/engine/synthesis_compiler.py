@@ -117,6 +117,227 @@ async def _build_synthesis_material(
 class SynthesisCompiler(BaseCompiler):
     """Compile synthesis pages from multiple wiki articles."""
 
+    async def preview(
+        self,
+        session: AsyncSession,
+        article_ids: list[str],
+        synthesis_type: str | None = None,
+        guidance: str | None = None,
+    ) -> SynthesisCompilationResult | None:
+        """Generate a synthesis draft without persisting it.
+
+        Returns a SynthesisCompilationResult for preview, or None if
+        synthesis could not be performed (e.g. articles not found).
+        """
+        articles = await _find_relevant_articles(
+            guidance or "synthesis",
+            session,
+            self.user_id,
+            article_ids=article_ids,
+        )
+        if len(articles) < 2:
+            log.warning(
+                "Not enough articles for synthesis preview",
+                found=len(articles),
+            )
+            return None
+
+        source_material = await _build_synthesis_material(
+            articles,
+            self.user_id,
+        )
+
+        prompt_parts = [
+            f"Number of source articles: {len(articles)}\n\n",
+            f"{source_material}\n\n",
+            "Synthesize a cross-cutting analysis page from these sources.",
+        ]
+        if synthesis_type:
+            prompt_parts.insert(0, f"Synthesis type: {synthesis_type}\n")
+        if guidance:
+            prompt_parts.insert(0, f"User guidance: {guidance}\n")
+
+        prompt = "".join(prompt_parts)
+
+        await session.commit()
+
+        response = await self._call_llm(
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            user_content=prompt,
+        )
+        if response is None:
+            return None
+
+        data = self._parse_json_response(response)
+        if data is None:
+            return None
+        try:
+            data["query"] = guidance or "synthesis preview"
+            data["source_article_ids"] = [a.id for a in articles]
+            return SynthesisCompilationResult(**data)
+        except (KeyError, ValueError, TypeError):
+            log.warning(
+                "Synthesis preview response validation failed",
+                exc_info=True,
+            )
+            return None
+
+    async def refine(
+        self,
+        session: AsyncSession,
+        article_ids: list[str],
+        previous_draft: str,
+        guidance: str,
+    ) -> SynthesisCompilationResult | None:
+        """Regenerate a synthesis draft incorporating user feedback.
+
+        Returns a refined SynthesisCompilationResult, or None on failure.
+        """
+        articles = await _find_relevant_articles(
+            guidance,
+            session,
+            self.user_id,
+            article_ids=article_ids,
+        )
+        if len(articles) < 2:
+            log.warning(
+                "Not enough articles for synthesis refine",
+                found=len(articles),
+            )
+            return None
+
+        source_material = await _build_synthesis_material(
+            articles,
+            self.user_id,
+        )
+
+        prompt = (
+            f"Previous draft (needs revision):\n{previous_draft}\n\n"
+            f"User feedback: {guidance}\n\n"
+            f"Source articles ({len(articles)}):\n{source_material}\n\n"
+            "Revise the synthesis based on the user's feedback. "
+            "Produce a complete new synthesis (not just the changes)."
+        )
+
+        await session.commit()
+
+        response = await self._call_llm(
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            user_content=prompt,
+        )
+        if response is None:
+            return None
+
+        data = self._parse_json_response(response)
+        if data is None:
+            return None
+        try:
+            data["query"] = guidance
+            data["source_article_ids"] = [a.id for a in articles]
+            return SynthesisCompilationResult(**data)
+        except (KeyError, ValueError, TypeError):
+            log.warning(
+                "Synthesis refine response validation failed",
+                exc_info=True,
+            )
+            return None
+
+    async def confirm(
+        self,
+        session: AsyncSession,
+        title: str,
+        draft_content: str,
+        article_ids: list[str],
+    ) -> Article | None:
+        """Save a confirmed draft as a real synthesis article.
+
+        Returns the persisted Article, or None if articles not found.
+        """
+        articles = await _find_relevant_articles(
+            "confirm",
+            session,
+            self.user_id,
+            article_ids=article_ids,
+        )
+        if len(articles) < 2:
+            log.warning(
+                "Not enough articles for synthesis confirm",
+                found=len(articles),
+            )
+            return None
+
+        slug = await self._generate_unique_slug(title, session, prefix="synthesis-", max_length=70)
+        source_ids = [a.id for a in articles]
+
+        # Extract a summary from the first ~200 chars of draft content
+        summary = draft_content[:200].strip()
+        if len(draft_content) > 200:
+            summary += "..."
+
+        # Extract concepts from source articles (union of all source concepts)
+        concepts: list[str] = []
+        seen: set[str] = set()
+        for a in articles:
+            for c in json.loads(a.concept_ids or "[]"):
+                if c not in seen:
+                    seen.add(c)
+                    concepts.append(c)
+
+        article = Article(
+            slug=slug,
+            title=title,
+            file_path="",
+            summary=summary,
+            concept_ids=json.dumps(concepts),
+            source_ids=json.dumps(source_ids),
+            provider=self._last_provider_used,
+            page_type=PageType.SYNTHESIS,
+            confidence=ConfidenceLevel.INFERRED,
+            user_id=self.user_id,
+        )
+        session.add(article)
+        await session.commit()
+        await session.refresh(article)
+
+        # Write the markdown file
+        relative_path = f"synthesis/{slug}.md"
+        storage = get_wiki_storage(self.user_id)
+        await storage.write(relative_path, draft_content)
+
+        article.file_path = relative_path
+        session.add(article)
+        await session.commit()
+
+        # Populate concept join table
+        for concept_name in concepts:
+            session.add(
+                ArticleConcept(
+                    article_id=article.id,
+                    concept_name=concept_name,
+                )
+            )
+        await session.commit()
+
+        # Update full-text search index
+        await self._index_article(session, article.id, article.title, relative_path)
+
+        # Create SYNTHESIZES backlinks to all source articles
+        await self._create_synthesizes_links(
+            article.id,
+            source_ids,
+            session,
+            user_id=self.user_id,
+            context="Synthesis page analyzes this source article",
+        )
+
+        log.info(
+            "Synthesis draft confirmed and saved",
+            slug=slug,
+            title=title,
+            source_count=len(articles),
+        )
+        return article
+
     async def synthesize(
         self,
         query: str,
