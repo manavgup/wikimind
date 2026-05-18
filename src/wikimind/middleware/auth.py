@@ -18,7 +18,15 @@ from starlette.responses import JSONResponse, Response
 
 from wikimind.config import get_settings
 
-EXEMPT_PATHS = {"/health", "/health/deep", "/metrics", "/docs", "/openapi.json", "/redoc"}
+EXEMPT_PATHS = {
+    "/health",
+    "/health/deep",
+    "/metrics",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/.well-known/oauth-authorization-server",
+}
 EXEMPT_PREFIXES = (
     "/auth/login/",
     "/auth/callback",
@@ -26,6 +34,9 @@ EXEMPT_PREFIXES = (
     "/auth/magic-link",
     "/assets/",
     "/public/",
+    "/mcp/token",
+    "/mcp/revoke",
+    "/mcp/authorize",
 )
 # Static frontend files that must load without auth so users can see the login page.
 # NOTE: .png and .svg are intentionally excluded — API-served images

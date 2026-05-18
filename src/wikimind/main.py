@@ -32,6 +32,7 @@ from wikimind.api.routes import (
     ingest,
     jobs,
     lint,
+    mcp_oauth,
     mcp_tokens,
     query,
     saved_searches,
@@ -69,10 +70,12 @@ _API_ONLY_PREFIXES = (
     "/auth/",
     "/docs",
     "/health",
+    "/mcp/",
     "/metrics",
     "/public/",
     "/redoc",
     "/openapi.json",
+    "/.well-known/",
     "/ws",
 )
 
@@ -277,6 +280,11 @@ app.include_router(sharing.public_router, tags=["Sharing"])
 app.include_router(health.router, tags=["Admin"])
 app.include_router(ws.router, tags=["WebSocket"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+
+# MCP OAuth 2.1 Authorization Server — metadata at /.well-known/... (root),
+# authorization/token/revocation at /mcp/* (root).
+app.include_router(mcp_oauth.metadata_router, tags=["Auth"])
+app.include_router(mcp_oauth.router, prefix="/mcp", tags=["Auth"])
 
 # ---------------------------------------------------------------------------
 # Exception handlers — normalize all error responses to the standard envelope

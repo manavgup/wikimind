@@ -3577,6 +3577,213 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeleteAccountResponse'
+  /.well-known/oauth-authorization-server:
+    get:
+      tags:
+      - Auth
+      summary: Oauth Metadata
+      description: Return OAuth 2.1 Authorization Server Metadata per RFC 8414.
+      operationId: oauth_metadata__well_known_oauth_authorization_server_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /mcp/authorize:
+    get:
+      tags:
+      - Auth
+      summary: Authorize
+      description: 'OAuth 2.1 authorization endpoint.
+
+
+        Validates the authorization request parameters, stores them, and
+
+        either shows the consent screen (if logged in) or redirects to login.'
+      operationId: authorize_mcp_authorize_get
+      parameters:
+      - name: response_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Response Type
+      - name: client_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+      - name: redirect_uri
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Redirect Uri
+      - name: code_challenge
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Challenge
+      - name: code_challenge_method
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Challenge Method
+      - name: state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /mcp/authorize/resume:
+    get:
+      tags:
+      - Auth
+      summary: Authorize Resume
+      description: 'Resume authorization flow after login.
+
+
+        The user was redirected to login, and after successful login they
+
+        are sent back here. We now show the consent screen.'
+      operationId: authorize_resume_mcp_authorize_resume_get
+      parameters:
+      - name: rid
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Rid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /mcp/authorize/decide:
+    post:
+      tags:
+      - Auth
+      summary: Authorize Decide
+      description: 'Handle consent decision (approve or deny).
+
+
+        On approval, generates an authorization code, stores it, and
+
+        redirects to the client''s redirect_uri with the code and state.'
+      operationId: authorize_decide_mcp_authorize_decide_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_authorize_decide_mcp_authorize_decide_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /mcp/token:
+    post:
+      tags:
+      - Auth
+      summary: Token Exchange
+      description: 'Exchange an authorization code for an access token (PKCE).
+
+
+        Validates the grant type, code, redirect_uri match, PKCE verifier,
+
+        and that the code hasn''t expired or been used. Returns a short-lived
+
+        access token with ``wmk_`` prefix.'
+      operationId: token_exchange_mcp_token_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_token_exchange_mcp_token_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /mcp/revoke:
+    post:
+      tags:
+      - Auth
+      summary: Revoke Token
+      description: 'Revoke an access token.
+
+
+        Per RFC 7009, always returns 200 even if the token is not found.'
+      operationId: revoke_token_mcp_revoke_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_revoke_token_mcp_revoke_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /health:
     get:
       summary: Health Check
@@ -4054,6 +4261,19 @@ components:
       - slug
       title: BacklinkEntry
       description: A backlink entry with human-readable metadata for the frontend.
+    Body_authorize_decide_mcp_authorize_decide_post:
+      properties:
+        request_id:
+          type: string
+          title: Request Id
+        decision:
+          type: string
+          title: Decision
+      type: object
+      required:
+      - request_id
+      - decision
+      title: Body_authorize_decide_mcp_authorize_decide_post
     Body_ingest_pdf_api_ingest_pdf_post:
       properties:
         file:
@@ -4064,6 +4284,40 @@ components:
       required:
       - file
       title: Body_ingest_pdf_api_ingest_pdf_post
+    Body_revoke_token_mcp_revoke_post:
+      properties:
+        token:
+          type: string
+          title: Token
+      type: object
+      required:
+      - token
+      title: Body_revoke_token_mcp_revoke_post
+    Body_token_exchange_mcp_token_post:
+      properties:
+        grant_type:
+          type: string
+          title: Grant Type
+        code:
+          type: string
+          title: Code
+        redirect_uri:
+          type: string
+          title: Redirect Uri
+        code_verifier:
+          type: string
+          title: Code Verifier
+        client_id:
+          type: string
+          title: Client Id
+      type: object
+      required:
+      - grant_type
+      - code
+      - redirect_uri
+      - code_verifier
+      - client_id
+      title: Body_token_exchange_mcp_token_post
     CaptureKind:
       type: string
       enum:
