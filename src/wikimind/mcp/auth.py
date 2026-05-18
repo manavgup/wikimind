@@ -92,3 +92,54 @@ class WikiMindAuthProvider(TokenVerifier):
             raise ValueError(msg)
 
         return AccessToken(token=token, client_id=user_id, scopes=[])
+
+
+async def validate_mcp_token(token: str, session: "AsyncSession") -> str | None:
+    """Validate an MCP access token (PAT or OAuth) and return the user_id.
+
+    Checks both ``mcp_access_token`` and ``oauthaccesstoken`` tables.
+    Returns the user_id if the token is valid, or None if invalid/expired/revoked.
+    """
+    import hashlib
+
+    from sqlmodel import select
+
+    from wikimind._datetime import utcnow_naive
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    now = utcnow_naive()
+
+    # Check MCPAccessToken table (PATs)
+    from wikimind.models import MCPAccessToken
+
+    stmt = select(MCPAccessToken).where(
+        MCPAccessToken.token_hash == token_hash,
+        MCPAccessToken.revoked == False,  # noqa: E712
+    )
+    result = await session.exec(stmt)
+    pat = result.one_or_none()
+    if pat:
+        if pat.expires_at and pat.expires_at < now:
+            return None
+        pat.last_used_at = now
+        await session.commit()
+        return pat.user_id
+
+    # Check OAuthAccessToken table
+    try:
+        from wikimind.models import OAuthAccessToken
+
+        stmt2 = select(OAuthAccessToken).where(
+            OAuthAccessToken.token_hash == token_hash,
+            OAuthAccessToken.revoked == False,  # noqa: E712
+        )
+        result2 = await session.exec(stmt2)
+        oauth = result2.one_or_none()
+        if oauth:
+            if oauth.expires_at and oauth.expires_at < now:
+                return None
+            return oauth.user_id
+    except Exception:
+        pass
+
+    return None
