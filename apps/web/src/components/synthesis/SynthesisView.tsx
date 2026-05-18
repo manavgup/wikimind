@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createSynthesis,
   listSynthesisPages,
-  listArticles,
   getSynthesisSuggestions,
 } from "../../api/wiki";
 import { Spinner } from "../shared/Spinner";
