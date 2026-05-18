@@ -1,261 +1,115 @@
 # WikiMind
 
-[![Tests & Coverage](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml)
 [![Full Verify](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/full-verify.yml)
 [![Deploy](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/deploy.yml)
-[![Claude Review](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml/badge.svg)](https://github.com/manavgup/wikimind/actions/workflows/claude-review-address.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-manavgup.github.io%2Fwikimind-blue)](https://manavgup.github.io/wikimind/)
 
-> I feed it everything I read. It writes my wiki for me. When I ask questions, it cites its sources.
+> You never write the wiki. You **feed** it.
 
-WikiMind is a personal LLM-powered knowledge OS. Feed it articles, PDFs, YouTube videos, or papers — it compiles them into a structured wiki and answers questions with full source attribution.
+WikiMind is a personal LLM-powered knowledge OS. Feed it articles, papers, PDFs, or YouTube links -- it compiles them into a structured wiki with claims, concepts, and backlinks. Ask questions and get answers with source citations. The system detects contradictions, knowledge gaps, and staleness automatically.
 
 <p align="center">
-  <img src="docs/images/wikimind-demo.gif" alt="WikiMind demo — ingest sources, compile wiki, ask questions" width="720">
+  <img src="docs/images/wikimind-demo.gif" alt="WikiMind — feed sources, compile wiki articles, ask questions, synthesize across papers" width="720">
 </p>
 
-## What it is
+<p align="center">
+  <a href="https://manavgup.github.io/wikimind/">Documentation</a> &bull;
+  <a href="https://manavgup.github.io/wikimind/evidence/release-0.1.0/">Feature Evidence</a> &bull;
+  <a href="https://wikimind.fly.dev">Live Demo</a>
+</p>
 
-- **Not** a note-taking app — you never write
-- **Not** a chatbot — it builds something persistent
-- **Not** a RAG tool — the wiki is the product, not a retrieval layer
+## Key features
 
-It is the synthesis layer that sits above everything you consume.
+| | Feature | What it does |
+|---|---|---|
+| **Feed** | Multi-source ingest | URLs, PDFs (with figure extraction), YouTube, plain text, RSS feeds |
+| **Compile** | LLM compilation | Articles with key claims, confidence scores, and source citations |
+| **Link** | Knowledge graph | Auto-extracted concepts, bidirectional backlinks, typed relationships |
+| **Ask** | Q&A with citations | RAG-powered answers citing specific articles. Conversation threading. |
+| **Synthesize** | Cross-cutting analysis | Comparative, chronological, thematic, and gap analysis across articles |
+| **Lint** | Quality assurance | Detect contradictions, orphans, stale content. LLM-powered checks. |
+| **Export** | Share & download | Markdown, JSON, PDF, LinkedIn drafts, Obsidian. Public share links with expiry. |
+| **MCP** | AI agent integration | 13 tools, 3 resources, 4 prompts. Claude Desktop & Cursor access via stdio or HTTP. |
+| **Secure** | Multi-user auth | OAuth (GitHub, Google), magic links, API keys, rate limiting, data isolation |
 
-## How it works
+## Architecture
 
-```
-Feed → Compile → Query → Answer files back → Wiki gets smarter → Repeat
-```
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-source ingest** | URLs, PDFs, YouTube transcripts, plain text |
-| **LLM compilation** | Articles compiled by Claude, GPT-4, Gemini, or Ollama |
-| **Knowledge graph** | Auto-generated concepts, backlinks, and taxonomy |
-| **Ask with citations** | Q&A against your wiki with source attribution |
-| **Export** | PDF, LinkedIn draft, Marp slides |
-| **Browser extension** | Chrome + Firefox clipper — save any page in one click |
-| **Self-hosted** | Your data, your API keys, your models |
-| **PR automation** | Claude-powered review response, auto-rebase, stale cleanup |
-
-## Compare
-
-| | WikiMind | Obsidian | Notion | ChatGPT |
-|---|:---:|:---:|:---:|:---:|
-| You write the content | | Yes | Yes | |
-| LLM compiles for you | Yes | | | |
-| Persistent wiki output | Yes | Yes | Yes | |
-| Source attribution | Yes | | | |
-| Knowledge graph | Yes | Yes | | |
-| Self-hosted | Yes | | | |
-| Multi-provider LLM | Yes | | | Yes |
-
-## Read more
-
-[**Building a Personal Knowledge OS with LLMs**](https://manavgup.github.io/shipai/blog/2026/04/21/building-wikimind-personal-knowledge-os/) — architecture deep-dive, design decisions, and lessons learned.
+<p align="center">
+  <img src="docs/evidence/release-0.1.0/architecture.svg" alt="WikiMind Architecture" width="900">
+</p>
 
 ## Quick start
 
-WikiMind needs Python 3.11+ and (for the React frontend) Node.js 20+.
-
 ```bash
-# 1. Set up the dev environment
-make venv
+# Clone and install
+git clone https://github.com/manavgup/wikimind.git
+cd wikimind
 make install-dev
-make check-env
 
-# 2. Configure at least one LLM provider — copy .env.example and edit
+# Configure one LLM provider
 cp .env.example .env
-# Add: OPENAI_API_KEY=sk-... (or ANTHROPIC_API_KEY, GOOGLE_API_KEY)
-# For OpenRouter/other OpenAI-compatible gateways, see .env.example.
-# Providers auto-enable when their key is detected.
+# Edit .env: add OPENAI_API_KEY=sk-... (or ANTHROPIC_API_KEY, GOOGLE_API_KEY)
 
-# 3. Start the full local stack (API server + ARQ worker + Redis)
+# Start the full stack (API + worker + Redis)
 make dev
-# (Requires Docker for Redis. Use `make dev-api` for just the API server.)
 
-# 4. (optional) Start the React UI in another terminal
-cd apps/web
-npm install
-npm run dev
-# Opens http://localhost:5173
+# Or just the API server (no Docker needed)
+make dev-api
 ```
 
-### Authentication UI
-
-When multi-user mode is enabled (`WIKIMIND_AUTH__ENABLED=true`), the frontend shows:
-
-- **Login page** (`/login`) — Google and GitHub OAuth2 sign-in buttons
-- **Protected routes** — unauthenticated users are redirected to `/login`
-- **User menu** — avatar, name, and logout button in the sidebar
-
-When auth is disabled (default), no login page is shown and all routes are accessible.
+The frontend is built into the API server. Open **http://localhost:7842** after starting.
 
 ## Production deployment
 
 ### Docker Compose (self-hosted)
 
 ```bash
-# Start the full stack: gateway + worker + Postgres + Redis
 POSTGRES_PASSWORD=changeme make deploy-up
-
-# Tail logs / check status / stop
-make deploy-logs
-make deploy-ps
-make deploy-stop
 ```
-
-Gunicorn workers auto-tune to available CPU cores (see `gunicorn.conf.py`).
-Override with `WEB_CONCURRENCY`:
-
-```bash
-WEB_CONCURRENCY=4 POSTGRES_PASSWORD=changeme make deploy-up
-```
-
-### PDF Processing (docling-serve)
-
-PDF extraction runs in a separate container ([docling-serve](https://github.com/docling-project/docling-serve)).
-It starts automatically with `docker compose up` or `make dev-docker`.
-
-To run without Docker (local dev):
-
-```bash
-# Pull and run docling-serve separately:
-docker run -p 5001:5001 quay.io/docling-project/docling-serve-cpu:latest
-```
-
-Set `WIKIMIND_DOCLING_SERVE_URL=http://localhost:5001` in your `.env`.
-Without docling-serve running, PDF ingestion falls back to basic text extraction (pymupdf).
 
 ### Fly.io (cloud)
 
 ```bash
 fly deploy
-fly secrets set ANTHROPIC_API_KEY=sk-...
+fly secrets set OPENAI_API_KEY=sk-...
 ```
 
-Fly.io auto-scales machines based on connection count (see `fly.toml`).
-
-#### Staging environment
-
-CI deploys to a staging app (`wikimind-staging`) before production. Smoke tests
-run against staging; production is only promoted when they pass. See
-`.github/workflows/deploy.yml` for the full pipeline.
-
-First-time staging setup:
-
-```bash
-fly apps create wikimind-staging
-fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
-fly postgres attach wikimind-db --app wikimind-staging
-fly secrets set --app wikimind-staging ANTHROPIC_API_KEY=... WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
-```
-
-Manual deploy: `fly deploy --config fly.staging.toml --remote-only`
-
-### PostgreSQL without Docker
-
-For shared access across multiple devices without the full Docker stack:
-
-```bash
-# 1. Set the database URL in .env
-echo 'WIKIMIND_DATABASE_URL=postgresql+asyncpg://localhost:5432/wikimind' >> .env
-
-# 2. Run Alembic migrations (first time only, and after upgrades)
-alembic upgrade head
-
-# 3. Start the server
-make dev
-```
-
-All features work identically on both backends. SQLite is recommended for
-single-device development. PostgreSQL is required for cloud deployments where
-multiple devices share the same database.
-
-## Multi-User Mode
-
-WikiMind supports optional multi-user mode with OAuth2 authentication (Google, GitHub).
-
-### Enable Authentication
-
-Set these in your `.env`:
-
-```env
-WIKIMIND_AUTH__ENABLED=true
-WIKIMIND_AUTH__JWT_SECRET_KEY=your-random-secret-here
-WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
-WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
-# and/or GitHub credentials
-```
-
-When disabled (default), WikiMind runs in single-user mode with no login required.
-Keep `WIKIMIND_AUTH__JWT_SECRET_KEY` set if users store API keys through the
-Settings UI, because BYOK encryption derives from that secret.
-
-## Architecture
-
-```
-wikimind/
-├── src/wikimind/          # Python backend (FastAPI gateway)
-│   ├── main.py            # App entry point
-│   ├── config.py          # Pydantic BaseSettings
-│   ├── models.py          # SQLModel tables + Pydantic schemas
-│   ├── database.py        # Async SQLite session lifecycle
-│   ├── api/routes/        # FastAPI route handlers (thin)
-│   ├── services/          # Business logic (ingest, compiler, query, wiki)
-│   ├── engine/            # LLM router, compiler, Q&A agent
-│   ├── ingest/            # Source adapters (URL, PDF, text, YouTube)
-│   ├── jobs/              # Background compilation worker
-│   └── middleware/        # Correlation ID, logging, security headers
-├── apps/web/              # React + Vite + TypeScript frontend
-├── apps/web-extension/    # Chrome + Firefox browser extension (MV3)
-├── tests/                 # pytest unit + integration tests
-├── docs/                  # ADRs, OpenAPI schema, design specs
-└── scripts/               # Operational scripts (test matrix, doc sync)
-```
-
-## Configuration
-
-All configuration lives in `.env` (gitignored). See `.env.example` for the full list of options.
-
-The most common case: just set ONE LLM API key and the provider will auto-enable.
-If you save API keys through the Settings UI instead of environment variables,
-also set `WIKIMIND_AUTH__JWT_SECRET_KEY`; it is used to encrypt stored keys.
-
-```bash
-# In .env:
-OPENAI_API_KEY=sk-...
-WIKIMIND_AUTH__JWT_SECRET_KEY=<random-hex-or-token>
-```
-
-For more advanced configuration (model selection, fallback chain, monthly budget), see `.env.example`.
-
-OpenAI-compatible gateways such as OpenRouter can be used through a separate configurable provider:
-
-```bash
-OPENAI_COMPATIBLE_API_KEY=sk-or-...
-WIKIMIND_LLM__OPENAI_COMPATIBLE__BASE_URL=https://openrouter.ai/api/v1
-WIKIMIND_LLM__OPENAI_COMPATIBLE__MODEL=openai/gpt-4o-mini
-WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
-```
+CI deploys to staging first, runs smoke tests, then promotes to production. See `.github/workflows/deploy.yml`.
 
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Backend gateway | Python 3.11+ / FastAPI |
-| Job queue | ARQ + asyncio (in-process for dev, ARQ + Redis for prod) |
-| Database | SQLite via SQLModel + aiosqlite |
-| LLM providers | Anthropic Claude, OpenAI GPT, OpenAI-compatible endpoints, Google Gemini, Ollama |
-| PDF extraction | [docling-serve](https://github.com/docling-project/docling-serve) sidecar; pymupdf (fitz) fallback |
-| Document ingest | trafilatura (URLs), youtube-transcript-api (YouTube) |
-| Logging | structlog (JSON in prod, console in dev) |
-| Type checking | mypy + basedpyright |
-| Linting | ruff (with pylint and pydocstyle rules) |
-| Frontend | React 18 + TypeScript + Vite + TanStack Query + Zustand + Tailwind CSS |
-| Browser extension | Preact + TypeScript + Vite, Manifest V3 (Chrome + Firefox) |
-| Testing | pytest + pytest-asyncio + httpx |
+| Backend | Python 3.11+ / FastAPI / 138 API endpoints |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
+| Database | PostgreSQL (SQLModel ORM, Alembic migrations) |
+| Job queue | ARQ + Redis (in-process asyncio for dev) |
+| LLM providers | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama, OpenAI-compatible |
+| PDF extraction | [docling-serve](https://github.com/docling-project/docling-serve) sidecar + pymupdf fallback |
+| Real-time | WebSocket (compilation progress), SSE (streaming Q&A) |
+| MCP server | stdio + HTTP transports, OAuth 2.1, JWT auth |
+| Browser extension | Chrome + Firefox (Manifest V3) |
+| Deployment | Docker + Fly.io (staging + production) |
+| CI/CD | GitHub Actions (16 workflows) |
+| Testing | pytest (1700+ tests), Playwright e2e |
+
+## Configuration
+
+All configuration lives in `.env`. The most common case: set one LLM API key.
+
+```bash
+# Minimal .env
+OPENAI_API_KEY=sk-...
+
+# Multi-user mode
+WIKIMIND_AUTH__ENABLED=true
+WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
+WIKIMIND_AUTH__GOOGLE_CLIENT_ID=...
+WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
+```
+
+Providers auto-enable when their API key is detected. See `.env.example` for all options.
 
 ## Make targets
 
@@ -426,35 +280,15 @@ WIKIMIND_LLM__DEFAULT_PROVIDER=openai_compatible
 
 ## Documentation
 
-- **[Architecture Decision Records](docs/adr/README.md)** — why the project is designed the way it is
-- **[Vision](docs/VISION.md)** — product spec and product vision
-- **[Architecture](docs/ARCHITECTURE.md)** — system design overview
-- **[Roadmap](docs/ROADMAP.md)** — phase-by-phase build plan
-- **[OpenAPI schema](docs/openapi.yaml)** — auto-generated from the FastAPI app
+- **[Full documentation](https://manavgup.github.io/wikimind/)** -- deployment, architecture, configuration, API reference
+- **[Feature evidence](https://manavgup.github.io/wikimind/evidence/release-0.1.0/)** -- screenshots, API test results, architecture diagram
+- **[Architecture Decision Records](docs/adr/README.md)** -- why the project is designed the way it is
+- **[OpenAPI schema](docs/openapi.yaml)** -- auto-generated from the FastAPI app
+- **[Blog post](https://manavgup.github.io/shipai/blog/2026/04/21/building-wikimind-personal-knowledge-os/)** -- architecture deep-dive and lessons learned
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and coding standards.
-
-Quality gates: `make verify` runs the full suite (ruff, format check, mypy, basedpyright, pydocstyle, pytest). Pre-commit hooks (`make pre-commit`) enforce the same checks before each commit.
-
-## Status
-
-**Phase 1 (Working Core)** — Done
-- [x] Backend pipeline: ingest → compile → query → file-back
-- [x] React UI: Inbox + Wiki Explorer
-- [x] LLM provider abstraction with auto-enable
-- [x] Multi-format ingest (URL, PDF, text, YouTube)
-- [x] Source provenance and citation chains
-
-**Phase 2 (Query Loop)** — In progress
-- [x] Conversational Q&A agent with thread file-back (ADR-011)
-- [x] React UI: Ask view with conversation threads
-- [ ] Semantic search (ChromaDB + embeddings)
-- [ ] Knowledge graph view
-- [ ] Wiki linter and health dashboard
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Quality gates: `make verify` runs the full suite (ruff, mypy, pytest, frontend build, doc-sync).
 
 ## License
 
