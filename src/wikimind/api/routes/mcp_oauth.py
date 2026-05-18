@@ -16,6 +16,7 @@ See issue #764.
 
 import base64
 import hashlib
+import html
 import secrets
 import uuid
 from datetime import timedelta
@@ -199,7 +200,7 @@ async def authorize(
     code_challenge_method: str | None = None,
     state: str | None = None,
 ) -> HTMLResponse:
-    """OAuth 2.1 authorization endpoint.
+    """Handle OAuth 2.1 authorization request.
 
     Validates the authorization request parameters, stores them, and
     either shows the consent screen (if logged in) or redirects to login.
@@ -234,7 +235,7 @@ async def authorize(
         # User is logged in — show consent screen
         return HTMLResponse(
             content=_CONSENT_PAGE_HTML.format(
-                client_id=_escape_html(client_id),
+                client_id=html.escape(client_id),
                 request_id=request_id,
             )
         )
@@ -270,7 +271,7 @@ async def authorize_resume(
 
     return HTMLResponse(
         content=_CONSENT_PAGE_HTML.format(
-            client_id=_escape_html(pending["client_id"]),
+            client_id=html.escape(pending["client_id"]),
             request_id=rid,
         )
     )
