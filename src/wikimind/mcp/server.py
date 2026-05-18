@@ -408,11 +408,11 @@ def run_server() -> None:
     args = parser.parse_args()
 
     if args.transport == "http":
-        from wikimind.mcp.auth import WikiMindJWTAuthProvider  # noqa: PLC0415
+        from wikimind.mcp.auth import WikiMindAuthProvider  # noqa: PLC0415
 
         settings = get_settings()
         if settings.mcp.require_auth:
-            auth_provider = WikiMindJWTAuthProvider(secret=settings.auth.jwt_secret_key)
+            auth_provider = WikiMindAuthProvider(secret=settings.auth.jwt_secret_key)
             mcp.run(transport="http", host=args.host, port=args.port, auth=auth_provider)
         else:
             mcp.run(transport="http", host=args.host, port=args.port)

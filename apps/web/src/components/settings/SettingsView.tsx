@@ -10,6 +10,7 @@ import { DoclingStatus } from "./DoclingStatus";
 import { SyncStatus } from "./SyncStatus";
 import { WikiExportPanel } from "./WikiExportPanel";
 import { ShareLinksPanel } from "./ShareLinksPanel";
+import { MCPTokens } from "./MCPTokens";
 import { getSettings, updateSettings } from "../../api/settings";
 
 export function SettingsView() {
@@ -86,6 +87,11 @@ export function SettingsView() {
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Export</h2>
           <WikiExportPanel />
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold text-slate-700">MCP API Tokens</h2>
+          <MCPTokens />
         </section>
 
         <section className="mb-8">

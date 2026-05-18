@@ -32,6 +32,7 @@ from wikimind.api.routes import (
     ingest,
     jobs,
     lint,
+    mcp_tokens,
     query,
     saved_searches,
     sharing,
@@ -257,6 +258,7 @@ api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 api_router.include_router(lint.router, prefix="/lint", tags=["Lint"])
 api_router.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
 api_router.include_router(api_keys.router, prefix="/settings/api-keys", tags=["Settings"])
+api_router.include_router(mcp_tokens.router, prefix="/settings/mcp-tokens", tags=["Settings"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Admin"])
 api_router.include_router(export.router, prefix="/wiki", tags=["Export"])
 api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
