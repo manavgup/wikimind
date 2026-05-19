@@ -40,7 +40,6 @@ export function SettingsView() {
 
   const isHosted = settings?.deployment_mode === "hosted";
   const userPlanName = settings?.user_plan?.name ?? "free";
-  const isByokAllowed = settings?.user_plan?.byok_allowed ?? false;
   const showLlmProviders = !isHosted;  // System providers only in self-hosted mode
 
   const { data: usage } = useQuery({

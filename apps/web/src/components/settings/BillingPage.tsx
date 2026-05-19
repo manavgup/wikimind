@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "../shared/Card";
 import { Button } from "../shared/Button";
@@ -149,21 +150,9 @@ export function BillingPage() {
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Current plan</h2>
           <Card className="p-5">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xl font-bold text-slate-900">
-                  {usage.plan_display_name}
-                </span>
-                {isFree && (
-                  <span className="ml-2 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    Free
-                  </span>
-                )}
-                {!isFree && (
-                  <span className="ml-2 rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-                    Pro
-                  </span>
-                )}
-              </div>
+              <span className="text-xl font-bold text-slate-900">
+                {usage.plan_display_name} plan
+              </span>
               {isFree ? (
                 <Button onClick={handleUpgrade} disabled={actionLoading}>
                   {actionLoading ? "Redirecting..." : "Upgrade to Pro"}
@@ -181,6 +170,14 @@ export function BillingPage() {
             {actionError && (
               <p className="mt-3 text-sm text-rose-600">{actionError}</p>
             )}
+            <div className="mt-3 text-center">
+              <Link
+                to="/pricing"
+                className="text-sm text-brand-600 hover:text-brand-700 hover:underline"
+              >
+                Compare plans
+              </Link>
+            </div>
           </Card>
         </section>
 

@@ -45,6 +45,11 @@ const BillingPage = lazy(() =>
     default: m.BillingPage,
   }))
 );
+const PricingPage = lazy(() =>
+  import("./components/settings/PricingPage").then((m) => ({
+    default: m.PricingPage,
+  }))
+);
 const SynthesisView = lazy(() =>
   import("./components/synthesis/SynthesisView").then((m) => ({ default: m.SynthesisView }))
 );
@@ -88,6 +93,7 @@ function AuthenticatedApp() {
             <Route path="/health" element={<HealthView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/settings/billing" element={<BillingPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/settings/shares" element={<ShareManagementView />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/inbox" replace />} />
