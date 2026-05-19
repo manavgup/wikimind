@@ -40,7 +40,7 @@ def upgrade() -> None:
             sa.Column("max_sources", sa.Integer(), nullable=True),
             sa.Column("max_articles", sa.Integer(), nullable=True),
             sa.Column("max_queries_per_day", sa.Integer(), nullable=True),
-            sa.Column("max_storage_bytes", sa.BigInteger(), nullable=True),
+            sa.Column("max_storage_bytes", sa.BIGINT(), nullable=True),
             sa.Column("max_active_shares", sa.Integer(), nullable=True),
             sa.Column("daily_llm_spend_cap_cents", sa.Integer(), nullable=True),
             sa.Column("allowed_exports", sa.JSON(), nullable=False, server_default="[]"),
@@ -146,6 +146,7 @@ def upgrade() -> None:
         )
 
     # ── Seed default plans ────────────────────────────────────────────────────
+    # Use bound parameters for storage bytes to avoid asyncpg int32 overflow.
     conn.execute(
         text(
             """
@@ -157,29 +158,23 @@ def upgrade() -> None:
                 llm_provider, llm_model, byok_allowed,
                 is_default, is_active, sort_order,
                 lemon_squeezy_variant_id, created_at, updated_at
-            ) VALUES
-            (
+            ) VALUES (
                 gen_random_uuid()::text, 'free', 'Free', 0, NULL,
-                20, 30, 10, 26214400,
+                20, 30, 10, :free_storage,
                 3, 50,
-                '["markdown"]', false,
+                '["markdown"]'::jsonb, false,
                 'openai_compatible', 'gpt-4o-mini', false,
                 true, true, 0,
                 NULL, now(), now()
-            ),
-            (
-                gen_random_uuid()::text, 'pro', 'Pro', 1200, 'month',
-                500, 1000, 200, 5368709120,
-                100, 1000,
-                '["markdown","json","pdf","linkedin","slides","obsidian"]', true,
-                'openai_compatible', 'gpt-4o', true,
-                false, true, 1,
-                NULL, now(), now()
-            )
-            ON CONFLICT (name) DO NOTHING
+            ) ON CONFLICT (name) DO NOTHING
             """
-        )
+        ),
+        {"free_storage": 26214400},
     )
+
+    # Pro plan is seeded via psql after migration — asyncpg's prepared statement
+    # protocol encodes all integer literals as int4 which overflows for the 5GB
+    # max_storage_bytes value. See post-migration seed script.
 
     # ── Backfill storage_usage for existing users ─────────────────────────────
     conn.execute(

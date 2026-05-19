@@ -11,7 +11,7 @@ export interface SettingsResponse {
   data_dir: string;
   gateway_port: number;
   deployment_mode?: string;
-  user_plan?: string;
+  user_plan?: { name: string; display_name: string; byok_allowed: boolean; mcp_enabled: boolean } | null;
   llm: {
     default_provider: string;
     fallback_enabled: boolean;

@@ -39,8 +39,9 @@ export function SettingsView() {
   });
 
   const isHosted = settings?.deployment_mode === "hosted";
-  const userPlan = settings?.user_plan ?? "free";
-  const showLlmProviders = !isHosted || (userPlan !== "free" && isHosted);
+  const userPlanName = settings?.user_plan?.name ?? "free";
+  const isByokAllowed = settings?.user_plan?.byok_allowed ?? false;
+  const showLlmProviders = !isHosted;  // System providers only in self-hosted mode
 
   const { data: usage } = useQuery({
     queryKey: ["billing-usage"],
@@ -76,7 +77,7 @@ export function SettingsView() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-slate-700">
                   Current plan:{" "}
-                  <span className="font-semibold capitalize">{userPlan}</span>
+                  <span className="font-semibold capitalize">{userPlanName}</span>
                 </div>
                 <Link
                   to="/settings/billing"
