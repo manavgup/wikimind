@@ -117,20 +117,24 @@ export function SettingsView() {
           </>
         )}
 
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">Sync</h2>
-          <SyncStatus sync={settings.sync} />
-        </section>
+        {!isHosted && (
+          <>
+            <section className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-slate-700">Sync</h2>
+              <SyncStatus sync={settings.sync} />
+            </section>
 
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">Services</h2>
-          <DoclingStatus />
-        </section>
+            <section className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-slate-700">Services</h2>
+              <DoclingStatus />
+            </section>
 
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">Export</h2>
-          <WikiExportPanel />
-        </section>
+            <section className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-slate-700">Export</h2>
+              <WikiExportPanel />
+            </section>
+          </>
+        )}
 
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">MCP API Tokens</h2>
@@ -147,77 +151,79 @@ export function SettingsView() {
           <ApiTokens />
         </section>
 
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">System</h2>
-          <Card className="p-4">
-            <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-              <span className="text-slate-500">Data directory</span>
-              <span className="font-mono text-slate-700">{settings.data_dir}</span>
+        {!isHosted && (
+          <section className="mb-8">
+            <h2 className="mb-4 text-lg font-semibold text-slate-700">System</h2>
+            <Card className="p-4">
+              <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+                <span className="text-slate-500">Data directory</span>
+                <span className="font-mono text-slate-700">{settings.data_dir}</span>
 
-              <span className="text-slate-500">Default provider</span>
-              <span className="capitalize text-slate-700">{settings.llm.default_provider}</span>
+                <span className="text-slate-500">Default provider</span>
+                <span className="capitalize text-slate-700">{settings.llm.default_provider}</span>
 
-              <span className="text-slate-500">Fallback</span>
-              <button
-                type="button"
-                className={`inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  settings.llm.fallback_enabled ? "bg-emerald-500" : "bg-slate-300"
-                }`}
-                onClick={() =>
-                  patchSettings.mutate({ fallback_enabled: !settings.llm.fallback_enabled })
-                }
-                disabled={patchSettings.isPending}
-              >
-                <span
-                  className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-                    settings.llm.fallback_enabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-
-              <span className="text-slate-500">Monthly budget</span>
-              {editingBudget ? (
-                <form
-                  className="flex items-center gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const val = parseFloat(budgetValue);
-                    if (val > 0) patchSettings.mutate({ monthly_budget_usd: val });
-                  }}
-                >
-                  <span className="text-slate-500">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={budgetValue}
-                    onChange={(e) => setBudgetValue(e.target.value)}
-                    aria-label="Monthly budget in USD"
-                    className="w-24 rounded border border-slate-300 px-2 py-0.5 text-sm text-slate-700 focus:border-brand-300 focus:outline-none"
-                    autoFocus
-                  />
-                  <Button variant="ghost" size="sm" type="submit" disabled={patchSettings.isPending}>
-                    Save
-                  </Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setEditingBudget(false)}>
-                    Cancel
-                  </Button>
-                </form>
-              ) : (
+                <span className="text-slate-500">Fallback</span>
                 <button
                   type="button"
-                  className="text-left text-slate-700 hover:text-brand-600 hover:underline"
-                  onClick={() => {
-                    setBudgetValue(settings.llm.monthly_budget_usd.toFixed(2));
-                    setEditingBudget(true);
-                  }}
+                  className={`inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.llm.fallback_enabled ? "bg-emerald-500" : "bg-slate-300"
+                  }`}
+                  onClick={() =>
+                    patchSettings.mutate({ fallback_enabled: !settings.llm.fallback_enabled })
+                  }
+                  disabled={patchSettings.isPending}
                 >
-                  ${settings.llm.monthly_budget_usd.toFixed(2)}
+                  <span
+                    className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                      settings.llm.fallback_enabled ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
                 </button>
-              )}
-            </div>
-          </Card>
-        </section>
+
+                <span className="text-slate-500">Monthly budget</span>
+                {editingBudget ? (
+                  <form
+                    className="flex items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const val = parseFloat(budgetValue);
+                      if (val > 0) patchSettings.mutate({ monthly_budget_usd: val });
+                    }}
+                  >
+                    <span className="text-slate-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={budgetValue}
+                      onChange={(e) => setBudgetValue(e.target.value)}
+                      aria-label="Monthly budget in USD"
+                      className="w-24 rounded border border-slate-300 px-2 py-0.5 text-sm text-slate-700 focus:border-brand-300 focus:outline-none"
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="sm" type="submit" disabled={patchSettings.isPending}>
+                      Save
+                    </Button>
+                    <Button variant="ghost" size="sm" type="button" onClick={() => setEditingBudget(false)}>
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-left text-slate-700 hover:text-brand-600 hover:underline"
+                    onClick={() => {
+                      setBudgetValue(settings.llm.monthly_budget_usd.toFixed(2));
+                      setEditingBudget(true);
+                    }}
+                  >
+                    ${settings.llm.monthly_budget_usd.toFixed(2)}
+                  </button>
+                )}
+              </div>
+            </Card>
+          </section>
+        )}
       </div>
 
       {apiKeyModalProvider !== null && (
