@@ -258,6 +258,7 @@ reportAssignmentType = false  # SQLModel __tablename__ = "..." triggers false po
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["src"]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",  # SwigPy* builtin types
     "ignore:coroutine.*was never awaited:RuntimeWarning:rich.text",  # rich formatting mock objects

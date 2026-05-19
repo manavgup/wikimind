@@ -225,6 +225,8 @@ async def crystallize_conversation(
 
 Distill this conversation into a structured wiki article following the JSON schema exactly."""
 
+    from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
     router = get_llm_router()
     request = CompletionRequest(
         system=CRYSTALLIZE_SYSTEM_PROMPT,
@@ -235,7 +237,11 @@ Distill this conversation into a structured wiki article following the JSON sche
         task_type=TaskType.COMPILE,
     )
 
-    response = await router.complete(request, user_id=user_id)
+    response = await plan_aware_complete(router, request, user_id, session)
+
+    if response is None:
+        msg = "LLM synthesis failed"
+        raise QueryError(msg)
 
     try:
         data = router.parse_json_response(response)

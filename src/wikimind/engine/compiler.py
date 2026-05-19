@@ -227,7 +227,11 @@ class Compiler(BaseCompiler):
             task_type=TaskType.COMPILE,
         )
 
-        response = await self.router.complete(request, user_id=self.user_id)
+        from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
+        response = await plan_aware_complete(self.router, request, self.user_id, session=None)
+        if response is None:
+            return []
         try:
             data = self.router.parse_json_response(response)
             takeaways = data.get("takeaways", [])
@@ -297,9 +301,13 @@ class Compiler(BaseCompiler):
             task_type=TaskType.COMPILE,
         )
 
+        from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
         compile_start = time.monotonic()
-        response = await self.router.complete(request, user_id=self.user_id)
+        response = await plan_aware_complete(self.router, request, self.user_id, session)
         self._last_compilation_duration_ms = round((time.monotonic() - compile_start) * 1000)
+        if response is None:
+            return None
         self._last_compilation_tokens = response.input_tokens + response.output_tokens
         self._last_provider_used = response.provider_used
 
@@ -378,9 +386,13 @@ class Compiler(BaseCompiler):
         # in-memory objects remain usable without lazy-loads.
         await session.commit()
 
+        from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
         compile_start = time.monotonic()
-        response = await self.router.complete(request, user_id=self.user_id)
+        response = await plan_aware_complete(self.router, request, self.user_id, session)
         self._last_compilation_duration_ms = round((time.monotonic() - compile_start) * 1000)
+        if response is None:
+            return None
         self._last_compilation_tokens = response.input_tokens + response.output_tokens
         self._last_provider_used = response.provider_used
 

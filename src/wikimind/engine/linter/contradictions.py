@@ -274,9 +274,14 @@ async def _run_batch(
         task_type=TaskType.LINT,
     )
 
+    from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
     for attempt in range(2):
         try:
-            response = await router.complete(request, user_id=user_id)
+            response = await plan_aware_complete(router, request, user_id, session)
+            if response is None:
+                msg = "plan_aware_complete returned None"
+                raise RuntimeError(msg)
             data = router.parse_json_response(response)
             # The response may be a list directly or wrapped in a key
             if isinstance(data, list):
@@ -661,7 +666,12 @@ async def _compare_article_pair(
     )
 
     try:
-        response = await router.complete(request, user_id=user_id)
+        from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
+        response = await plan_aware_complete(router, request, user_id, session)
+        if response is None:
+            msg = "plan_aware_complete returned None"
+            raise RuntimeError(msg)
         data = router.parse_json_response(response)
     except (RuntimeError, json.JSONDecodeError, ValueError, KeyError):
         log.warning(

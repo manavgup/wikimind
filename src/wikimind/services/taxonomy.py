@@ -319,6 +319,8 @@ async def rebuild_taxonomy(
         concept_names="\n".join(f"- {name}" for name in concept_names),
     )
 
+    from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
     router = get_llm_router()
     request = CompletionRequest(
         system=prompt,
@@ -329,7 +331,10 @@ async def rebuild_taxonomy(
         task_type=TaskType.INDEX,
     )
 
-    response = await router.complete(request, user_id=user_id)
+    response = await plan_aware_complete(router, request, user_id, session)
+    if response is None:
+        log.warning("Taxonomy LLM call returned no response, skipping")
+        return
     hierarchy = router.parse_json_response(response)
 
     if not isinstance(hierarchy, list):
