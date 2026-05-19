@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlmodel import select, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.models import (
     Article,
@@ -21,6 +22,7 @@ from wikimind.models import (
     ShareLink,
     Source,
     StorageUsage,
+    Subscription,
     User,
 )
 
@@ -180,3 +182,89 @@ async def get_usage_stats(session: AsyncSession, user_id: str) -> dict:
         "active_shares": share_count,
         "llm_spend_cents_today": llm_spend_cents,
     }
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation
+# ---------------------------------------------------------------------------
+
+
+async def reconcile_subscriptions(session: AsyncSession) -> int:
+    """Fetch all non-expired subscriptions and reconcile with Lemon Squeezy.
+
+    Compares local subscription state to Lemon Squeezy's current state
+    for each active/cancellable subscription and applies corrections when
+    drift is detected. Idempotent — safe to call multiple times.
+    """
+    settings = get_settings()
+    if not settings.billing_enabled:
+        return 0
+
+    api_key = settings.billing.lemon_squeezy_api_key
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/vnd.api+json",
+    }
+
+    result = await session.exec(
+        select(Subscription).where(
+            Subscription.status.in_(["active", "cancelled", "past_due", "on_trial", "paused"])
+        )
+    )
+    subscriptions = list(result.all())
+
+    if not subscriptions:
+        log.info("No subscriptions to reconcile")
+        return 0
+
+    reconciled = 0
+    async with httpx.AsyncClient() as client:
+        for sub in subscriptions:
+            try:
+                resp = await client.get(
+                    f"{LS_API_BASE}/subscriptions/{sub.lemon_squeezy_subscription_id}",
+                    headers=headers,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()["data"]
+                attrs = data["attributes"]
+                ls_status = attrs["status"]
+
+                user_result = await session.exec(select(User).where(User.id == sub.user_id))
+                user = user_result.one_or_none()
+                if not user:
+                    log.warning("Subscription for unknown user", sub_id=sub.id, user_id=sub.user_id)
+                    continue
+
+                variant_id = str(attrs.get("variant_id", ""))
+                plan_result = await session.exec(
+                    select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id)
+                )
+                plan = plan_result.one_or_none()
+                plan_name = plan.name if plan else "pro"
+
+                if sub.status != ls_status:
+                    log.info(
+                        "Reconciliation: status drift detected",
+                        sub_id=sub.id,
+                        local_status=sub.status,
+                        ls_status=ls_status,
+                    )
+                    sub.status = ls_status
+                    sub.updated_at = utcnow_naive()
+                    session.add(sub)
+
+                ends_at = attrs.get("ends_at")
+                period_end = datetime.fromisoformat(ends_at) if ends_at else None
+                await apply_entitlement(session, user, ls_status, plan_name, period_end)
+
+                reconciled += 1
+
+            except Exception:
+                log.exception("Failed to reconcile subscription", sub_id=sub.id)
+                continue
+
+    await session.commit()
+    log.info("Reconciliation complete", reconciled=reconciled, total=len(subscriptions))
+    return reconciled

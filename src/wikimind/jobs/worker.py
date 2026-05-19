@@ -51,6 +51,7 @@ from wikimind.models import (
     NormalizedDocument,
     Source,
 )
+from wikimind.services.billing import reconcile_subscriptions
 from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_raw_storage, get_wiki_storage
 
@@ -615,6 +616,27 @@ async def sweep_all_users(ctx) -> None:
         await sweep_wikilinks(ctx, user_id=uid)
 
 
+async def run_reconciliation(_ctx) -> dict:
+    """Periodic subscription reconciliation with Lemon Squeezy.
+
+    Skips immediately in self-hosted mode (``billing_enabled == False``).
+    Runs every 6 hours to catch any drift caused by missed webhooks.
+
+    Args:
+        ctx: ARQ context (unused).
+
+    Returns:
+        A dict with the count of subscriptions reconciled.
+    """
+    settings = get_settings()
+    if not settings.billing_enabled:
+        return {"reconciled": 0}
+
+    async with get_session_factory()() as session:
+        count = await reconcile_subscriptions(session)
+    return {"reconciled": count}
+
+
 # ---------------------------------------------------------------------------
 # Redis settings — only used when a Redis URL is configured (production ARQ)
 # ---------------------------------------------------------------------------
@@ -651,7 +673,9 @@ class WorkerSettings:
     keep_result = _worker_cfg.keep_result
 
     # Weekly linter + daily wikilink sweep — iterate over all users
+    # 6-hourly subscription reconciliation (no-op in self-hosted mode)
     cron_jobs: ClassVar[list] = [
         cron(lint_all_users, weekday=0, hour=2, minute=0),  # Monday 2am
         cron(sweep_all_users, hour=3, minute=0),  # Daily 3am
+        cron(run_reconciliation, hour={0, 6, 12, 18}, minute=0),  # Every 6 hours
     ]
