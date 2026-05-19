@@ -7,14 +7,16 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
     CreateShareLinkRequest,
+    Plan,
     PublicArticleResponse,
     ShareLinkResponse,
 )
 from wikimind.services.factories import get_sharing_service
+from wikimind.services.quota import check_share_quota
 from wikimind.services.sharing import SharingService
 
 log = structlog.get_logger()
@@ -36,12 +38,15 @@ async def create_share_link(
     session: AsyncSession = Depends(get_session),
     service: SharingService = Depends(get_sharing_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ) -> ShareLinkResponse:
     """Create a new share link for an article.
 
     The returned token can be used to construct a public URL for
     read-only access to the article content.
     """
+    if plan:
+        await check_share_quota(session, user_id, plan)
     return await service.create_share_link(
         session,
         article_id=body.article_id,

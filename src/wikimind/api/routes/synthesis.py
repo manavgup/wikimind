@@ -6,13 +6,14 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.engine.synthesis_compiler import SynthesisCompiler
 from wikimind.models import (
     ArticleSummaryResponse,
     CreateSynthesisRequest,
     PageType,
+    Plan,
     SynthesisConfirmRequest,
     SynthesisConfirmResponse,
     SynthesisPreviewRequest,
@@ -23,6 +24,7 @@ from wikimind.models import (
     SynthesisSuggestion,
 )
 from wikimind.services.factories import get_wiki_service
+from wikimind.services.quota import check_article_quota
 from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
@@ -125,12 +127,15 @@ async def confirm_synthesis(
     body: SynthesisConfirmRequest,
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ) -> SynthesisConfirmResponse:
     """Save a confirmed synthesis draft as a real wiki article.
 
     Takes the final draft content and title from a preview/refine cycle
     and persists it as a synthesis article in the wiki.
     """
+    if plan:
+        await check_article_quota(session, user_id, plan)
     compiler = SynthesisCompiler(user_id)
     article = await compiler.confirm(
         session=session,
@@ -173,6 +178,7 @@ async def create_synthesis(
     body: CreateSynthesisRequest,
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ) -> SynthesisResponse:
     """Create a synthesis page that analyzes across multiple source articles.
 
@@ -181,6 +187,8 @@ async def create_synthesis(
 
     Requires at least 2 relevant articles in the wiki.
     """
+    if plan:
+        await check_article_quota(session, user_id, plan)
     compiler = SynthesisCompiler(user_id)
     result = await compiler.synthesize(
         query=body.query,

@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.ingest.adapters.pdf import PDFAdapter
@@ -24,6 +24,7 @@ from wikimind.models import (
     LinkedArticleSummary,
     PageType,
     PipelineStep,
+    Plan,
     Source,
     SourceContentResponse,
     SourceDetailResponse,
@@ -32,6 +33,7 @@ from wikimind.models import (
 )
 from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
+from wikimind.services.quota import check_source_quota, check_storage_quota
 from wikimind.storage import find_original_sibling, get_raw_storage
 
 # Strict pattern: only alphanumeric, hyphens, underscores, dots (no path separators)
@@ -62,8 +64,12 @@ async def ingest_url(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Ingest a web URL or YouTube video."""
+    if plan:
+        await check_source_quota(session, user_id, plan)
+        await check_storage_quota(session, user_id, plan)
     return await service.ingest_url(str(body.url), session, auto_compile=body.auto_compile, user_id=user_id)
 
 
@@ -76,6 +82,7 @@ async def ingest_pdf(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Upload and ingest a PDF.
 
@@ -93,6 +100,9 @@ async def ingest_pdf(
     contents = await file.read()
     if len(contents) > max_size:
         raise HTTPException(status_code=413, detail="PDF exceeds 50 MB size limit")
+    if plan:
+        await check_source_quota(session, user_id, plan)
+        await check_storage_quota(session, user_id, plan)
     return await service.ingest_pdf(contents, file.filename, session, auto_compile=auto_compile, user_id=user_id)
 
 
@@ -104,8 +114,12 @@ async def ingest_text(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Ingest raw text or a note."""
+    if plan:
+        await check_source_quota(session, user_id, plan)
+        await check_storage_quota(session, user_id, plan)
     return await service.ingest_text(
         body.content,
         body.title,
