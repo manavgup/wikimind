@@ -221,6 +221,7 @@ app = FastAPI(
         {"name": "Sharing", "description": "Per-article share links and public access"},
         {"name": "Synthesis", "description": "Cross-cutting synthesis pages across multiple sources"},
         {"name": "CompilationSchemas", "description": "User-defined compilation rules for wiki articles"},
+        {"name": "Billing", "description": "Subscription plans, usage quotas, checkout, and webhooks"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
@@ -290,6 +291,14 @@ api_router.include_router(saved_searches.router, prefix="/saved-searches", tags=
 api_router.include_router(sharing.router, prefix="/wiki", tags=["Sharing"])
 api_router.include_router(synthesis.router, prefix="/wiki", tags=["Synthesis"])
 api_router.include_router(compilation_schemas.router, prefix="/compilation-schemas", tags=["CompilationSchemas"])
+
+# Billing routes — only in hosted mode (deployment_mode == "hosted").
+# In self-hosted mode billing is disabled and these endpoints are not mounted.
+if get_settings().billing_enabled:
+    from wikimind.api.routes import billing as billing_router_mod
+
+    api_router.include_router(billing_router_mod.router, prefix="/billing", tags=["Billing"])
+
 app.include_router(api_router)
 
 # Public share links — no auth required. Mounted at root level so the

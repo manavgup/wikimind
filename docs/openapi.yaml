@@ -4129,6 +4129,16 @@ components:
           $ref: '#/components/schemas/LLMSettingsResponse'
         sync:
           $ref: '#/components/schemas/SyncSettingsResponse'
+        deployment_mode:
+          type: string
+          title: Deployment Mode
+          default: self_hosted
+        user_plan:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: User Plan
       type: object
       required:
       - data_dir
@@ -8087,5 +8097,7 @@ tags:
   description: Cross-cutting synthesis pages across multiple sources
 - name: CompilationSchemas
   description: User-defined compilation rules for wiki articles
+- name: Billing
+  description: Subscription plans, usage quotas, checkout, and webhooks
 - name: WebSocket
   description: Real-time progress streams
