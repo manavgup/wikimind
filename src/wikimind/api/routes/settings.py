@@ -10,11 +10,11 @@ from pydantic import BaseModel
 from sqlmodel import func, select
 
 from wikimind._datetime import utcnow_naive
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.config import get_api_key, get_runtime_config, get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.engine.llm_router import _LLM_PROVIDER_ERRORS, get_llm_router
-from wikimind.models import Article, CompletionRequest, CostLog, Provider, TaskType, UserPreference
+from wikimind.models import Article, CompletionRequest, CostLog, Plan, Provider, TaskType, UserPreference
 from wikimind.services.api_keys import get_user_api_key
 
 if TYPE_CHECKING:
@@ -79,6 +79,8 @@ class AllSettingsResponse(BaseModel):
     gateway_port: int
     llm: LLMSettingsResponse
     sync: SyncSettingsResponse
+    deployment_mode: str = "self_hosted"
+    user_plan: dict | None = None  # None in self-hosted mode
 
 
 class SettingsUpdateResponse(BaseModel):
@@ -349,6 +351,7 @@ async def _update_openai_compatible_settings(
 async def get_all_settings(
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Return all application settings, with DB overrides applied."""
     settings = get_settings()
@@ -380,6 +383,15 @@ async def get_all_settings(
             base_url=base_url if p == Provider.OPENAI_COMPATIBLE else None,
         )
 
+    user_plan_info = None
+    if plan:
+        user_plan_info = {
+            "name": plan.name,
+            "display_name": plan.display_name,
+            "byok_allowed": plan.byok_allowed,
+            "mcp_enabled": plan.mcp_enabled,
+        }
+
     return AllSettingsResponse(
         data_dir=settings.data_dir,
         gateway_port=settings.gateway_port,
@@ -394,6 +406,8 @@ async def get_all_settings(
             interval_minutes=settings.sync.interval_minutes,
             bucket=settings.sync.bucket,
         ),
+        deployment_mode=settings.deployment_mode,
+        user_plan=user_plan_info,
     )
 
 
