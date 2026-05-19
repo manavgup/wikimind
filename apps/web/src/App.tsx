@@ -40,6 +40,11 @@ const ShareManagementView = lazy(() =>
     default: m.ShareManagementView,
   }))
 );
+const BillingPage = lazy(() =>
+  import("./components/settings/BillingPage").then((m) => ({
+    default: m.BillingPage,
+  }))
+);
 const SynthesisView = lazy(() =>
   import("./components/synthesis/SynthesisView").then((m) => ({ default: m.SynthesisView }))
 );
@@ -82,6 +87,7 @@ function AuthenticatedApp() {
             <Route path="/graph" element={<GraphView />} />
             <Route path="/health" element={<HealthView />} />
             <Route path="/settings" element={<SettingsView />} />
+            <Route path="/settings/billing" element={<BillingPage />} />
             <Route path="/settings/shares" element={<ShareManagementView />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/inbox" replace />} />

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "../shared/Card";
 import { Button } from "../shared/Button";
@@ -13,6 +14,8 @@ import { ShareLinksPanel } from "./ShareLinksPanel";
 import { ApiTokens } from "./ApiTokens";
 import { MCPTokens } from "./MCPTokens";
 import { getSettings, updateSettings } from "../../api/settings";
+import { getUsage } from "../../api/billing";
+import type { UsageInfo } from "../../api/billing";
 
 export function SettingsView() {
   const [apiKeyModalProvider, setApiKeyModalProvider] = useState<string | null>(null);
@@ -35,6 +38,16 @@ export function SettingsView() {
     },
   });
 
+  const isHosted = settings?.deployment_mode === "hosted";
+  const userPlan = settings?.user_plan ?? "free";
+  const showLlmProviders = !isHosted || (userPlan !== "free" && isHosted);
+
+  const { data: usage } = useQuery({
+    queryKey: ["billing-usage"],
+    queryFn: getUsage,
+    enabled: isHosted,
+  });
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -55,25 +68,54 @@ export function SettingsView() {
     <div className="h-full overflow-y-auto">
       <div className="p-6">
         <h1 className="mb-6 text-2xl font-bold text-slate-900">Settings</h1>
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">LLM Providers</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(settings.llm.providers).map(([name, info]) => (
-              <ProviderCard
-                key={name}
-                name={name}
-                info={info}
-                isDefault={name === settings.llm.default_provider}
-                onSetKey={setApiKeyModalProvider}
-              />
-            ))}
-          </div>
-        </section>
 
-        <section className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-slate-700">Cost</h2>
-          <CostDashboard warningThresholdPct={80} />
-        </section>
+        {isHosted && (
+          <section className="mb-8">
+            <h2 className="mb-4 text-lg font-semibold text-slate-700">Plan & Billing</h2>
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-slate-700">
+                  Current plan:{" "}
+                  <span className="font-semibold capitalize">{userPlan}</span>
+                </div>
+                <Link
+                  to="/settings/billing"
+                  className="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline"
+                >
+                  Manage plan & usage
+                </Link>
+              </div>
+            </Card>
+          </section>
+        )}
+
+        {isHosted && usage && (
+          <UsageQuotasSection usage={usage} />
+        )}
+
+        {showLlmProviders && (
+          <>
+            <section className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-slate-700">LLM Providers</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(settings.llm.providers).map(([name, info]) => (
+                  <ProviderCard
+                    key={name}
+                    name={name}
+                    info={info}
+                    isDefault={name === settings.llm.default_provider}
+                    onSetKey={setApiKeyModalProvider}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-slate-700">Cost</h2>
+              <CostDashboard warningThresholdPct={80} />
+            </section>
+          </>
+        )}
 
         <section className="mb-8">
           <h2 className="mb-4 text-lg font-semibold text-slate-700">Sync</h2>
@@ -186,5 +228,63 @@ export function SettingsView() {
         />
       )}
     </div>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function UsageQuotasSection({ usage }: { usage: UsageInfo }) {
+  const items: { label: string; used: number; limit: number | null; format?: (v: number) => string }[] = [
+    { label: "Sources", used: usage.sources, limit: usage.sources_limit },
+    { label: "Articles", used: usage.articles, limit: usage.articles_limit },
+    { label: "Queries today", used: usage.queries_today, limit: usage.queries_limit },
+    { label: "Storage", used: usage.storage_bytes, limit: usage.storage_limit, format: formatBytes },
+    { label: "Active shares", used: usage.active_shares, limit: usage.shares_limit },
+  ];
+
+  return (
+    <section className="mb-8">
+      <h2 className="mb-4 text-lg font-semibold text-slate-700">Usage quotas</h2>
+      <Card className="p-4">
+        <div className="space-y-3">
+          {items.map((item) => {
+            const displayUsed = item.format ? item.format(item.used) : item.used.toString();
+            if (item.limit === null) {
+              return (
+                <div key={item.label} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{item.label}</span>
+                  <span className="text-slate-500">{displayUsed} (unlimited)</span>
+                </div>
+              );
+            }
+            const pct = item.limit > 0 ? Math.min((item.used / item.limit) * 100, 100) : 0;
+            const displayLimit = item.format ? item.format(item.limit) : item.limit.toString();
+            const barColor = pct >= 90 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-brand-600";
+            return (
+              <div key={item.label}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{item.label}</span>
+                  <span className="text-slate-500">
+                    {displayUsed} / {displayLimit}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-100">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${barColor}`}
+                    style={{ width: `${Math.max(pct, 1)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </section>
   );
 }
