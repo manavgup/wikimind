@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import wikimind.services.plan_routing  # noqa: F401 — ensures module is importable for patch()
 from wikimind.models import CompletionRequest
 
 

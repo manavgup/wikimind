@@ -1,7 +1,5 @@
 """Tests for quota check wiring in route handlers."""
 
-import pytest
-
 
 class TestQuotaRouteWiring:
     """Verify quota checks are properly wired but inactive in self-hosted mode."""
