@@ -1969,6 +1969,8 @@ class CompletionRequest(BaseModel):
     task_type: TaskType = TaskType.COMPILE
     preferred_provider: Provider | None = None
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
+    model_override: str | None = None
+    disable_fallback: bool = False
 
 
 class CompletionResponse(BaseModel):
