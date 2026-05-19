@@ -2735,6 +2735,132 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions:
+    get:
+      tags:
+      - Admin
+      summary: Admin List Subscriptions
+      description: List all subscriptions with user info (admin only).
+      operationId: admin_list_subscriptions_api_admin_billing_subscriptions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/billing/subscriptions/{user_id}:
+    get:
+      tags:
+      - Admin
+      summary: Admin Get User Subscription
+      description: Get subscription details for a specific user (admin only).
+      operationId: admin_get_user_subscription_api_admin_billing_subscriptions__user_id__get
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions/{user_id}/override:
+    post:
+      tags:
+      - Admin
+      summary: Admin Override Plan
+      description: Override a user's plan (admin only). Used for manual fixes.
+      operationId: admin_override_plan_api_admin_billing_subscriptions__user_id__override_post
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      - name: plan_name
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Plan Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions/{user_id}/sync:
+    post:
+      tags:
+      - Admin
+      summary: Admin Sync Subscription
+      description: Force-sync a user's subscription with Lemon Squeezy (admin only).
+      operationId: admin_sync_subscription_api_admin_billing_subscriptions__user_id__sync_post
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/webhook-events:
+    get:
+      tags:
+      - Admin
+      summary: Admin List Webhook Events
+      description: List recent webhook events (admin only).
+      operationId: admin_list_webhook_events_api_admin_billing_webhook_events_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/articles/{id_or_slug}/export:
     post:
       tags:

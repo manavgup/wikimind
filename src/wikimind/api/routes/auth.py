@@ -24,6 +24,7 @@ import jwt as pyjwt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.api.deps import require_user_id
@@ -36,10 +37,14 @@ from wikimind.models import (
     MagicLinkResponse,
     MagicLinkVerifyRequest,
     MagicLinkVerifyResponse,
+    QueryCount,
+    StorageUsage,
+    Subscription,
     TokenCreateRequest,
     TokenCreateResponse,
     UserProfileResponse,
 )
+from wikimind.services.billing import LemonSqueezyClient
 from wikimind.services.factories import get_user_service
 from wikimind.services.user import UserService
 
@@ -584,5 +589,35 @@ async def delete_account(
     service: UserService = Depends(get_user_service),
 ) -> DeleteAccountResponse:
     """Delete the current user's account and all owned data."""
+    # Cancel Lemon Squeezy subscription if billing is enabled
+    if get_settings().billing_enabled:
+        sub_result = await session.exec(
+            select(Subscription).where(Subscription.user_id == user_id)
+        )
+        for sub in sub_result.all():
+            if sub.status in ("active", "on_trial", "past_due"):
+                try:
+                    client = LemonSqueezyClient()
+                    await client.cancel_subscription(sub.lemon_squeezy_subscription_id)
+                except Exception:
+                    log.warning(
+                        "Failed to cancel LS subscription during account deletion",
+                        sub_id=sub.id,
+                    )
+            await session.delete(sub)
+
+        # Delete billing-specific rows
+        storage_result = await session.exec(
+            select(StorageUsage).where(StorageUsage.user_id == user_id)
+        )
+        for row in storage_result.all():
+            await session.delete(row)
+
+        qc_result = await session.exec(
+            select(QueryCount).where(QueryCount.user_id == user_id)
+        )
+        for row in qc_result.all():
+            await session.delete(row)
+
     await service.delete_account(session, user_id)
     return DeleteAccountResponse(deleted=user_id)
