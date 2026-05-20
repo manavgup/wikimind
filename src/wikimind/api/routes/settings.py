@@ -352,7 +352,7 @@ async def get_all_settings(
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> AllSettingsResponse:
     """Return all application settings, with DB overrides applied."""
     settings = get_settings()
     rc = get_runtime_config()
@@ -419,7 +419,7 @@ async def set_default_provider(
     request: DefaultProviderRequest,
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
-):
+) -> DefaultProviderResponse:
     """Set the default LLM provider. Persists to DB, survives restarts."""
     valid_providers = [p.value for p in Provider]
     if request.provider not in valid_providers:
@@ -461,7 +461,7 @@ async def set_default_provider(
 async def update_settings(
     request: SettingsUpdateRequest,
     user_id: str = Depends(get_current_user_id),
-):
+) -> SettingsUpdateResponse:
     """Update runtime settings. Changes persist to DB across restarts."""
     rc = get_runtime_config()
 
@@ -503,7 +503,7 @@ async def update_settings(
 async def test_llm_connection(
     provider: str,
     user_id: str = Depends(get_current_user_id),  # noqa: PT028
-):
+) -> LLMTestResponse:
     """Test if a provider is configured and reachable."""
     router_instance = get_llm_router()
     rc = get_runtime_config()
@@ -546,7 +546,7 @@ async def test_llm_connection(
 )
 async def get_llm_cost_breakdown(
     user_id: str = Depends(get_current_user_id),
-):
+) -> CostBreakdownResponse:
     """Cost breakdown by provider and task type for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
     rc = get_runtime_config()
@@ -614,7 +614,7 @@ async def get_llm_cost_breakdown(
 @router.get("/llm/cost", response_model=CostSummaryResponse)
 async def get_llm_cost(
     user_id: str = Depends(get_current_user_id),
-):
+) -> CostSummaryResponse:
     """Cost summary for current month."""
     start_of_month = utcnow_naive().replace(day=1, hour=0, minute=0, second=0)
 
@@ -648,7 +648,7 @@ def _onboarding_key(base: str, user_id: str) -> str:
 async def get_onboarding_status(
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
-):
+) -> OnboardingStatusResponse:
     """Return onboarding wizard progress for the current user.
 
     If the user has never explicitly completed onboarding but already has
@@ -678,7 +678,7 @@ async def get_onboarding_status(
 @router.post("/onboarding-status", response_model=OnboardingStatusResponse)
 async def complete_onboarding(
     user_id: str = Depends(get_current_user_id),
-):
+) -> OnboardingStatusResponse:
     """Mark onboarding as complete for the current user."""
     await _set_preference(_onboarding_key("onboarding.completed", user_id), "true", user_id)
     await _set_preference(_onboarding_key("onboarding.step", user_id), "5", user_id)

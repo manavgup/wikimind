@@ -41,6 +41,7 @@ from wikimind.storage import get_wiki_storage
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 log = structlog.get_logger()
@@ -57,7 +58,7 @@ _fts_ready = False
 # ---------------------------------------------------------------------------
 
 
-async def create_fts_table(engine) -> None:
+async def create_fts_table(engine: AsyncEngine) -> None:
     """Create the full-text search virtual table if it does not exist.
 
     SQLite: FTS5 virtual table with porter + unicode61 tokenizer.

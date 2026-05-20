@@ -19,11 +19,13 @@ from wikimind.models import (
     ConversationDetail,
     ConversationSummary,
     CrystallizeResponse,
+    FileBackResult,
     FileBackSelectionRequest,
     ForkRequest,
     Plan,
     QueryRequest,
 )
+from wikimind.models import Query as QueryModel
 from wikimind.services.crystallization import crystallize_conversation
 from wikimind.services.factories import get_query_service
 from wikimind.services.query import QueryService
@@ -43,7 +45,7 @@ async def ask(
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> AskResponse:
     """Ask a question against the wiki and receive an answer with citations.
 
     If request.conversation_id is None, a new conversation is created.
@@ -103,7 +105,7 @@ async def query_history(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[QueryModel]:
     """List past queries (legacy endpoint — UI uses /conversations instead)."""
     return await service.query_history(session, limit=limit, user_id=user_id)
 
@@ -114,7 +116,7 @@ async def list_conversations(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[ConversationSummary]:
     """List conversations ordered by most recently updated first."""
     return await service.list_conversations(session, limit=limit, user_id=user_id)
 
@@ -125,7 +127,7 @@ async def get_conversation(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ConversationDetail:
     """Return a single conversation with all its turns."""
     return await service.get_conversation(conversation_id, session, user_id=user_id)
 
@@ -151,7 +153,7 @@ async def file_back_selection(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> FileBackResult:
     """File selected turns from one or more conversations back to the wiki as a single article."""
     return await service.file_back_selection(request, session, user_id=user_id)
 
@@ -162,7 +164,7 @@ async def file_back_conversation(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> FileBackResult:
     """File the entire conversation back to the wiki as a single article."""
     return await service.file_back_conversation(conversation_id, session, user_id=user_id)
 
@@ -175,7 +177,7 @@ async def crystallize(
     conversation_id: str,
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
-):
+) -> CrystallizeResponse:
     """Distill a conversation into a new wiki article with page_type synthesis."""
     return await crystallize_conversation(conversation_id, session, user_id=user_id)
 
@@ -187,7 +189,7 @@ async def fork_conversation(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> AskResponse:
     """Fork a conversation at a specific turn with a new question.
 
     Creates a new conversation that shares turns 0..turn_index-1 with the

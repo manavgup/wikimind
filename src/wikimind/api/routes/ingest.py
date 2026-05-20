@@ -3,6 +3,7 @@
 import mimetypes
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -19,6 +20,7 @@ from wikimind.middleware.rate_limit import limiter
 from wikimind.models import (
     Article,
     ArticleSource,
+    DeleteConfirmation,
     IngestTextRequest,
     IngestURLRequest,
     LinkedArticleSummary,
@@ -65,7 +67,7 @@ async def ingest_url(
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> Source:
     """Ingest a web URL or YouTube video."""
     if plan:
         await check_source_quota(session, user_id, plan)
@@ -86,7 +88,7 @@ async def ingest_pdf(
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> Source:
     """Upload and ingest a PDF.
 
     The ``auto_compile`` query parameter (default ``True``) controls whether the
@@ -121,7 +123,7 @@ async def ingest_text(
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> Source:
     """Ingest raw text or a note."""
     if plan:
         await check_source_quota(session, user_id, plan)
@@ -146,7 +148,7 @@ async def list_sources(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[Source]:
     """List all ingested sources."""
     return await service.list_sources(session, status=status, limit=limit, offset=offset, user_id=user_id)
 
@@ -157,7 +159,7 @@ async def get_source(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> Source:
     """Get source by ID."""
     return await service.get_source(source_id, session, user_id=user_id)
 
@@ -168,7 +170,7 @@ async def get_source_detail(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> SourceDetailResponse:
     """Get full source detail with pipeline steps, images, and linked articles."""
     source = await service.get_source(source_id, session, user_id=user_id)
 
@@ -300,7 +302,7 @@ async def get_source_content(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> SourceContentResponse:
     """Return the raw text content of a source for side-by-side reading."""
     return await service.get_source_content(source_id, session, user_id=user_id)
 
@@ -311,7 +313,7 @@ async def delete_source(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> DeleteConfirmation:
     """Delete a source by ID."""
     return await service.delete_source(source_id, session, user_id=user_id)
 
@@ -322,7 +324,7 @@ async def get_source_original(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> StreamingResponse:
     """Stream the original source document (PDF, HTML, etc.).
 
     Returns the raw binary stored during ingest — not the extracted text.
@@ -345,7 +347,8 @@ async def get_source_original(
     if content_type is None:
         content_type = "application/octet-stream"
 
-    def iter_file():
+    def iter_file() -> Iterator[bytes]:
+        """Yield the original document in 64 KiB chunks."""
         with open(original, "rb") as f:
             while chunk := f.read(64 * 1024):
                 yield chunk
@@ -366,7 +369,7 @@ async def list_source_images(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[dict[str, str]]:
     """List extracted images for a PDF source.
 
     Reads from the ``source_image`` table first (DB-backed storage),
@@ -437,7 +440,7 @@ async def get_source_image(
     session: AsyncSession = Depends(get_session),
     service: IngestService = Depends(get_ingest_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> Response:
     """Serve an extracted image file for a PDF source.
 
     Reads from the ``source_image`` table first (DB-backed storage),

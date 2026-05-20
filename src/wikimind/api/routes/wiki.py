@@ -12,6 +12,8 @@ from wikimind.models import (
     ArticleResponse,
     ArticleSummaryResponse,
     ArticleTagResponse,
+    Concept,
+    ConceptDetailResponse,
     ContradictionResolution,
     ContradictionResolutionOption,
     ContradictionResponse,
@@ -59,7 +61,7 @@ router = APIRouter()
     "/contradiction-resolutions",
     response_model=list[ContradictionResolutionOption],
 )
-async def list_contradiction_resolutions():
+async def list_contradiction_resolutions() -> list[ContradictionResolutionOption]:
     """Return the valid contradiction resolution options."""
     return [
         ContradictionResolutionOption(value=r.value, label=r.value.replace("_", " ").title())
@@ -75,7 +77,7 @@ async def list_contradictions(
     session: AsyncSession = Depends(get_session),
     service: ContradictionService = Depends(get_contradiction_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[ContradictionResponse]:
     """List all contradictions for the user, optionally filtered by status."""
     return await service.list_contradictions(session, user_id=user_id, status=status, limit=limit, offset=offset)
 
@@ -90,7 +92,7 @@ async def get_contradiction(
     session: AsyncSession = Depends(get_session),
     service: ContradictionService = Depends(get_contradiction_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ContradictionResponse:
     """Get a single contradiction with article details."""
     return await service.get_contradiction(session, contradiction_id, user_id=user_id)
 
@@ -106,7 +108,7 @@ async def resolve_persisted_contradiction(
     session: AsyncSession = Depends(get_session),
     service: ContradictionService = Depends(get_contradiction_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ContradictionResponse:
     """Resolve or dismiss a contradiction."""
     return await service.resolve_contradiction(
         session,
@@ -127,7 +129,7 @@ async def list_articles(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[ArticleSummaryResponse]:
     """List wiki articles with optional filtering and source provenance."""
     return await service.list_articles(
         session,
@@ -151,7 +153,7 @@ async def create_stub_article(
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> CreateStubResponse:
     """Create a stub wiki article — a placeholder page for a concept not yet compiled."""
     if plan:
         await check_article_quota(session, user_id, plan)
@@ -173,7 +175,7 @@ async def resolve_wikilinks(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[WikilinkMatch]:
     """Search articles by partial title for wikilink autocomplete."""
     return await service.resolve_wikilinks(q, session, user_id=user_id, limit=limit)
 
@@ -187,7 +189,7 @@ async def get_random_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ArticleSummaryResponse:
     """Return a random article belonging to the current user."""
     return await service.get_random_article(session, user_id=user_id)
 
@@ -202,7 +204,7 @@ async def get_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ArticleResponse:
     """Get full article by ID or slug, with content, backlinks, and source provenance."""
     return await service.get_article(id_or_slug, session, user_id=user_id)
 
@@ -218,7 +220,7 @@ async def edit_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ArticleResponse:
     """Manually edit an article's content and/or title.
 
     Sets ``manually_edited=True`` so that recompilation respects user edits.
@@ -241,7 +243,7 @@ async def get_graph(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> GraphResponse:
     """Full knowledge graph -- nodes and edges.
 
     Optional query parameters filter the returned edge set:
@@ -271,7 +273,7 @@ async def get_article_relationships(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ArticleRelationshipsResponse:
     """Return typed relationships for an article, grouped by direction and type."""
     return await service.get_relationships(id_or_slug, session, user_id=user_id)
 
@@ -291,7 +293,7 @@ async def search(
     session: AsyncSession = Depends(get_session),
     search_service: SearchService = Depends(get_search_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> SearchResponse:
     """Full-text search across wiki articles with optional facet filters.
 
     Supports filtering by source_kind, page_type, concept, tag,
@@ -331,7 +333,7 @@ async def search_facets(
     session: AsyncSession = Depends(get_session),
     search_service: SearchService = Depends(get_search_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> FacetResponse:
     """Compute facet counts for the current search query.
 
     Returns counts grouped by: page_type, source_kind, concept,
@@ -346,7 +348,7 @@ async def get_concepts(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[Concept]:
     """Concept taxonomy tree."""
     return await service.get_concepts(session, include_empty=include_empty, user_id=user_id)
 
@@ -355,7 +357,7 @@ async def get_concepts(
 async def rebuild_concepts(
     session: AsyncSession = Depends(get_session),
     user_id: str = Depends(get_current_user_id),
-):
+) -> RebuildConceptsResponse:
     """Trigger LLM-powered taxonomy hierarchy rebuild."""
     await rebuild_taxonomy(session, user_id=user_id)
     return RebuildConceptsResponse(status="ok")
@@ -370,7 +372,7 @@ async def get_concept(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ConceptDetailResponse:
     """Concept detail with linked articles."""
     return await service.get_concept(name, session, user_id=user_id)
 
@@ -383,7 +385,7 @@ async def get_concept_articles(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[ArticleSummaryResponse]:
     """Articles tagged with this concept."""
     return await service.get_concept_articles(name, session, limit=limit, offset=offset, user_id=user_id)
 
@@ -394,7 +396,7 @@ async def get_health(
     linter_service: LinterService = Depends(get_linter_service),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> HealthSummaryResponse:
     """Latest wiki health report from linter.
 
     DEPRECATED: Use GET /lint/reports/latest instead. This endpoint
@@ -415,7 +417,7 @@ async def resolve_contradiction(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ResolveContradictionResponse:
     """Resolve a contradiction between two articles.
 
     DEPRECATED: Use ``PATCH /wiki/contradictions/{id}`` instead. This endpoint
@@ -442,7 +444,7 @@ async def refresh_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> RefreshArticleResponse:
     """Mark an article as 'still current' without recompiling.
 
     Creates a manual_refresh reinforcement event and resets the article's
@@ -468,7 +470,7 @@ async def recompile_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> RecompileResponse:
     """Schedule an async recompilation job for an article.
 
     If the article has been manually edited (``manually_edited=True``),
@@ -501,7 +503,7 @@ async def tag_article(
     session: AsyncSession = Depends(get_session),
     tag_service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> ArticleTagResponse:
     """Apply a tag to an article."""
     await tag_service.tag_article(
         session,
@@ -523,7 +525,7 @@ async def untag_article(
     session: AsyncSession = Depends(get_session),
     tag_service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> None:
     """Remove a tag from an article."""
     await tag_service.untag_article(
         session,
@@ -543,6 +545,6 @@ async def get_article_tags(
     session: AsyncSession = Depends(get_session),
     tag_service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[TagResponse]:
     """Get all tags applied to an article."""
     return await tag_service.get_tags_for_article(session, article_id=article_id, user_id=user_id)
