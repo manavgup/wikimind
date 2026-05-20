@@ -185,9 +185,14 @@ def upgrade() -> None:
         },
     )
 
+    # Pro plan: max_storage_bytes=5368709120 (5 GB) is embedded as a SQL
+    # literal because asyncpg always encodes bound int parameters as int4,
+    # which overflows for values > 2^31. No amount of bindparam/type_= fixes
+    # this — asyncpg ignores SQLAlchemy type hints during parameter encoding.
+    _pro_storage = 5368709120  # 5 GB
     conn.execute(
         text(
-            """
+            f"""
             INSERT INTO plan (
                 id, name, display_name, price_cents, billing_interval,
                 max_sources, max_articles, max_queries_per_day, max_storage_bytes,
@@ -198,7 +203,7 @@ def upgrade() -> None:
                 lemon_squeezy_variant_id, created_at, updated_at
             ) VALUES (
                 :id, 'pro', 'Pro', 1199, 'month',
-                500, 1000, 200, :storage,
+                500, 1000, 200, {_pro_storage},
                 100, 100,
                 :exports, true,
                 'openai_compatible', 'gpt-4o-mini', true,
@@ -206,8 +211,6 @@ def upgrade() -> None:
                 NULL, :now, :now
             ) ON CONFLICT (name) DO NOTHING
             """
-        ).bindparams(
-            sa.bindparam("storage", value=5368709120, type_=sa.BigInteger()),
         ),
         {
             "id": str(_uuid.uuid4()),
