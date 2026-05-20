@@ -13,11 +13,14 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
 
+from wikimind._datetime import utcnow_naive
 from wikimind.api.deps import require_admin
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import (
     AdminActionResult,
+    AdminPlanResponse,
+    AdminPlanUpdateRequest,
     AdminUserDetail,
     AdminUserSummary,
     EligibleConcept,
@@ -32,6 +35,7 @@ from wikimind.models import (
     User,
     WebhookEvent,
 )
+from wikimind.models.enums import Provider
 from wikimind.services.admin import AdminService  # noqa: TC001 — needed at runtime for Depends()
 from wikimind.services.billing import LemonSqueezyClient, apply_entitlement
 from wikimind.services.factories import get_admin_service
@@ -349,3 +353,99 @@ async def admin_list_webhook_events(
         }
         for evt in events
     ]
+
+
+@router.get("/billing/plans", response_model=list[AdminPlanResponse])
+async def admin_list_plans(
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """List all billing plans with their LLM model/provider (admin only)."""
+    result = await session.exec(
+        select(Plan).order_by(Plan.sort_order)  # type: ignore[arg-type]
+    )
+    plans = result.all()
+    return [
+        AdminPlanResponse(
+            id=p.id,
+            name=p.name,
+            display_name=p.display_name,
+            llm_provider=p.llm_provider,
+            llm_model=p.llm_model,
+            is_active=p.is_active,
+            updated_at=p.updated_at,
+        )
+        for p in plans
+    ]
+
+
+@router.patch("/billing/plans/{plan_id}", response_model=AdminPlanResponse)
+async def admin_update_plan_model(
+    plan_id: str,
+    body: AdminPlanUpdateRequest,
+    session: AsyncSession = Depends(get_session),
+    admin_user_id: str = Depends(require_admin),
+):
+    """Update LLM model and/or provider on a billing plan (admin only).
+
+    Used when an LLM provider deprecates a model and all affected plans
+    need to be migrated to a replacement.
+    """
+    result = await session.exec(select(Plan).where(Plan.id == plan_id))
+    plan = result.one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if body.llm_model is None and body.llm_provider is None:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one of llm_model or llm_provider must be provided",
+        )
+
+    if body.llm_provider is not None:
+        valid_providers = [p.value for p in Provider]
+        if body.llm_provider not in valid_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid llm_provider '{body.llm_provider}'. Must be one of: {', '.join(valid_providers)}",
+            )
+
+    if body.llm_model is not None and not body.llm_model.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="llm_model must be a non-empty string",
+        )
+
+    old_model = plan.llm_model
+    old_provider = plan.llm_provider
+
+    if body.llm_model is not None:
+        plan.llm_model = body.llm_model
+    if body.llm_provider is not None:
+        plan.llm_provider = body.llm_provider
+    plan.updated_at = utcnow_naive()
+
+    session.add(plan)
+    await session.commit()
+    await session.refresh(plan)
+
+    log.info(
+        "admin.plan_model_updated",
+        plan_id=plan.id,
+        plan_name=plan.name,
+        old_model=old_model,
+        new_model=plan.llm_model,
+        old_provider=old_provider,
+        new_provider=plan.llm_provider,
+        admin_user_id=admin_user_id,
+    )
+
+    return AdminPlanResponse(
+        id=plan.id,
+        name=plan.name,
+        display_name=plan.display_name,
+        llm_provider=plan.llm_provider,
+        llm_model=plan.llm_model,
+        is_active=plan.is_active,
+        updated_at=plan.updated_at,
+    )

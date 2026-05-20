@@ -18,6 +18,8 @@ from pydantic import BaseModel
 # Re-export DTO request/response schemas (replaces pipeline.py + schemas.py)
 from wikimind.models.dto.admin import (
     AdminActionResult,
+    AdminPlanResponse,
+    AdminPlanUpdateRequest,
     AdminUserDetail,
     AdminUserSummary,
     EligibleConcept,
@@ -322,6 +324,8 @@ SavedSearchExecuteResponse.model_rebuild()
 __all__ = [
     # API schemas
     "AdminActionResult",
+    "AdminPlanResponse",
+    "AdminPlanUpdateRequest",
     "AdminUserDetail",
     "AdminUserSummary",
     # Pipeline models

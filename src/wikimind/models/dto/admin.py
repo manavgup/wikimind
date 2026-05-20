@@ -151,6 +151,30 @@ class AdminUserDetail(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Admin plan update request/response models (issue #774)
+# ---------------------------------------------------------------------------
+
+
+class AdminPlanUpdateRequest(BaseModel):
+    """Request to update LLM model/provider on a billing plan."""
+
+    llm_model: str | None = None
+    llm_provider: str | None = None
+
+
+class AdminPlanResponse(BaseModel):
+    """API response for a billing plan (admin view)."""
+
+    id: str
+    name: str
+    display_name: str
+    llm_provider: str
+    llm_model: str
+    is_active: bool
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
 # Wiki health reports
 # ---------------------------------------------------------------------------
 

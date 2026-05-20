@@ -137,3 +137,29 @@ export interface DoclingStatusResponse {
 export function getDoclingStatus(): Promise<DoclingStatusResponse> {
   return apiFetch<DoclingStatusResponse>("/api/admin/docling-status");
 }
+
+// ----- Admin Plans -----
+
+export interface AdminPlan {
+  id: string;
+  name: string;
+  display_name: string;
+  llm_provider: string;
+  llm_model: string;
+  is_active: boolean;
+  updated_at: string;
+}
+
+export function getAdminPlans(): Promise<AdminPlan[]> {
+  return apiFetch<AdminPlan[]>("/api/admin/billing/plans");
+}
+
+export function updatePlanModel(
+  planId: string,
+  update: { llm_model?: string; llm_provider?: string },
+): Promise<AdminPlan> {
+  return apiFetch<AdminPlan>(
+    `/api/admin/billing/plans/${encodeURIComponent(planId)}`,
+    { method: "PATCH", body: update },
+  );
+}
