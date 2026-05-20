@@ -15,7 +15,6 @@ UTF-8 text — it never re-parses HTML, PDFs, or transcripts.
 
 from __future__ import annotations
 
-import json
 from typing import ClassVar
 
 import structlog
@@ -41,8 +40,6 @@ from wikimind.engine.linter.runner import run_lint  # CodeQL[cyclic-import]
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
     Article,
-    ArticleConcept,
-    ArticleSource,
     Concept,
     IngestStatus,
     Job,
@@ -51,6 +48,7 @@ from wikimind.models import (
     NormalizedDocument,
     Source,
 )
+from wikimind.queries import fetch_concept_names_for_article, fetch_source_ids_for_article
 from wikimind.services.billing import reconcile_subscriptions
 from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_raw_storage, get_wiki_storage
@@ -391,24 +389,6 @@ async def lint_wiki(_ctx, user_id: str):
                 await session.commit()
 
 
-async def _get_article_source_ids(article: Article, session) -> list[str]:
-    """Fetch source IDs from join table with JSON column fallback."""
-    result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == article.id))
-    ids = list(result.all())
-    if not ids:
-        ids = json.loads(article.source_ids) if article.source_ids else []
-    return ids
-
-
-async def _get_article_concept_names(article: Article, session) -> list[str]:
-    """Fetch concept names from join table with JSON column fallback."""
-    result = await session.exec(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article.id))
-    names = list(result.all())
-    if not names:
-        names = json.loads(article.concept_ids) if article.concept_ids else []
-    return names
-
-
 async def _recompile_from_source(article_id: str, user_id: str) -> None:
     """Recompile an article by re-reading and re-compiling its primary source.
 
@@ -431,7 +411,7 @@ async def _recompile_from_source(article_id: str, user_id: str) -> None:
         if not article:
             msg = "Article not found"
             raise ValueError(msg)
-        source_ids = await _get_article_source_ids(article, session)
+        source_ids = await fetch_source_ids_for_article(session, article.id)
         if not source_ids:
             msg = "Article has no linked sources"
             raise ValueError(msg)
@@ -483,7 +463,7 @@ async def _recompile_from_concept(article_id: str, user_id: str) -> None:
         if not article:
             msg = "Article not found"
             raise ValueError(msg)
-        concept_names = await _get_article_concept_names(article, session)
+        concept_names = await fetch_concept_names_for_article(session, article.id)
         if not concept_names:
             msg = "Article has no linked concepts"
             raise ValueError(msg)

@@ -22,15 +22,15 @@ from wikimind.models import (
     Plan,
     WikiExportFormat,
 )
+from wikimind.queries import (
+    fetch_concept_names_for_article,
+    fetch_source_ids_for_article,
+    fetch_sources,
+)
 from wikimind.services.export import ExportService
 from wikimind.services.factories import get_export_service, get_wiki_export_service
 from wikimind.services.quota import check_export_format
-from wikimind.services.wiki import (
-    _fetch_concept_names_from_join,
-    _fetch_source_ids_from_join,
-    _fetch_sources,
-    _to_source_response,
-)
+from wikimind.services.wiki import _to_source_response
 from wikimind.services.wiki_export import WikiExportService
 from wikimind.storage import read_article_content
 
@@ -159,9 +159,9 @@ async def download_article(
         )
 
     # JSON format — include metadata, content, sources, and concepts
-    source_ids = await _fetch_source_ids_from_join(session, article.id)
-    sources = await _fetch_sources(session, source_ids)
-    concepts = await _fetch_concept_names_from_join(session, article.id)
+    source_ids = await fetch_source_ids_for_article(session, article.id)
+    sources = await fetch_sources(session, source_ids)
+    concepts = await fetch_concept_names_for_article(session, article.id)
 
     return ArticleDownloadResponse(
         id=article.id,
