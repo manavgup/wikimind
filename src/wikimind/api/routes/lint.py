@@ -29,7 +29,7 @@ router = APIRouter()
 async def run_lint(
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> LintRunResponse:
     """Trigger a new lint run. Returns immediately with status."""
     return await service.trigger_run(user_id=user_id)
 
@@ -40,7 +40,7 @@ async def list_reports(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[LintReport]:
     """List lint reports ordered by most recent first."""
     return await service.list_reports(session, limit=limit, user_id=user_id)
 
@@ -50,7 +50,7 @@ async def get_latest_report(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> LintReportDetail:
     """Get the most recent lint report with all non-dismissed findings."""
     return await service.get_latest(session, user_id=user_id)
 
@@ -62,7 +62,7 @@ async def get_report(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> LintReportDetail:
     """Get a specific lint report with findings."""
     return await service.get_report(session, report_id, include_dismissed=include_dismissed, user_id=user_id)
 
@@ -77,6 +77,6 @@ async def dismiss_finding(
     session: AsyncSession = Depends(get_session),
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> DismissFindingResponse:
     """Dismiss a finding. Persists across future lint runs via content hash."""
     return await service.dismiss_finding(session, kind, finding_id, user_id=user_id)

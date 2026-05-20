@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
-from wikimind.models import Job, JobTriggerResponse, Source
+from wikimind.models import Job, JobTriggerResponse, LintRunResponse, Source
 from wikimind.services.factories import get_compiler_service, get_linter_service
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ async def list_jobs(
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[Job]:
     """List jobs with optional status filter."""
     return await service.list_jobs(session, status=status, limit=limit, user_id=user_id)
 
@@ -39,7 +39,7 @@ async def get_job(
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> Job | None:
     """Get job by ID."""
     return await service.get_job(job_id, session, user_id=user_id)
 
@@ -50,7 +50,7 @@ async def trigger_compile(
     session: AsyncSession = Depends(get_session),
     service: CompilerService = Depends(get_compiler_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> JobTriggerResponse:
     """Trigger compilation for a source."""
     result = await session.exec(select(Source).where(Source.id == source_id, Source.user_id == user_id))
     source = result.one_or_none()
@@ -69,7 +69,7 @@ async def trigger_compile(
 async def trigger_lint(
     service: LinterService = Depends(get_linter_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> LintRunResponse:
     """Trigger wiki linting.
 
     DEPRECATED: Use POST /lint/run instead. This endpoint delegates
@@ -82,6 +82,6 @@ async def trigger_lint(
 async def trigger_reindex(
     service: CompilerService = Depends(get_compiler_service),
     user_id: str = Depends(get_current_user_id),  # noqa: ARG001
-):
+) -> JobTriggerResponse:
     """Trigger wiki reindexing."""
     return await service.trigger_reindex()

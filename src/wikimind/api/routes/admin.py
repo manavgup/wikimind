@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import structlog
@@ -17,13 +17,18 @@ from wikimind.api.deps import require_admin
 from wikimind.config import get_settings
 from wikimind.database import get_session
 from wikimind.models import (
+    AdminActionResult,
     AdminUserDetail,
     AdminUserSummary,
+    EligibleConcept,
     LLMTrace,
     LLMTraceListResponse,
     LLMTraceResponse,
+    OrphanArticle,
     Plan,
+    StuckSource,
     Subscription,
+    SystemStats,
     User,
     WebhookEvent,
 )
@@ -52,7 +57,7 @@ async def get_stats(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> SystemStats:
     """Aggregate system-wide statistics (admin only)."""
     return await service.get_stats(session)
 
@@ -62,7 +67,7 @@ async def get_orphans(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> list[OrphanArticle]:
     """Articles with missing wiki files."""
     return await service.get_orphan_articles(session)
 
@@ -72,7 +77,7 @@ async def get_eligible_concepts(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> list[EligibleConcept]:
     """Concepts eligible for page generation."""
     return await service.get_eligible_concepts(session)
 
@@ -82,7 +87,7 @@ async def get_stuck_sources(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> list[StuckSource]:
     """Sources stuck in processing for >10 minutes."""
     return await service.get_stuck_sources(session)
 
@@ -93,7 +98,7 @@ async def retry_stuck_source(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     admin_user_id: str = Depends(require_admin),
-):
+) -> AdminActionResult:
     """Reset a stuck source to pending and re-queue compilation."""
     return await service.retry_stuck_source(session, source_id=source_id, user_id=admin_user_id)
 
@@ -102,7 +107,7 @@ async def retry_stuck_source(
 async def trigger_sweep(
     service: AdminService = Depends(get_admin_service),
     admin_user_id: str = Depends(require_admin),
-):
+) -> AdminActionResult:
     """Trigger wikilink sweep manually."""
     return await service.trigger_sweep(user_id=admin_user_id)
 
@@ -111,7 +116,7 @@ async def trigger_sweep(
 async def trigger_reindex(
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> AdminActionResult:
     """Rebuild search index."""
     return await service.trigger_reindex()
 
@@ -119,7 +124,7 @@ async def trigger_reindex(
 @router.get("/docling-status", response_model=DoclingStatusResponse)
 async def get_docling_status(
     _admin_user_id: str = Depends(require_admin),
-):
+) -> DoclingStatusResponse:
     """Check connectivity to the Docling-serve PDF extraction sidecar."""
     settings = get_settings()
     url = settings.docling_serve_url
@@ -144,7 +149,7 @@ async def list_users(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> list[AdminUserSummary]:
     """List all users with summary metrics (admin only)."""
     return await service.list_users(session)
 
@@ -155,7 +160,7 @@ async def get_user_detail(
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
     _admin_user_id: str = Depends(require_admin),
-):
+) -> AdminUserDetail:
     """Full stats breakdown for a single user (admin only)."""
     detail = await service.get_user_detail(session, user_id=user_id)
     if detail is None:
@@ -169,7 +174,7 @@ async def get_traces(
     _admin_user_id: str = Depends(require_admin),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-):
+) -> LLMTraceListResponse:
     """Paginated LLM traces (most recent first, admin only)."""
     count_result = await session.execute(select(func.count()).select_from(LLMTrace))
     total = count_result.scalar() or 0
@@ -208,7 +213,7 @@ async def get_traces(
 async def admin_list_subscriptions(
     session: AsyncSession = Depends(get_session),
     _admin: str = Depends(require_admin),
-):
+) -> list[dict[str, Any]]:
     """List all subscriptions with user info (admin only)."""
     result = await session.exec(
         select(Subscription, User.email)
@@ -236,7 +241,7 @@ async def admin_get_user_subscription(
     user_id: str,
     session: AsyncSession = Depends(get_session),
     _admin: str = Depends(require_admin),
-):
+) -> list[dict[str, Any]]:
     """Get subscription details for a specific user (admin only)."""
     result = await session.exec(select(Subscription).where(Subscription.user_id == user_id))
     subs = result.all()
@@ -263,7 +268,7 @@ async def admin_override_plan(
     plan_name: str,
     session: AsyncSession = Depends(get_session),
     _admin: str = Depends(require_admin),
-):
+) -> dict[str, str]:
     """Override a user's plan (admin only). Used for manual fixes."""
     plan_result = await session.exec(select(Plan).where(Plan.name == plan_name))
     plan = plan_result.one_or_none()
@@ -287,7 +292,7 @@ async def admin_sync_subscription(
     user_id: str,
     session: AsyncSession = Depends(get_session),
     _admin: str = Depends(require_admin),
-):
+) -> dict[str, str]:
     """Force-sync a user's subscription with Lemon Squeezy (admin only)."""
     sub_result = await session.exec(
         select(Subscription).where(
@@ -328,7 +333,7 @@ async def admin_list_webhook_events(
     limit: int = Query(default=50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
     _admin: str = Depends(require_admin),
-):
+) -> list[dict[str, Any]]:
     """List recent webhook events (admin only)."""
     result = await session.exec(
         select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit)  # type: ignore[attr-defined]

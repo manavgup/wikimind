@@ -1079,6 +1079,7 @@ class WikiService:
                 by_lower[lower_key] = article
 
         def replace_wikilink(match: re.Match) -> str:
+            """Replace a ``[[Title]]`` wikilink with a Markdown link to the article."""
             title = match.group(1).strip()
             target = by_lower.get(title.lower())
             if target is not None:

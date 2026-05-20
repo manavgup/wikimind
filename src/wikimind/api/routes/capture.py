@@ -6,6 +6,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
+    CaptureDiscardResponse,
+    CaptureIngestResponse,
     CaptureKind,
     CaptureListResponse,
     CaptureRequest,
@@ -81,7 +83,7 @@ async def ingest_capture(
     service: CaptureService = Depends(get_capture_service),
     user_id: str = Depends(get_current_user_id),
     plan: Plan | None = Depends(require_plan),
-):
+) -> CaptureIngestResponse:
     """Promote a capture to a full source for compilation."""
     if plan:
         await check_source_quota(session, user_id, plan)
@@ -95,7 +97,7 @@ async def discard_capture(
     session: AsyncSession = Depends(get_session),
     service: CaptureService = Depends(get_capture_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> CaptureDiscardResponse:
     """Mark a capture as not-worth-keeping."""
     reason = request.reason if request else None
     return await service.discard_capture(capture_id, session, user_id, reason=reason)

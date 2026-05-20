@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.models import (
+    ArticleSummaryResponse,
     CreateTagRequest,
     TagResponse,
 )
@@ -25,7 +26,7 @@ async def create_tag(
     session: AsyncSession = Depends(get_session),
     service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> TagResponse:
     """Create a new user tag."""
     return await service.create_tag(session, user_id=user_id, name=body.name, color=body.color)
 
@@ -35,7 +36,7 @@ async def list_tags(
     session: AsyncSession = Depends(get_session),
     service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[TagResponse]:
     """List all tags for the current user."""
     return await service.list_tags(session, user_id=user_id)
 
@@ -50,7 +51,7 @@ async def delete_tag(
     session: AsyncSession = Depends(get_session),
     service: TagService = Depends(get_tag_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> None:
     """Delete a tag and all its article associations."""
     await service.delete_tag(session, tag_id=tag_id, user_id=user_id)
 
@@ -66,7 +67,7 @@ async def get_articles_by_tag(
     tag_service: TagService = Depends(get_tag_service),
     wiki_service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[ArticleSummaryResponse]:
     """Get articles tagged with a specific tag."""
     article_ids = await tag_service.get_articles_by_tag(
         session,

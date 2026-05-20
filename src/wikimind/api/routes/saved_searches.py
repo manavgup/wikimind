@@ -26,7 +26,7 @@ async def create_saved_search(
     session: AsyncSession = Depends(get_session),
     service: SavedSearchService = Depends(get_saved_search_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> SavedSearchResponse:
     """Create a new saved search."""
     return await service.create(
         session,
@@ -42,7 +42,7 @@ async def list_saved_searches(
     session: AsyncSession = Depends(get_session),
     service: SavedSearchService = Depends(get_saved_search_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> list[SavedSearchResponse]:
     """List all saved searches for the current user."""
     return await service.list_searches(session, user_id=user_id)
 
@@ -57,7 +57,7 @@ async def delete_saved_search(
     session: AsyncSession = Depends(get_session),
     service: SavedSearchService = Depends(get_saved_search_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> None:
     """Delete a saved search."""
     await service.delete(session, search_id=search_id, user_id=user_id)
 
@@ -73,7 +73,7 @@ async def execute_saved_search(
     search_service: SavedSearchService = Depends(get_saved_search_service),
     wiki_service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
-):
+) -> SavedSearchExecuteResponse:
     """Execute a saved search and return matching articles."""
     saved_response, article_ids = await search_service.execute(
         session,
