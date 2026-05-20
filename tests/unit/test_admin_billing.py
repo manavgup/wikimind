@@ -168,6 +168,50 @@ class TestAdminPlanUpdateEndpoint:
         assert resp.status_code == 400
 
     @pytest.mark.asyncio
+    async def test_patch_plan_invalid_provider(self, client, db_session: AsyncSession):
+        """Returns 400 when llm_provider is not a valid Provider enum value."""
+        plan = Plan(
+            name="test-plan-bad-prov",
+            display_name="Test Bad Provider",
+            price_cents=0,
+            llm_provider="openai_compatible",
+            llm_model="gpt-4o-mini",
+            allowed_exports=["markdown"],
+        )
+        db_session.add(plan)
+        await db_session.commit()
+        await db_session.refresh(plan)
+
+        resp = await client.patch(
+            f"/api/admin/billing/plans/{plan.id}",
+            json={"llm_provider": "not_a_real_provider"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid llm_provider" in resp.json()["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_patch_plan_empty_model(self, client, db_session: AsyncSession):
+        """Returns 400 when llm_model is an empty or whitespace-only string."""
+        plan = Plan(
+            name="test-plan-empty-model",
+            display_name="Test Empty Model",
+            price_cents=0,
+            llm_provider="openai_compatible",
+            llm_model="gpt-4o-mini",
+            allowed_exports=["markdown"],
+        )
+        db_session.add(plan)
+        await db_session.commit()
+        await db_session.refresh(plan)
+
+        resp = await client.patch(
+            f"/api/admin/billing/plans/{plan.id}",
+            json={"llm_model": "   "},
+        )
+        assert resp.status_code == 400
+        assert "non-empty" in resp.json()["error"]["message"]
+
+    @pytest.mark.asyncio
     async def test_list_plans(self, client, db_session: AsyncSession):
         """GET /api/admin/billing/plans returns all plans."""
         plan = Plan(

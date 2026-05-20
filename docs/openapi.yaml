@@ -144,11 +144,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Source'
-                title: Response List Sources Api Ingest Sources Get
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -200,8 +196,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DeleteConfirmation'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -320,14 +315,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties:
-                    type: string
-                title: Response List Source Images Api Ingest Sources  Source Id  Images
-                  Get
+              schema: {}
         '404':
           description: Source not found or no images available
         '422':
@@ -480,8 +468,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CaptureIngestResponse'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -515,8 +502,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/CaptureDiscardResponse'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1344,11 +1330,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Concept'
-                title: Response Get Concepts Api Wiki Concepts Get
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1388,8 +1370,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ConceptDetailResponse'
+              schema: {}
         '404':
           description: Concept not found
         '422':
@@ -1784,11 +1765,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Query'
-                title: Response Query History Api Query History Get
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1902,8 +1879,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/FileBackResult'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1929,8 +1905,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/FileBackResult'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -2572,8 +2547,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SystemStats'
+              schema: {}
   /api/admin/orphans:
     get:
       tags:
@@ -2586,11 +2560,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/OrphanArticle'
-                type: array
-                title: Response Get Orphans Api Admin Orphans Get
+              schema: {}
   /api/admin/concepts/eligible:
     get:
       tags:
@@ -2603,12 +2573,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/EligibleConcept'
-                type: array
-                title: Response Get Eligible Concepts Api Admin Concepts Eligible
-                  Get
+              schema: {}
   /api/admin/stuck-sources:
     get:
       tags:
@@ -2621,11 +2586,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/StuckSource'
-                type: array
-                title: Response Get Stuck Sources Api Admin Stuck Sources Get
+              schema: {}
   /api/admin/retry-stuck/{source_id}:
     post:
       tags:
@@ -2645,8 +2606,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AdminActionResult'
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -2665,8 +2625,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AdminActionResult'
+              schema: {}
   /api/admin/reindex:
     post:
       tags:
@@ -2679,8 +2638,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AdminActionResult'
+              schema: {}
   /api/admin/docling-status:
     get:
       tags:
@@ -2789,13 +2747,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                items:
-                  additionalProperties: true
-                  type: object
-                type: array
-                title: Response Admin List Subscriptions Api Admin Billing Subscriptions
-                  Get
+              schema: {}
   /api/admin/billing/subscriptions/{user_id}:
     get:
       tags:
@@ -2815,13 +2767,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-                title: Response Admin Get User Subscription Api Admin Billing Subscriptions  User
-                  Id  Get
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -2853,12 +2799,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties:
-                  type: string
-                title: Response Admin Override Plan Api Admin Billing Subscriptions  User
-                  Id  Override Post
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -2884,12 +2825,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties:
-                  type: string
-                title: Response Admin Sync Subscription Api Admin Billing Subscriptions  User
-                  Id  Sync Post
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -2918,13 +2854,62 @@ paths:
           description: Successful Response
           content:
             application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
               schema:
-                type: array
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/plans:
+    get:
+      tags:
+      - Admin
+      summary: Admin List Plans
+      description: List all billing plans with their LLM model/provider (admin only).
+      operationId: admin_list_plans_api_admin_billing_plans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
                 items:
-                  type: object
-                  additionalProperties: true
-                title: Response Admin List Webhook Events Api Admin Billing Webhook
-                  Events Get
+                  $ref: '#/components/schemas/AdminPlanResponse'
+                type: array
+                title: Response Admin List Plans Api Admin Billing Plans Get
+  /api/admin/billing/plans/{plan_id}:
+    patch:
+      tags:
+      - Admin
+      summary: Admin Update Plan Model
+      description: 'Update LLM model and/or provider on a billing plan (admin only).
+
+
+        Used when an LLM provider deprecates a model and all affected plans
+
+        need to be migrated to a replacement.'
+      operationId: admin_update_plan_model_api_admin_billing_plans__plan_id__patch
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Plan Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPlanUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlanResponse'
         '422':
           description: Validation Error
           content:
@@ -4201,25 +4186,56 @@ paths:
               schema: {}
 components:
   schemas:
-    AdminActionResult:
+    AdminPlanResponse:
       properties:
-        action:
+        id:
           type: string
-          title: Action
-        status:
+          title: Id
+        name:
           type: string
-          title: Status
-        job_id:
+          title: Name
+        display_name:
+          type: string
+          title: Display Name
+        llm_provider:
+          type: string
+          title: Llm Provider
+        llm_model:
+          type: string
+          title: Llm Model
+        is_active:
+          type: boolean
+          title: Is Active
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - name
+      - display_name
+      - llm_provider
+      - llm_model
+      - is_active
+      - updated_at
+      title: AdminPlanResponse
+      description: API response for a billing plan (admin view).
+    AdminPlanUpdateRequest:
+      properties:
+        llm_model:
           anyOf:
           - type: string
           - type: 'null'
-          title: Job Id
+          title: Llm Model
+        llm_provider:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Llm Provider
       type: object
-      required:
-      - action
-      - status
-      title: AdminActionResult
-      description: Result of an admin action.
+      title: AdminPlanUpdateRequest
+      description: Request to update LLM model/provider on a billing plan.
     AdminUserDetail:
       properties:
         id:
@@ -4870,38 +4886,6 @@ components:
       - code_verifier
       - client_id
       title: Body_token_exchange_mcp_token_post
-    CaptureDiscardResponse:
-      properties:
-        capture_id:
-          type: string
-          title: Capture Id
-        status:
-          type: string
-          title: Status
-          default: discarded
-      type: object
-      required:
-      - capture_id
-      title: CaptureDiscardResponse
-      description: Response after discarding a capture.
-    CaptureIngestResponse:
-      properties:
-        capture_id:
-          type: string
-          title: Capture Id
-        source_id:
-          type: string
-          title: Source Id
-        status:
-          type: string
-          title: Status
-          default: ingested
-      type: object
-      required:
-      - capture_id
-      - source_id
-      title: CaptureIngestResponse
-      description: Response after promoting a capture to a full source.
     CaptureKind:
       type: string
       enum:
@@ -5211,88 +5195,6 @@ components:
       - updated_at
       title: CompilationSchemaResponse
       description: API response for a compilation schema.
-    Concept:
-      properties:
-        id:
-          type: string
-          title: Id
-        user_id:
-          type: string
-          title: User Id
-        name:
-          type: string
-          title: Name
-        parent_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Parent Id
-        article_count:
-          type: integer
-          title: Article Count
-          default: 0
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-        concept_kind:
-          type: string
-          title: Concept Kind
-          default: topic
-      type: object
-      required:
-      - user_id
-      - name
-      title: Concept
-      description: Auto-generated concept taxonomy node.
-    ConceptDetailResponse:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        article_count:
-          type: integer
-          title: Article Count
-          default: 0
-        parent_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Parent Id
-        concept_kind:
-          type: string
-          title: Concept Kind
-          default: topic
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-        articles:
-          items:
-            $ref: '#/components/schemas/ArticleSummaryResponse'
-          type: array
-          title: Articles
-          default: []
-      type: object
-      required:
-      - id
-      - name
-      - created_at
-      title: ConceptDetailResponse
-      description: Full concept with linked articles.
     ConfidenceLevel:
       type: string
       enum:
@@ -5943,28 +5845,6 @@ components:
       - url
       title: DoclingStatusResponse
       description: Response model for Docling sidecar health check.
-    EligibleConcept:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        article_count:
-          type: integer
-          title: Article Count
-        has_existing_page:
-          type: boolean
-          title: Has Existing Page
-          default: false
-      type: object
-      required:
-      - id
-      - name
-      - article_count
-      title: EligibleConcept
-      description: Concept eligible for concept-page generation.
     ExportFormat:
       type: string
       enum:
@@ -6044,37 +5924,6 @@ components:
       - query
       title: FacetResponse
       description: All facet groups for a search query.
-    FileBackArticleRef:
-      properties:
-        id:
-          type: string
-          title: Id
-        slug:
-          type: string
-          title: Slug
-        title:
-          type: string
-          title: Title
-      type: object
-      required:
-      - id
-      - slug
-      - title
-      title: FileBackArticleRef
-      description: Minimal article reference returned by file-back operations.
-    FileBackResult:
-      properties:
-        article:
-          $ref: '#/components/schemas/FileBackArticleRef'
-        was_update:
-          type: boolean
-          title: Was Update
-          default: false
-      type: object
-      required:
-      - article
-      title: FileBackResult
-      description: Result of filing a conversation or selection back to the wiki.
     FileBackSelectionRequest:
       properties:
         selections:
@@ -6840,28 +6689,6 @@ components:
       - step
       title: OnboardingStatusResponse
       description: Onboarding wizard progress.
-    OrphanArticle:
-      properties:
-        id:
-          type: string
-          title: Id
-        slug:
-          type: string
-          title: Slug
-        title:
-          type: string
-          title: Title
-        file_path:
-          type: string
-          title: File Path
-      type: object
-      required:
-      - id
-      - slug
-      - title
-      - file_path
-      title: OrphanArticle
-      description: Article whose wiki file is missing from disk.
     OrphanFinding:
       properties:
         id:
@@ -7004,64 +6831,6 @@ components:
       - updated_at
       title: PublicArticleResponse
       description: Read-only public article content for share links.
-    Query:
-      properties:
-        id:
-          type: string
-          title: Id
-        user_id:
-          type: string
-          title: User Id
-        question:
-          type: string
-          title: Question
-        answer:
-          type: string
-          title: Answer
-        confidence:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Confidence
-        source_article_ids:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Source Article Ids
-        related_article_ids:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Related Article Ids
-        filed_back:
-          type: boolean
-          title: Filed Back
-          default: false
-        filed_article_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Filed Article Id
-        created_at:
-          type: string
-          format: date-time
-          title: Created At
-        conversation_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Conversation Id
-        turn_index:
-          type: integer
-          title: Turn Index
-          default: 0
-      type: object
-      required:
-      - user_id
-      - question
-      - answer
-      title: Query
-      description: Q&A history entry.
     QueryRequest:
       properties:
         question:
@@ -7966,34 +7735,6 @@ components:
       - violation_type
       title: StructuralFinding
       description: A structural integrity violation detected by the backlink enforcer.
-    StuckSource:
-      properties:
-        id:
-          type: string
-          title: Id
-        title:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Title
-        source_type:
-          type: string
-          title: Source Type
-        ingested_at:
-          type: string
-          title: Ingested At
-        minutes_stuck:
-          type: integer
-          title: Minutes Stuck
-      type: object
-      required:
-      - id
-      - title
-      - source_type
-      - ingested_at
-      - minutes_stuck
-      title: StuckSource
-      description: Source stuck in processing for longer than the threshold.
     SyncSettingsResponse:
       properties:
         enabled:
@@ -8270,110 +8011,6 @@ components:
       - suggested_type
       title: SynthesisSuggestion
       description: A suggestion for a synthesis opportunity across related articles.
-    SystemStats:
-      properties:
-        total_users:
-          type: integer
-          title: Total Users
-          default: 0
-        total_sources:
-          type: integer
-          title: Total Sources
-          default: 0
-        total_articles:
-          type: integer
-          title: Total Articles
-          default: 0
-        total_compiled_claims:
-          type: integer
-          title: Total Compiled Claims
-          default: 0
-        article_count:
-          type: integer
-          title: Article Count
-          default: 0
-        source_count:
-          type: integer
-          title: Source Count
-          default: 0
-        concept_count:
-          type: integer
-          title: Concept Count
-          default: 0
-        backlink_count:
-          type: integer
-          title: Backlink Count
-          default: 0
-        orphan_count:
-          type: integer
-          title: Orphan Count
-          default: 0
-        conversation_count:
-          type: integer
-          title: Conversation Count
-          default: 0
-        articles_by_type:
-          additionalProperties:
-            type: integer
-          type: object
-          title: Articles By Type
-          default: {}
-        articles_by_page_type:
-          additionalProperties:
-            type: integer
-          type: object
-          title: Articles By Page Type
-          default: {}
-        articles_by_confidence:
-          additionalProperties:
-            type: integer
-          type: object
-          title: Articles By Confidence
-          default: {}
-        sources_by_type:
-          additionalProperties:
-            type: integer
-          type: object
-          title: Sources By Type
-          default: {}
-        sources_by_status:
-          additionalProperties:
-            type: integer
-          type: object
-          title: Sources By Status
-          default: {}
-        sources_stuck_processing:
-          items:
-            $ref: '#/components/schemas/StuckSource'
-          type: array
-          title: Sources Stuck Processing
-          default: []
-        stuck_sources:
-          type: integer
-          title: Stuck Sources
-          default: 0
-        compilation_queue_depth:
-          type: integer
-          title: Compilation Queue Depth
-          default: 0
-        compilation_success_rate:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Compilation Success Rate
-        avg_compilation_time_ms:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Avg Compilation Time Ms
-        last_compilation_at:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Last Compilation At
-      type: object
-      title: SystemStats
-      description: Aggregate system-wide statistics (admin dashboard).
     TagArticleRequest:
       properties:
         tag_id:

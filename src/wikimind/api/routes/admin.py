@@ -35,6 +35,7 @@ from wikimind.models import (
     User,
     WebhookEvent,
 )
+from wikimind.models.enums import Provider
 from wikimind.services.admin import AdminService  # noqa: TC001 — needed at runtime for Depends()
 from wikimind.services.billing import LemonSqueezyClient, apply_entitlement
 from wikimind.services.factories import get_admin_service
@@ -399,6 +400,20 @@ async def admin_update_plan_model(
         raise HTTPException(
             status_code=400,
             detail="At least one of llm_model or llm_provider must be provided",
+        )
+
+    if body.llm_provider is not None:
+        valid_providers = [p.value for p in Provider]
+        if body.llm_provider not in valid_providers:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid llm_provider '{body.llm_provider}'. Must be one of: {', '.join(valid_providers)}",
+            )
+
+    if body.llm_model is not None and not body.llm_model.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="llm_model must be a non-empty string",
         )
 
     old_model = plan.llm_model
