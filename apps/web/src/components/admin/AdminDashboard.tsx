@@ -9,9 +9,12 @@ import {
   getAdminStats,
   getAdminUsers,
   getAdminUserDetail,
+  getAdminPlans,
+  updatePlanModel,
   retryStuckSource,
   type SystemStats,
   type StuckSource,
+  type AdminPlan,
 } from "../../api/admin";
 import { TraceViewer } from "./TraceViewer";
 
@@ -488,6 +491,132 @@ function UsersSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Plans section
+// ---------------------------------------------------------------------------
+
+function PlanRow({ plan }: { plan: AdminPlan }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [model, setModel] = useState(plan.llm_model);
+  const [provider, setProvider] = useState(plan.llm_provider);
+
+  const save = useMutation({
+    mutationFn: () =>
+      updatePlanModel(plan.id, { llm_model: model, llm_provider: provider }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-plans"] });
+      setEditing(false);
+    },
+  });
+
+  const handleCancel = () => {
+    setModel(plan.llm_model);
+    setProvider(plan.llm_provider);
+    setEditing(false);
+  };
+
+  return (
+    <tr className="border-t border-slate-100">
+      <td className="py-2 pr-3 text-sm font-medium text-slate-700">
+        {plan.display_name}
+      </td>
+      <td className="py-2 pr-3 text-sm text-slate-500">{plan.name}</td>
+      <td className="py-2 pr-3">
+        {editing ? (
+          <input
+            type="text"
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+          />
+        ) : (
+          <span className="text-sm text-slate-700">{plan.llm_provider}</span>
+        )}
+      </td>
+      <td className="py-2 pr-3">
+        {editing ? (
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+          />
+        ) : (
+          <span className="text-sm text-slate-700">{plan.llm_model}</span>
+        )}
+      </td>
+      <td className="py-2 pr-3">
+        <Badge tone={plan.is_active ? "success" : "neutral"}>
+          {plan.is_active ? "Active" : "Inactive"}
+        </Badge>
+      </td>
+      <td className="py-2">
+        {editing ? (
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => save.mutate()}
+              disabled={
+                save.isPending ||
+                (model === plan.llm_model && provider === plan.llm_provider)
+              }
+            >
+              {save.isPending ? "Saving..." : "Save"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function PlansSection() {
+  const { data: plans, isLoading } = useQuery({
+    queryKey: ["admin-plans"],
+    queryFn: getAdminPlans,
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading) return <Spinner size={24} />;
+  if (!plans || plans.length === 0) {
+    return <p className="text-xs text-slate-400">No plans configured.</p>;
+  }
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold text-slate-700">Plans</h2>
+      <Card className="overflow-x-auto p-4">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="text-xs text-slate-400">
+              <th className="pb-2 pr-3 font-medium">Display Name</th>
+              <th className="pb-2 pr-3 font-medium">Slug</th>
+              <th className="pb-2 pr-3 font-medium">LLM Provider</th>
+              <th className="pb-2 pr-3 font-medium">LLM Model</th>
+              <th className="pb-2 pr-3 font-medium">Status</th>
+              <th className="pb-2 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((plan) => (
+              <PlanRow key={plan.id} plan={plan} />
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main dashboard
 // ---------------------------------------------------------------------------
 
@@ -521,6 +650,7 @@ export function AdminDashboard() {
         <OverviewSection stats={stats} />
         <ContentBreakdownSection stats={stats} />
         <OperationalHealthSection stats={stats} />
+        <PlansSection />
         <UsersSection />
         <section>
           <h2 className="mb-3 text-lg font-semibold text-slate-700">LLM Traces</h2>
