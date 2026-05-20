@@ -193,7 +193,7 @@ from wikimind.models.schemas import (
     ZombieSource,
 )
 
-# Re-export SQLModel tables
+# Re-export SQLModel tables from domain-specific sub-modules
 from wikimind.models.tables import (  # noqa: F401
     Article,
     ArticleConcept,
