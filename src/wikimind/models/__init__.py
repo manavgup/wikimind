@@ -11,7 +11,7 @@ from datetime import date, datetime
 from typing import Any, Literal, NamedTuple
 
 from pydantic import AnyHttpUrl, BaseModel, computed_field
-from sqlalchemy import JSON, Column, ForeignKey, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Column, ForeignKey, LargeBinary, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
@@ -763,7 +763,7 @@ class Plan(SQLModel, table=True):
     max_sources: int | None = None
     max_articles: int | None = None
     max_queries_per_day: int | None = None
-    max_storage_bytes: int | None = None
+    max_storage_bytes: int | None = Field(default=None, sa_column=Column(BigInteger, nullable=True))
     max_active_shares: int | None = None
     daily_llm_spend_cap_cents: int | None = None
     allowed_exports: list[str] = Field(sa_column=Column(JSON, nullable=False))
