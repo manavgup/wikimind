@@ -104,6 +104,10 @@ jobs:
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
+      - name: "\U0001F4C5  Compute weekly cache key"
+        id: cache-key
+        run: echo "week=$(date +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       # -----------------------------------------------------------
       # Build the prod image — this is what ships. Dev image is only
       # needed locally via docker-compose; CI tests cover the Python
@@ -117,8 +121,8 @@ jobs:
           push: false
           load: true
           tags: wikimind-prod:ci
-          cache-from: type=gha,scope=prod
-          cache-to: type=gha,scope=prod,mode=max
+          cache-from: type=gha,scope=prod-${{ steps.cache-key.outputs.week }}
+          cache-to: type=gha,scope=prod-${{ steps.cache-key.outputs.week }},mode=max
 
       - name: 🔍  Image size check
         run: |
@@ -152,6 +156,10 @@ jobs:
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
+      - name: "\U0001F4C5  Compute weekly cache key"
+        id: cache-key
+        run: echo "week=$(date +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: 🏗️   Load prod image from cache
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
@@ -160,7 +168,7 @@ jobs:
           push: false
           load: true
           tags: wikimind-prod:ci
-          cache-from: type=gha,scope=prod
+          cache-from: type=gha,scope=prod-${{ steps.cache-key.outputs.week }}
 
       - name: 🔒  Scan for CVEs (Trivy)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -176,6 +184,9 @@ jobs:
   # Tier 2 — weekly rebuild from scratch against the latest base
   # Runs only on the Monday cron; detects bit-rot that layer cache
   # hides from the day-to-day build.
+  # Complementary to the weekly cache-scope rotation above — the
+  # rotation ensures mid-week builds get fresh apt layers, while
+  # this job validates a fully clean build with --no-cache --pull.
   # ---------------------------------------------------------------
   weekly-refresh:
     if: github.event_name == 'schedule'
@@ -244,6 +255,10 @@ jobs:
       - name: 🔧  Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
+      - name: "\U0001F4C5  Compute weekly cache key"
+        id: cache-key
+        run: echo "week=$(date +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: 🔑  Log in to GHCR
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -270,8 +285,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=prod
-          cache-to: type=gha,scope=prod,mode=max
+          cache-from: type=gha,scope=prod-${{ steps.cache-key.outputs.week }}
+          cache-to: type=gha,scope=prod-${{ steps.cache-key.outputs.week }},mode=max
 
   # ---------------------------------------------------------------
   # Alert — auto-create an issue when the deploy pipeline breaks
