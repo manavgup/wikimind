@@ -7036,8 +7036,8 @@ components:
       - filed_article_id
       - created_at
       title: QueryResponse
-      description: 'Q&A response enriched with a full Answer → Article → Source citation
-        chain.
+      description: 'Q&A response enriched with a full Answer -> Article -> Source
+        citation chain.
 
 
         Mirrors the persisted :class:`Query` record fields while adding a
