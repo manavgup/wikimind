@@ -31,6 +31,7 @@ from wikimind.models import (
     Article,
     ArticleConcept,
     Backlink,
+    CompiledClaim,
     CompletionRequest,
     Concept,
     ContradictionFinding,
@@ -63,8 +64,25 @@ def _content_hash(article_a_id: str, article_b_id: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def _extract_claims(article: Article) -> list[str]:
-    """Extract key claims from an article's markdown file."""
+async def _extract_claims_from_db(
+    article: Article,
+    session: AsyncSession,
+) -> list[str]:
+    """Extract key claims from the CompiledClaim table.
+
+    Returns an empty list if no persisted claims exist for this article,
+    signalling the caller to fall back to markdown extraction.
+    """
+    result = await session.execute(select(CompiledClaim).where(CompiledClaim.article_id == article.id))
+    return [claim.text for claim in result.scalars().all()]
+
+
+async def _extract_claims_from_markdown(article: Article) -> list[str]:
+    """Extract key claims by parsing the article's markdown file.
+
+    This is the legacy extraction path used as a fallback when no
+    ``CompiledClaim`` rows exist for an article (pre-migration data).
+    """
     try:
         storage = get_wiki_storage(article.user_id)
         content = await storage.read(article.file_path)
@@ -95,6 +113,23 @@ async def _extract_claims(article: Article) -> list[str]:
                     break
 
     return claims
+
+
+async def _extract_claims(
+    article: Article,
+    session: AsyncSession | None = None,
+) -> list[str]:
+    """Extract key claims for an article, preferring the DB table.
+
+    Reads from the ``CompiledClaim`` table first.  Falls back to parsing
+    the article's markdown ``## Key Claims`` section when no DB rows exist
+    (backward compatibility for pre-migration articles).
+    """
+    if session is not None:
+        db_claims = await _extract_claims_from_db(article, session)
+        if db_claims:
+            return db_claims
+    return await _extract_claims_from_markdown(article)
 
 
 async def _get_articles_for_concept(
@@ -597,8 +632,8 @@ async def detect_contradictions(
                     continue
 
             # Collect claims for uncached pair
-            claims_a = await _extract_claims(article_a)
-            claims_b = await _extract_claims(article_b)
+            claims_a = await _extract_claims(article_a, session)
+            claims_b = await _extract_claims(article_b, session)
             if claims_a and claims_b:
                 uncached_pairs.append((article_a, article_b, claims_a, claims_b))
             else:
@@ -640,8 +675,8 @@ async def _compare_article_pair(
 ) -> list[ContradictionFinding]:
     """Compare a single article pair via LLM and return any findings."""
     cfg = settings.linter
-    claims_a = await _extract_claims(article_a)
-    claims_b = await _extract_claims(article_b)
+    claims_a = await _extract_claims(article_a, session)
+    claims_b = await _extract_claims(article_b, session)
 
     if not claims_a or not claims_b:
         return []
