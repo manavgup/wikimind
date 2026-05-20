@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
+    ArticleCitationsResponse,
     ArticleEditRequest,
     ArticleRelationshipsResponse,
     ArticleResponse,
@@ -37,8 +38,10 @@ from wikimind.models import (
     TagResponse,
     WikilinkMatch,
 )
+from wikimind.services.citation import CitationService
 from wikimind.services.contradiction import ContradictionService
 from wikimind.services.factories import (
+    get_citation_service,
     get_contradiction_service,
     get_linter_service,
     get_search_service,
@@ -484,6 +487,31 @@ async def recompile_article(
         mode=mode,
         force=force,
     )
+
+
+# ---------------------------------------------------------------------------
+# Citation endpoints (issue #450)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/articles/{id_or_slug}/citations",
+    response_model=ArticleCitationsResponse,
+    responses={404: {"description": "Article not found"}},
+)
+async def get_article_citations(
+    id_or_slug: str,
+    session: AsyncSession = Depends(get_session),
+    citation_service: CitationService = Depends(get_citation_service),
+    wiki_service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return claims for an article with their linked source spans.
+
+    Each claim includes the verbatim source spans that anchor it to
+    specific paragraphs in the original source documents.
+    """
+    return await citation_service.get_article_citations(id_or_slug, session, user_id=user_id, wiki_service=wiki_service)
 
 
 # ---------------------------------------------------------------------------

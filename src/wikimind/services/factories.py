@@ -12,6 +12,7 @@ import structlog
 
 from wikimind.services.admin import AdminService
 from wikimind.services.capture import CaptureService
+from wikimind.services.citation import CitationService
 from wikimind.services.compilation_schema import CompilationSchemaService
 from wikimind.services.compiler import CompilerService
 from wikimind.services.contradiction import ContradictionService
@@ -56,6 +57,12 @@ def get_admin_service() -> AdminService:
 def get_capture_service() -> CaptureService:
     """Return a singleton CaptureService instance for FastAPI dependency injection."""
     return CaptureService()
+
+
+@functools.lru_cache(maxsize=1)
+def get_citation_service() -> CitationService:
+    """Return a singleton CitationService instance for FastAPI dependency injection."""
+    return CitationService()
 
 
 @functools.lru_cache(maxsize=1)

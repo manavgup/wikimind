@@ -229,3 +229,12 @@ class WikiExportFormat(StrEnum):
 
     OBSIDIAN = "obsidian"
     MARKDOWN_JSON = "markdown_json"
+
+
+class LocatorKind(StrEnum):
+    """Type of anchor locator for a source span (issue #450)."""
+
+    PDF_PAGE_RECT = "pdf-page-rect"
+    HTML_XPATH_OFFSET = "html-xpath-offset"
+    TEXT_BYTE_RANGE = "text-byte-range"
+    YOUTUBE_TIMESTAMP = "youtube-timestamp"

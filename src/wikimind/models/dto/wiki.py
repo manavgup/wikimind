@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from wikimind.models.dto.common import TagResponse
 from wikimind.models.dto.ingest import ArticleSourceSummary, SourceResponse
 from wikimind.models.dto.tags import SavedSearchResponse
-from wikimind.models.enums import ConfidenceLevel, ContradictionStatus, PageType, RelationType
+from wikimind.models.enums import ConfidenceLevel, ContradictionStatus, LocatorKind, PageType, RelationType
 
 # ---------------------------------------------------------------------------
 # Backlink / relationship DTOs
@@ -389,3 +389,39 @@ class SavedSearchExecuteResponse(BaseModel):
 
     saved_search: SavedSearchResponse
     articles: list[ArticleSummaryResponse]
+
+
+# ---------------------------------------------------------------------------
+# Span-level citation response models (issue #450)
+# ---------------------------------------------------------------------------
+
+
+class SourceSpanResponse(BaseModel):
+    """API response for a single source span anchor."""
+
+    id: str
+    source_id: str
+    locator_kind: LocatorKind
+    locator: dict
+    text: str
+    fingerprint: str
+    created_at: datetime
+
+
+class ClaimCitationResponse(BaseModel):
+    """A compiled claim with its linked source spans for citation display."""
+
+    id: str
+    text: str
+    confidence_level: str
+    confidence_score: float
+    source_ids: list[str] = []
+    source_spans: list[SourceSpanResponse] = []
+
+
+class ArticleCitationsResponse(BaseModel):
+    """All claims for an article with their source spans."""
+
+    article_id: str
+    article_title: str
+    claims: list[ClaimCitationResponse] = []

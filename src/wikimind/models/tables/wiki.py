@@ -3,11 +3,32 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, UniqueConstraint
+from sqlalchemy import JSON, Column, ForeignKey, String, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 from wikimind._datetime import utcnow_naive
-from wikimind.models.enums import ConfidenceLevel, PageType, Provider, RelationType
+from wikimind.models.enums import ConfidenceLevel, LocatorKind, PageType, Provider, RelationType
+
+
+class SourceSpan(SQLModel, table=True):
+    """A locatable span within a source document (issue #450).
+
+    Anchors a verbatim text excerpt to a precise location in the original
+    source (PDF page rectangle, HTML XPath offset, byte range, or YouTube
+    timestamp). Claims link to spans via ``CompiledClaim.source_span_ids``
+    to provide paragraph-level citation provenance.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    source_id: str = Field(
+        sa_column=Column(String, ForeignKey("source.id", ondelete="CASCADE"), index=True),
+    )
+    user_id: str = Field(foreign_key="user.id", index=True)
+    locator_kind: LocatorKind  # "pdf-page-rect", "html-xpath-offset", etc.
+    locator: dict = Field(sa_column=Column(JSON, nullable=False))  # adapter-specific anchor
+    text: str = Field(sa_type=Text)  # verbatim quoted text
+    fingerprint: str = Field(index=True)  # SHA-256 of normalized text for re-anchoring
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class Article(SQLModel, table=True):
