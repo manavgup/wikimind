@@ -27,6 +27,7 @@ from wikimind.api.routes import (
     auth,
     capture,
     compilation_schemas,
+    discussion,
     drafts,
     export,
     health,
@@ -278,6 +279,7 @@ api_router.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(capture.router, prefix="/capture", tags=["Capture"])
 api_router.include_router(drafts.router, prefix="/ingest", tags=["Ingest"])
 api_router.include_router(wiki.router, prefix="/wiki", tags=["Wiki"])
+api_router.include_router(discussion.router, prefix="/wiki", tags=["Wiki"])
 api_router.include_router(query.router, prefix="/query", tags=["Query"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])
 api_router.include_router(lint.router, prefix="/lint", tags=["Lint"])

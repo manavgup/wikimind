@@ -17,6 +17,7 @@ from wikimind.services.citation import CitationService
 from wikimind.services.compilation_schema import CompilationSchemaService
 from wikimind.services.compiler import CompilerService
 from wikimind.services.contradiction import ContradictionService
+from wikimind.services.discussion import DiscussionService
 from wikimind.services.draft import DraftService
 from wikimind.services.embedding import EmbeddingService
 from wikimind.services.export import ExportService
@@ -88,6 +89,12 @@ def get_compiler_service() -> CompilerService:
 def get_contradiction_service() -> ContradictionService:
     """Return a singleton ContradictionService instance."""
     return ContradictionService()
+
+
+@functools.lru_cache(maxsize=1)
+def get_discussion_service() -> DiscussionService:
+    """Return a singleton DiscussionService instance for FastAPI DI."""
+    return DiscussionService()
 
 
 @functools.lru_cache(maxsize=1)

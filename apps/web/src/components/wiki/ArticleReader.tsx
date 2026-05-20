@@ -19,6 +19,7 @@ import { TagSelector } from "./TagSelector";
 import { preprocessMarkdown, extractSynthesizedFrom, extractConceptKind } from "./preprocessMarkdown";
 import { markdownComponents } from "./markdownComponents";
 import { useArticleEditor } from "./useArticleEditor";
+import { DiscussionPanel } from "./DiscussionPanel";
 
 interface ArticleReaderProps {
   article: ArticleResponse;
@@ -171,6 +172,13 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           >
             {processed}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Discussion panel for HITL compilation guidance */}
+      {!isEditing && (
+        <div className="mt-8 border-t border-slate-200 pt-6">
+          <DiscussionPanel articleId={article.id} />
         </div>
       )}
     </article>

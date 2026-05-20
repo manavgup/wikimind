@@ -45,6 +45,7 @@ from wikimind.models.tables.user_settings import (
     UserPreference,
 )
 from wikimind.models.tables.wiki import (
+    DiscussionMessage,
     Article,
     ArticleConcept,
     ArticleSource,
@@ -74,6 +75,7 @@ __all__ = [
     "ContradictionFinding",
     "Conversation",
     "CostLog",
+    "DiscussionMessage",
     "DismissedFinding",
     "Job",
     "LLMTrace",

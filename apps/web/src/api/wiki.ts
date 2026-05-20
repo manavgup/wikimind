@@ -212,3 +212,52 @@ export function confirmSynthesis(
     body,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Discussion (HITL — human-in-the-loop before compilation)
+// ---------------------------------------------------------------------------
+
+export interface DiscussionMessage {
+  id: string;
+  article_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface DiscussionThread {
+  article_id: string;
+  messages: DiscussionMessage[];
+}
+
+export interface CompileWithGuidanceResponse {
+  status: string;
+  job_id: string;
+}
+
+export function getDiscussionThread(
+  articleId: string,
+): Promise<DiscussionThread> {
+  return apiFetch<DiscussionThread>(
+    `/api/wiki/articles/${encodeURIComponent(articleId)}/discussion`,
+  );
+}
+
+export function postDiscussionMessage(
+  articleId: string,
+  message: string,
+): Promise<DiscussionMessage> {
+  return apiFetch<DiscussionMessage>(
+    `/api/wiki/articles/${encodeURIComponent(articleId)}/discuss`,
+    { method: "POST", body: { message } },
+  );
+}
+
+export function compileWithGuidance(
+  articleId: string,
+): Promise<CompileWithGuidanceResponse> {
+  return apiFetch<CompileWithGuidanceResponse>(
+    `/api/wiki/articles/${encodeURIComponent(articleId)}/compile-with-guidance`,
+    { method: "POST" },
+  );
+}

@@ -84,6 +84,12 @@ from wikimind.models.dto.compilation import (
     TypedBacklinkSuggestion,
     UpdateCompilationSchemaRequest,
 )
+from wikimind.models.dto.discussion import (
+    CompileWithGuidanceResponse,
+    DiscussionMessageRequest,
+    DiscussionMessageResponse,
+    DiscussionThreadResponse,
+)
 from wikimind.models.dto.ingest import (
     ArticleSourceSummary,
     DocumentChunk,
@@ -244,6 +250,7 @@ from wikimind.models.tables import (  # noqa: F401
     ContradictionFinding,
     Conversation,
     CostLog,
+    DiscussionMessage,
     DismissedFinding,
     Job,
     LintPairCache,
@@ -419,7 +426,12 @@ __all__ = [
     "CrystallizeResponse",
     "DeleteAccountResponse",
     "DeleteConfirmation",
+    "CompileWithGuidanceResponse",
     "DiscardCaptureRequest",
+    "DiscussionMessage",
+    "DiscussionMessageRequest",
+    "DiscussionMessageResponse",
+    "DiscussionThreadResponse",
     "DismissFindingResponse",
     "DismissedFinding",
     "DocumentChunk",
