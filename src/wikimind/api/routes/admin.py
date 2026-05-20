@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import httpx
@@ -21,8 +22,13 @@ from wikimind.models import (
     LLMTrace,
     LLMTraceListResponse,
     LLMTraceResponse,
+    Plan,
+    Subscription,
+    User,
+    WebhookEvent,
 )
 from wikimind.services.admin import AdminService  # noqa: TC001 — needed at runtime for Depends()
+from wikimind.services.billing import LemonSqueezyClient, apply_entitlement
 from wikimind.services.factories import get_admin_service
 
 if TYPE_CHECKING:
@@ -196,3 +202,145 @@ async def get_traces(
         ],
         total=total,
     )
+
+
+@router.get("/billing/subscriptions")
+async def admin_list_subscriptions(
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """List all subscriptions with user info (admin only)."""
+    result = await session.exec(
+        select(Subscription, User.email)
+        .join(User, User.id == Subscription.user_id)  # type: ignore[arg-type]
+        .order_by(Subscription.created_at.desc())  # type: ignore[attr-defined]
+    )
+    rows = result.all()
+    return [
+        {
+            "id": sub.id,
+            "user_id": sub.user_id,
+            "user_email": email,
+            "plan_id": sub.plan_id,
+            "status": sub.status,
+            "lemon_squeezy_subscription_id": sub.lemon_squeezy_subscription_id,
+            "cancel_at_period_end": sub.cancel_at_period_end,
+            "created_at": sub.created_at.isoformat(),
+        }
+        for sub, email in rows
+    ]
+
+
+@router.get("/billing/subscriptions/{user_id}")
+async def admin_get_user_subscription(
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """Get subscription details for a specific user (admin only)."""
+    result = await session.exec(select(Subscription).where(Subscription.user_id == user_id))
+    subs = result.all()
+    if not subs:
+        raise HTTPException(status_code=404, detail="No subscriptions found for user")
+    return [
+        {
+            "id": sub.id,
+            "plan_id": sub.plan_id,
+            "status": sub.status,
+            "lemon_squeezy_subscription_id": sub.lemon_squeezy_subscription_id,
+            "cancel_at_period_end": sub.cancel_at_period_end,
+            "current_period_start": sub.current_period_start.isoformat() if sub.current_period_start else None,
+            "current_period_end": sub.current_period_end.isoformat() if sub.current_period_end else None,
+            "created_at": sub.created_at.isoformat(),
+        }
+        for sub in subs
+    ]
+
+
+@router.post("/billing/subscriptions/{user_id}/override")
+async def admin_override_plan(
+    user_id: str,
+    plan_name: str,
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """Override a user's plan (admin only). Used for manual fixes."""
+    plan_result = await session.exec(select(Plan).where(Plan.name == plan_name))
+    plan = plan_result.one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail=f"Plan '{plan_name}' not found")
+
+    user_result = await session.exec(select(User).where(User.id == user_id))
+    user = user_result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.plan_id = plan.id
+    user.plan_effective_until = None  # Clear any grace period
+    session.add(user)
+    await session.commit()
+    return {"status": "ok", "user_id": user_id, "plan_name": plan_name}
+
+
+@router.post("/billing/subscriptions/{user_id}/sync")
+async def admin_sync_subscription(
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """Force-sync a user's subscription with Lemon Squeezy (admin only)."""
+    sub_result = await session.exec(
+        select(Subscription).where(
+            Subscription.user_id == user_id,
+            Subscription.status.in_(["active", "cancelled", "past_due"]),  # type: ignore[attr-defined]
+        )
+    )
+    sub = sub_result.one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="No active subscription to sync")
+
+    client = LemonSqueezyClient()
+    data = await client.get_subscription(sub.lemon_squeezy_subscription_id)
+    attrs = data["attributes"]
+    ls_status = attrs["status"]
+
+    user_result = await session.exec(select(User).where(User.id == user_id))
+    user = user_result.one()
+
+    variant_id = str(attrs.get("variant_id", ""))
+    plan_result = await session.exec(select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id))
+    plan = plan_result.one_or_none()
+    plan_name = plan.name if plan else "pro"
+
+    sub.status = ls_status
+    session.add(sub)
+
+    ends_at = attrs.get("ends_at")
+    period_end = datetime.fromisoformat(ends_at) if ends_at else None
+    await apply_entitlement(session, user, ls_status, plan_name, period_end)
+    await session.commit()
+
+    return {"status": "synced", "ls_status": ls_status, "plan_name": plan_name}
+
+
+@router.get("/billing/webhook-events")
+async def admin_list_webhook_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+    _admin: str = Depends(require_admin),
+):
+    """List recent webhook events (admin only)."""
+    result = await session.exec(
+        select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit)  # type: ignore[attr-defined]
+    )
+    events = result.all()
+    return [
+        {
+            "id": evt.id,
+            "event_type": evt.event_type,
+            "lemon_squeezy_event_id": evt.lemon_squeezy_event_id,
+            "processed_at": evt.processed_at.isoformat(),
+            "payload_hash": evt.payload_hash,
+        }
+        for evt in events
+    ]

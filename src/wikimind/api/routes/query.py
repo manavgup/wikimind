@@ -10,7 +10,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.config import get_settings
 from wikimind.database import get_session, get_session_factory
 from wikimind.middleware.rate_limit import limiter
@@ -21,11 +21,13 @@ from wikimind.models import (
     CrystallizeResponse,
     FileBackSelectionRequest,
     ForkRequest,
+    Plan,
     QueryRequest,
 )
 from wikimind.services.crystallization import crystallize_conversation
 from wikimind.services.factories import get_query_service
 from wikimind.services.query import QueryService
+from wikimind.services.quota import check_query_quota
 
 log = structlog.get_logger()
 
@@ -40,6 +42,7 @@ async def ask(
     session: AsyncSession = Depends(get_session),
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Ask a question against the wiki and receive an answer with citations.
 
@@ -47,6 +50,8 @@ async def ask(
     Otherwise the question is appended as a new turn in the existing
     conversation.
     """
+    if plan:
+        await check_query_quota(session, user_id, plan)
     return await service.ask(body, session, user_id=user_id)
 
 
@@ -57,6 +62,7 @@ async def ask_stream(
     body: QueryRequest,
     service: QueryService = Depends(get_query_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ) -> StreamingResponse:
     """Stream an answer token-by-token via Server-Sent Events.
 
@@ -68,6 +74,8 @@ async def ask_stream(
     async def _event_generator() -> AsyncIterator[str]:
         async with get_session_factory()() as session:
             try:
+                if plan:
+                    await check_query_quota(session, user_id, plan)
                 async for event in service.ask_stream(body, session, user_id=user_id):
                     yield event
             except asyncio.CancelledError:

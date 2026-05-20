@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../shared/Button";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
 import { ApiError } from "../../api/client";
-import { setApiKey, testProvider, setDefaultProvider, completeOnboarding, updateSettings } from "../../api/settings";
+import { getSettings, setApiKey, testProvider, setDefaultProvider, completeOnboarding, updateSettings } from "../../api/settings";
 import { ingestUrl } from "../../api/sources";
 import { useWebSocketStore } from "../../store/websocket";
 import type { WSEvent } from "../../types/api";
@@ -18,8 +18,20 @@ const EXAMPLE_URLS = [
 ];
 
 export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
-  const [step, setStep] = useState(0);
   const queryClient = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  // In hosted mode, skip the "Configure LLM" step — the platform manages the LLM.
+  const isHosted = settings?.deployment_mode === "hosted";
+  const steps = isHosted
+    ? ["Welcome", "Add Source", "Compiling", "Done"]
+    : STEPS;
+
+  const [step, setStep] = useState(0);
 
   const dismissMutation = useMutation({
     mutationFn: completeOnboarding,
@@ -33,7 +45,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
     dismissMutation.mutate();
   };
 
-  const lastStep = STEPS.length - 1;
+  const lastStep = steps.length - 1;
 
   const handleSkip = (currentStep: number) => {
     if (currentStep >= lastStep) {
@@ -42,6 +54,22 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
       setStep(currentStep + 1);
     }
   };
+
+  // Map step index to component based on mode
+  const stepComponents = isHosted
+    ? [
+        <WelcomeStep key="welcome" onNext={() => setStep(1)} onSkip={() => handleSkip(0)} />,
+        <AddSourceStep key="source" onNext={() => setStep(2)} onSkip={() => handleSkip(1)} />,
+        <CompilingStep key="compiling" onNext={() => setStep(3)} onSkip={() => handleSkip(2)} />,
+        <DoneStep key="done" onComplete={onComplete} onSkip={handleDismiss} />,
+      ]
+    : [
+        <WelcomeStep key="welcome" onNext={() => setStep(1)} onSkip={() => handleSkip(0)} />,
+        <ConfigureLLMStep key="llm" onNext={() => setStep(2)} onSkip={() => handleSkip(1)} />,
+        <AddSourceStep key="source" onNext={() => setStep(3)} onSkip={() => handleSkip(2)} />,
+        <CompilingStep key="compiling" onNext={() => setStep(4)} onSkip={() => handleSkip(3)} />,
+        <DoneStep key="done" onComplete={onComplete} onSkip={handleDismiss} />,
+      ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60">
@@ -55,38 +83,9 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
         >
           &#x2715;
         </button>
-        <StepIndicator current={step} steps={STEPS} />
+        <StepIndicator current={step} steps={steps} />
         <div className="p-6">
-          {step === 0 && (
-            <WelcomeStep
-              onNext={() => setStep(1)}
-              onSkip={() => handleSkip(0)}
-            />
-          )}
-          {step === 1 && (
-            <ConfigureLLMStep
-              onNext={() => setStep(2)}
-              onSkip={() => handleSkip(1)}
-            />
-          )}
-          {step === 2 && (
-            <AddSourceStep
-              onNext={() => setStep(3)}
-              onSkip={() => handleSkip(2)}
-            />
-          )}
-          {step === 3 && (
-            <CompilingStep
-              onNext={() => setStep(4)}
-              onSkip={() => handleSkip(3)}
-            />
-          )}
-          {step === 4 && (
-            <DoneStep
-              onComplete={onComplete}
-              onSkip={handleDismiss}
-            />
-          )}
+          {stepComponents[step]}
         </div>
       </Card>
     </div>

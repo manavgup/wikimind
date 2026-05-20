@@ -5,6 +5,8 @@ Auth is always on — ``get_current_user_id`` raises 401 if no user is set.
 In dev mode the middleware auto-authenticates; in production a JWT is required.
 """
 
+from typing import TYPE_CHECKING
+
 import jwt
 from fastapi import Depends, HTTPException, Request, WebSocket
 from sqlmodel import select
@@ -12,6 +14,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.config import get_settings
 from wikimind.database import get_session  # CodeQL: cyclic-import — unavoidable, see #649
+
+if TYPE_CHECKING:
+    from wikimind.models import Plan
 
 
 async def get_current_user_id(request: Request) -> str:
@@ -49,6 +54,21 @@ async def require_admin(
             detail={"error": {"code": "FORBIDDEN", "message": "Admin access required"}},
         )
     return user_id
+
+
+async def require_plan(
+    user_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+) -> "Plan | None":
+    """Load user's effective plan. Returns None in self-hosted mode.
+
+    Routes use ``if plan:`` to skip quota checks when billing is disabled.
+    """
+    if not get_settings().billing_enabled:
+        return None
+    from wikimind.services.quota import get_effective_plan  # noqa: PLC0415 — deferred to avoid circular import
+
+    return await get_effective_plan(session, user_id)
 
 
 async def get_ws_user_id(websocket: WebSocket) -> str:

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
     CaptureKind,
@@ -13,6 +13,7 @@ from wikimind.models import (
     CaptureStatus,
     DeleteConfirmation,
     DiscardCaptureRequest,
+    Plan,
     RssFeedListResponse,
     RssFeedRequest,
     RssFeedResponse,
@@ -21,6 +22,7 @@ from wikimind.models import (
 )
 from wikimind.services.capture import CaptureService
 from wikimind.services.factories import get_capture_service, get_rss_service
+from wikimind.services.quota import check_source_quota
 from wikimind.services.rss import RssService
 
 router = APIRouter()
@@ -78,8 +80,11 @@ async def ingest_capture(
     session: AsyncSession = Depends(get_session),
     service: CaptureService = Depends(get_capture_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Promote a capture to a full source for compilation."""
+    if plan:
+        await check_source_quota(session, user_id, plan)
     return await service.ingest_capture(capture_id, session, user_id)
 
 

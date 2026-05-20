@@ -37,6 +37,8 @@ EXEMPT_PREFIXES = (
     "/mcp/token",
     "/mcp/revoke",
     "/mcp/authorize",
+    "/api/billing/plans",
+    "/api/billing/webhook",
 )
 # Static frontend files that must load without auth so users can see the login page.
 # NOTE: .png and .svg are intentionally excluded — API-served images

@@ -59,6 +59,7 @@ from wikimind.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from wikimind.middleware.request_logging import RequestLoggingMiddleware
 from wikimind.middleware.security_headers import SecurityHeadersMiddleware
 from wikimind.models import IngestStatus, Source
+from wikimind.services.quota import QuotaExceededError
 
 log = structlog.get_logger()
 
@@ -220,6 +221,7 @@ app = FastAPI(
         {"name": "Sharing", "description": "Per-article share links and public access"},
         {"name": "Synthesis", "description": "Cross-cutting synthesis pages across multiple sources"},
         {"name": "CompilationSchemas", "description": "User-defined compilation rules for wiki articles"},
+        {"name": "Billing", "description": "Subscription plans, usage quotas, checkout, and webhooks"},
         {"name": "WebSocket", "description": "Real-time progress streams"},
     ],
 )
@@ -289,6 +291,14 @@ api_router.include_router(saved_searches.router, prefix="/saved-searches", tags=
 api_router.include_router(sharing.router, prefix="/wiki", tags=["Sharing"])
 api_router.include_router(synthesis.router, prefix="/wiki", tags=["Synthesis"])
 api_router.include_router(compilation_schemas.router, prefix="/compilation-schemas", tags=["CompilationSchemas"])
+
+# Billing routes — only in hosted mode (deployment_mode == "hosted").
+# In self-hosted mode billing is disabled and these endpoints are not mounted.
+if get_settings().billing_enabled:
+    from wikimind.api.routes import billing as billing_router_mod
+
+    api_router.include_router(billing_router_mod.router, prefix="/billing", tags=["Billing"])
+
 app.include_router(api_router)
 
 # Public share links — no auth required. Mounted at root level so the
@@ -357,6 +367,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "code": "validation_error",
                 "message": "; ".join(messages),
+                "request_id": request_id,
+            }
+        },
+    )
+
+
+@app.exception_handler(QuotaExceededError)
+async def quota_exceeded_handler(request: Request, exc: QuotaExceededError) -> JSONResponse:
+    """Return 429 with quota details when a plan limit is exceeded."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": {
+                "code": "quota_exceeded",
+                "message": str(exc),
+                "resource": exc.resource,
+                "limit": exc.limit,
+                "used": exc.used,
+                "upgrade_url": "/settings/billing",
                 "request_id": request_id,
             }
         },

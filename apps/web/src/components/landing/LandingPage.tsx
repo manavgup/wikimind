@@ -7,6 +7,7 @@ import { ArchitectureSection } from "./ArchitectureSection";
 import { UseCasesSection } from "./UseCasesSection";
 import { MemexSection } from "./MemexSection";
 import { FaqSection } from "./FaqSection";
+import { PricingSection } from "./PricingSection";
 import { CtaBandSection } from "./CtaBandSection";
 import { FooterSection } from "./FooterSection";
 import { LoginOverlay } from "./LoginOverlay";
@@ -76,6 +77,16 @@ export function LandingPage() {
               Use cases
             </a>
             <a
+              href="#pricing"
+              className="hidden text-[13px] font-medium text-slate-500 transition-colors duration-100 hover:text-slate-900 sm:inline"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Pricing
+            </a>
+            <a
               href="#faq"
               className="hidden text-[13px] font-medium text-slate-500 transition-colors duration-100 hover:text-slate-900 sm:inline"
               onClick={(e) => {
@@ -102,6 +113,7 @@ export function LandingPage() {
       <PullQuoteSection />
       <ArchitectureSection />
       <UseCasesSection />
+      <PricingSection onSignIn={openLogin} />
       <MemexSection />
       <FaqSection />
       <CtaBandSection onSignIn={openLogin} />

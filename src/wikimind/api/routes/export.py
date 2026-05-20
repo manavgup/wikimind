@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
     Article,
@@ -19,10 +19,12 @@ from wikimind.models import (
     ArticleDownloadResponse,
     ExportFormat,
     ExportResponse,
+    Plan,
     WikiExportFormat,
 )
 from wikimind.services.export import ExportService
 from wikimind.services.factories import get_export_service, get_wiki_export_service
+from wikimind.services.quota import check_export_format
 from wikimind.services.wiki import (
     _fetch_concept_names_from_join,
     _fetch_source_ids_from_join,
@@ -76,6 +78,7 @@ async def export_article(
     session: AsyncSession = Depends(get_session),
     service: ExportService = Depends(get_export_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ) -> ExportResponse | HTMLResponse:
     """Export a wiki article in the requested format.
 
@@ -83,6 +86,8 @@ async def export_article(
     - **linkedin**: Returns a LinkedIn post draft (JSON with content field).
     - **slides**: Returns a Marp-compatible markdown slide deck (JSON with content field).
     """
+    if plan:
+        await check_export_format(plan, format.value)
     article = await _resolve_article(id_or_slug, session, user_id)
     content = await read_article_content(article.file_path, user_id=user_id)
 

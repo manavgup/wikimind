@@ -11,6 +11,9 @@ from unittest.mock import patch
 # worker.py calls get_settings() at import time, which would fail the
 # production jwt_secret_key validation if WIKIMIND_ENV is not set.
 os.environ.setdefault("WIKIMIND_ENV", "development")
+# Force self-hosted mode in tests — billing requires Postgres plan tables
+# that don't exist in the in-memory SQLite test DB.
+os.environ["WIKIMIND_DEPLOYMENT_MODE"] = "self_hosted"
 
 import keyring
 import pytest

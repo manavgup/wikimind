@@ -317,6 +317,20 @@ class MCPConfig(BaseModel):
     client_enabled: bool = False
 
 
+class BillingConfig(BaseModel):
+    """Lemon Squeezy billing integration configuration.
+
+    Only active when ``deployment_mode == "hosted"``. Self-hosted
+    instances leave all fields at their defaults and billing is
+    completely inert.
+    """
+
+    lemon_squeezy_api_key: str = ""
+    lemon_squeezy_store_id: str = ""
+    lemon_squeezy_webhook_secret: str = ""
+    reconciliation_interval_hours: int = 6
+
+
 class RateLimitConfig(BaseModel):
     """Rate limiting configuration.
 
@@ -427,6 +441,11 @@ class Settings(BaseSettings):
     auth: AuthConfig = Field(default_factory=AuthConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
 
+    # Deployment mode: "self_hosted" (default) disables billing entirely;
+    # "hosted" activates billing and requires Lemon Squeezy credentials.
+    deployment_mode: str = "self_hosted"
+    billing: BillingConfig = Field(default_factory=BillingConfig)
+
     # Storage backend: "local" creates wiki/ and raw/ on the local filesystem;
     # "r2" delegates to Cloudflare R2 (wiki_dir / raw_dir are not needed).
     storage_backend: str = "local"
@@ -487,6 +506,21 @@ class Settings(BaseSettings):
         # If using a public Upstash endpoint, set WIKIMIND_REDIS_URL to
         # rediss:// explicitly.
 
+        # Hosted mode requires all Lemon Squeezy credentials to be set.
+        if self.deployment_mode == "hosted":
+            missing = [
+                f"WIKIMIND_BILLING__{name.upper()}"
+                for name in (
+                    "lemon_squeezy_api_key",
+                    "lemon_squeezy_store_id",
+                    "lemon_squeezy_webhook_secret",
+                )
+                if not getattr(self.billing, name)
+            ]
+            if missing:
+                msg = "deployment_mode is 'hosted' but required billing config is missing: " + ", ".join(missing)
+                raise ValueError(msg)
+
         # Warn about empty JWT secret in production — PyJWT accepts "" as a
         # valid HMAC key, which would let anyone forge tokens. We warn rather
         # than raise because CLI tools (export-openapi, migrations) may run
@@ -501,6 +535,11 @@ class Settings(BaseSettings):
     def is_dev(self) -> bool:
         """Return True when running in development mode."""
         return self.env.lower() == "development"
+
+    @property
+    def billing_enabled(self) -> bool:
+        """Return True when the instance is hosted and billing is active."""
+        return self.deployment_mode == "hosted"
 
     @property
     def wiki_dir(self) -> Path:

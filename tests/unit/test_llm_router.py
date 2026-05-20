@@ -849,3 +849,96 @@ async def _fake_aiter(items):
     """Helper to create an async iterator from a list."""
     for item in items:
         yield item
+
+
+# ---------------------------------------------------------------------------
+# CompletionRequest model_override / disable_fallback field tests
+# ---------------------------------------------------------------------------
+
+
+def test_completion_request_model_override() -> None:
+    """CompletionRequest accepts model_override field."""
+    req = CompletionRequest(
+        system="test",
+        messages=[{"role": "user", "content": "hi"}],
+        model_override="gpt-4o-mini",
+        disable_fallback=True,
+    )
+    assert req.model_override == "gpt-4o-mini"
+    assert req.disable_fallback is True
+
+
+def test_completion_request_defaults() -> None:
+    """model_override defaults to None, disable_fallback defaults to False."""
+    req = CompletionRequest(
+        system="test",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    assert req.model_override is None
+    assert req.disable_fallback is False
+
+
+def test_get_model_with_override() -> None:
+    """_get_model returns the override when provided."""
+    router = _router_with_settings()
+    assert router._get_model(Provider.ANTHROPIC, "custom-model") == "custom-model"
+
+
+def test_get_model_without_override() -> None:
+    """_get_model returns configured model when no override is given."""
+    router = _router_with_settings()
+    assert router._get_model(Provider.ANTHROPIC) == "claude-sonnet-4-5"
+
+
+async def test_router_complete_disable_fallback_raises_on_first_error(db_session) -> None:
+    """complete() raises UpstreamError immediately when disable_fallback=True."""
+    router = _router_with_settings()
+    bad = SimpleNamespace(complete=AsyncMock(side_effect=openai.OpenAIError("boom")))
+    with (
+        patch.object(router, "_is_provider_available", return_value=True),
+        patch.object(router, "_get_provider_instance", AsyncMock(return_value=bad)),
+        pytest.raises(UpstreamError, match="failed"),
+    ):
+        await router.complete(_req(disable_fallback=True), user_id=TEST_USER_ID)
+
+
+async def test_router_complete_model_override_used(db_session) -> None:
+    """complete() passes model_override to the provider instead of configured model."""
+    router = _router_with_settings()
+    fake_resp = CompletionResponse(
+        content="ok",
+        provider_used=Provider.ANTHROPIC,
+        model_used="custom-model",
+        input_tokens=1,
+        output_tokens=2,
+        cost_usd=0.0,
+        latency_ms=5,
+    )
+    instance = SimpleNamespace(complete=AsyncMock(return_value=fake_resp))
+    captured_model: list[str] = []
+
+    async def _fake_complete(req, model):
+        captured_model.append(model)
+        return fake_resp
+
+    instance.complete = _fake_complete
+    with (
+        patch.object(router, "_is_provider_available", return_value=True),
+        patch.object(router, "_get_provider_instance", AsyncMock(return_value=instance)),
+    ):
+        await router.complete(_req(model_override="custom-model"), user_id=TEST_USER_ID)
+    assert captured_model[0] == "custom-model"
+
+
+async def test_has_user_key_returns_true_when_key_exists() -> None:
+    """has_user_key returns True when _resolve_user_key returns a key."""
+    router = _router_with_settings()
+    with patch.object(router, "_resolve_user_key", AsyncMock(return_value="sk-abc")):
+        assert await router.has_user_key(Provider.ANTHROPIC, TEST_USER_ID) is True
+
+
+async def test_has_user_key_returns_false_when_no_key() -> None:
+    """has_user_key returns False when _resolve_user_key returns None."""
+    router = _router_with_settings()
+    with patch.object(router, "_resolve_user_key", AsyncMock(return_value=None)):
+        assert await router.has_user_key(Provider.OPENAI, TEST_USER_ID) is False

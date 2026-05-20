@@ -719,10 +719,19 @@ conversation context contradicts the wiki, prefer the wiki."""
         user_id: str,
     ) -> QueryResult:
         """Build the LLM prompt (with optional conversation context) and call the router."""
+        from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
         request_obj = self._build_completion_request(question, context, prior_turns)
 
-        response = await self.router.complete(request_obj, user_id=user_id)
+        response = await plan_aware_complete(self.router, request_obj, user_id, session)
 
+        if response is None:
+            return QueryResult(
+                answer="Error processing answer. Please try again.",
+                confidence="low",
+                sources=[],
+                related_articles=[],
+            )
         try:
             data = self.router.parse_json_response(response)
             return QueryResult(**data)

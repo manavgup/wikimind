@@ -242,8 +242,15 @@ class LLMRouter:
             log.debug("BYOK key lookup failed", provider=provider, exc_info=True)
             return None
 
-    def _get_model(self, provider: Provider) -> str:
-        """Return the configured model name for a provider."""
+    async def has_user_key(self, provider: Provider, user_id: str) -> bool:
+        """Check if user has a stored BYOK key for the given provider."""
+        key = await self._resolve_user_key(provider, user_id)
+        return key is not None
+
+    def _get_model(self, provider: Provider, model_override: str | None = None) -> str:
+        """Return the configured model name for a provider, or the override if set."""
+        if model_override:
+            return model_override
         if provider == Provider.OPENAI_COMPATIBLE:
             return self._rc.get_openai_compatible_model() or "unknown"
         cfg = getattr(self.settings.llm, provider.value, None)
@@ -406,6 +413,8 @@ class LLMRouter:
         user_id: str,
         operation: Callable[[ProviderProtocol, Provider, str], Awaitable[_T]],
         log_label: str,
+        disable_fallback: bool = False,
+        model_override: str | None = None,
     ) -> _T:
         """Execute an LLM operation with provider selection and fallback.
 
@@ -419,6 +428,10 @@ class LLMRouter:
                 that performs the actual provider-specific work.
             log_label: Human-readable label used in log messages
                 (e.g. ``"LLM call"``, ``"LLM stream call"``).
+            disable_fallback: When True, raise immediately on provider error
+                instead of trying the next provider.
+            model_override: When set, overrides the configured model name for
+                every provider attempted.
 
         Returns:
             The value returned by *operation* on the first successful provider.
@@ -440,7 +453,7 @@ class LLMRouter:
             if not user_key and not self._is_provider_available(provider):
                 continue
 
-            model = self._get_model(provider)
+            model = self._get_model(provider, model_override)
             try:
                 log.info(
                     log_label,
@@ -459,6 +472,9 @@ class LLMRouter:
                     error=str(e),
                 )
                 last_error = e
+                if disable_fallback:
+                    msg = f"Provider {provider.value} failed: {e}"
+                    raise UpstreamError(msg) from e
                 if not self._rc.get_fallback_enabled():
                     raise
 
@@ -514,6 +530,8 @@ class LLMRouter:
             user_id=user_id,
             operation=_op,
             log_label="LLM call",
+            disable_fallback=request.disable_fallback,
+            model_override=request.model_override,
         )
 
     async def complete_multimodal(

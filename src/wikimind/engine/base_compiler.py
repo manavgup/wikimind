@@ -52,11 +52,21 @@ class BaseCompiler:
         max_tokens: int | None = None,
         temperature: float = 0.3,
         task_type: TaskType = TaskType.COMPILE,
+        session: AsyncSession | None = None,
     ) -> CompletionResponse | None:
         """Call the LLM router with standard error handling.
 
         Returns the CompletionResponse on success, or None if the call fails.
         Sets ``self._last_provider_used`` on success.
+
+        Args:
+            system: System prompt.
+            user_content: User message content.
+            max_tokens: Token limit (defaults to compiler setting).
+            temperature: Sampling temperature.
+            task_type: Task type for cost logging.
+            session: Optional async database session for plan-aware routing.
+                When ``None``, falls back to direct router pass-through.
         """
         if max_tokens is None:
             max_tokens = self.settings.compiler.max_tokens
@@ -69,7 +79,11 @@ class BaseCompiler:
             task_type=task_type,
         )
         try:
-            response = await self.router.complete(request, user_id=self.user_id)
+            from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
+
+            response = await plan_aware_complete(self.router, request, self.user_id, session)
+            if response is None:
+                return None
             self._last_provider_used = response.provider_used
             return response
         except (RuntimeError, ValueError):

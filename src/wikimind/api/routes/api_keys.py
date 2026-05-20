@@ -17,9 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import require_user_id
+from wikimind.api.deps import require_plan, require_user_id
 from wikimind.database import get_session
-from wikimind.models import Provider
+from wikimind.models import Plan, Provider
 from wikimind.services.api_keys import (
     decrypt_api_key,
     delete_user_api_key,
@@ -108,9 +108,17 @@ async def set_api_key(
     request: SetApiKeyRequest,
     user_id: str = Depends(require_user_id),
     session: AsyncSession = Depends(get_session),
+    plan: Plan | None = Depends(require_plan),
 ) -> ApiKeySetResponse:
     """Store or update an API key for a provider."""
     p = _validate_provider(provider)
+
+    # BYOK gate: in hosted mode, only plans with byok_allowed can store keys
+    if plan and not plan.byok_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Your current plan does not support custom API keys. Upgrade to Pro.",
+        )
 
     if not request.api_key.strip():
         raise HTTPException(status_code=400, detail="API key must not be empty")
@@ -156,9 +164,15 @@ async def delete_api_key(
     provider: str,
     user_id: str = Depends(require_user_id),
     session: AsyncSession = Depends(get_session),
+    plan: Plan | None = Depends(require_plan),
 ) -> ApiKeyDeleteResponse:
     """Delete a stored API key for a provider."""
     p = _validate_provider(provider)
+    if plan and not plan.byok_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Your current plan does not support custom API keys.",
+        )
     deleted = await delete_user_api_key(session, user_id, p)
     if not deleted:
         raise HTTPException(

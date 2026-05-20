@@ -4,7 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from wikimind.api.deps import get_current_user_id
+from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
     ArticleEditRequest,
@@ -21,6 +21,7 @@ from wikimind.models import (
     FacetResponse,
     GraphResponse,
     HealthSummaryResponse,
+    Plan,
     RebuildConceptsResponse,
     RecompileResponse,
     RefreshArticleResponse,
@@ -43,6 +44,7 @@ from wikimind.services.factories import (
     get_wiki_service,
 )
 from wikimind.services.linter import LinterService
+from wikimind.services.quota import check_article_quota
 from wikimind.services.search import SearchService
 from wikimind.services.tags import TagService
 from wikimind.services.taxonomy import rebuild_taxonomy
@@ -148,8 +150,11 @@ async def create_stub_article(
     session: AsyncSession = Depends(get_session),
     service: WikiService = Depends(get_wiki_service),
     user_id: str = Depends(get_current_user_id),
+    plan: Plan | None = Depends(require_plan),
 ):
     """Create a stub wiki article — a placeholder page for a concept not yet compiled."""
+    if plan:
+        await check_article_quota(session, user_id, plan)
     return await service.create_stub_article(
         title=body.title,
         body_markdown=body.body_markdown,

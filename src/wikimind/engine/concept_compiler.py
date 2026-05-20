@@ -138,6 +138,7 @@ class ConceptCompiler(BaseCompiler):
         response = await self._call_llm(
             system=prompt,
             user_content="Synthesize a concept page from these sources.",
+            session=session,
         )
         if response is None:
             return None

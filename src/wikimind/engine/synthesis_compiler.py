@@ -164,6 +164,7 @@ class SynthesisCompiler(BaseCompiler):
         response = await self._call_llm(
             system=SYNTHESIS_SYSTEM_PROMPT,
             user_content=prompt,
+            session=session,
         )
         if response is None:
             return None
@@ -224,6 +225,7 @@ class SynthesisCompiler(BaseCompiler):
         response = await self._call_llm(
             system=SYNTHESIS_SYSTEM_PROMPT,
             user_content=prompt,
+            session=session,
         )
         if response is None:
             return None
@@ -382,6 +384,7 @@ class SynthesisCompiler(BaseCompiler):
         response = await self._call_llm(
             system=SYNTHESIS_SYSTEM_PROMPT,
             user_content=prompt,
+            session=session,
         )
         if response is None:
             return None

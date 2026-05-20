@@ -28,18 +28,18 @@ export function createTag(
   name: string,
   color: string = "#6366f1",
 ): Promise<TagResponse> {
-  return apiFetch<TagResponse>("/tags", {
+  return apiFetch<TagResponse>("/api/tags", {
     method: "POST",
     body: { name, color },
   });
 }
 
 export function listTags(): Promise<TagResponse[]> {
-  return apiFetch<TagResponse[]>("/tags");
+  return apiFetch<TagResponse[]>("/api/tags");
 }
 
 export function deleteTag(tagId: string): Promise<void> {
-  return apiFetch<void>(`/tags/${tagId}`, { method: "DELETE" });
+  return apiFetch<void>(`/api/tags/${tagId}`, { method: "DELETE" });
 }
 
 // --- Article tagging ---
@@ -68,7 +68,7 @@ export function getArticleTags(articleId: string): Promise<TagResponse[]> {
 }
 
 export function getArticlesByTag(tagId: string): Promise<unknown[]> {
-  return apiFetch<unknown[]>(`/tags/${tagId}/articles`);
+  return apiFetch<unknown[]>(`/api/tags/${tagId}/articles`);
 }
 
 // --- Saved searches ---
@@ -78,25 +78,25 @@ export function createSavedSearch(
   query: string = "",
   filtersJson: string = "{}",
 ): Promise<SavedSearchResponse> {
-  return apiFetch<SavedSearchResponse>("/saved-searches", {
+  return apiFetch<SavedSearchResponse>("/api/saved-searches", {
     method: "POST",
     body: { name, query, filters_json: filtersJson },
   });
 }
 
 export function listSavedSearches(): Promise<SavedSearchResponse[]> {
-  return apiFetch<SavedSearchResponse[]>("/saved-searches");
+  return apiFetch<SavedSearchResponse[]>("/api/saved-searches");
 }
 
 export function deleteSavedSearch(id: string): Promise<void> {
-  return apiFetch<void>(`/saved-searches/${id}`, { method: "DELETE" });
+  return apiFetch<void>(`/api/saved-searches/${id}`, { method: "DELETE" });
 }
 
 export function executeSavedSearch(
   id: string,
 ): Promise<SavedSearchExecuteResponse> {
   return apiFetch<SavedSearchExecuteResponse>(
-    `/saved-searches/${id}/execute`,
+    `/api/saved-searches/${id}/execute`,
     { method: "POST" },
   );
 }

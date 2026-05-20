@@ -3,7 +3,7 @@
 import keyring
 import pytest
 
-from wikimind.config import Settings, _reconcile_providers, get_settings
+from wikimind.config import BillingConfig, Settings, _reconcile_providers, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -298,3 +298,41 @@ class TestAuthConfigJwtSecret:
         s = Settings()
         assert s.is_dev
         assert s.auth.jwt_secret_key == ""
+
+
+class TestBillingConfig:
+    """Verify BillingConfig defaults and deployment_mode semantics."""
+
+    def test_billing_config_defaults(self):
+        """BillingConfig fields have safe zero-value defaults."""
+        cfg = BillingConfig()
+        assert cfg.lemon_squeezy_api_key == ""
+        assert cfg.lemon_squeezy_store_id == ""
+        assert cfg.lemon_squeezy_webhook_secret == ""
+        assert cfg.reconciliation_interval_hours == 6
+
+    def test_deployment_mode_default_is_self_hosted(self, monkeypatch):
+        """Settings defaults to self_hosted — billing inert."""
+        monkeypatch.delenv("WIKIMIND_DEPLOYMENT_MODE", raising=False)
+        s = Settings(_env_file=None)
+        assert s.deployment_mode == "self_hosted"
+        assert s.billing_enabled is False
+
+    def test_billing_enabled_when_hosted(self, monkeypatch):
+        """deployment_mode='hosted' with valid credentials enables billing."""
+        monkeypatch.setenv("WIKIMIND_DEPLOYMENT_MODE", "hosted")
+        monkeypatch.setenv("WIKIMIND_BILLING__LEMON_SQUEEZY_API_KEY", "key-123")
+        monkeypatch.setenv("WIKIMIND_BILLING__LEMON_SQUEEZY_STORE_ID", "store-456")
+        monkeypatch.setenv("WIKIMIND_BILLING__LEMON_SQUEEZY_WEBHOOK_SECRET", "whsec-789")
+        s = Settings()
+        assert s.deployment_mode == "hosted"
+        assert s.billing_enabled is True
+
+    def test_hosted_mode_rejects_missing_credentials(self, monkeypatch):
+        """deployment_mode='hosted' without LS credentials raises on startup."""
+        monkeypatch.setenv("WIKIMIND_DEPLOYMENT_MODE", "hosted")
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_API_KEY", raising=False)
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_STORE_ID", raising=False)
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_WEBHOOK_SECRET", raising=False)
+        with pytest.raises(ValueError, match="required billing config is missing"):
+            Settings(_env_file=None)

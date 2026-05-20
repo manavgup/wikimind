@@ -2735,6 +2735,132 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions:
+    get:
+      tags:
+      - Admin
+      summary: Admin List Subscriptions
+      description: List all subscriptions with user info (admin only).
+      operationId: admin_list_subscriptions_api_admin_billing_subscriptions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/admin/billing/subscriptions/{user_id}:
+    get:
+      tags:
+      - Admin
+      summary: Admin Get User Subscription
+      description: Get subscription details for a specific user (admin only).
+      operationId: admin_get_user_subscription_api_admin_billing_subscriptions__user_id__get
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions/{user_id}/override:
+    post:
+      tags:
+      - Admin
+      summary: Admin Override Plan
+      description: Override a user's plan (admin only). Used for manual fixes.
+      operationId: admin_override_plan_api_admin_billing_subscriptions__user_id__override_post
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      - name: plan_name
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Plan Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/subscriptions/{user_id}/sync:
+    post:
+      tags:
+      - Admin
+      summary: Admin Sync Subscription
+      description: Force-sync a user's subscription with Lemon Squeezy (admin only).
+      operationId: admin_sync_subscription_api_admin_billing_subscriptions__user_id__sync_post
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/admin/billing/webhook-events:
+    get:
+      tags:
+      - Admin
+      summary: Admin List Webhook Events
+      description: List recent webhook events (admin only).
+      operationId: admin_list_webhook_events_api_admin_billing_webhook_events_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/articles/{id_or_slug}/export:
     post:
       tags:
@@ -3458,6 +3584,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/billing/plans:
+    get:
+      tags:
+      - Billing
+      summary: List Plans
+      description: List all active billing plans (public, no auth required).
+      operationId: list_plans_api_billing_plans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/PlanResponse'
+                type: array
+                title: Response List Plans Api Billing Plans Get
+  /api/billing/usage:
+    get:
+      tags:
+      - Billing
+      summary: Get Usage
+      description: Get current resource usage vs plan limits.
+      operationId: get_usage_api_billing_usage_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+  /api/billing/checkout:
+    post:
+      tags:
+      - Billing
+      summary: Create Checkout
+      description: Create a Lemon Squeezy checkout session for plan upgrade.
+      operationId: create_checkout_api_billing_checkout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/billing/portal:
+    get:
+      tags:
+      - Billing
+      summary: Get Portal
+      description: Get Lemon Squeezy customer portal URL for subscription management.
+      operationId: get_portal_api_billing_portal_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalResponse'
+  /api/billing/webhook:
+    post:
+      tags:
+      - Billing
+      summary: Handle Webhook
+      description: Process Lemon Squeezy webhook with insert-first idempotency.
+      operationId: handle_webhook_api_billing_webhook_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
   /public/articles/{token}:
     get:
       tags:
@@ -4003,6 +4213,37 @@ paths:
           content:
             application/json:
               schema: {}
+  /{path}:
+    get:
+      summary: Spa Fallback
+      description: 'Serve index.html for all SPA routes (catch-all).
+
+
+        Handles SPA routes that do NOT collide with an API route (e.g.
+
+        /inbox, /wiki, /ask).  Colliding paths (/settings, /health) are
+
+        handled earlier by ``SPAFallbackMiddleware`` for browser requests.'
+      operationId: spa_fallback__path__get
+      parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AdminUserDetail:
@@ -4129,6 +4370,16 @@ components:
           $ref: '#/components/schemas/LLMSettingsResponse'
         sync:
           $ref: '#/components/schemas/SyncSettingsResponse'
+        deployment_mode:
+          type: string
+          title: Deployment Mode
+          default: self_hosted
+        user_plan:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: User Plan
       type: object
       required:
       - data_dir
@@ -4775,6 +5026,26 @@ components:
       - discarded
       title: CaptureStatus
       description: Lifecycle status of a captured item.
+    CheckoutRequest:
+      properties:
+        plan_id:
+          type: string
+          title: Plan Id
+      type: object
+      required:
+      - plan_id
+      title: CheckoutRequest
+      description: Request body for creating a checkout session.
+    CheckoutResponse:
+      properties:
+        checkout_url:
+          type: string
+          title: Checkout Url
+      type: object
+      required:
+      - checkout_url
+      title: CheckoutResponse
+      description: Checkout URL response.
     CitationArticleRef:
       properties:
         slug:
@@ -6531,6 +6802,92 @@ components:
       - description
       title: PipelineStep
       description: A single step in the source processing pipeline.
+    PlanResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        display_name:
+          type: string
+          title: Display Name
+        price_cents:
+          type: integer
+          title: Price Cents
+        billing_interval:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Billing Interval
+        max_sources:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Sources
+        max_articles:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Articles
+        max_queries_per_day:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Queries Per Day
+        max_storage_bytes:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Storage Bytes
+        max_active_shares:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Active Shares
+        allowed_exports:
+          items:
+            type: string
+          type: array
+          title: Allowed Exports
+        mcp_enabled:
+          type: boolean
+          title: Mcp Enabled
+        byok_allowed:
+          type: boolean
+          title: Byok Allowed
+        sort_order:
+          type: integer
+          title: Sort Order
+      type: object
+      required:
+      - id
+      - name
+      - display_name
+      - price_cents
+      - billing_interval
+      - max_sources
+      - max_articles
+      - max_queries_per_day
+      - max_storage_bytes
+      - max_active_shares
+      - allowed_exports
+      - mcp_enabled
+      - byok_allowed
+      - sort_order
+      title: PlanResponse
+      description: Public billing plan details.
+    PortalResponse:
+      properties:
+        portal_url:
+          type: string
+          title: Portal Url
+      type: object
+      required:
+      - portal_url
+      title: PortalResponse
+      description: Customer portal URL response.
     ProviderDetail:
       properties:
         enabled:
@@ -7938,6 +8295,80 @@ components:
       type: object
       title: UpdateCompilationSchemaRequest
       description: Request to update a compilation schema.
+    UsageResponse:
+      properties:
+        plan_name:
+          type: string
+          title: Plan Name
+        plan_display_name:
+          type: string
+          title: Plan Display Name
+        sources:
+          type: integer
+          title: Sources
+        sources_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Sources Limit
+        articles:
+          type: integer
+          title: Articles
+        articles_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Articles Limit
+        storage_bytes:
+          type: integer
+          title: Storage Bytes
+        storage_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Storage Limit
+        queries_today:
+          type: integer
+          title: Queries Today
+        queries_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Queries Limit
+        active_shares:
+          type: integer
+          title: Active Shares
+        shares_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Shares Limit
+        llm_spend_cents_today:
+          type: integer
+          title: Llm Spend Cents Today
+        llm_spend_limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Llm Spend Limit
+      type: object
+      required:
+      - plan_name
+      - plan_display_name
+      - sources
+      - sources_limit
+      - articles
+      - articles_limit
+      - storage_bytes
+      - storage_limit
+      - queries_today
+      - queries_limit
+      - active_shares
+      - shares_limit
+      - llm_spend_cents_today
+      - llm_spend_limit
+      title: UsageResponse
+      description: Current resource usage vs plan limits.
     UserProfileResponse:
       properties:
         id:
@@ -8087,5 +8518,7 @@ tags:
   description: Cross-cutting synthesis pages across multiple sources
 - name: CompilationSchemas
   description: User-defined compilation rules for wiki articles
+- name: Billing
+  description: Subscription plans, usage quotas, checkout, and webhooks
 - name: WebSocket
   description: Real-time progress streams
