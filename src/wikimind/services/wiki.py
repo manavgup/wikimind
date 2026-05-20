@@ -63,6 +63,13 @@ from wikimind.models import (
     WikiHealthReport,
     WikilinkMatch,
 )
+from wikimind.queries import (
+    fetch_concept_names_for_article,
+    fetch_concepts_for_articles,
+    fetch_source_ids_for_article,
+    fetch_sources,
+    parse_json_column,
+)
 from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_wiki_storage, read_article_content
 
@@ -109,106 +116,8 @@ def _first_concept(concept_ids_json: str | None) -> str | None:
     Returns:
         The first concept name, or ``None`` if the field is empty/malformed.
     """
-    items = _parse_source_ids(concept_ids_json)
+    items = parse_json_column(concept_ids_json)
     return items[0] if items else None
-
-
-def _parse_source_ids(raw: str | None) -> list[str]:
-    """Parse the JSON-encoded ``Article.source_ids`` field into a list of IDs.
-
-    Returns an empty list when the field is missing, empty, or malformed.
-    Malformed values are logged but never raised so a single broken record
-    cannot break listing or search responses.
-
-    Args:
-        raw: Raw JSON string stored on :attr:`Article.source_ids`.
-
-    Returns:
-        List of source UUID strings (possibly empty).
-    """
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        log.warning("Failed to parse Article.source_ids JSON", raw=raw)
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item) for item in parsed if item]
-
-
-async def _fetch_sources(session: AsyncSession, source_ids: list[str]) -> list[Source]:
-    """Fetch :class:`Source` records for a list of source IDs, preserving order.
-
-    Missing rows (e.g. a source was deleted after the article was compiled)
-    are silently dropped — callers receive only the sources that still
-    exist in the database.
-
-    Args:
-        session: Async database session.
-        source_ids: List of source UUIDs to fetch.
-
-    Returns:
-        Source records in the same order as ``source_ids``, with any
-        missing IDs omitted.
-    """
-    if not source_ids:
-        return []
-    result = await session.exec(select(Source).where(Source.id.in_(source_ids)))  # type: ignore[attr-defined]
-    by_id = {s.id: s for s in result.all()}
-    return [by_id[sid] for sid in source_ids if sid in by_id]
-
-
-async def _fetch_source_ids_from_join(session: AsyncSession, article_id: str) -> list[str]:
-    """Fetch source IDs from the ArticleSource join table.
-
-    Falls back to parsing the legacy JSON column if no join rows exist.
-    """
-    result = await session.exec(select(ArticleSource.source_id).where(ArticleSource.article_id == article_id))
-    ids = list(result.all())
-    if ids:
-        return ids
-    # Fallback: read from legacy JSON column
-    art_result = await session.exec(select(Article.source_ids).where(Article.id == article_id))
-    val = art_result.first()
-    return _parse_source_ids(val)
-
-
-async def _fetch_concept_names_from_join(session: AsyncSession, article_id: str) -> list[str]:
-    """Fetch concept names from the ArticleConcept join table.
-
-    Falls back to parsing the legacy JSON column if no join rows exist.
-    """
-    result = await session.exec(select(ArticleConcept.concept_name).where(ArticleConcept.article_id == article_id))
-    names = list(result.all())
-    if names:
-        return names
-    # Fallback: read from legacy JSON column
-    art_result = await session.exec(select(Article.concept_ids).where(Article.id == article_id))
-    val = art_result.first()
-    return _parse_source_ids(val)
-
-
-async def _fetch_concepts_for_articles(
-    session: AsyncSession,
-    article_ids: list[str],
-) -> dict[str, list[str]]:
-    """Batch-fetch concept names for multiple articles from the join table.
-
-    Returns a dict mapping article ID to the list of concept names.
-    """
-    result: dict[str, list[str]] = {aid: [] for aid in article_ids}
-    if not article_ids:
-        return result
-    ac_result = await session.execute(
-        select(ArticleConcept.article_id, ArticleConcept.concept_name).where(
-            ArticleConcept.article_id.in_(article_ids)  # type: ignore[attr-defined]
-        )
-    )
-    for row in ac_result.all():
-        result[row[0]].append(row[1])
-    return result
 
 
 def _to_source_response(source: Source) -> SourceResponse:
@@ -241,9 +150,9 @@ async def _build_article_summary(article: Article, session: AsyncSession) -> Art
     Returns:
         Summary response with a minimal source list attached.
     """
-    source_ids = await _fetch_source_ids_from_join(session, article.id)
-    concepts = await _fetch_concept_names_from_join(session, article.id)
-    sources = await _fetch_sources(session, source_ids)
+    source_ids = await fetch_source_ids_for_article(session, article.id)
+    concepts = await fetch_concept_names_for_article(session, article.id)
+    sources = await fetch_sources(session, source_ids)
     backlink_count = len(article.backlinks_in) + len(article.backlinks_out)
     from wikimind.services.factories import get_tag_service  # noqa: PLC0415
 
@@ -431,10 +340,10 @@ class WikiService:
             for row in bl_out_result.all()
         ]
 
-        source_ids = await _fetch_source_ids_from_join(session, article.id)
-        sources = await _fetch_sources(session, source_ids)
+        source_ids = await fetch_source_ids_for_article(session, article.id)
+        sources = await fetch_sources(session, source_ids)
 
-        concepts = await _fetch_concept_names_from_join(session, article.id)
+        concepts = await fetch_concept_names_for_article(session, article.id)
 
         from wikimind.services.factories import get_tag_service  # noqa: PLC0415
 
@@ -637,7 +546,7 @@ class WikiService:
 
         # Batch-load all concept names per article from the join table so
         # the frontend can filter on every concept, not just the primary one.
-        concepts_by_article = await _fetch_concepts_for_articles(session, [a.id for a in articles])
+        concepts_by_article = await fetch_concepts_for_articles(session, [a.id for a in articles])
 
         nodes = [
             GraphNode(

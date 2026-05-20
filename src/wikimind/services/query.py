@@ -48,35 +48,11 @@ from wikimind.models import (
     SourceResponse,
     WikiWorthinessScore,
 )
+from wikimind.queries import parse_json_column
 from wikimind.services.search import index_article as fts_index_article
 from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
-
-
-def _parse_source_ids(raw: str | None) -> list[str]:
-    """Parse the JSON-encoded ``Article.source_ids`` field into a list of IDs.
-
-    Mirrors the helper in :mod:`wikimind.services.wiki` so the query
-    service does not need to import private helpers from a sibling
-    module. Returns an empty list when the field is missing or malformed.
-
-    Args:
-        raw: Raw JSON string stored on :attr:`Article.source_ids`.
-
-    Returns:
-        List of source UUID strings (possibly empty).
-    """
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        log.warning("Failed to parse Article.source_ids JSON", raw=raw)
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item) for item in parsed if item]
 
 
 def _parse_article_titles(raw: str | None) -> list[str]:
@@ -140,7 +116,7 @@ async def _build_citations(query: Query, session: AsyncSession, user_id: str) ->
         source_ids = list(as_result.all())
         # Fallback to JSON column for pre-migration data
         if not source_ids:
-            source_ids = _parse_source_ids(article.source_ids)
+            source_ids = parse_json_column(article.source_ids)
         sources: list[Source] = []
         if source_ids:
             src_result = await session.exec(
