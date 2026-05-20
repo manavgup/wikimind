@@ -201,6 +201,8 @@ class CaptureConfig(BaseModel):
     rss_max_entries_per_poll: int = 50
     auto_discard_min_chars: int = 200
     rss_http_timeout_seconds: int = 30
+    ambient_poll_interval_minutes: int = 30
+    browser_history_max_entries_per_poll: int = 100
 
 
 class SearchConfig(BaseModel):

@@ -39,6 +39,7 @@ from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.engine.linter.runner import run_lint  # CodeQL[cyclic-import]
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
+    AmbientAdapterSetting,
     Article,
     Concept,
     IngestStatus,
@@ -617,6 +618,43 @@ async def run_reconciliation(_ctx) -> dict:
     return {"reconciled": count}
 
 
+async def ambient_capture_poll(_ctx) -> dict:
+    """Periodic ambient adapter poll — runs all enabled adapters for all users.
+
+    Iterates over users who have at least one enabled adapter, polls each,
+    and records new captures.
+
+    Args:
+        _ctx: ARQ context (unused).
+
+    Returns:
+        A dict with the total number of new captures.
+    """
+    from wikimind.services.ambient import AmbientService  # noqa: PLC0415
+
+    service = AmbientService()
+    total = 0
+
+    async with get_session_factory()() as session:
+        result = await session.execute(
+            select(distinct(AmbientAdapterSetting.user_id)).where(  # type: ignore[arg-type]
+                AmbientAdapterSetting.enabled == True,  # noqa: E712
+            )
+        )
+        user_ids = [row[0] for row in result]
+
+    for uid in user_ids:
+        try:
+            async with get_session_factory()() as session:
+                new_count = await service.poll_all_adapters(session, uid)
+                total += new_count
+        except Exception:
+            log.exception("ambient poll failed for user", user_id=uid)
+
+    log.info("ambient_capture_poll complete", total_new=total, users=len(user_ids))
+    return {"new_captures": total}
+
+
 # ---------------------------------------------------------------------------
 # Redis settings — only used when a Redis URL is configured (production ARQ)
 # ---------------------------------------------------------------------------
@@ -654,8 +692,10 @@ class WorkerSettings:
 
     # Weekly linter + daily wikilink sweep — iterate over all users
     # 6-hourly subscription reconciliation (no-op in self-hosted mode)
+    # 30-minute ambient capture poll (only runs if users have enabled adapters)
     cron_jobs: ClassVar[list] = [
         cron(lint_all_users, weekday=0, hour=2, minute=0),  # Monday 2am
         cron(sweep_all_users, hour=3, minute=0),  # Daily 3am
         cron(run_reconciliation, hour={0, 6, 12, 18}, minute=0),  # type: ignore[arg-type]  # Every 6 hours
+        cron(ambient_capture_poll, minute={0, 30}),  # type: ignore[arg-type]  # Every 30 minutes
     ]

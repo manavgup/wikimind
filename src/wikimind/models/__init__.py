@@ -45,6 +45,10 @@ from wikimind.models.dto.auth import (
     UserProfileResponse,
 )
 from wikimind.models.dto.capture import (
+    AmbientAdapterConfigureRequest,
+    AmbientAdapterListResponse,
+    AmbientAdapterStatusResponse,
+    AmbientPollResponse,
     CaptureDiscardResponse,
     CaptureIngestResponse,
     CaptureListResponse,
@@ -222,6 +226,7 @@ from wikimind.models.enums import (
 
 # Re-export SQLModel tables from domain-specific sub-modules
 from wikimind.models.tables import (  # noqa: F401
+    AmbientAdapterSetting,
     Article,
     ArticleConcept,
     ArticleSource,
@@ -333,6 +338,11 @@ __all__ = [
     "AdminPlanUpdateRequest",
     "AdminUserDetail",
     "AdminUserSummary",
+    "AmbientAdapterConfigureRequest",
+    "AmbientAdapterListResponse",
+    "AmbientAdapterSetting",
+    "AmbientAdapterStatusResponse",
+    "AmbientPollResponse",
     # Pipeline models
     "AnswerCompilationResult",
     # Frontmatter

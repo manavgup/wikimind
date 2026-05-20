@@ -98,6 +98,7 @@ class CaptureKind(StrEnum):
     SCREENSHOT = "screenshot"
     SLACK = "slack"
     DISCORD = "discord"
+    BROWSER_HISTORY = "browser_history"
 
 
 class CaptureStatus(StrEnum):
