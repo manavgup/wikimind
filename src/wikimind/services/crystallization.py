@@ -9,7 +9,6 @@ import json
 from datetime import datetime
 
 import structlog
-from slugify import slugify
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,6 +25,7 @@ from wikimind.models import (
     Query,
     TaskType,
 )
+from wikimind.slug import generate_unique_slug
 from wikimind.storage import get_wiki_storage
 
 log = structlog.get_logger()
@@ -63,33 +63,6 @@ def _format_conversation(queries: list[Query]) -> str:
         lines.append(f"Assistant: {q.answer}")
         lines.append("")
     return "\n".join(lines)
-
-
-async def _generate_unique_slug(title: str, user_id: str, session: AsyncSession) -> str:
-    """Generate a URL-safe slug, appending a suffix to avoid collisions.
-
-    Slugs are unique per-user, so the collision check filters by ``user_id``.
-    """
-    base = slugify(title, max_length=80)
-    candidate = base
-    suffix = 2
-    while True:
-        existing = (
-            (
-                await session.execute(
-                    select(Article).where(
-                        Article.slug == candidate,
-                        Article.user_id == user_id,
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-        if existing is None:
-            return candidate
-        candidate = f"{base}-{suffix}"
-        suffix += 1
 
 
 def _build_markdown(
@@ -262,7 +235,7 @@ Distill this conversation into a structured wiki article following the JSON sche
     article_body = data.get("article_body", "")
 
     now = utcnow_naive()
-    slug = await _generate_unique_slug(title, user_id, session)
+    slug = await generate_unique_slug(title, session, user_id=user_id)
     content = _build_markdown(
         title,
         slug,

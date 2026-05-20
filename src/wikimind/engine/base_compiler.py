@@ -11,14 +11,11 @@ import json
 from typing import TYPE_CHECKING
 
 import structlog
-from slugify import slugify
-from sqlmodel import select
 
 from wikimind.config import get_settings
 from wikimind.database import _dialect_insert
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
-    Article,
     Backlink,
     CompletionRequest,
     CompletionResponse,
@@ -27,6 +24,7 @@ from wikimind.models import (
     TaskType,
 )
 from wikimind.services.search import index_article as fts_index_article
+from wikimind.slug import generate_unique_slug
 from wikimind.storage import get_wiki_storage
 
 if TYPE_CHECKING:
@@ -120,6 +118,9 @@ class BaseCompiler:
     ) -> str:
         """Generate a URL-safe slug from a title, avoiding collisions.
 
+        Delegates to :func:`wikimind.slug.generate_unique_slug` so all
+        compiler variants share the same bounded, per-user slug logic.
+
         Args:
             title: The title to slugify.
             session: Async database session for collision checks.
@@ -129,18 +130,13 @@ class BaseCompiler:
         Raises:
             ValueError: If no unique slug is found within max attempts.
         """
-        max_attempts = self.settings.compiler.slug_max_attempts
-        base = f"{prefix}{slugify(title, max_length=max_length)}"
-        candidate = base
-        suffix = 2
-        for _ in range(max_attempts):
-            existing = (await session.exec(select(Article).where(Article.slug == candidate))).first()
-            if existing is None:
-                return candidate
-            candidate = f"{base}-{suffix}"
-            suffix += 1
-        msg = f"Could not generate unique slug for {title!r} after {max_attempts} attempts"
-        raise ValueError(msg)
+        return await generate_unique_slug(
+            title,
+            session,
+            user_id=self.user_id,
+            prefix=prefix,
+            max_length=max_length,
+        )
 
     async def _index_article(
         self,

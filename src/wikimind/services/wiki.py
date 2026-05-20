@@ -17,7 +17,6 @@ import re
 
 import structlog
 from fastapi import HTTPException
-from slugify import slugify
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
@@ -64,6 +63,7 @@ from wikimind.models import (
     WikilinkMatch,
 )
 from wikimind.services.embedding import _SEARCH_AVAILABLE
+from wikimind.slug import generate_unique_slug
 from wikimind.storage import get_wiki_storage, read_article_content
 
 log = structlog.get_logger()
@@ -1031,29 +1031,10 @@ class WikiService:
     ) -> str:
         """Generate a URL-safe slug from a title, avoiding collisions per user.
 
-        Tries the base slug first; if it already exists for this user,
-        appends ``-2``, ``-3``, etc. until a unique value is found.
+        Delegates to :func:`wikimind.slug.generate_unique_slug` so every
+        call site shares the same bounded, per-user slug logic.
         """
-        base = slugify(title, max_length=80)
-        candidate = base
-        suffix = 2
-        while True:
-            existing = (
-                (
-                    await session.execute(
-                        select(Article).where(
-                            Article.slug == candidate,
-                            Article.user_id == user_id,
-                        )
-                    )
-                )
-                .scalars()
-                .first()
-            )
-            if existing is None:
-                return candidate
-            candidate = f"{base}-{suffix}"
-            suffix += 1
+        return await generate_unique_slug(title, session, user_id=user_id)
 
     async def create_stub_article(
         self,
