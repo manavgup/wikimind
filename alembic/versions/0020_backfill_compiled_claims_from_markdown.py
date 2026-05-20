@@ -94,9 +94,10 @@ def upgrade() -> None:
     # because Alembic migrations should minimise app-level imports.
     try:
         from wikimind.storage import get_wiki_storage  # noqa: PLC0415
-    except ImportError:
-        # If the app code is not importable (e.g. running bare Alembic),
-        # skip the data migration — it will be retried on next deploy.
+    except Exception:
+        # If the app code is not importable or fails to initialize
+        # (e.g. missing env vars on Fly.io release_command),
+        # skip the data migration — it can be run manually later.
         return
 
     now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
@@ -110,7 +111,9 @@ def upgrade() -> None:
             # Path.read_text via asyncio.to_thread, so call it directly.
             resolved = storage.resolve_path(file_path)
             content = resolved.read_text(encoding="utf-8")
-        except (FileNotFoundError, ValueError):
+        except Exception:
+            # Skip articles whose files can't be read (missing, permissions,
+            # storage misconfiguration on this environment).
             continue
 
         claims = _parse_claims_from_markdown(content)
