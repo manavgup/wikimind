@@ -46,7 +46,7 @@ async def plan_aware_complete(
     if not settings.billing_enabled or session is None:
         return await router.complete(request, user_id=user_id)
 
-    from wikimind.services.quota import get_effective_plan  # noqa: PLC0415
+    from wikimind.services.quota import check_daily_llm_spend, get_effective_plan  # noqa: PLC0415
 
     try:
         plan = await get_effective_plan(session, user_id)
@@ -54,6 +54,9 @@ async def plan_aware_complete(
         # No plan table (e.g. test environment without billing migration).
         # Fall back to pass-through.
         return await router.complete(request, user_id=user_id)
+
+    # Enforce daily LLM spend cap before making the call
+    await check_daily_llm_spend(session, user_id, plan)
 
     # BYOK override: if the user has their own key for any provider,
     # let them use it with full fallback (Pro plan required for BYOK)

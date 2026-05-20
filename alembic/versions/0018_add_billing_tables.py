@@ -146,7 +146,15 @@ def upgrade() -> None:
         )
 
     # ── Seed default plans ────────────────────────────────────────────────────
-    # Use bound parameters for storage bytes to avoid asyncpg int32 overflow.
+    # Use Python-generated values for SQLite compatibility (no gen_random_uuid,
+    # no ::jsonb casts, no now()). Bound parameters for BigInteger values
+    # to avoid asyncpg int32 overflow.
+    import json as _json  # noqa: PLC0415
+    import uuid as _uuid  # noqa: PLC0415
+    from datetime import datetime as _dt, timezone as _tz  # noqa: PLC0415
+
+    _now = _dt.now(tz=_tz.utc).replace(tzinfo=None)
+
     conn.execute(
         text(
             """
@@ -159,22 +167,53 @@ def upgrade() -> None:
                 is_default, is_active, sort_order,
                 lemon_squeezy_variant_id, created_at, updated_at
             ) VALUES (
-                gen_random_uuid()::text, 'free', 'Free', 0, NULL,
-                20, 30, 10, :free_storage,
+                :id, 'free', 'Free', 0, NULL,
+                20, 30, 10, :storage,
                 3, 50,
-                '["markdown"]'::jsonb, false,
+                :exports, false,
                 'openai_compatible', 'gpt-4o-mini', false,
                 true, true, 0,
-                NULL, now(), now()
+                NULL, :now, :now
             ) ON CONFLICT (name) DO NOTHING
             """
         ),
-        {"free_storage": 26214400},
+        {
+            "id": str(_uuid.uuid4()),
+            "storage": 26214400,
+            "exports": _json.dumps(["markdown"]),
+            "now": _now,
+        },
     )
 
-    # Pro plan is seeded via psql after migration — asyncpg's prepared statement
-    # protocol encodes all integer literals as int4 which overflows for the 5GB
-    # max_storage_bytes value. See post-migration seed script.
+    conn.execute(
+        text(
+            """
+            INSERT INTO plan (
+                id, name, display_name, price_cents, billing_interval,
+                max_sources, max_articles, max_queries_per_day, max_storage_bytes,
+                max_active_shares, daily_llm_spend_cap_cents,
+                allowed_exports, mcp_enabled,
+                llm_provider, llm_model, byok_allowed,
+                is_default, is_active, sort_order,
+                lemon_squeezy_variant_id, created_at, updated_at
+            ) VALUES (
+                :id, 'pro', 'Pro', 1199, 'month',
+                500, 1000, 200, :storage,
+                100, 100,
+                :exports, true,
+                'openai_compatible', 'gpt-4o-mini', true,
+                false, true, 1,
+                NULL, :now, :now
+            ) ON CONFLICT (name) DO NOTHING
+            """
+        ),
+        {
+            "id": str(_uuid.uuid4()),
+            "storage": 5368709120,
+            "exports": _json.dumps(["markdown", "json", "pdf", "linkedin", "slides", "obsidian"]),
+            "now": _now,
+        },
+    )
 
     # ── Backfill storage_usage for existing users ─────────────────────────────
     conn.execute(

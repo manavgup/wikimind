@@ -33,7 +33,7 @@ from wikimind.models import (
 )
 from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
-from wikimind.services.quota import check_source_quota, check_storage_quota
+from wikimind.services.quota import check_source_quota, check_storage_quota, commit_storage
 from wikimind.storage import find_original_sibling, get_raw_storage
 
 # Strict pattern: only alphanumeric, hyphens, underscores, dots (no path separators)
@@ -70,7 +70,10 @@ async def ingest_url(
     if plan:
         await check_source_quota(session, user_id, plan)
         await check_storage_quota(session, user_id, plan)
-    return await service.ingest_url(str(body.url), session, auto_compile=body.auto_compile, user_id=user_id)
+    source = await service.ingest_url(str(body.url), session, auto_compile=body.auto_compile, user_id=user_id)
+    if plan and source.token_count:
+        await commit_storage(session, user_id, source.token_count * 4)  # rough bytes estimate
+    return source
 
 
 @router.post("/pdf", response_model=Source)
@@ -103,7 +106,10 @@ async def ingest_pdf(
     if plan:
         await check_source_quota(session, user_id, plan)
         await check_storage_quota(session, user_id, plan)
-    return await service.ingest_pdf(contents, file.filename, session, auto_compile=auto_compile, user_id=user_id)
+    source = await service.ingest_pdf(contents, file.filename, session, auto_compile=auto_compile, user_id=user_id)
+    if plan:
+        await commit_storage(session, user_id, len(contents))
+    return source
 
 
 @router.post("/text", response_model=Source)
@@ -120,13 +126,16 @@ async def ingest_text(
     if plan:
         await check_source_quota(session, user_id, plan)
         await check_storage_quota(session, user_id, plan)
-    return await service.ingest_text(
+    source = await service.ingest_text(
         body.content,
         body.title,
         session,
         auto_compile=body.auto_compile,
         user_id=user_id,
     )
+    if plan:
+        await commit_storage(session, user_id, len(body.content.encode()))
+    return source
 
 
 @router.get("/sources")

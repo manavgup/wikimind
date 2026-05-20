@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "../shared/Card";
 import { Button } from "../shared/Button";
 import { Spinner } from "../shared/Spinner";
-import { getUsage, createCheckout, getPortalUrl } from "../../api/billing";
+import { getPlans, getUsage, createCheckout, getPortalUrl } from "../../api/billing";
 import type { UsageInfo } from "../../api/billing";
 
 function formatBytes(bytes: number): string {
@@ -103,7 +103,10 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError(null);
     try {
-      const { checkout_url } = await createCheckout("pro");
+      const plans = await getPlans();
+      const proPlan = plans.find((p) => p.name === "pro");
+      if (!proPlan) throw new Error("Pro plan not found");
+      const { checkout_url } = await createCheckout(proPlan.id);
       window.location.href = checkout_url;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Failed to start checkout");

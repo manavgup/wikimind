@@ -74,7 +74,10 @@ class TestPlanAwareComplete:
             messages=[{"role": "user", "content": "hi"}],
         )
 
-        mock_quota_module = MagicMock(get_effective_plan=AsyncMock(return_value=mock_plan))
+        mock_quota_module = MagicMock(
+            get_effective_plan=AsyncMock(return_value=mock_plan),
+            check_daily_llm_spend=AsyncMock(),
+        )
         with (
             patch("wikimind.services.plan_routing.get_settings") as mock_settings,
             patch.dict("sys.modules", {"wikimind.services.quota": mock_quota_module}),
@@ -112,7 +115,12 @@ class TestPlanAwareComplete:
 
             with patch.dict(
                 "sys.modules",
-                {"wikimind.services.quota": MagicMock(get_effective_plan=AsyncMock(return_value=mock_plan))},
+                {
+                    "wikimind.services.quota": MagicMock(
+                        get_effective_plan=AsyncMock(return_value=mock_plan),
+                        check_daily_llm_spend=AsyncMock(),
+                    )
+                },
             ):
                 result = await plan_aware_complete(mock_router, request, "user-1", session=mock_session)
 
