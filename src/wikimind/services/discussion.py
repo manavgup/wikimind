@@ -15,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.errors import NotFoundError
+from wikimind.jobs.background import get_background_compiler
 from wikimind.models import (
     Article,
     ArticleSource,
@@ -295,6 +296,10 @@ class DiscussionService:
         session.add(job)
         await session.commit()
         await session.refresh(job)
+
+        # Dispatch the recompilation via the background compiler
+        compiler = get_background_compiler()
+        await compiler.schedule_recompile(article_id, "source", job.id, user_id=user_id)
 
         log.info(
             "discussion-guided recompile queued",

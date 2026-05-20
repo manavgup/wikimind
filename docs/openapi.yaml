@@ -1798,6 +1798,99 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{article_id}/discuss:
+    post:
+      tags:
+      - Wiki
+      summary: Post Discussion Message
+      description: Send a message about an article's sources and get an LLM response.
+      operationId: post_discussion_message_api_wiki_articles__article_id__discuss_post
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscussionMessageRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionMessageResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{article_id}/discussion:
+    get:
+      tags:
+      - Wiki
+      summary: Get Discussion Thread
+      description: Get the full discussion thread for an article.
+      operationId: get_discussion_thread_api_wiki_articles__article_id__discussion_get
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscussionThreadResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{article_id}/compile-with-guidance:
+    post:
+      tags:
+      - Wiki
+      summary: Compile With Guidance
+      description: Trigger recompilation incorporating the discussion as guidance.
+      operationId: compile_with_guidance_api_wiki_articles__article_id__compile_with_guidance_post
+      parameters:
+      - name: article_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Article Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompileWithGuidanceResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/query:
     post:
       tags:
@@ -5652,6 +5745,20 @@ components:
       - updated_at
       title: CompilationSchemaResponse
       description: API response for a compilation schema.
+    CompileWithGuidanceResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        job_id:
+          type: string
+          title: Job Id
+      type: object
+      required:
+      - status
+      - job_id
+      title: CompileWithGuidanceResponse
+      description: Response after triggering recompilation with discussion guidance.
     Concept:
       properties:
         id:
@@ -6347,6 +6454,61 @@ components:
       type: object
       title: DiscardCaptureRequest
       description: Optional request body when discarding a capture.
+    DiscussionMessageRequest:
+      properties:
+        message:
+          type: string
+          maxLength: 10000
+          minLength: 1
+          title: Message
+      type: object
+      required:
+      - message
+      title: DiscussionMessageRequest
+      description: Request to post a message in an article's discussion thread.
+    DiscussionMessageResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        article_id:
+          type: string
+          title: Article Id
+        role:
+          type: string
+          title: Role
+        content:
+          type: string
+          title: Content
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - article_id
+      - role
+      - content
+      - created_at
+      title: DiscussionMessageResponse
+      description: API response for a single discussion message.
+    DiscussionThreadResponse:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        messages:
+          items:
+            $ref: '#/components/schemas/DiscussionMessageResponse'
+          type: array
+          title: Messages
+      type: object
+      required:
+      - article_id
+      - messages
+      title: DiscussionThreadResponse
+      description: Full discussion thread for an article.
     DismissFindingResponse:
       properties:
         dismissed:
