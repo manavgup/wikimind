@@ -100,7 +100,7 @@ async def list_plans(
 ) -> list[PlanResponse]:
     """List all active billing plans (public, no auth required)."""
     result = await session.exec(
-        select(Plan).where(Plan.is_active == True).order_by(Plan.sort_order)  # noqa: E712
+        select(Plan).where(Plan.is_active == True).order_by(Plan.sort_order)  # type: ignore[arg-type]  # noqa: E712
     )
     plans = result.all()
     return [

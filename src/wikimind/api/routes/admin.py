@@ -212,8 +212,8 @@ async def admin_list_subscriptions(
     """List all subscriptions with user info (admin only)."""
     result = await session.exec(
         select(Subscription, User.email)
-        .join(User, User.id == Subscription.user_id)
-        .order_by(Subscription.created_at.desc())
+        .join(User, User.id == Subscription.user_id)  # type: ignore[arg-type]
+        .order_by(Subscription.created_at.desc())  # type: ignore[attr-defined]
     )
     rows = result.all()
     return [
@@ -292,7 +292,7 @@ async def admin_sync_subscription(
     sub_result = await session.exec(
         select(Subscription).where(
             Subscription.user_id == user_id,
-            Subscription.status.in_(["active", "cancelled", "past_due"]),
+            Subscription.status.in_(["active", "cancelled", "past_due"]),  # type: ignore[attr-defined]
         )
     )
     sub = sub_result.one_or_none()
@@ -330,7 +330,9 @@ async def admin_list_webhook_events(
     _admin: str = Depends(require_admin),
 ):
     """List recent webhook events (admin only)."""
-    result = await session.exec(select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit))
+    result = await session.exec(
+        select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit)  # type: ignore[attr-defined]
+    )
     events = result.all()
     return [
         {

@@ -278,7 +278,7 @@ async def _run_batch(
 
     for attempt in range(2):
         try:
-            response = await plan_aware_complete(router, request, user_id, session)
+            response = await plan_aware_complete(router, request, user_id, session)  # type: ignore[arg-type]
             if response is None:
                 msg = "plan_aware_complete returned None"
                 raise RuntimeError(msg)
@@ -668,7 +668,7 @@ async def _compare_article_pair(
     try:
         from wikimind.services.plan_routing import plan_aware_complete  # noqa: PLC0415
 
-        response = await plan_aware_complete(router, request, user_id, session)
+        response = await plan_aware_complete(router, request, user_id, session)  # type: ignore[arg-type]
         if response is None:
             msg = "plan_aware_complete returned None"
             raise RuntimeError(msg)

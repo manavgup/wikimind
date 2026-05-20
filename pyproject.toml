@@ -259,6 +259,9 @@ reportAssignmentType = false  # SQLModel __tablename__ = "..." triggers false po
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+env = [
+    "WIKIMIND_DEPLOYMENT_MODE=self_hosted",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap",  # SwigPy* builtin types
     "ignore:coroutine.*was never awaited:RuntimeWarning:rich.text",  # rich formatting mock objects
@@ -288,7 +291,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 83
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

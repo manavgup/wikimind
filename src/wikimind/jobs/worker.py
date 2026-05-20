@@ -677,5 +677,5 @@ class WorkerSettings:
     cron_jobs: ClassVar[list] = [
         cron(lint_all_users, weekday=0, hour=2, minute=0),  # Monday 2am
         cron(sweep_all_users, hour=3, minute=0),  # Daily 3am
-        cron(run_reconciliation, hour={0, 6, 12, 18}, minute=0),  # Every 6 hours
+        cron(run_reconciliation, hour={0, 6, 12, 18}, minute=0),  # type: ignore[arg-type]  # Every 6 hours
     ]

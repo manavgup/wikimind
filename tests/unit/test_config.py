@@ -311,9 +311,10 @@ class TestBillingConfig:
         assert cfg.lemon_squeezy_webhook_secret == ""
         assert cfg.reconciliation_interval_hours == 6
 
-    def test_deployment_mode_default_is_self_hosted(self):
+    def test_deployment_mode_default_is_self_hosted(self, monkeypatch):
         """Settings defaults to self_hosted — billing inert."""
-        s = Settings()
+        monkeypatch.delenv("WIKIMIND_DEPLOYMENT_MODE", raising=False)
+        s = Settings(_env_file=None)
         assert s.deployment_mode == "self_hosted"
         assert s.billing_enabled is False
 
@@ -330,5 +331,8 @@ class TestBillingConfig:
     def test_hosted_mode_rejects_missing_credentials(self, monkeypatch):
         """deployment_mode='hosted' without LS credentials raises on startup."""
         monkeypatch.setenv("WIKIMIND_DEPLOYMENT_MODE", "hosted")
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_API_KEY", raising=False)
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_STORE_ID", raising=False)
+        monkeypatch.delenv("WIKIMIND_BILLING__LEMON_SQUEEZY_WEBHOOK_SECRET", raising=False)
         with pytest.raises(ValueError, match="required billing config is missing"):
-            Settings()
+            Settings(_env_file=None)

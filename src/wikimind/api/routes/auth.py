@@ -610,8 +610,8 @@ async def delete_account(
             await session.delete(row)
 
         qc_result = await session.exec(select(QueryCount).where(QueryCount.user_id == user_id))
-        for row in qc_result.all():
-            await session.delete(row)
+        for qc_row in qc_result.all():
+            await session.delete(qc_row)
 
     await service.delete_account(session, user_id)
     return DeleteAccountResponse(deleted=user_id)

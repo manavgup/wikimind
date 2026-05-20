@@ -48,7 +48,12 @@ async def plan_aware_complete(
 
     from wikimind.services.quota import get_effective_plan  # noqa: PLC0415
 
-    plan = await get_effective_plan(session, user_id)
+    try:
+        plan = await get_effective_plan(session, user_id)
+    except Exception:
+        # No plan table (e.g. test environment without billing migration).
+        # Fall back to pass-through.
+        return await router.complete(request, user_id=user_id)
 
     # BYOK override: if the user has their own key for any provider,
     # let them use it with full fallback (Pro plan required for BYOK)

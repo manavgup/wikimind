@@ -207,7 +207,9 @@ async def reconcile_subscriptions(session: AsyncSession) -> int:
     }
 
     result = await session.exec(
-        select(Subscription).where(Subscription.status.in_(["active", "cancelled", "past_due", "on_trial", "paused"]))
+        select(Subscription).where(
+            Subscription.status.in_(["active", "cancelled", "past_due", "on_trial", "paused"])  # type: ignore[attr-defined]
+        )
     )
     subscriptions = list(result.all())
 
