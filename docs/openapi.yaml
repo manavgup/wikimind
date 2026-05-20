@@ -375,32 +375,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/capture/{kind}:
+  /api/capture/ambient/configure:
     post:
       tags:
       - Capture
-      summary: Create Capture
-      description: Push a raw capture from an ambient adapter.
-      operationId: create_capture_api_capture__kind__post
-      parameters:
-      - name: kind
-        in: path
-        required: true
-        schema:
-          $ref: '#/components/schemas/CaptureKind'
+      summary: Configure Ambient Adapter
+      description: Enable or disable an ambient capture adapter.
+      operationId: configure_ambient_adapter_api_capture_ambient_configure_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CaptureRequest'
+              $ref: '#/components/schemas/AmbientAdapterConfigureRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CaptureResponse'
+                $ref: '#/components/schemas/AmbientAdapterStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/ambient/adapters:
+    get:
+      tags:
+      - Capture
+      summary: List Ambient Adapters
+      description: List all configured ambient adapters.
+      operationId: list_ambient_adapters_api_capture_ambient_adapters_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmbientAdapterListResponse'
+  /api/capture/ambient/adapters/{adapter_type}/poll:
+    post:
+      tags:
+      - Capture
+      summary: Poll Ambient Adapter
+      description: Manually trigger a poll for a specific ambient adapter.
+      operationId: poll_ambient_adapter_api_capture_ambient_adapters__adapter_type__poll_post
+      parameters:
+      - name: adapter_type
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Adapter Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmbientPollResponse'
         '422':
           description: Validation Error
           content:
@@ -517,6 +552,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CaptureDiscardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/capture/{kind}:
+    post:
+      tags:
+      - Capture
+      summary: Create Capture
+      description: Push a raw capture from an ambient adapter.
+      operationId: create_capture_api_capture__kind__post
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/CaptureKind'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureResponse'
         '422':
           description: Validation Error
           content:
@@ -4585,6 +4652,82 @@ components:
       - sync
       title: AllSettingsResponse
       description: Full application settings response.
+    AmbientAdapterConfigureRequest:
+      properties:
+        adapter_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Adapter Type
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        settings:
+          additionalProperties:
+            type: string
+          type: object
+          title: Settings
+      type: object
+      required:
+      - adapter_type
+      title: AmbientAdapterConfigureRequest
+      description: Request to configure an ambient capture adapter.
+    AmbientAdapterListResponse:
+      properties:
+        adapters:
+          items:
+            $ref: '#/components/schemas/AmbientAdapterStatusResponse'
+          type: array
+          title: Adapters
+      type: object
+      required:
+      - adapters
+      title: AmbientAdapterListResponse
+      description: List of configured ambient adapters.
+    AmbientAdapterStatusResponse:
+      properties:
+        adapter_type:
+          type: string
+          title: Adapter Type
+        enabled:
+          type: boolean
+          title: Enabled
+        last_polled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Polled At
+        settings:
+          additionalProperties:
+            type: string
+          type: object
+          title: Settings
+      type: object
+      required:
+      - adapter_type
+      - enabled
+      title: AmbientAdapterStatusResponse
+      description: API response for an ambient adapter's status.
+    AmbientPollResponse:
+      properties:
+        adapter_type:
+          type: string
+          title: Adapter Type
+        new_captures:
+          type: integer
+          title: New Captures
+        status:
+          type: string
+          title: Status
+          default: polled
+      type: object
+      required:
+      - adapter_type
+      - new_captures
+      title: AmbientPollResponse
+      description: Response after triggering an ambient adapter poll.
     ApiKeyDeleteResponse:
       properties:
         provider:
@@ -5156,6 +5299,7 @@ components:
       - screenshot
       - slack
       - discord
+      - browser_history
       title: CaptureKind
       description: Kind of ambient capture adapter that produced a CaptureSource.
     CaptureListResponse:

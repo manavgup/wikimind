@@ -11,6 +11,7 @@ import functools
 import structlog
 
 from wikimind.services.admin import AdminService
+from wikimind.services.ambient import AmbientService
 from wikimind.services.capture import CaptureService
 from wikimind.services.citation import CitationService
 from wikimind.services.compilation_schema import CompilationSchemaService
@@ -51,6 +52,12 @@ def get_admin_service() -> AdminService:
     if _admin_service is None:
         _admin_service = AdminService()
     return _admin_service
+
+
+@functools.lru_cache(maxsize=1)
+def get_ambient_service() -> AmbientService:
+    """Return a singleton AmbientService instance for FastAPI dependency injection."""
+    return AmbientService()
 
 
 @functools.lru_cache(maxsize=1)

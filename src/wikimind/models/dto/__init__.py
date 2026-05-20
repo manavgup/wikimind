@@ -36,6 +36,10 @@ from wikimind.models.dto.auth import (
     UserProfileResponse,
 )
 from wikimind.models.dto.capture import (
+    AmbientAdapterConfigureRequest,
+    AmbientAdapterListResponse,
+    AmbientAdapterStatusResponse,
+    AmbientPollResponse,
     CaptureDiscardResponse,
     CaptureIngestResponse,
     CaptureListResponse,
@@ -189,6 +193,11 @@ __all__ = [
     "AdminActionResult",
     "AdminUserDetail",
     "AdminUserSummary",
+    # capture
+    "AmbientAdapterConfigureRequest",
+    "AmbientAdapterListResponse",
+    "AmbientAdapterStatusResponse",
+    "AmbientPollResponse",
     # compilation
     "AnswerCompilationResult",
     "AnswerFrontmatter",
@@ -207,7 +216,6 @@ __all__ = [
     # query
     "AskResponse",
     "BacklinkEntry",
-    # capture
     "CaptureDiscardResponse",
     "CaptureIngestResponse",
     "CaptureListResponse",

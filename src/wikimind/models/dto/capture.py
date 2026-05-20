@@ -107,3 +107,39 @@ class RssPollResponse(BaseModel):
     feed_id: str
     new_captures: int
     status: str = "polled"
+
+
+# ---------------------------------------------------------------------------
+# Ambient adapter configuration request/response models (issue #442)
+# ---------------------------------------------------------------------------
+
+
+class AmbientAdapterConfigureRequest(BaseModel):
+    """Request to configure an ambient capture adapter."""
+
+    adapter_type: str = Field(min_length=1, max_length=100)
+    enabled: bool = True
+    settings: dict[str, str] = Field(default_factory=dict)
+
+
+class AmbientAdapterStatusResponse(BaseModel):
+    """API response for an ambient adapter's status."""
+
+    adapter_type: str
+    enabled: bool
+    last_polled_at: datetime | None = None
+    settings: dict[str, str] = Field(default_factory=dict)
+
+
+class AmbientAdapterListResponse(BaseModel):
+    """List of configured ambient adapters."""
+
+    adapters: list[AmbientAdapterStatusResponse]
+
+
+class AmbientPollResponse(BaseModel):
+    """Response after triggering an ambient adapter poll."""
+
+    adapter_type: str
+    new_captures: int
+    status: str = "polled"

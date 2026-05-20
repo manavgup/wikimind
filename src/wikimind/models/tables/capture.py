@@ -1,4 +1,4 @@
-"""Capture tables — ambient capture sources and RSS feeds."""
+"""Capture tables — ambient capture sources, RSS feeds, and adapter settings."""
 
 import uuid
 from datetime import datetime
@@ -34,6 +34,22 @@ class CaptureSource(SQLModel, table=True):
     ingested_at: datetime | None = None
     discarded_at: datetime | None = None
     discard_reason: str | None = None
+
+
+class AmbientAdapterSetting(SQLModel, table=True):
+    """Persisted configuration for an ambient capture adapter (issue #442).
+
+    Each row represents one adapter type for one user. The ``settings_json``
+    column stores adapter-specific key-value pairs as a JSON string.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    adapter_type: str = Field(index=True)
+    enabled: bool = True
+    settings_json: str = "{}"
+    last_polled_at: datetime | None = None
+    created_at: datetime = Field(default_factory=utcnow_naive)
 
 
 class RssFeed(SQLModel, table=True):

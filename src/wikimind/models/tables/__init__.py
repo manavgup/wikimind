@@ -16,7 +16,7 @@ from wikimind.models.tables.billing import (
     Subscription,
     WebhookEvent,
 )
-from wikimind.models.tables.capture import CaptureSource, RssFeed
+from wikimind.models.tables.capture import AmbientAdapterSetting, CaptureSource, RssFeed
 from wikimind.models.tables.compilation import (
     ClaimConcept,
     CompilationDraft,
@@ -56,6 +56,7 @@ from wikimind.models.tables.wiki import (
 )
 
 __all__ = [
+    "AmbientAdapterSetting",
     "Article",
     "ArticleConcept",
     "ArticleSource",
