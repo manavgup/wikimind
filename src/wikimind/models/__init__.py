@@ -157,12 +157,14 @@ from wikimind.models.dto.tags import (
     TagArticleRequest,
 )
 from wikimind.models.dto.wiki import (
+    ArticleCitationsResponse,
     ArticleDownloadResponse,
     ArticleEditRequest,
     ArticleRelationshipsResponse,
     ArticleResponse,
     ArticleSummaryResponse,
     BacklinkEntry,
+    ClaimCitationResponse,
     ConceptDetailResponse,
     ConceptResponse,
     ContradictionResolutionOption,
@@ -188,6 +190,7 @@ from wikimind.models.dto.wiki import (
     SavedSearchExecuteResponse,
     SearchResponse,
     SearchResult,
+    SourceSpanResponse,
     WikilinkMatch,
 )
 
@@ -208,6 +211,7 @@ from wikimind.models.enums import (
     LintFindingKind,
     LintReportStatus,
     LintSeverity,
+    LocatorKind,
     PageType,
     Provider,
     RelationType,
@@ -254,6 +258,7 @@ from wikimind.models.tables import (  # noqa: F401
     ShareLink,
     Source,
     SourceImage,
+    SourceSpan,
     StorageUsage,
     StructuralFinding,
     Subscription,
@@ -336,6 +341,7 @@ __all__ = [
     "ApproveDraftResponse",
     # Tables
     "Article",
+    "ArticleCitationsResponse",
     "ArticleConcept",
     # Enums
     "ArticleDownloadFormat",
@@ -361,6 +367,7 @@ __all__ = [
     "CaptureStatus",
     "CitationArticleRef",
     "CitationResponse",
+    "ClaimCitationResponse",
     "ClaimConcept",
     "ClaimConceptRole",
     "ClusterStatus",
@@ -447,6 +454,7 @@ __all__ = [
     "LintSeverity",
     "LinterContradiction",
     "LinterResult",
+    "LocatorKind",
     "MCPAccessToken",
     "MCPTokenCreateRequest",
     "MCPTokenCreateResponse",
@@ -509,6 +517,8 @@ __all__ = [
     "SourceImage",
     "SourceImageEntry",
     "SourceResponse",
+    "SourceSpan",
+    "SourceSpanResponse",
     "SourceType",
     "StorageUsage",
     "StructuralFinding",

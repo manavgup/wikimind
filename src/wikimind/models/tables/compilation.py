@@ -51,6 +51,7 @@ class CompiledClaim(SQLModel, table=True):
     quote: str | None = None
     embedding: bytes | None = None  # raw float32 array; nullable until embedding runs
     embedding_version: str | None = None  # e.g. "bge-small-1.5"
+    source_span_ids: str = "[]"  # JSON list of SourceSpan UUIDs (issue #450)
     cluster_assignment_reconciled: bool = False
     created_at: datetime = Field(default_factory=utcnow_naive)
     updated_at: datetime = Field(default_factory=utcnow_naive)

@@ -1599,6 +1599,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/wiki/articles/{id_or_slug}/citations:
+    get:
+      tags:
+      - Wiki
+      summary: Get Article Citations
+      description: 'Return claims for an article with their linked source spans.
+
+
+        Each claim includes the verbatim source spans that anchor it to
+
+        specific paragraphs in the original source documents.'
+      operationId: get_article_citations_api_wiki_articles__id_or_slug__citations_get
+      parameters:
+      - name: id_or_slug
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Id Or Slug
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleCitationsResponse'
+        '404':
+          description: Article not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/wiki/articles/{article_id}/tags:
     post:
       tags:
@@ -4647,6 +4681,26 @@ components:
       - article_title
       title: ApproveDraftResponse
       description: Response after approving a compilation draft.
+    ArticleCitationsResponse:
+      properties:
+        article_id:
+          type: string
+          title: Article Id
+        article_title:
+          type: string
+          title: Article Title
+        claims:
+          items:
+            $ref: '#/components/schemas/ClaimCitationResponse'
+          type: array
+          title: Claims
+          default: []
+      type: object
+      required:
+      - article_id
+      - article_title
+      title: ArticleCitationsResponse
+      description: All claims for an article with their source spans.
     ArticleDownloadFormat:
       type: string
       enum:
@@ -5279,6 +5333,40 @@ components:
       title: CitationResponse
       description: 'A single Q&A citation: an article plus the sources it was compiled
         from.'
+    ClaimCitationResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        text:
+          type: string
+          title: Text
+        confidence_level:
+          type: string
+          title: Confidence Level
+        confidence_score:
+          type: number
+          title: Confidence Score
+        source_ids:
+          items:
+            type: string
+          type: array
+          title: Source Ids
+          default: []
+        source_spans:
+          items:
+            $ref: '#/components/schemas/SourceSpanResponse'
+          type: array
+          title: Source Spans
+          default: []
+      type: object
+      required:
+      - id
+      - text
+      - confidence_level
+      - confidence_score
+      title: ClaimCitationResponse
+      description: A compiled claim with its linked source spans for citation display.
     CompilationDraftResponse:
       properties:
         id:
@@ -6898,6 +6986,15 @@ components:
       - error
       title: LintSeverity
       description: Severity level for a lint finding.
+    LocatorKind:
+      type: string
+      enum:
+      - pdf-page-rect
+      - html-xpath-offset
+      - text-byte-range
+      - youtube-timestamp
+      title: LocatorKind
+      description: 'Type of anchor locator for a source span (issue #450).'
     MCPTokenCreateRequest:
       properties:
         name:
@@ -8187,6 +8284,41 @@ components:
         Q&A responses so callers can trace claims back to their origin
 
         (URL, PDF filename, upload date, etc.).'
+    SourceSpanResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        source_id:
+          type: string
+          title: Source Id
+        locator_kind:
+          $ref: '#/components/schemas/LocatorKind'
+        locator:
+          additionalProperties: true
+          type: object
+          title: Locator
+        text:
+          type: string
+          title: Text
+        fingerprint:
+          type: string
+          title: Fingerprint
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - source_id
+      - locator_kind
+      - locator
+      - text
+      - fingerprint
+      - created_at
+      title: SourceSpanResponse
+      description: API response for a single source span anchor.
     SourceType:
       type: string
       enum:

@@ -52,6 +52,7 @@ from wikimind.models.tables.wiki import (
     Concept,
     ConceptKindDef,
     ReinforcementEvent,
+    SourceSpan,
 )
 
 __all__ = [
@@ -91,6 +92,7 @@ __all__ = [
     "ShareLink",
     "Source",
     "SourceImage",
+    "SourceSpan",
     "StorageUsage",
     "StructuralFinding",
     "Subscription",
