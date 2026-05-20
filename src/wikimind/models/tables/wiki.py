@@ -169,3 +169,20 @@ class Backlink(SQLModel, table=True):
     resolution_note: str | None = None
     resolved_at: datetime | None = None
     resolved_by: str | None = None
+
+
+class DiscussionMessage(SQLModel, table=True):
+    """A single message in a pre-compilation discussion thread (issue #418).
+
+    Users can discuss an article's source material with the LLM before
+    triggering recompilation. Each message is either from the user or the
+    assistant. The full thread is passed as context when the user triggers
+    ``compile-with-guidance``.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    article_id: str = Field(foreign_key="article.id", index=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    role: str  # "user" or "assistant"
+    content: str = Field(sa_type=Text)
+    created_at: datetime = Field(default_factory=utcnow_naive)

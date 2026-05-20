@@ -51,6 +51,7 @@ from wikimind.models.tables.wiki import (
     Backlink,
     Concept,
     ConceptKindDef,
+    DiscussionMessage,
     ReinforcementEvent,
     SourceSpan,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "ContradictionFinding",
     "Conversation",
     "CostLog",
+    "DiscussionMessage",
     "DismissedFinding",
     "Job",
     "LLMTrace",
