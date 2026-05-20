@@ -206,7 +206,7 @@ def upgrade() -> None:
                 NULL, :now, :now
             ) ON CONFLICT (name) DO NOTHING
             """
-        ),
+        ).bindparams(sa.bindparam("storage", type_=sa.BigInteger())),
         {
             "id": str(_uuid.uuid4()),
             "storage": 5368709120,
