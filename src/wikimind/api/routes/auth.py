@@ -591,9 +591,7 @@ async def delete_account(
     """Delete the current user's account and all owned data."""
     # Cancel Lemon Squeezy subscription if billing is enabled
     if get_settings().billing_enabled:
-        sub_result = await session.exec(
-            select(Subscription).where(Subscription.user_id == user_id)
-        )
+        sub_result = await session.exec(select(Subscription).where(Subscription.user_id == user_id))
         for sub in sub_result.all():
             if sub.status in ("active", "on_trial", "past_due"):
                 try:
@@ -607,15 +605,11 @@ async def delete_account(
             await session.delete(sub)
 
         # Delete billing-specific rows
-        storage_result = await session.exec(
-            select(StorageUsage).where(StorageUsage.user_id == user_id)
-        )
+        storage_result = await session.exec(select(StorageUsage).where(StorageUsage.user_id == user_id))
         for row in storage_result.all():
             await session.delete(row)
 
-        qc_result = await session.exec(
-            select(QueryCount).where(QueryCount.user_id == user_id)
-        )
+        qc_result = await session.exec(select(QueryCount).where(QueryCount.user_id == user_id))
         for row in qc_result.all():
             await session.delete(row)
 

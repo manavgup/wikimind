@@ -1,7 +1,6 @@
 """Tests for admin billing endpoints."""
 
 
-
 class TestAdminBillingEndpoints:
     def test_admin_billing_imports(self):
         """Verify billing models can be imported for admin endpoints."""

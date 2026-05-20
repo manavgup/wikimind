@@ -238,9 +238,7 @@ async def admin_get_user_subscription(
     _admin: str = Depends(require_admin),
 ):
     """Get subscription details for a specific user (admin only)."""
-    result = await session.exec(
-        select(Subscription).where(Subscription.user_id == user_id)
-    )
+    result = await session.exec(select(Subscription).where(Subscription.user_id == user_id))
     subs = result.all()
     if not subs:
         raise HTTPException(status_code=404, detail="No subscriptions found for user")
@@ -310,9 +308,7 @@ async def admin_sync_subscription(
     user = user_result.one()
 
     variant_id = str(attrs.get("variant_id", ""))
-    plan_result = await session.exec(
-        select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id)
-    )
+    plan_result = await session.exec(select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id))
     plan = plan_result.one_or_none()
     plan_name = plan.name if plan else "pro"
 
@@ -334,9 +330,7 @@ async def admin_list_webhook_events(
     _admin: str = Depends(require_admin),
 ):
     """List recent webhook events (admin only)."""
-    result = await session.exec(
-        select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit)
-    )
+    result = await session.exec(select(WebhookEvent).order_by(WebhookEvent.processed_at.desc()).limit(limit))
     events = result.all()
     return [
         {

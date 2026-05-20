@@ -207,9 +207,7 @@ async def reconcile_subscriptions(session: AsyncSession) -> int:
     }
 
     result = await session.exec(
-        select(Subscription).where(
-            Subscription.status.in_(["active", "cancelled", "past_due", "on_trial", "paused"])
-        )
+        select(Subscription).where(Subscription.status.in_(["active", "cancelled", "past_due", "on_trial", "paused"]))
     )
     subscriptions = list(result.all())
 
@@ -238,9 +236,7 @@ async def reconcile_subscriptions(session: AsyncSession) -> int:
                     continue
 
                 variant_id = str(attrs.get("variant_id", ""))
-                plan_result = await session.exec(
-                    select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id)
-                )
+                plan_result = await session.exec(select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id))
                 plan = plan_result.one_or_none()
                 plan_name = plan.name if plan else "pro"
 
