@@ -1,16 +1,11 @@
-"""Pipeline and compilation Pydantic models — data flowing through ingest/compile/query.
+"""Compilation DTOs — dependency-light request/response schemas.
 
-These are pure Pydantic models (NOT persisted to the database). They carry data
-through the ingest -> compile -> query pipeline and include compilation results,
-frontmatter validators, linter results, and typed return tuples for service functions.
+Covers compilation results, frontmatter, compilation schemas, and drafts.
 """
 
-import uuid
-from datetime import date, datetime
-from typing import Any, Literal, NamedTuple
+from datetime import datetime
 
-from pydantic import BaseModel
-from sqlmodel import Field
+from pydantic import BaseModel, Field
 
 from wikimind.models.enums import (
     ConfidenceLevel,
@@ -18,41 +13,10 @@ from wikimind.models.enums import (
     Provider,
     RelationType,
     SourceType,
-    TaskType,
 )
 
 # ---------------------------------------------------------------------------
-# Document processing
-# ---------------------------------------------------------------------------
-
-
-class DocumentChunk(BaseModel):
-    """A chunk of a normalized document."""
-
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    document_id: str
-    content: str
-    heading_path: list[str] = []  # e.g. ["Introduction", "Key Claims"]
-    embedding_id: str | None = None
-    token_count: int = 0
-    chunk_index: int = 0
-
-
-class NormalizedDocument(BaseModel):
-    """Normalized document ready for compilation."""
-
-    raw_source_id: str
-    clean_text: str
-    title: str
-    author: str | None = None
-    published_date: date | None = None
-    estimated_tokens: int = 0
-    language: str = "en"
-    chunks: list[DocumentChunk] = []
-
-
-# ---------------------------------------------------------------------------
-# Compilation results
+# Compiled claim DTO (pipeline)
 # ---------------------------------------------------------------------------
 
 
@@ -69,6 +33,11 @@ class CompiledClaimDTO(BaseModel):
     predicate: str | None = None  # LLM-extracted predicate
     quote: str | None = None  # Direct quote < 15 words if critical
     source_ids: list[str] = []  # Source UUIDs supporting this claim
+
+
+# ---------------------------------------------------------------------------
+# Compilation result models (pipeline)
+# ---------------------------------------------------------------------------
 
 
 class CompilationResult(BaseModel):
@@ -146,7 +115,7 @@ class SynthesisCompilationResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Frontmatter validators
+# Frontmatter models
 # ---------------------------------------------------------------------------
 
 
@@ -229,114 +198,99 @@ class MetaFrontmatter(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Q&A pipeline models
+# Compilation schema request/response models (issue #420)
 # ---------------------------------------------------------------------------
 
 
-class QueryResult(BaseModel):
-    """Output from Q&A agent."""
+class CreateCompilationSchemaRequest(BaseModel):
+    """Request to create a user-defined compilation schema."""
 
-    answer: str
-    confidence: str  # high | medium | low
-    sources: list[str]  # Article titles
-    related_articles: list[str]
-    new_article_suggested: str | None = None
-    follow_up_questions: list[str] = []
-
-
-class WikiWorthinessScore(BaseModel):
-    """Score describing whether a Q&A answer is worth filing back as a wiki page.
-
-    Produced by the Q&A agent's auto file-back scorer. ``passed`` is the
-    overall verdict; ``auto_filed`` records whether a wiki article was
-    actually created as a result of this score.
-    """
-
-    word_count: int
-    source_count: int
-    synthesizes: bool
-    dedup_collision: bool
-    passed: bool
-    auto_filed: bool = False
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool = False
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
 
 
-# ---------------------------------------------------------------------------
-# Linter pipeline models
-# ---------------------------------------------------------------------------
+class UpdateCompilationSchemaRequest(BaseModel):
+    """Request to update a compilation schema."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    is_active: bool | None = None
+    article_max_length: int | None = Field(default=None, ge=100, le=50000)
+    required_sections: list[str] | None = None
+    style: str | None = Field(default=None, max_length=500)
+    focus: str | None = Field(default=None, max_length=500)
+    concept_max_depth: int | None = Field(default=None, ge=1, le=10)
+    concept_naming: str | None = Field(default=None, max_length=200)
+    extraction_always_note: list[str] | None = None
+    extraction_ignore: list[str] | None = None
+    custom_directives: str | None = Field(default=None, max_length=2000)
 
 
-class LinterContradiction(BaseModel):
-    """A contradiction found by the linter."""
+class CompilationSchemaResponse(BaseModel):
+    """API response for a compilation schema."""
 
-    claim_a: str
-    claim_b: str
-    articles: list[str]
-
-
-class LinterResult(BaseModel):
-    """Output from wiki linter."""
-
-    contradictions: list[LinterContradiction] = []
-    orphaned_articles: list[str] = []
-    stale_articles: list[str] = []
-    gap_suggestions: list[str] = []
-    coverage_scores: dict[str, float] = {}  # concept -> 0.0-1.0
-
-
-# ---------------------------------------------------------------------------
-# LLM completion models
-# ---------------------------------------------------------------------------
-
-
-class CompletionRequest(BaseModel):
-    """Request for LLM completion."""
-
-    system: str
-    messages: list[dict[str, str]]
-    max_tokens: int = 4096
-    temperature: float = 0.3
-    response_format: str = "json"  # text | json
-    task_type: TaskType = TaskType.COMPILE
-    preferred_provider: Provider | None = None
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
-    model_override: str | None = None
-    disable_fallback: bool = False
-
-
-class CompletionResponse(BaseModel):
-    """Response from LLM completion."""
-
-    content: str
-    provider_used: Provider
-    model_used: str
-    input_tokens: int
-    output_tokens: int
-    cost_usd: float
-    latency_ms: int
+    id: str
+    name: str
+    description: str | None
+    is_active: bool
+    article_max_length: int | None
+    required_sections: list[str] | None
+    style: str | None
+    focus: str | None
+    concept_max_depth: int | None
+    concept_naming: str | None
+    extraction_always_note: list[str] | None
+    extraction_ignore: list[str] | None
+    custom_directives: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------------------------------------------------------------------------
-# Typed return tuples for service functions
+# Compilation draft request/response models
 # ---------------------------------------------------------------------------
 
 
-class QAResult(NamedTuple):
-    """Result of a Q&A answer call: query row, conversation, and optional score."""
+class CompilationDraftResponse(BaseModel):
+    """API response for a compilation draft awaiting review."""
 
-    query: Any  # Query table instance
-    conversation: Any  # Conversation table instance
-    wiki_worthiness_score: WikiWorthinessScore | None
+    id: str
+    source_id: str
+    title: str
+    summary: str
+    key_takeaways: list[str]
+    draft_body: str
+    status: str
+    created_at: datetime
+    reviewed_at: datetime | None = None
 
 
-class FileBackArticlePair(NamedTuple):
-    """Result of filing a conversation back to the wiki."""
+class ApproveDraftRequest(BaseModel):
+    """Request to approve a draft, optionally with user guidance."""
 
-    article: Any  # Article table instance
-    is_update: bool
+    guidance: str | None = None
 
 
-class ResolvedBacklinks(NamedTuple):
-    """Result of resolving wikilink candidates against the article table."""
+class ApproveDraftResponse(BaseModel):
+    """Response after approving a compilation draft."""
 
-    resolved: list[Any]  # list[ResolvedBacklink] — avoids circular import
-    unresolved: list[str]
+    status: str
+    article_slug: str
+    article_title: str
+
+
+class RejectDraftResponse(BaseModel):
+    """Response after rejecting a compilation draft."""
+
+    status: str
+    source_id: str
