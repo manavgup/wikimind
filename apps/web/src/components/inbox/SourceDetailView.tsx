@@ -5,6 +5,7 @@ import { getBaseUrl } from "../../api/client";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
+import { SourceSpansPanel } from "../viewers/SourceSpansPanel";
 import type { IngestStatus, PipelineStep, SourceType } from "../../types/api";
 
 const STATUS_TONE: Record<IngestStatus, BadgeTone> = {
@@ -250,6 +251,9 @@ export function SourceDetailView() {
               </div>
             </Card>
           ) : null}
+
+          {/* Source spans (extracted passages) */}
+          <SourceSpansPanel sourceId={source.id} />
 
           {/* Linked articles */}
           {source.linked_articles.length > 0 ? (
