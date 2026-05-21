@@ -19,6 +19,7 @@ import { TagSelector } from "./TagSelector";
 import { preprocessMarkdown, extractSynthesizedFrom, extractConceptKind } from "./preprocessMarkdown";
 import { markdownComponents } from "./markdownComponents";
 import { useArticleEditor } from "./useArticleEditor";
+import { ClaimsPanel } from "./ClaimsPanel";
 import { DiscussionPanel } from "./DiscussionPanel";
 
 interface ArticleReaderProps {
@@ -172,6 +173,13 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           >
             {processed}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Per-claim confidence panel */}
+      {!isEditing && (
+        <div className="mt-8 border-t border-slate-200 pt-6">
+          <ClaimsPanel articleId={article.id} />
         </div>
       )}
 
