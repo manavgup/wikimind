@@ -4,10 +4,15 @@ Checks database connectivity, Alembic migration version, LLM provider
 availability, stuck source processing jobs, Redis connectivity, and ARQ
 queue depth. Returns a structured JSON response with per-check status
 and overall system health.
+
+The ``/health/job-ping`` endpoint enqueues a lightweight ping job and
+polls for its result to verify the full background job pipeline:
+API -> Redis -> ARQ worker -> result.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import timedelta
 from typing import Any
@@ -15,6 +20,8 @@ from typing import Any
 import structlog
 from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
+from arq.jobs import Job as ArqJob
+from arq.jobs import JobStatus as ArqJobStatus
 from fastapi import APIRouter
 from redis.asyncio import Redis
 from sqlalchemy import text as sa_text
@@ -186,3 +193,80 @@ async def deep_health_check() -> dict[str, Any]:
         "status": _overall_status(checks),
         "checks": checks,
     }
+
+
+# ---------------------------------------------------------------------------
+# Job ping — end-to-end background job verification
+# ---------------------------------------------------------------------------
+
+# Maximum time to wait for the ping job to complete (seconds).
+_JOB_PING_TIMEOUT = 30
+# Interval between result polls (seconds).
+_JOB_PING_POLL_INTERVAL = 1
+
+
+@router.get("/health/job-ping")
+async def job_ping() -> dict[str, Any]:
+    """Enqueue a lightweight ping job and wait for its result.
+
+    Proves the full background job pipeline works end-to-end:
+    API -> Redis -> ARQ worker -> result.
+
+    Returns ``{"status": "ok", ...}`` when the job completes within the
+    timeout, or ``{"status": "error", ...}`` on failure or timeout.
+    In dev mode (no Redis), returns ``{"status": "skipped"}`` since
+    there is no ARQ worker to verify.
+    """
+    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415
+
+    compiler = get_background_compiler()
+
+    if not compiler.is_prod:
+        return {"status": "skipped", "reason": "in-process mode (no Redis)"}
+
+    start = time.monotonic()
+    try:
+        job_id = await compiler.schedule_ping()
+        if job_id is None:
+            return {"status": "error", "error": "Failed to enqueue ping job"}
+
+        # Poll ARQ for the job result
+        pool = await compiler._get_pool()
+        for _ in range(int(_JOB_PING_TIMEOUT / _JOB_PING_POLL_INTERVAL)):
+            arq_job = ArqJob(job_id, redis=pool)
+            status = await arq_job.status()
+            if status == ArqJobStatus.complete:
+                info = await arq_job.result_info()
+                latency_ms = round((time.monotonic() - start) * 1000)
+                return {
+                    "status": "ok",
+                    "job_id": job_id,
+                    "result": info.result if info else None,
+                    "latency_ms": latency_ms,
+                }
+            if status == ArqJobStatus.not_found:
+                # Job disappeared — worker may have crashed
+                latency_ms = round((time.monotonic() - start) * 1000)
+                return {
+                    "status": "error",
+                    "job_id": job_id,
+                    "error": "Job not found — worker may not be running",
+                    "latency_ms": latency_ms,
+                }
+            await asyncio.sleep(_JOB_PING_POLL_INTERVAL)
+
+        latency_ms = round((time.monotonic() - start) * 1000)
+        return {
+            "status": "error",
+            "job_id": job_id,
+            "error": f"Ping job did not complete within {_JOB_PING_TIMEOUT}s",
+            "latency_ms": latency_ms,
+        }
+    except Exception as exc:
+        latency_ms = round((time.monotonic() - start) * 1000)
+        log.warning("health: job-ping failed", error=str(exc))
+        return {
+            "status": "error",
+            "error": str(exc),
+            "latency_ms": latency_ms,
+        }

@@ -21,6 +21,7 @@ from wikimind.config import get_settings
 EXEMPT_PATHS = {
     "/health",
     "/health/deep",
+    "/health/job-ping",
     "/metrics",
     "/docs",
     "/openapi.json",

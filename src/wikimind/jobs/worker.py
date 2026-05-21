@@ -226,6 +226,16 @@ async def _compile_direct(
     await sweep_wikilinks(ctx, user_id=user_id)
 
 
+async def ping(_ctx) -> str:
+    """Lightweight no-op job that proves the full ARQ pipeline works.
+
+    Returns ``"pong"`` immediately. Used by the production deploy
+    verification step to confirm API -> Redis -> ARQ worker -> result.
+    """
+    log.info("ping job executed")
+    return "pong"
+
+
 async def compile_source(
     ctx,
     source_id: str,
@@ -683,7 +693,7 @@ def get_redis_settings() -> RedisSettings:
 class WorkerSettings:
     """ARQ worker configuration for production (requires Redis)."""
 
-    functions: ClassVar[list] = [compile_source, lint_wiki, recompile_article, sweep_wikilinks]
+    functions: ClassVar[list] = [ping, compile_source, lint_wiki, recompile_article, sweep_wikilinks]
     redis_settings = get_redis_settings()
     _worker_cfg = get_settings().worker
     max_jobs = _worker_cfg.max_jobs

@@ -72,6 +72,35 @@ class BackgroundCompiler:
         """Return True when a real Redis URL is configured."""
         return self._redis_url is not None
 
+    async def schedule_ping(self) -> str | None:
+        """Enqueue a lightweight ping job and return the ARQ job ID.
+
+        Returns the ARQ job ID on success (prod mode) or ``None``
+        in dev mode where no Redis is available.
+
+        Returns:
+            The ARQ job ID string, or None in dev mode.
+        """
+        if not self.is_prod:
+            return None
+
+        pool = await self._get_pool()
+        job = await pool.enqueue_job("ping")
+        return job.job_id if job else None
+
+    async def _get_pool(self) -> ArqRedis:
+        """Return the cached ARQ Redis pool, creating it lazily.
+
+        Returns:
+            The ArqRedis connection pool.
+        """
+        if self._arq_pool is None:
+            async with self._pool_lock:
+                if self._arq_pool is None:
+                    settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
+                    self._arq_pool = await create_pool(settings)
+        return self._arq_pool
+
     async def schedule_compile(
         self,
         source_id: str,
@@ -198,12 +227,8 @@ class BackgroundCompiler:
         overhead. An asyncio.Lock guards initialization to prevent
         duplicate pools under concurrent calls.
         """
-        if self._arq_pool is None:
-            async with self._pool_lock:
-                if self._arq_pool is None:  # double-check after acquiring lock
-                    settings = RedisSettings.from_dsn(self._redis_url)  # type: ignore[arg-type]
-                    self._arq_pool = await create_pool(settings)
-        await self._arq_pool.enqueue_job(func_name, *args)
+        pool = await self._get_pool()
+        await pool.enqueue_job(func_name, *args)
 
     async def close(self) -> None:
         """Close the cached ARQ Redis pool, if any."""
