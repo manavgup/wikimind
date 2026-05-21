@@ -290,7 +290,7 @@ async def _add_missing_columns_sqlite(engine) -> None:
                     col_type = col.type.compile(dialect=sync_conn.dialect)
                     nullable = "" if col.nullable else " NOT NULL"
                     default = _column_default_sql(col, sync_conn.dialect)
-                    ddl = f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}{nullable}{default}"
+                    ddl = f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}{nullable}{default}'
                     sync_conn.execute(sa_text(ddl))
                     log.info(
                         "added missing column to existing table",
