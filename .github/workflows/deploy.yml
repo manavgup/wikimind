@@ -553,6 +553,17 @@ jobs:
   # -----------------------------------------------------------
   # 5️⃣  Rollback production (if verify fails)
   # -----------------------------------------------------------
+  # Schema safety: this rollback redeploys the previous image, which
+  # runs `alembic upgrade head` from its own migration set. This is
+  # safe because our additive-only migration policy (enforced by the
+  # migration-safety workflow) guarantees that forward-applied schema
+  # changes are backward-compatible — the old code can still work
+  # with extra columns/tables it doesn't know about.
+  #
+  # If a migration were destructive (DROP TABLE/COLUMN), the rolled-
+  # back image would crash on missing schema objects. That's why
+  # destructive migrations are blocked in CI. See #589.
+  # -----------------------------------------------------------
   rollback-production:
     name: rollback production
     runs-on: ubuntu-latest

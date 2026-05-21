@@ -38,6 +38,7 @@ considered, and the consequences.
 | [026](adr-026-multi-replica-gateway.md) | Multi-Replica Gateway — Horizontal Scaling | Unknown |
 | [026](adr-026-onboarding-wizard.md) | First-Run Onboarding Wizard | Accepted |
 | [027](adr-027-mcp-auth-personal-access-tokens.md) | MCP Authentication — OAuth 2.1 + Personal Access Tokens | Unknown |
+| [028](adr-028-additive-only-migrations.md) | Additive-Only Migration Policy for Schema-Safe Rollback | Accepted |
 
 ## ADR Format
 
