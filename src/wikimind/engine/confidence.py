@@ -1,9 +1,17 @@
-"""Pure functions that compute article-level numeric confidence with decay.
+"""Pure functions that compute confidence scores with decay.
 
-Article-level confidence is a numeric score in ``[0.0, 1.0]`` derived from
-provenance signals about the underlying sources and contradictions. It is
-*separate* from :class:`wikimind.models.ConfidenceLevel`, which is a
-categorical per-claim label produced by the LLM compiler.
+Confidence scoring operates at two levels:
+
+* **Claim-level** — each compiled claim gets a numeric score in ``[0.0, 1.0]``
+  based on how many sources back it and the LLM's categorical confidence label.
+  See :func:`compute_claim_confidence`.
+
+* **Article-level** — a weighted mean of its claims' confidence scores, or a
+  provenance-based fallback when the article has no persisted claims. See
+  :func:`compute_confidence` and :func:`aggregate_claim_confidence`.
+
+Both levels are *separate* from :class:`wikimind.models.ConfidenceLevel`,
+which is the categorical per-claim label produced by the LLM compiler.
 
 This module is intentionally I/O-free: every function takes plain data and
 returns a float, so it can be exhaustively unit-tested without a DB or
@@ -42,6 +50,20 @@ _CONTRADICTION_PENALTY_PER_HIT: float = 0.25
 _DECAY_FLOOR: float = 0.5
 _DECAY_HORIZON_DAYS: int = 365
 _DECAY_MAX_REDUCTION: float = 0.3
+
+# Claim-level confidence: categorical label baseline scores.
+# A "sourced" claim starts at 0.8; more backing sources push it toward 1.0.
+_CLAIM_CONFIDENCE_BASELINES: dict[str, float] = {
+    "sourced": 0.8,
+    "mixed": 0.5,
+    "inferred": 0.3,
+    "opinion": 0.2,
+}
+_CLAIM_DEFAULT_BASELINE: float = 0.3
+
+# Claim-level: each additional source adds this much (diminishing returns
+# via saturation at _SOURCE_COUNT_SATURATION sources).
+_CLAIM_SOURCE_BONUS_WEIGHT: float = 0.2
 
 
 def _clamp01(value: float) -> float:
@@ -148,3 +170,52 @@ def apply_decay(base: float, days_since_reinforced: int) -> float:
         1.0 - (days / _DECAY_HORIZON_DAYS) * _DECAY_MAX_REDUCTION,
     )
     return _clamp01(base * multiplier)
+
+
+def compute_claim_confidence(
+    confidence_level: str,
+    source_count: int,
+) -> float:
+    """Compute a numeric confidence score for a single compiled claim.
+
+    The score combines a baseline derived from the LLM's categorical
+    confidence label with a source-count bonus that rewards claims backed
+    by multiple independent sources. The bonus saturates at
+    ``_SOURCE_COUNT_SATURATION`` sources to avoid rewarding spam.
+
+    Formula::
+
+        baseline + bonus_weight * min(1.0, source_count / saturation)
+
+    Args:
+        confidence_level: Categorical label from the LLM (``sourced``,
+            ``mixed``, ``inferred``, ``opinion``).
+        source_count: Number of distinct sources backing this claim.
+
+    Returns:
+        A confidence score clamped to ``[0.0, 1.0]``.
+    """
+    baseline = _CLAIM_CONFIDENCE_BASELINES.get(
+        confidence_level.lower(),
+        _CLAIM_DEFAULT_BASELINE,
+    )
+    source_bonus = min(1.0, max(0, source_count) / _SOURCE_COUNT_SATURATION)
+    return _clamp01(baseline + _CLAIM_SOURCE_BONUS_WEIGHT * source_bonus)
+
+
+def aggregate_claim_confidence(claim_scores: list[float]) -> float:
+    """Compute article-level confidence as the weighted mean of claim scores.
+
+    Returns 0.5 (neutral default) when there are no claims, so the caller
+    can fall back to the provenance-based ``compute_confidence`` if desired.
+
+    Args:
+        claim_scores: Per-claim confidence scores, each in ``[0.0, 1.0]``.
+
+    Returns:
+        The arithmetic mean of the scores, clamped to ``[0.0, 1.0]``,
+        or ``0.5`` if the list is empty.
+    """
+    if not claim_scores:
+        return 0.5
+    return _clamp01(sum(claim_scores) / len(claim_scores))

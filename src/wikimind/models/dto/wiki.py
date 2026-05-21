@@ -425,3 +425,29 @@ class ArticleCitationsResponse(BaseModel):
     article_id: str
     article_title: str
     claims: list[ClaimCitationResponse] = []
+
+
+# ---------------------------------------------------------------------------
+# Per-claim confidence response models (issue #465)
+# ---------------------------------------------------------------------------
+
+
+class ClaimConfidenceResponse(BaseModel):
+    """A compiled claim with its confidence score and source attribution."""
+
+    id: str
+    text: str
+    confidence_level: str
+    confidence_score: float
+    source_ids: list[str] = []
+    last_reinforced_at: datetime
+    created_at: datetime
+
+
+class ArticleClaimsResponse(BaseModel):
+    """All persisted claims for an article with their confidence scores."""
+
+    article_id: str
+    article_title: str
+    article_confidence_score: float
+    claims: list[ClaimConfidenceResponse] = []

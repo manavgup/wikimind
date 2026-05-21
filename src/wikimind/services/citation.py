@@ -15,7 +15,9 @@ from wikimind.errors import NotFoundError
 from wikimind.models import (
     Article,
     ArticleCitationsResponse,
+    ArticleClaimsResponse,
     ClaimCitationResponse,
+    ClaimConfidenceResponse,
     CompiledClaim,
     SourceSpan,
     SourceSpanResponse,
@@ -120,5 +122,80 @@ class CitationService:
         return ArticleCitationsResponse(
             article_id=article_id,
             article_title=article_title,
+            claims=claim_responses,
+        )
+
+    async def get_article_claims(
+        self,
+        id_or_slug: str,
+        session: AsyncSession,
+        *,
+        user_id: str,
+        wiki_service: WikiService,
+    ) -> ArticleClaimsResponse:
+        """Return all persisted claims for an article with confidence scores.
+
+        Unlike ``get_article_citations``, this endpoint focuses on the
+        confidence scoring rather than source span anchoring (issue #465).
+
+        Args:
+            id_or_slug: Article UUID or slug.
+            session: Async database session.
+            user_id: Owner scope.
+            wiki_service: WikiService for article resolution.
+
+        Returns:
+            ArticleClaimsResponse with claims and their confidence scores.
+
+        Raises:
+            NotFoundError: If the article does not exist for this user.
+        """
+        article_id = await wiki_service._resolve_article_id(id_or_slug, session, user_id)
+        if article_id is None:
+            msg = f"Article not found: {id_or_slug}"
+            raise NotFoundError(msg)
+
+        # Fetch article title and confidence_score
+        article_row = (
+            await session.execute(
+                select(Article.title, Article.confidence_score).where(
+                    Article.id == article_id,
+                    Article.user_id == user_id,
+                )
+            )
+        ).first()
+        article_title = article_row[0] if article_row else ""
+        article_confidence_score = article_row[1] if article_row else 0.5
+
+        # Fetch all claims for this article
+        claims_stmt = (
+            select(CompiledClaim)
+            .where(
+                CompiledClaim.article_id == article_id,
+                CompiledClaim.user_id == user_id,
+            )
+            .order_by(col(CompiledClaim.created_at))
+        )
+        claims = (await session.execute(claims_stmt)).scalars().all()
+
+        claim_responses: list[ClaimConfidenceResponse] = []
+        for claim in claims:
+            source_ids = json.loads(claim.source_ids) if claim.source_ids else []
+            claim_responses.append(
+                ClaimConfidenceResponse(
+                    id=claim.id,
+                    text=claim.text,
+                    confidence_level=claim.confidence_level,
+                    confidence_score=claim.confidence_score,
+                    source_ids=source_ids,
+                    last_reinforced_at=claim.last_reinforced_at,
+                    created_at=claim.created_at,
+                )
+            )
+
+        return ArticleClaimsResponse(
+            article_id=article_id,
+            article_title=article_title,
+            article_confidence_score=article_confidence_score,
             claims=claim_responses,
         )
