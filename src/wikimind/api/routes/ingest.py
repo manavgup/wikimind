@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
@@ -32,6 +32,8 @@ from wikimind.models import (
     SourceDetailResponse,
     SourceImage,
     SourceImageEntry,
+    SourceSpan,
+    SourceSpanResponse,
 )
 from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
@@ -305,6 +307,45 @@ async def get_source_content(
 ) -> SourceContentResponse:
     """Return the raw text content of a source for side-by-side reading."""
     return await service.get_source_content(source_id, session, user_id=user_id)
+
+
+@router.get(
+    "/sources/{source_id}/spans",
+    response_model=list[SourceSpanResponse],
+    responses={404: {"description": "Source not found"}},
+)
+async def list_source_spans(
+    source_id: str,
+    session: AsyncSession = Depends(get_session),
+    service: IngestService = Depends(get_ingest_service),
+    user_id: str = Depends(get_current_user_id),
+) -> list[SourceSpanResponse]:
+    """Return all source spans for a source document.
+
+    Each span anchors a verbatim text excerpt to a precise location in the
+    original source (PDF page, byte range, HTML paragraph).
+    """
+    # Verify the source exists and belongs to the user
+    await service.get_source(source_id, session, user_id=user_id)
+
+    stmt = (
+        select(SourceSpan)
+        .where(SourceSpan.source_id == source_id, SourceSpan.user_id == user_id)
+        .order_by(col(SourceSpan.created_at))
+    )
+    spans = (await session.exec(stmt)).all()
+    return [
+        SourceSpanResponse(
+            id=span.id,
+            source_id=span.source_id,
+            locator_kind=span.locator_kind,
+            locator=span.locator,
+            text=span.text,
+            fingerprint=span.fingerprint,
+            created_at=span.created_at,
+        )
+        for span in spans
+    ]
 
 
 @router.delete("/sources/{source_id}")
