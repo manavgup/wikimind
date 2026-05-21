@@ -63,7 +63,10 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <PageTypeIndicator pageType={article.page_type} />
           {article.confidence ? (
-            <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
+            <ConfidenceBadge
+              level={article.confidence as ConfidenceLevel}
+              score={article.confidence_score}
+            />
           ) : null}
           {typeof article.linter_score === "number" ? (
             <Badge tone="info">
