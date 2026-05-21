@@ -79,11 +79,12 @@ def _create_engine_from_url(url: str):
         # one backend are invalid on another, causing
         # InvalidCachedStatementError.
         connect_args["statement_cache_size"] = 0
+        settings = get_settings()
         return create_async_engine(
             url,
             echo=False,
-            pool_size=10,
-            max_overflow=20,
+            pool_size=settings.database.pool_size,
+            max_overflow=settings.database.max_overflow,
             pool_pre_ping=True,
             connect_args=connect_args,
         )
@@ -249,12 +250,17 @@ async def init_db():
     it runs at most once, avoiding O(n) startup scans on subsequent boots.
     """
     engine = get_async_engine()
+    settings = get_settings()
 
-    # create_all is idempotent — safe on both SQLite and Postgres.
-    # Alembic handles schema evolution but create_all ensures
-    # internal tables (e.g. migrationhistory) exist on first boot.
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+    # On SQLite (dev/test), create_all bootstraps tables from scratch.
+    # On Postgres (production), Alembic owns the schema exclusively —
+    # create_all would mask missing migrations by silently creating
+    # tables that Alembic doesn't know about.
+    if is_sqlite(settings.database_url):
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+    else:
+        log.info("skipping create_all — Alembic owns schema on Postgres")
 
     # Ensure the dev user row exists so FK constraints are satisfied
     # when running in dev mode with dev_auto_auth.
