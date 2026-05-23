@@ -433,6 +433,8 @@ class Compiler(BaseCompiler):
             meta += f"\nAuthor: {doc.author}"
         if doc.published_date:
             meta += f"\nPublished: {doc.published_date}"
+        if doc.raw_source_id:
+            meta += f"\nSource ID: {doc.raw_source_id}"
 
         return f"""{meta}
 

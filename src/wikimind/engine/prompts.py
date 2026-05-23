@@ -38,6 +38,8 @@ Output schema:
     {
       "claim": "Specific, falsifiable claim from the source",
       "confidence": "sourced|inferred|opinion",
+      "subjects": ["canonical-subject-name"],
+      "source_ids": ["<source_id from metadata>"],
       "quote": "Optional direct quote under 15 words if the exact wording matters"
     }
   ],
@@ -53,6 +55,8 @@ Rules:
 - page_type is always "source" for source compilations
 - Every claim must be attributable to the source
 - Mark LLM inferences as confidence=inferred explicitly
+- For each claim, set "subjects" to a list of 1-3 canonical entity/concept names the claim is about (e.g. ["neural networks", "image classification"]). Reuse existing concept names when possible.
+- For each claim, set "source_ids" to the list of source UUIDs that support it. Use the source_id provided in the metadata.
 - Suggest backlinks only to concepts genuinely related
 - For backlink_suggestions, use relation_type "references" (mentions related topic), "extends" (builds on/adds to claims), or "supersedes" (newer source replaces older claims)
 - Open questions should drive future research
