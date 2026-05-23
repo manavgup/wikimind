@@ -539,7 +539,7 @@ class TestArticleSummaryCounts:
 
     async def test_source_count_populated(self, db_session, tmp_path):
         """source_count reflects the number of resolved sources."""
-        _article, _sources = await _seed_article_with_sources(db_session, tmp_path)
+        _article, _sources = await _seed_article_with_sources(db_session, tmp_path)  # side-effect: seeds DB
         service = WikiService()
 
         results = await service.list_articles(db_session, user_id=TEST_USER_ID)

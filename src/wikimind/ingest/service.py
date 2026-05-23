@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import httpx
-import structlog
 
 from wikimind.config import get_settings
 from wikimind.ingest.adapters.pdf import PDFAdapter
@@ -24,8 +23,6 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
     from wikimind.models import NormalizedDocument, Source
-
-log = structlog.get_logger()
 
 
 class IngestService:

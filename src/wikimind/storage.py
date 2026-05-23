@@ -48,7 +48,7 @@ class FileStorage(Protocol):
 
     async def list(self, prefix: str = "") -> list[str]:
         """List all files under the given prefix (or root if empty)."""
-        ...  # CodeQL[py/pointless-statement] — Protocol stub
+        ...
 
     def resolve_path(self, relative_path: str) -> Path:
         """Resolve a relative path to an absolute filesystem path.
