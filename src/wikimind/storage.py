@@ -20,35 +20,35 @@ class FileStorage(Protocol):
 
     async def read(self, relative_path: str) -> str:
         """Read text content from a file."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def read_bytes(self, relative_path: str) -> bytes:
         """Read binary content from a file."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def write(self, relative_path: str, content: str) -> None:
         """Write text content to a file, creating parent dirs as needed."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def write_bytes(self, relative_path: str, data: bytes) -> None:
         """Write binary content to a file, creating parent dirs as needed."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def append(self, relative_path: str, content: str) -> None:
         """Append text content to a file, creating it if it does not exist."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def delete(self, relative_path: str) -> None:
         """Delete a file. No-op if the file does not exist."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def exists(self, relative_path: str) -> bool:
         """Return True if the file exists."""
-        ...  # type: ignore[empty-body]
+        ...
 
     async def list(self, prefix: str = "") -> list[str]:
         """List all files under the given prefix (or root if empty)."""
-        ...  # type: ignore[empty-body]
+        ...
 
     def resolve_path(self, relative_path: str) -> Path:
         """Resolve a relative path to an absolute filesystem path.
@@ -57,7 +57,7 @@ class FileStorage(Protocol):
         (e.g. PDF extractors, log messages). Prefer ``read`` / ``write``
         for normal I/O.
         """
-        ...  # type: ignore[empty-body]
+        ...
 
 
 class LocalFileStorage:

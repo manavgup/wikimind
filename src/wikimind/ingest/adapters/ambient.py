@@ -88,7 +88,7 @@ class AmbientAdapter(abc.ABC):
         Returns:
             A list of newly discovered items.
         """
-        ...  # type: ignore[empty-body]  # pragma: no cover
+        ...  # pragma: no cover
 
     def mark_polled(self) -> None:
         """Update the last_polled_at timestamp to now."""
