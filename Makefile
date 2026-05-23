@@ -344,24 +344,24 @@ extension-package: extension-build ## Build extension and create submission-read
 
 .PHONY: docker-build
 docker-build: ## Build the dev image used by docker-compose
-	docker compose build
+	$(COMPOSE_CMD) build
 
 .PHONY: docker-up
 docker-up: ## Start the dev stack in the background (uses cached image)
-	docker compose up -d
+	$(COMPOSE_CMD) up -d
 
 .PHONY: docker-up-build
 docker-up-build: ## Rebuild the image and start the dev stack in the background
-	docker compose up -d --build
+	$(COMPOSE_CMD) up -d --build
 
 .PHONY: docker-logs
 docker-logs: ## Tail logs from all dev stack services
-	docker compose logs -f
+	$(COMPOSE_CMD) logs -f
 
 .PHONY: docker-down
 docker-down: ## Stop and remove the dev stack
-	docker compose down --remove-orphans
-	docker compose rm -f 2>/dev/null || true
+	$(COMPOSE_CMD) down --remove-orphans
+	$(COMPOSE_CMD) rm -f 2>/dev/null || true
 
 ##@ 🔄 PRODUCTION PARITY
 
