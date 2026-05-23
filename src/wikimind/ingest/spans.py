@@ -99,32 +99,36 @@ def extract_text_spans(
     Returns:
         List of SourceSpan instances (not yet persisted).
     """
-    paragraphs = _split_paragraphs(text)
-    spans: list[SourceSpan] = []
-    text_bytes = text.encode("utf-8")
+    try:
+        paragraphs = _split_paragraphs(text)
+        spans: list[SourceSpan] = []
+        text_bytes = text.encode("utf-8")
 
-    search_start = 0
-    for para in paragraphs:
-        para_bytes = para.encode("utf-8")
-        byte_start = text_bytes.find(para_bytes, search_start)
-        if byte_start == -1:
-            continue
-        byte_end = byte_start + len(para_bytes)
-        search_start = byte_end
+        search_start = 0
+        for para in paragraphs:
+            para_bytes = para.encode("utf-8")
+            byte_start = text_bytes.find(para_bytes, search_start)
+            if byte_start == -1:
+                continue
+            byte_end = byte_start + len(para_bytes)
+            search_start = byte_end
 
-        spans.append(
-            SourceSpan(
-                id=str(uuid.uuid4()),
-                source_id=source_id,
-                user_id=user_id,
-                locator_kind=LocatorKind.TEXT_BYTE_RANGE,
-                locator={"start": byte_start, "end": byte_end},
-                text=para,
-                fingerprint=compute_fingerprint(para),
+            spans.append(
+                SourceSpan(
+                    id=str(uuid.uuid4()),
+                    source_id=source_id,
+                    user_id=user_id,
+                    locator_kind=LocatorKind.TEXT_BYTE_RANGE,
+                    locator={"start": byte_start, "end": byte_end},
+                    text=para,
+                    fingerprint=compute_fingerprint(para),
+                )
             )
-        )
 
-    return spans
+        return spans
+    except Exception:
+        log.warning("Failed to extract text spans", source_id=source_id, exc_info=True)
+        return []
 
 
 def extract_pdf_spans(
@@ -148,11 +152,27 @@ def extract_pdf_spans(
     Returns:
         List of SourceSpan instances (not yet persisted).
     """
-    spans: list[SourceSpan] = []
+    try:
+        spans: list[SourceSpan] = []
 
-    if page_texts:
-        for page_num, page_text in enumerate(page_texts):
-            paragraphs = _split_paragraphs(page_text)
+        if page_texts:
+            for page_num, page_text in enumerate(page_texts):
+                paragraphs = _split_paragraphs(page_text)
+                for para_idx, para in enumerate(paragraphs):
+                    spans.append(
+                        SourceSpan(
+                            id=str(uuid.uuid4()),
+                            source_id=source_id,
+                            user_id=user_id,
+                            locator_kind=LocatorKind.PDF_PAGE_RECT,
+                            locator={"page": page_num + 1, "paragraph": para_idx},
+                            text=para,
+                            fingerprint=compute_fingerprint(para),
+                        )
+                    )
+        else:
+            # Fallback: treat as plain paragraphs without page info
+            paragraphs = _split_paragraphs(text)
             for para_idx, para in enumerate(paragraphs):
                 spans.append(
                     SourceSpan(
@@ -160,28 +180,16 @@ def extract_pdf_spans(
                         source_id=source_id,
                         user_id=user_id,
                         locator_kind=LocatorKind.PDF_PAGE_RECT,
-                        locator={"page": page_num + 1, "paragraph": para_idx},
+                        locator={"page": 1, "paragraph": para_idx},
                         text=para,
                         fingerprint=compute_fingerprint(para),
                     )
                 )
-    else:
-        # Fallback: treat as plain paragraphs without page info
-        paragraphs = _split_paragraphs(text)
-        for para_idx, para in enumerate(paragraphs):
-            spans.append(
-                SourceSpan(
-                    id=str(uuid.uuid4()),
-                    source_id=source_id,
-                    user_id=user_id,
-                    locator_kind=LocatorKind.PDF_PAGE_RECT,
-                    locator={"page": 1, "paragraph": para_idx},
-                    text=para,
-                    fingerprint=compute_fingerprint(para),
-                )
-            )
 
-    return spans
+        return spans
+    except Exception:
+        log.warning("Failed to extract PDF spans", source_id=source_id, exc_info=True)
+        return []
 
 
 def extract_url_spans(
@@ -192,7 +200,8 @@ def extract_url_spans(
     """Extract paragraph-level spans from URL-extracted text.
 
     Splits on paragraph boundaries and records paragraph index as the
-    locator, using the html-xpath-offset kind.
+    locator. Uses HTML_PARAGRAPH_OFFSET since we store paragraph index
+    and character offset, not actual XPath selectors.
 
     Args:
         text: Extracted text content from the web page.
@@ -202,23 +211,27 @@ def extract_url_spans(
     Returns:
         List of SourceSpan instances (not yet persisted).
     """
-    paragraphs = _split_paragraphs(text)
-    spans: list[SourceSpan] = []
+    try:
+        paragraphs = _split_paragraphs(text)
+        spans: list[SourceSpan] = []
 
-    for para_idx, para in enumerate(paragraphs):
-        spans.append(
-            SourceSpan(
-                id=str(uuid.uuid4()),
-                source_id=source_id,
-                user_id=user_id,
-                locator_kind=LocatorKind.HTML_XPATH_OFFSET,
-                locator={"paragraph": para_idx, "offset": 0, "length": len(para)},
-                text=para,
-                fingerprint=compute_fingerprint(para),
+        for para_idx, para in enumerate(paragraphs):
+            spans.append(
+                SourceSpan(
+                    id=str(uuid.uuid4()),
+                    source_id=source_id,
+                    user_id=user_id,
+                    locator_kind=LocatorKind.HTML_PARAGRAPH_OFFSET,
+                    locator={"paragraph": para_idx, "offset": 0, "length": len(para)},
+                    text=para,
+                    fingerprint=compute_fingerprint(para),
+                )
             )
-        )
 
-    return spans
+        return spans
+    except Exception:
+        log.warning("Failed to extract URL spans", source_id=source_id, exc_info=True)
+        return []
 
 
 # ---------------------------------------------------------------------------

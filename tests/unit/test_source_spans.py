@@ -176,7 +176,7 @@ class TestExtractUrlSpans:
         text = "First paragraph.\n\nSecond paragraph."
         spans = extract_url_spans(text, "src-1", "user-1")
         assert len(spans) == 2
-        assert spans[0].locator_kind == LocatorKind.HTML_XPATH_OFFSET
+        assert spans[0].locator_kind == LocatorKind.HTML_PARAGRAPH_OFFSET
         assert spans[0].locator["paragraph"] == 0
         assert spans[0].locator["length"] == len("First paragraph.")
         assert spans[1].locator["paragraph"] == 1

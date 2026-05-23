@@ -7333,7 +7333,7 @@ components:
       type: string
       enum:
       - pdf-page-rect
-      - html-xpath-offset
+      - html-paragraph-offset
       - text-byte-range
       - youtube-timestamp
       title: LocatorKind
