@@ -14,6 +14,7 @@ import structlog
 import trafilatura
 
 from wikimind.config import get_settings
+from wikimind.ingest.spans import extract_url_spans, persist_spans
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -111,6 +112,18 @@ class URLAdapter:
 
         # Normalize
         clean_text = downloaded
+
+        # Source span extraction (issue #450): extract paragraph-level spans
+        # for citation anchoring from the extracted text.
+        try:
+            spans = extract_url_spans(clean_text, source.id, user_id)
+            await persist_spans(spans, session)
+        except Exception:
+            log.warning(
+                "URL span extraction failed — continuing without spans",
+                source_id=source.id,
+            )
+
         token_count = estimate_tokens(clean_text)
         source.token_count = token_count
         session.add(source)

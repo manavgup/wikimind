@@ -265,6 +265,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/ingest/sources/{source_id}/spans:
+    get:
+      tags:
+      - Ingest
+      summary: List Source Spans
+      description: 'Return all source spans for a source document.
+
+
+        Each span anchors a verbatim text excerpt to a precise location in the
+
+        original source (PDF page, byte range, HTML paragraph).'
+      operationId: list_source_spans_api_ingest_sources__source_id__spans_get
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Source Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceSpanResponse'
+                title: Response List Source Spans Api Ingest Sources  Source Id  Spans
+                  Get
+        '404':
+          description: Source not found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/ingest/sources/{source_id}/original:
     get:
       tags:
@@ -7295,7 +7333,7 @@ components:
       type: string
       enum:
       - pdf-page-rect
-      - html-xpath-offset
+      - html-paragraph-offset
       - text-byte-range
       - youtube-timestamp
       title: LocatorKind

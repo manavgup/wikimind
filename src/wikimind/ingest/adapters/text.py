@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from wikimind.ingest.spans import extract_text_spans, persist_spans
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -77,6 +78,10 @@ class TextAdapter:
             session.add(source)
             await session.commit()
             raise
+        # Extract and persist source spans for citation anchoring (issue #450)
+        spans = extract_text_spans(content, source.id, user_id)
+        await persist_spans(spans, session)
+
         session.add(source)
         await session.commit()
 

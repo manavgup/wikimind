@@ -9,6 +9,7 @@ import type {
   Source,
   SourceContentResponse,
   SourceDetailResponse,
+  SourceSpanResponse,
   TriggerCompileResponse,
 } from "../types/api";
 
@@ -91,5 +92,11 @@ export function rejectDraft(sourceId: string): Promise<RejectDraftResponse> {
   return apiFetch<RejectDraftResponse>(
     `/api/ingest/sources/${encodeURIComponent(sourceId)}/draft/reject`,
     { method: "POST" },
+  );
+}
+
+export function getSourceSpans(sourceId: string): Promise<SourceSpanResponse[]> {
+  return apiFetch<SourceSpanResponse[]>(
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/spans`,
   );
 }
