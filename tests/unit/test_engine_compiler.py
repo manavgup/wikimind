@@ -160,6 +160,13 @@ def test_build_user_prompt_includes_metadata() -> None:
     assert "Author" in p
 
 
+def test_build_user_prompt_includes_source_id() -> None:
+    c = _make_compiler()
+    doc = _doc()
+    p = c._build_user_prompt(doc)
+    assert f"Source ID: {doc.raw_source_id}" in p
+
+
 def test_merge_chunk_results() -> None:
     c = _make_compiler()
     r1 = _result(concepts=["a", "b"])
