@@ -33,6 +33,7 @@ class CompiledClaimDTO(BaseModel):
     predicate: str | None = None  # LLM-extracted predicate
     quote: str | None = None  # Direct quote < 15 words if critical
     source_ids: list[str] = []  # Source UUIDs supporting this claim
+    source_span_ids: list[str] = []  # SourceSpan UUIDs anchoring this claim (issue #450)
 
 
 # ---------------------------------------------------------------------------

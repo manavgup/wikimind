@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import structlog
 from slugify import slugify
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import select
+from sqlmodel import col, select
 
 from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
@@ -49,6 +49,7 @@ from wikimind.models import (
     ReinforcementEvent,
     RelationType,
     Source,
+    SourceSpan,
     TaskType,
     TypedBacklinkSuggestion,
 )
@@ -203,6 +204,33 @@ class Compiler(BaseCompiler):
         # Compilation monitoring — set during compile(), read during save_article().
         self._last_compilation_duration_ms: int | None = None
         self._last_compilation_tokens: int | None = None
+        # Source spans loaded for the current compilation (issue #450 Phase 2).
+        # Populated by compile/compile_with_guidance, consumed by _persist_claims.
+        self._source_spans: list[SourceSpan] = []
+
+    async def _load_source_spans(
+        self,
+        source_id: str,
+        session: AsyncSession,
+    ) -> list[SourceSpan]:
+        """Load SourceSpan rows for a source, for inclusion in the compiler prompt.
+
+        Args:
+            source_id: The source UUID whose spans to load.
+            session: Async database session.
+
+        Returns:
+            List of SourceSpan instances ordered by creation time.
+        """
+        result = await session.execute(
+            select(SourceSpan)
+            .where(
+                SourceSpan.source_id == source_id,
+                SourceSpan.user_id == self.user_id,
+            )
+            .order_by(col(SourceSpan.created_at))
+        )
+        return list(result.scalars().all())
 
     async def extract_takeaways(
         self,
@@ -278,7 +306,13 @@ class Compiler(BaseCompiler):
             await session.commit()
             return await self._compile_chunked(doc, session, progress_callback)
 
-        user_prompt = self._build_user_prompt(doc)
+        # Load source spans for claim-level citation (issue #450 Phase 2).
+        spans: list[SourceSpan] = []
+        if doc.raw_source_id:
+            spans = await self._load_source_spans(doc.raw_source_id, session)
+        self._source_spans = spans
+
+        user_prompt = self._build_user_prompt(doc, spans=spans)
         safe_guidance = _sanitize_guidance(guidance)
         user_prompt += (
             f"\n\nUSER GUIDANCE — weight the article toward these priorities:\n<guidance>{safe_guidance}</guidance>"
@@ -347,7 +381,13 @@ class Compiler(BaseCompiler):
         if doc.estimated_tokens > 80_000:
             return await self._compile_chunked(doc, session, progress_callback)
 
-        user_prompt = self._build_user_prompt(doc)
+        # Load source spans for claim-level citation (issue #450 Phase 2).
+        spans: list[SourceSpan] = []
+        if doc.raw_source_id:
+            spans = await self._load_source_spans(doc.raw_source_id, session)
+        self._source_spans = spans
+
+        user_prompt = self._build_user_prompt(doc, spans=spans)
 
         # Concept ID registry injection: prevents concept fragmentation by
         # telling the LLM which concepts already exist (issue #143, Phase 2).
@@ -425,8 +465,18 @@ class Compiler(BaseCompiler):
             )
             return None
 
-    def _build_user_prompt(self, doc: NormalizedDocument) -> str:
-        """Build the user prompt for the LLM compiler."""
+    def _build_user_prompt(
+        self,
+        doc: NormalizedDocument,
+        spans: list[SourceSpan] | None = None,
+    ) -> str:
+        """Build the user prompt for the LLM compiler.
+
+        Args:
+            doc: Normalized document to compile.
+            spans: Optional source spans to include for claim-level citation.
+                When present, the LLM is instructed to cite span IDs per claim.
+        """
         max_chars = get_settings().compiler.source_text_max_chars
         meta = f"Title: {doc.title}"
         if doc.author:
@@ -436,15 +486,29 @@ class Compiler(BaseCompiler):
         if doc.raw_source_id:
             meta += f"\nSource ID: {doc.raw_source_id}"
 
-        return f"""{meta}
+        prompt = f"""{meta}
 
 ---
 
 {doc.clean_text[:max_chars]}
 
----
+---"""
 
-Compile this into a wiki article following the JSON schema exactly."""
+        if spans:
+            max_span_chars = get_settings().compiler.source_text_max_chars // 4
+            span_section = "\n\n## Source Spans\n\nCite these span IDs in key_claims.source_span_ids:\n"
+            used_chars = 0
+            for span in spans:
+                preview = span.text[:120]
+                line = f'- {span.id}: "{preview}"\n'
+                if used_chars + len(line) > max_span_chars:
+                    break
+                span_section += line
+                used_chars += len(line)
+            prompt += span_section
+
+        prompt += "\n\nCompile this into a wiki article following the JSON schema exactly."
+        return prompt
 
     async def _compile_chunked(
         self,
@@ -838,10 +902,29 @@ Compile this into a wiki article following the JSON schema exactly."""
         Each claim receives a numeric ``confidence_score`` computed from its
         categorical confidence label and the number of backing sources
         (issue #465).
+
+        Source span IDs returned by the LLM are validated against the actual
+        spans loaded during compilation. Invalid span IDs are silently
+        dropped to prevent hallucinated citations (issue #450 Phase 2).
         """
+        # Build set of valid span IDs for validation.
+        valid_span_ids = {s.id for s in self._source_spans}
+
         for dto in result.key_claims:
             claim_source_ids = dto.source_ids or [source.id]
             confidence_level = dto.confidence.value if hasattr(dto.confidence, "value") else str(dto.confidence)
+
+            # Validate span IDs: keep only those that exist in the source.
+            raw_span_ids = dto.source_span_ids or []
+            validated_span_ids = [sid for sid in raw_span_ids if sid in valid_span_ids]
+            if len(validated_span_ids) < len(raw_span_ids):
+                rejected = set(raw_span_ids) - set(validated_span_ids)
+                log.warning(
+                    "Rejected invalid span IDs from LLM",
+                    article_id=article_id,
+                    rejected_count=len(rejected),
+                )
+
             claim = CompiledClaim(
                 article_id=article_id,
                 user_id=self.user_id,
@@ -855,6 +938,7 @@ Compile this into a wiki article following the JSON schema exactly."""
                 ),
                 quote=dto.quote,
                 source_ids=json.dumps(claim_source_ids),
+                source_span_ids=json.dumps(validated_span_ids),
             )
             session.add(claim)
         await session.commit()
