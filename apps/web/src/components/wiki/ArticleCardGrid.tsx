@@ -84,7 +84,10 @@ function ArticleCard({ article }: { article: Article }) {
           <Badge tone="warning">Stub</Badge>
         ) : null}
         {article.confidence ? (
-          <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
+          <ConfidenceBadge
+            level={article.confidence as ConfidenceLevel}
+            score={article.confidence_score}
+          />
         ) : null}
         {typeof article.linter_score === "number" ? (
           <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">

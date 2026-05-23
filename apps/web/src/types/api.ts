@@ -108,6 +108,7 @@ export interface Article {
   title: string;
   summary: string | null;
   confidence: ConfidenceLevel | null;
+  confidence_score?: number;
   linter_score: number | null;
   page_type: PageType;
   source_count: number;

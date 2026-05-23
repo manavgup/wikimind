@@ -168,6 +168,7 @@ from wikimind.models.dto.tags import (
 )
 from wikimind.models.dto.wiki import (
     ArticleCitationsResponse,
+    ArticleClaimsResponse,
     ArticleDownloadResponse,
     ArticleEditRequest,
     ArticleRelationshipsResponse,
@@ -175,6 +176,7 @@ from wikimind.models.dto.wiki import (
     ArticleSummaryResponse,
     BacklinkEntry,
     ClaimCitationResponse,
+    ClaimConfidenceResponse,
     ConceptDetailResponse,
     ConceptResponse,
     ContradictionResolutionOption,
@@ -359,6 +361,7 @@ __all__ = [
     # Tables
     "Article",
     "ArticleCitationsResponse",
+    "ArticleClaimsResponse",
     "ArticleConcept",
     # Enums
     "ArticleDownloadFormat",
@@ -387,6 +390,7 @@ __all__ = [
     "ClaimCitationResponse",
     "ClaimConcept",
     "ClaimConceptRole",
+    "ClaimConfidenceResponse",
     "ClusterStatus",
     "CompilationDraft",
     "CompilationDraftResponse",
