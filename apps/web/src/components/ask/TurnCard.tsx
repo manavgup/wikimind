@@ -251,21 +251,74 @@ function parseSources(raw: string | null): string[] {
   }
 }
 
+/**
+ * Walk backward from `pos` to escape any unclosed markdown construct.
+ * Checks for unmatched `**`, `*`, `` ` ``, `[`, and `(` — if the
+ * count from 0..pos is odd (or bracket is open), backs up to just
+ * before the opening delimiter.
+ */
+function safeMarkdownCut(text: string, pos: number): number {
+  const region = text.slice(0, pos);
+
+  // Back up past an unclosed inline code span (odd number of backticks)
+  const backticks = region.split("`").length - 1;
+  if (backticks % 2 === 1) {
+    const openTick = region.lastIndexOf("`");
+    if (openTick > 0) return openTick;
+  }
+
+  // Back up past an unclosed link/image: find last '[' without a matching ']'
+  const lastOpen = region.lastIndexOf("[");
+  if (lastOpen !== -1) {
+    const lastClose = region.lastIndexOf("]");
+    if (lastClose < lastOpen) {
+      return lastOpen;
+    }
+    // Also check for open parenthesis in link URL: `[text](`
+    const lastParen = region.lastIndexOf("(");
+    if (lastParen > lastClose) {
+      const closeParen = region.lastIndexOf(")");
+      if (closeParen < lastParen) {
+        return lastOpen;
+      }
+    }
+  }
+
+  // Back up past unclosed bold `**`
+  const boldCount = (region.match(/\*\*/g) || []).length;
+  if (boldCount % 2 === 1) {
+    const openBold = region.lastIndexOf("**");
+    if (openBold > 0) return openBold;
+  }
+
+  // Back up past unclosed italic `*` (single, not part of `**`)
+  // Count standalone * (not part of **) by removing ** first
+  const stripped = region.replace(/\*\*/g, "");
+  const italicCount = (stripped.match(/\*/g) || []).length;
+  if (italicCount % 2 === 1) {
+    // Find the last lone * in the original string
+    for (let i = region.length - 1; i >= 0; i--) {
+      if (
+        region[i] === "*" &&
+        (i === 0 || region[i - 1] !== "*") &&
+        (i === region.length - 1 || region[i + 1] !== "*")
+      ) {
+        return i;
+      }
+    }
+  }
+
+  return pos;
+}
+
 function truncateOnParagraphBoundary(text: string, max: number): string {
-  // TODO: This is markdown-unsafe in the fallback paths — slicing
-  // raw markdown can land inside a fenced code block, an open link
-  // `[text](url)`, or mid-heading, producing malformed output. For
-  // long single-paragraph answers with no `\n\n` in the first half
-  // this can render oddly. The "Show more" button always reveals
-  // the full, well-formed answer, so this is a visual quirk not a
-  // correctness bug. A proper fix (e.g. ast-aware truncation or
-  // fence-balancing) can land in a follow-up.
   if (text.length <= max) return text;
   // Find the last \n\n before max
   const slice = text.slice(0, max);
   const lastBreak = slice.lastIndexOf("\n\n");
   if (lastBreak > max * 0.5) {
-    return slice.slice(0, lastBreak) + "\n\n…";
+    const cut = safeMarkdownCut(text, lastBreak);
+    return text.slice(0, cut) + "\n\n…";
   }
   // Fall back to nearest sentence end (. ? !)
   const sentenceEnd = Math.max(
@@ -274,7 +327,9 @@ function truncateOnParagraphBoundary(text: string, max: number): string {
     slice.lastIndexOf("! "),
   );
   if (sentenceEnd > max * 0.5) {
-    return slice.slice(0, sentenceEnd + 1) + " …";
+    const cut = safeMarkdownCut(text, sentenceEnd + 1);
+    return text.slice(0, cut) + " …";
   }
-  return slice + "…";
+  const cut = safeMarkdownCut(text, max);
+  return text.slice(0, cut) + "…";
 }
