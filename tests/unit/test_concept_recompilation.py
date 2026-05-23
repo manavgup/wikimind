@@ -286,6 +286,7 @@ class TestReplaceArticleTriggersConceptPages:
         compiler._last_typed_suggestions = {}
         compiler._last_compilation_duration_ms = None
         compiler._last_compilation_tokens = None
+        compiler._source_spans = []
 
         with (
             patch(
