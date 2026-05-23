@@ -22,12 +22,13 @@ from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
 from arq.jobs import Job as ArqJob
 from arq.jobs import JobStatus as ArqJobStatus
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from redis.asyncio import Redis
 from sqlalchemy import text as sa_text
 from sqlmodel import select
 
 from wikimind._datetime import utcnow_naive
+from wikimind.api.deps import get_current_user_id
 from wikimind.config import get_settings
 from wikimind.database import get_session_factory
 from wikimind.models import IngestStatus, Source
@@ -205,12 +206,16 @@ _JOB_PING_TIMEOUT = 30
 _JOB_PING_POLL_INTERVAL = 1
 
 
+# NOTE: This endpoint intentionally has side effects — it enqueues a real
+# (lightweight) ARQ job to verify the job queue is functional end-to-end.
+# Requires authentication to prevent unauthenticated abuse.
 @router.get("/health/job-ping")
-async def job_ping() -> dict[str, Any]:
+async def job_ping(_user_id: str = Depends(get_current_user_id)) -> dict[str, Any]:
     """Enqueue a lightweight ping job and wait for its result.
 
     Proves the full background job pipeline works end-to-end:
-    API -> Redis -> ARQ worker -> result.
+    API -> Redis -> ARQ worker -> result.  Requires authentication
+    because it enqueues a real job (side effect).
 
     Returns ``{"status": "ok", ...}`` when the job completes within the
     timeout, or ``{"status": "error", ...}`` on failure or timeout.
