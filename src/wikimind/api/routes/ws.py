@@ -269,7 +269,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 break
 
     except WebSocketDisconnect:
-        pass
+        pass  # Expected during normal client disconnect; cleanup in finally
     finally:
         manager.disconnect(websocket)
 

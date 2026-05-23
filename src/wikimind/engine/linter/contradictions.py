@@ -425,7 +425,7 @@ async def _collect_work(
         articles = list(article_result.scalars().all())
         pairs = list(itertools.combinations(articles, 2))
         if len(pairs) > cfg.max_contradiction_pairs_per_concept:
-            pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
+            pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)  # nosec B311 -- sampling for performance, not security
         all_work.append((None, "all-articles", pairs))
     else:
         for concept_obj in concepts:
@@ -435,7 +435,7 @@ async def _collect_work(
                 continue
             pairs = list(itertools.combinations(articles, 2))
             if len(pairs) > cfg.max_contradiction_pairs_per_concept:
-                pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)
+                pairs = random.sample(pairs, cfg.max_contradiction_pairs_per_concept)  # nosec B311 -- sampling for performance, not security
             all_work.append((cid, cname, pairs))
 
     return all_work
