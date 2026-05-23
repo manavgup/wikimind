@@ -19,6 +19,7 @@ import { TagSelector } from "./TagSelector";
 import { preprocessMarkdown, extractSynthesizedFrom, extractConceptKind } from "./preprocessMarkdown";
 import { markdownComponents } from "./markdownComponents";
 import { useArticleEditor } from "./useArticleEditor";
+import { ClaimsPanel } from "./ClaimsPanel";
 import { DiscussionPanel } from "./DiscussionPanel";
 
 interface ArticleReaderProps {
@@ -62,7 +63,10 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <PageTypeIndicator pageType={article.page_type} />
           {article.confidence ? (
-            <ConfidenceBadge level={article.confidence as ConfidenceLevel} />
+            <ConfidenceBadge
+              level={article.confidence as ConfidenceLevel}
+              score={article.confidence_score}
+            />
           ) : null}
           {typeof article.linter_score === "number" ? (
             <Badge tone="info">
@@ -172,6 +176,13 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           >
             {processed}
           </ReactMarkdown>
+        </div>
+      )}
+
+      {/* Per-claim confidence panel */}
+      {!isEditing && (
+        <div className="mt-8 border-t border-slate-200 pt-6">
+          <ClaimsPanel articleId={article.id} />
         </div>
       )}
 

@@ -80,7 +80,7 @@ class TestSourceSpanModel:
     async def test_locator_kinds(self, db_session: AsyncSession) -> None:
         """All LocatorKind values should be valid."""
         assert LocatorKind.PDF_PAGE_RECT == "pdf-page-rect"
-        assert LocatorKind.HTML_XPATH_OFFSET == "html-xpath-offset"
+        assert LocatorKind.HTML_PARAGRAPH_OFFSET == "html-paragraph-offset"
         assert LocatorKind.TEXT_BYTE_RANGE == "text-byte-range"
         assert LocatorKind.YOUTUBE_TIMESTAMP == "youtube-timestamp"
 
@@ -361,7 +361,7 @@ class TestCitationsEndpoint:
                 id=span_id,
                 source_id=source_id,
                 user_id=TEST_USER_ID,
-                locator_kind=LocatorKind.HTML_XPATH_OFFSET,
+                locator_kind=LocatorKind.HTML_PARAGRAPH_OFFSET,
                 locator={"xpath": "//p[3]", "offset": 0, "length": 23},
                 text=span_text,
                 fingerprint=_fingerprint(span_text),
@@ -397,4 +397,4 @@ class TestCitationsEndpoint:
         assert len(data["claims"]) == 1
         assert len(data["claims"][0]["source_spans"]) == 1
         assert data["claims"][0]["source_spans"][0]["id"] == span_id
-        assert data["claims"][0]["source_spans"][0]["locator_kind"] == "html-xpath-offset"
+        assert data["claims"][0]["source_spans"][0]["locator_kind"] == "html-paragraph-offset"

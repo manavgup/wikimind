@@ -13,7 +13,7 @@ app = "wikimind-docling"
 primary_region = "ord"
 
 [build]
-  image = "quay.io/docling-project/docling-serve-cpu:latest"
+  image = "quay.io/docling-project/docling-serve-cpu:v1.19.0"
 
 [http_service]
   internal_port = 5001

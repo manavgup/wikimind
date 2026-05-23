@@ -50,7 +50,7 @@ from wikimind.models import (
     Source,
 )
 from wikimind.queries import fetch_concept_names_for_article, fetch_source_ids_for_article
-from wikimind.services.billing import reconcile_subscriptions
+from wikimind.services.billing import reconcile_prices, reconcile_subscriptions
 from wikimind.services.embedding import _SEARCH_AVAILABLE
 from wikimind.storage import get_raw_storage, get_wiki_storage
 
@@ -628,6 +628,28 @@ async def run_reconciliation(_ctx) -> dict:
     return {"reconciled": count}
 
 
+async def run_price_reconciliation(_ctx) -> dict:
+    """Periodic price reconciliation with Lemon Squeezy.
+
+    Polls current variant prices and corrects any drift in Plan.price_cents.
+    Skips immediately in self-hosted mode (``billing_enabled == False``).
+    Runs on the same schedule as subscription reconciliation (every 6 hours).
+
+    Args:
+        _ctx: ARQ context (unused).
+
+    Returns:
+        A dict with the count of plans whose price was corrected.
+    """
+    settings = get_settings()
+    if not settings.billing_enabled:
+        return {"corrected": 0}
+
+    async with get_session_factory()() as session:
+        count = await reconcile_prices(session)
+    return {"corrected": count}
+
+
 async def ambient_capture_poll(_ctx) -> dict:
     """Periodic ambient adapter poll — runs all enabled adapters for all users.
 
@@ -707,5 +729,6 @@ class WorkerSettings:
         cron(lint_all_users, weekday=0, hour=2, minute=0),  # Monday 2am
         cron(sweep_all_users, hour=3, minute=0),  # Daily 3am
         cron(run_reconciliation, hour={0, 6, 12, 18}, minute=0),  # type: ignore[arg-type]  # Every 6 hours
+        cron(run_price_reconciliation, hour={0, 6, 12, 18}, minute=15),  # type: ignore[arg-type]  # Every 6 hours, offset 15m
         cron(ambient_capture_poll, minute={0, 30}),  # type: ignore[arg-type]  # Every 30 minutes
     ]

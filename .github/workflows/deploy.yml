@@ -4,7 +4,7 @@
 #
 #   - chains after the Docker workflow (build → scan → GHCR publish)
 #   - deploys staging first, smoke-tests it, then promotes to prod
-#   - auto-provisions apps, volumes, Postgres, and secrets
+#   - validates that apps, volumes, Postgres exist (never creates them)
 #   - fails loudly on real errors; suppresses only idempotent ones
 #
 # ---------------------------------------------------------------
@@ -48,21 +48,21 @@
 #        • creates GitHub issue for visibility
 #
 # ---------------------------------------------------------------
-# Auto-provisioning (both environments)
+# Infrastructure validation (both environments)
 # ---------------------------------------------------------------
 #
 #   Resource          │ Behavior
 #   ──────────────────┼─────────────────────────────────────────
-#   Fly app           │ Created if missing
-#   Volume            │ Created if missing (1 GB)
-#   Postgres cluster  │ Created if missing (⚠️ WARNING emitted)
-#   Postgres attach   │ Idempotent; real errors fail the job
+#   Fly app           │ Must exist; deploy fails with setup instructions if missing
+#   Volume            │ Must exist; created as part of initial app setup
+#   Postgres cluster  │ Must exist; deploy fails with setup instructions if missing
 #   Secrets           │ Staged (--stage) from GitHub secrets
-#   Docling sidecar   │ App created if missing, deployed
+#   Docling sidecar   │ Must exist; deploy fails with setup instructions if missing
 #
-#   Why ⚠️ on Postgres create: a new cluster has empty data.
-#   If the old cluster was deleted, you've lost data. The warning
-#   ensures operators notice and investigate.
+#   Infrastructure is NEVER created at deploy time. All resources
+#   must be provisioned manually before the first deploy. This
+#   prevents accidental creation of empty databases or duplicate
+#   apps during CI/CD runs.
 #
 # ---------------------------------------------------------------
 # Required GitHub repository secrets
@@ -175,31 +175,22 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      # 1️⃣  Ensure staging infrastructure exists
-      - name: 🏗️  Ensure staging app exists
+      # 1️⃣  Validate staging infrastructure exists (never create at deploy time)
+      - name: 🏗️  Validate staging infrastructure
         run: |
           if ! flyctl status --app wikimind-staging 2>/dev/null; then
-            echo "Creating staging app..."
-            flyctl apps create wikimind-staging --org personal
-            flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
+            echo "::error::Staging app 'wikimind-staging' does not exist. Create it manually:"
+            echo "::error::  fly apps create wikimind-staging --org personal"
+            echo "::error::  fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes"
+            exit 1
           fi
 
-          # Staging Postgres — separate from production
           if ! flyctl status --app wikimind-staging-db 2>/dev/null; then
-            echo "::warning::Creating NEW staging Postgres cluster"
-            flyctl postgres create --name wikimind-staging-db --org personal --region ord \
-              --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
+            echo "::error::Staging Postgres 'wikimind-staging-db' does not exist. Create it manually:"
+            echo "::error::  fly postgres create --name wikimind-staging-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1"
+            echo "::error::  fly postgres attach wikimind-staging-db --app wikimind-staging"
+            exit 1
           fi
-
-          # Attach — idempotent; only suppress "already attached" errors
-          output=$(flyctl postgres attach wikimind-staging-db --app wikimind-staging 2>&1) || {
-            if echo "$output" | grep -qi "already attached\|already exists\|already contains"; then
-              echo "Postgres already attached to staging"
-            else
-              echo "::error::Postgres attach failed: $output"
-              exit 1
-            fi
-          }
 
           # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
           REDIS_CHECK=$(flyctl secrets list --app wikimind-staging 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
@@ -231,7 +222,11 @@ jobs:
       # 3️⃣  Deploy sidecar + app
       - name: 🧠  Deploy staging docling-serve sidecar
         run: |
-          flyctl status --app wikimind-staging-docling 2>/dev/null || flyctl apps create wikimind-staging-docling --org personal
+          if ! flyctl status --app wikimind-staging-docling 2>/dev/null; then
+            echo "::error::Staging docling app 'wikimind-staging-docling' does not exist. Create it manually:"
+            echo "::error::  fly apps create wikimind-staging-docling --org personal"
+            exit 1
+          fi
           flyctl deploy --config fly.docling.toml --app wikimind-staging-docling --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -408,28 +403,21 @@ jobs:
       - name: 🪁  Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 
-      - name: 🏗️  Ensure production app exists
+      - name: 🏗️  Validate production infrastructure
         run: |
           if ! flyctl status --app wikimind 2>/dev/null; then
-            echo "Creating production app..."
-            flyctl apps create wikimind --org personal
-            flyctl volumes create wikimind_data --region ord --size 1 --app wikimind --yes
+            echo "::error::Production app 'wikimind' does not exist. Create it manually:"
+            echo "::error::  fly apps create wikimind --org personal"
+            echo "::error::  fly volumes create wikimind_data --region ord --size 1 --app wikimind --yes"
+            exit 1
           fi
 
           if ! flyctl status --app wikimind-db 2>/dev/null; then
-            echo "::warning::Creating NEW Postgres cluster — database will be empty!"
-            flyctl postgres create --name wikimind-db --org personal --region ord \
-              --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
+            echo "::error::Production Postgres 'wikimind-db' does not exist. Create it manually:"
+            echo "::error::  fly postgres create --name wikimind-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1"
+            echo "::error::  fly postgres attach wikimind-db --app wikimind"
+            exit 1
           fi
-
-          output=$(flyctl postgres attach wikimind-db --app wikimind 2>&1) || {
-            if echo "$output" | grep -qi "already attached\|already exists\|already contains"; then
-              echo "Postgres already attached to production"
-            else
-              echo "::error::Postgres attach failed: $output"
-              exit 1
-            fi
-          }
 
           # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
           REDIS_CHECK=$(flyctl secrets list --app wikimind 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
@@ -459,7 +447,11 @@ jobs:
 
       - name: 🧠  Deploy docling-serve sidecar
         run: |
-          flyctl status --app wikimind-docling 2>/dev/null || flyctl apps create wikimind-docling --org personal
+          if ! flyctl status --app wikimind-docling 2>/dev/null; then
+            echo "::error::Production docling app 'wikimind-docling' does not exist. Create it manually:"
+            echo "::error::  fly apps create wikimind-docling --org personal"
+            exit 1
+          fi
           flyctl deploy --config fly.docling.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -610,6 +602,17 @@ jobs:
 
   # -----------------------------------------------------------
   # 5️⃣  Rollback production (if verify fails)
+  # -----------------------------------------------------------
+  # Schema safety: this rollback redeploys the previous image, which
+  # runs `alembic upgrade head` from its own migration set. This is
+  # safe because our additive-only migration policy (enforced by the
+  # migration-safety workflow) guarantees that forward-applied schema
+  # changes are backward-compatible — the old code can still work
+  # with extra columns/tables it doesn't know about.
+  #
+  # If a migration were destructive (DROP TABLE/COLUMN), the rolled-
+  # back image would crash on missing schema objects. That's why
+  # destructive migrations are blocked in CI. See #589.
   # -----------------------------------------------------------
   rollback-production:
     name: rollback production

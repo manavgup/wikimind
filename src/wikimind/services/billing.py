@@ -95,6 +95,29 @@ class LemonSqueezyClient:
             )
             resp.raise_for_status()
 
+    async def get_variant(self, variant_id: str) -> dict:
+        """Fetch variant details (including price) from Lemon Squeezy."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{LS_API_BASE}/variants/{variant_id}",
+                headers=self._headers(),
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["data"]
+
+    async def list_variants(self, product_id: str) -> list[dict]:
+        """List all variants for a product from Lemon Squeezy."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{LS_API_BASE}/variants",
+                params={"filter[product_id]": product_id},
+                headers=self._headers(),
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["data"]
+
 
 def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> bool:
     """Verify HMAC-SHA256 webhook signature from Lemon Squeezy."""
@@ -182,6 +205,155 @@ async def get_usage_stats(session: AsyncSession, user_id: str) -> dict:
         "active_shares": share_count,
         "llm_spend_cents_today": llm_spend_cents,
     }
+
+
+# ---------------------------------------------------------------------------
+# Price sync
+# ---------------------------------------------------------------------------
+
+
+async def handle_variant_updated(session: AsyncSession, payload: dict) -> bool:
+    """Update Plan.price_cents when a Lemon Squeezy variant price changes.
+
+    Returns True if a plan was updated, False otherwise.
+    """
+    variant_id = str(payload.get("data", {}).get("id", ""))
+    attrs = payload.get("data", {}).get("attributes", {})
+    new_price = attrs.get("price")
+
+    if not variant_id or new_price is None:
+        log.warning("variant_updated missing variant_id or price", payload_keys=list(attrs.keys()))
+        return False
+
+    result = await session.exec(select(Plan).where(Plan.lemon_squeezy_variant_id == variant_id))
+    plan = result.one_or_none()
+    if not plan:
+        log.info("variant_updated for unknown variant", variant_id=variant_id)
+        return False
+
+    old_price = plan.price_cents
+    if old_price == new_price:
+        log.info("variant_updated price unchanged", variant_id=variant_id, price=new_price)
+        return False
+
+    plan.price_cents = new_price
+    plan.updated_at = utcnow_naive()
+    session.add(plan)
+
+    log.info(
+        "Plan price updated via webhook",
+        plan_name=plan.name,
+        variant_id=variant_id,
+        old_price_cents=old_price,
+        new_price_cents=new_price,
+    )
+    return True
+
+
+async def handle_product_updated(session: AsyncSession, payload: dict) -> int:
+    """Handle product_updated by refreshing prices for all variants of the product.
+
+    Fetches current variant prices from Lemon Squeezy and updates any
+    Plan rows that have drifted. Returns the number of plans updated.
+    """
+    product_id = str(payload.get("data", {}).get("id", ""))
+    if not product_id:
+        log.warning("product_updated missing product_id")
+        return 0
+
+    client = LemonSqueezyClient()
+    try:
+        variants = await client.list_variants(product_id)
+    except Exception:
+        log.exception("Failed to fetch variants for product", product_id=product_id)
+        return 0
+
+    updated = 0
+    for variant in variants:
+        vid = str(variant.get("id", ""))
+        price = variant.get("attributes", {}).get("price")
+        if not vid or price is None:
+            continue
+
+        result = await session.exec(select(Plan).where(Plan.lemon_squeezy_variant_id == vid))
+        plan = result.one_or_none()
+        if not plan:
+            continue
+
+        if plan.price_cents != price:
+            old_price = plan.price_cents
+            plan.price_cents = price
+            plan.updated_at = utcnow_naive()
+            session.add(plan)
+            updated += 1
+            log.info(
+                "Plan price updated via product webhook",
+                plan_name=plan.name,
+                variant_id=vid,
+                old_price_cents=old_price,
+                new_price_cents=price,
+            )
+
+    return updated
+
+
+async def reconcile_prices(session: AsyncSession) -> int:
+    """Poll Lemon Squeezy for current variant prices and correct any drift.
+
+    Iterates over all active plans with a ``lemon_squeezy_variant_id``,
+    fetches the current price from the API, and updates ``price_cents``
+    if it has drifted. Idempotent — safe to call multiple times.
+
+    Returns the number of plans whose price was corrected.
+    """
+    settings = get_settings()
+    if not settings.billing_enabled:
+        return 0
+
+    result = await session.exec(
+        select(Plan).where(
+            Plan.is_active == True,  # noqa: E712
+            Plan.lemon_squeezy_variant_id != None,  # noqa: E711
+        )
+    )
+    plans = list(result.all())
+    if not plans:
+        log.info("No plans with variant IDs to reconcile prices")
+        return 0
+
+    client = LemonSqueezyClient()
+    corrected = 0
+
+    for plan in plans:
+        try:
+            variant_data = await client.get_variant(plan.lemon_squeezy_variant_id)  # type: ignore[arg-type]
+            remote_price = variant_data["attributes"]["price"]
+
+            if plan.price_cents != remote_price:
+                old_price = plan.price_cents
+                plan.price_cents = remote_price
+                plan.updated_at = utcnow_naive()
+                session.add(plan)
+                corrected += 1
+                log.info(
+                    "Price drift corrected",
+                    plan_name=plan.name,
+                    variant_id=plan.lemon_squeezy_variant_id,
+                    old_price_cents=old_price,
+                    new_price_cents=remote_price,
+                )
+        except Exception:
+            log.exception(
+                "Failed to fetch variant price",
+                plan_name=plan.name,
+                variant_id=plan.lemon_squeezy_variant_id,
+            )
+            continue
+
+    if corrected:
+        await session.commit()
+    log.info("Price reconciliation complete", corrected=corrected, total=len(plans))
+    return corrected
 
 
 # ---------------------------------------------------------------------------

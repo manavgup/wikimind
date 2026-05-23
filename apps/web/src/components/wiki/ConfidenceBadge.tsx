@@ -15,10 +15,31 @@ const LABEL: Record<ConfidenceLevel, string> = {
   opinion: "Opinion",
 };
 
-interface ConfidenceBadgeProps {
-  level: ConfidenceLevel;
+function scoreColor(score: number): string {
+  if (score >= 0.8) return "text-emerald-700";
+  if (score >= 0.5) return "text-amber-700";
+  return "text-rose-700";
 }
 
-export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
-  return <Badge tone={TONE[level]}>{LABEL[level]}</Badge>;
+interface ConfidenceBadgeProps {
+  level: ConfidenceLevel;
+  /** Numeric confidence score (0-1). When provided, displayed as a percentage. */
+  score?: number;
+}
+
+export function ConfidenceBadge({ level, score }: ConfidenceBadgeProps) {
+  const label = LABEL[level];
+  const pct = score !== undefined ? Math.round(score * 100) : null;
+
+  return (
+    <Badge tone={TONE[level]}>
+      {label}
+      {pct !== null && (
+        <>
+          <span className="mx-0.5 text-slate-400">&middot;</span>
+          <span className={scoreColor(score!)}>{pct}%</span>
+        </>
+      )}
+    </Badge>
+  );
 }

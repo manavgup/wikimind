@@ -4,10 +4,8 @@ WikiMind uses GitHub Actions for continuous integration and deployment.
 
 ## CI Pipeline
 
-WikiMind splits CI across multiple GitHub Actions workflows. For test policy, the relevant workflow is `test.yml`, which runs on pushes to `main` and pull requests targeting `main` when backend test inputs change.
-
-`Full Verify` is the required merge gate. It runs `make verify` in CI so the authoritative verification sequence stays in the `Makefile` instead of being duplicated in workflow YAML.
-It also installs the repo-root Node tooling manifest so `basedpyright` is pinned in-version-controlled metadata instead of being fetched ad hoc via `npx`.
+WikiMind splits CI across multiple GitHub Actions workflows. `Full Verify` (`full-verify.yml`) is the required merge gate. It runs `make verify` in CI so the authoritative verification sequence stays in the `Makefile` instead of being duplicated in workflow YAML.
+It also installs the repo-root Node tooling manifest so `basedpyright` is pinned in version-controlled metadata instead of being fetched ad hoc via `npx`.
 
 ### Quality Gates
 
@@ -20,7 +18,7 @@ The following checks must pass before merging:
 | Type check | `make typecheck` | mypy static type checking |
 | Pyright | `make pyright` | basedpyright type checking |
 | Docstyle | `make docstyle` | pydocstyle docstring checks |
-| Tests | `make coverage-ci` | backend pytest suite with HTML + XML coverage artifacts and an 80% repo floor in CI |
+| Tests | `make coverage-check` | backend pytest suite with coverage (80% floor from pyproject.toml) |
 | Frontend | `make frontend-verify` | ESLint + TypeScript + build |
 | Desktop | `make desktop-verify` | Electron typecheck + build |
 | Extension | `make extension-verify` | Browser extension typecheck + build |
@@ -31,9 +29,9 @@ The following checks must pass before merging:
 
 ### Required vs supplemental workflows
 
-- Required: `Full Verify` runs `make verify` and therefore covers `make lint`, `make format-check`, `make typecheck`, `make pyright`, `make docstyle`, `make coverage-check`, `make desktop-verify`, and `make extension-verify`.
-- Supplemental: `Tests & Coverage` and the docs/smoke/e2e workflows still provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
-- Intentional scope difference: `make verify` does not include `make frontend-verify` or `make check-docs`, so those remain separate CI checks rather than being folded into the required gate.
+- Required: `Full Verify` runs `make verify` and therefore covers `make lint`, `make format-check`, `make typecheck`, `make pyright`, `make docstyle`, `make coverage-check`, `make check-docs`, `make check-doc-sync`, `make check-layers`, `make desktop-verify`, and `make extension-verify`.
+- Supplemental: the docs/smoke/e2e/Postgres-integration workflows provide faster or more specialized feedback, but they are not the canonical definition of the full verify suite.
+- Intentional scope difference: `make verify` does not include `make frontend-verify`, so frontend checks remain a separate CI concern.
 
 ### Mock Provider for CI
 
@@ -50,15 +48,11 @@ The mock provider returns deterministic JSON responses for compile, Q&A, and lin
 
 The `nightly.yml` workflow runs every day at `06:00 UTC` and can also be started manually with `workflow_dispatch`.
 
-Nightly covers the runtime and integration surfaces that path-filtered PR CI can miss:
+Currently the nightly workflow runs:
 
-- backend coverage run via `make coverage-ci`
-- PostgreSQL integration tests via `make test-postgres-ci`
-- Playwright end-to-end coverage of the web app against the FastAPI backend
-- Docker smoke tests against the production image
-- Bandit security scanning via `make bandit`
+- backend coverage via `make coverage-ci` (with HTML + XML reports and Codecov upload)
 
-This workflow is intentionally broader than PR CI because its job is drift detection: dependency breakage, runtime regressions, and environment-sensitive failures that may not be exercised by a narrow diff-triggered workflow.
+Additional lanes (Postgres integration, Playwright e2e, Docker smoke, Bandit) run as separate path-filtered workflows on every PR and push to `main`, so nightly drift detection is provided by the weekly Docker rebuild (`docker.yml` schedule) and the weekly CodeQL scan (`codeql.yml` schedule).
 
 ## Coverage Gates
 
@@ -120,8 +114,7 @@ The documentation site is built and deployed to GitHub Pages via the `docs.yml` 
 The project uses:
 
 - **Dependency Review** on pull requests that change Python dependency files or frontend `package.json` / `package-lock.json` files
-- **bandit** for Python security scanning (`make bandit`) with JSON-to-SARIF conversion, code scanning upload in CI, and merge blocking only for medium-or-higher severity findings
-- **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan
-- a nightly Bandit run in `.github/workflows/nightly.yml`
+- **bandit** for Python security scanning (`make bandit`) with JSON-to-SARIF conversion, code scanning upload in CI, and merge blocking only for medium-or-higher severity findings (`.github/workflows/bandit.yml`)
+- **CodeQL** for GitHub code scanning across Python and JavaScript/TypeScript, including a weekly scheduled scan (`.github/workflows/codeql.yml`)
 - **vulture** for dead code detection (`make vulture`)
 - Pinned dependencies via `uv.lock` for reproducible builds

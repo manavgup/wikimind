@@ -49,6 +49,7 @@ on:
       - "fly.docling.toml"
       - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
+      - ".github/workflows/deploy.yml"
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: ["main"]
@@ -68,6 +69,7 @@ on:
       - "fly.docling.toml"
       - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
+      - ".github/workflows/deploy.yml"
   schedule:
     # Weekly rebuild against the latest base image — catches bit-rot.
     - cron: "0 9 * * 1"
