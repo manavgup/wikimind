@@ -36,7 +36,7 @@ class ProviderProtocol(Protocol):
 
     async def complete(self, request: CompletionRequest, model: str) -> CompletionResponse:
         """Execute a single-turn LLM completion."""
-        ...
+        ...  # type: ignore[empty-body]
 
     async def complete_multimodal(
         self,
@@ -47,11 +47,11 @@ class ProviderProtocol(Protocol):
         temperature: float = 0.3,
     ) -> CompletionResponse:
         """Execute a multimodal completion with text and images."""
-        ...
+        ...  # type: ignore[empty-body]
 
     async def stream(self, request: CompletionRequest, model: str) -> StreamSession:
         """Create a streaming completion and return a StreamSession."""
-        ...
+        ...  # type: ignore[empty-body]
 
 
 __all__ = [

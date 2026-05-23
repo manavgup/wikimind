@@ -1,5 +1,10 @@
 # vulture whitelist -- items that appear unused but are used by frameworks
 #
+# This file exists solely to suppress false-positive "unused code" warnings
+# from vulture (dead-code detector).  Every import and attribute access below
+# is intentionally unreferenced in application code because the symbols are
+# consumed by frameworks at runtime (FastAPI, SQLModel/Pydantic, ARQ).
+#
 # FastAPI route handlers are called by the framework, not directly.
 # SQLModel / Pydantic fields are accessed by the ORM, not referenced in code.
 # ARQ worker settings are read by the arq runtime.

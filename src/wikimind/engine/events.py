@@ -25,7 +25,7 @@ class BudgetEventEmitter(Protocol):
         user_id: str,
     ) -> None:
         """Emitted once when monthly spend crosses the warning threshold."""
-        ...
+        ...  # type: ignore[empty-body]
 
     async def emit_budget_exceeded(
         self,
@@ -35,7 +35,7 @@ class BudgetEventEmitter(Protocol):
         user_id: str,
     ) -> None:
         """Emitted once when monthly spend crosses 100% of budget."""
-        ...
+        ...  # type: ignore[empty-body]
 
 
 class NullBudgetEventEmitter:

@@ -142,7 +142,7 @@ async def stop_redis_subscriber() -> None:
     if _subscriber_task is not None:
         _subscriber_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await _subscriber_task
+            await _subscriber_task  # CodeQL: not pointless — joins the cancelled task
         _subscriber_task = None
     if _redis_publish_pool is not None:
         await _redis_publish_pool.aclose()

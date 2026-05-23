@@ -94,10 +94,10 @@ from wikimind.engine.providers import (  # noqa: E402
     OpenAIProvider,
     ProviderProtocol,
 )
-from wikimind.engine.providers.mock import (  # noqa: E402, F401 -- backward compat re-exports
-    _MOCK_COMPILE_RESPONSE,
-    _MOCK_LINT_RESPONSE,
-    _MOCK_QA_RESPONSE,
+from wikimind.engine.providers.mock import (  # noqa: E402, F401 -- re-exports used by tests
+    _MOCK_COMPILE_RESPONSE,  # CodeQL: unused-import — intentional re-export
+    _MOCK_LINT_RESPONSE,  # CodeQL: unused-import — intentional re-export
+    _MOCK_QA_RESPONSE,  # CodeQL: unused-import — intentional re-export
 )
 
 _LLM_PROVIDER_ERRORS = (

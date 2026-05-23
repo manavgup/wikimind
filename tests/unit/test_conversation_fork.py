@@ -177,6 +177,7 @@ class TestMaterializeThread:
 
     async def test_forked_conversation_includes_ancestor_turns(self, db_session):
         """A forked conversation includes parent turns before the fork point."""
+        # side-effect: seeds DB rows needed by the fork below
         _parent, _parent_queries = await _seed_conversation_with_turns(db_session, conv_id="parent-conv", num_turns=3)
 
         # Create a fork at turn_index=2 (shares turns 0, 1 from parent)

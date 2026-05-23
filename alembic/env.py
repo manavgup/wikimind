@@ -14,7 +14,7 @@ from sqlmodel import SQLModel
 from alembic import context
 
 # Import all models so metadata is populated
-from wikimind import models  # noqa: F401
+from wikimind import models  # noqa: F401  # side-effect: registers SQLModel tables
 from wikimind.config import get_settings
 from wikimind.database import _parse_ssl, is_postgres
 

@@ -911,7 +911,7 @@ class TestAmbientService:
             enabled=True,
             settings={"browser": "chrome"},
         )
-        resp1 = await service.configure_adapter(request1, db_session, TEST_USER_ID)
+        _resp1 = await service.configure_adapter(request1, db_session, TEST_USER_ID)
 
         request2 = AmbientAdapterConfigureRequest(
             adapter_type="browser_history",
