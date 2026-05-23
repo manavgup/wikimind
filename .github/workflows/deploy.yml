@@ -344,7 +344,36 @@ jobs:
           curl -sf "$BASE/api/compilation-schemas" -H "Authorization: Bearer $TOKEN" | jq -e 'type == "array"' || { echo "::error::/api/compilation-schemas did not return array"; exit 1; }
           echo "PASS: compilation-schemas"
 
-          echo "Staging smoke tests complete (10/10 passed)"
+          # 11. Background job E2E — enqueue a ping job, wait for worker to process it.
+          # Requires auth (side-effecting endpoint). Retry with backoff to handle
+          # worker startup delays after deploy.
+          PING_OK=false
+          for attempt in 1 2 3 4 5; do
+            PING_RESULT=$(curl -sf "$BASE/health/job-ping" \
+              -H "Authorization: Bearer $TOKEN") || {
+              echo "Attempt $attempt: /health/job-ping request failed, retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+              continue
+            }
+            PING_STATUS=$(echo "$PING_RESULT" | jq -r '.status')
+            if [ "$PING_STATUS" = "ok" ]; then
+              PING_MS=$(echo "$PING_RESULT" | jq -r '.latency_ms')
+              echo "PASS: background job E2E (${PING_MS}ms, attempt $attempt)"
+              PING_OK=true
+              break
+            else
+              PING_ERR=$(echo "$PING_RESULT" | jq -r '.error // "unknown"')
+              echo "Attempt $attempt: job-ping status=$PING_STATUS error=$PING_ERR, retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+            fi
+          done
+          if [ "$PING_OK" != "true" ]; then
+            echo "::error::Background job E2E failed after 5 attempts"
+            echo "$PING_RESULT" | jq . 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Staging smoke tests complete (11/11 passed)"
 
       - name: 🚨  Create alert on failure
         if: failure()
@@ -539,6 +568,35 @@ jobs:
           # 9. Admin stats responds (may be 403 if token user is not admin — that's OK)
           ADMIN=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/admin/stats" -H "Authorization: Bearer $TOKEN")
           echo "INFO: admin stats responded $ADMIN"
+
+          # 10. Background job E2E — enqueue a ping job, wait for worker to process it.
+          # Requires auth (side-effecting endpoint). Retry with backoff to handle
+          # worker startup delays after deploy.
+          PING_OK=false
+          for attempt in 1 2 3 4 5; do
+            PING_RESULT=$(curl -sf "$BASE/health/job-ping" \
+              -H "Authorization: Bearer $TOKEN") || {
+              echo "Attempt $attempt: /health/job-ping request failed, retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+              continue
+            }
+            PING_STATUS=$(echo "$PING_RESULT" | jq -r '.status')
+            if [ "$PING_STATUS" = "ok" ]; then
+              PING_MS=$(echo "$PING_RESULT" | jq -r '.latency_ms')
+              echo "PASS: background job E2E (${PING_MS}ms, attempt $attempt)"
+              PING_OK=true
+              break
+            else
+              PING_ERR=$(echo "$PING_RESULT" | jq -r '.error // "unknown"')
+              echo "Attempt $attempt: job-ping status=$PING_STATUS error=$PING_ERR, retrying in $((attempt * 5))s..."
+              sleep $((attempt * 5))
+            fi
+          done
+          if [ "$PING_OK" != "true" ]; then
+            echo "::error::Background job E2E failed after 5 attempts"
+            echo "$PING_RESULT" | jq . 2>/dev/null || true
+            exit 1
+          fi
 
           echo "Production functional verification complete"
 

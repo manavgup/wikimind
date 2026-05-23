@@ -4064,6 +4064,38 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Deep Health Check Health Deep Get
+  /health/job-ping:
+    get:
+      tags:
+      - Admin
+      summary: Job Ping
+      description: 'Enqueue a lightweight ping job and wait for its result.
+
+
+        Proves the full background job pipeline works end-to-end:
+
+        API -> Redis -> ARQ worker -> result.  Requires authentication
+
+        because it enqueues a real job (side effect).
+
+
+        Returns ``{"status": "ok", ...}`` when the job completes within the
+
+        timeout, or ``{"status": "error", ...}`` on failure or timeout.
+
+        In dev mode (no Redis), returns ``{"status": "skipped"}`` since
+
+        there is no ARQ worker to verify.'
+      operationId: job_ping_health_job_ping_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Job Ping Health Job Ping Get
   /auth/login/{provider}:
     get:
       tags:
@@ -7033,6 +7065,7 @@ components:
       - sync_push
       - sync_pull
       - poll_rss_feeds
+      - ping
       title: JobType
       description: Type of async job.
     LLMSettingsResponse:

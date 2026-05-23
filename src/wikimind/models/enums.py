@@ -122,6 +122,7 @@ class JobType(StrEnum):
     SYNC_PUSH = "sync_push"
     SYNC_PULL = "sync_pull"
     POLL_RSS_FEEDS = "poll_rss_feeds"
+    PING = "ping"
 
 
 class JobStatus(StrEnum):
