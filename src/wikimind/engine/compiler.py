@@ -20,7 +20,11 @@ from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.database import _dialect_insert, get_session_factory
 from wikimind.engine.base_compiler import BaseCompiler
-from wikimind.engine.confidence import compute_confidence
+from wikimind.engine.confidence import (
+    aggregate_claim_confidence,
+    compute_claim_confidence,
+    compute_confidence,
+)
 from wikimind.engine.frontmatter_validator import validate_frontmatter
 from wikimind.engine.prompts import COMPILER_SYSTEM_PROMPT, TAKEAWAY_SYSTEM_PROMPT
 from wikimind.engine.wikilink_resolver import (
@@ -672,10 +676,10 @@ Compile this into a wiki article following the JSON schema exactly."""
     ) -> None:
         """Recompute and persist ``confidence_score`` and ``last_reinforced_at``.
 
-        Aggregates the article's current source set (via the
-        :class:`ArticleSource` join table) and counts incoming
-        ``CONTRADICTS`` backlinks, then delegates to
-        :func:`wikimind.engine.confidence.compute_confidence`.
+        The article-level confidence is the weighted mean of its persisted
+        claims' confidence scores (issue #465). When no claims exist, it
+        falls back to the provenance-based ``compute_confidence`` formula
+        using source count, recency, and contradiction count.
 
         Also sets ``source_newest_at`` and creates a ``ReinforcementEvent``
         for staleness tracking (issue #425).
@@ -705,11 +709,23 @@ Compile this into a wiki article following the JSON schema exactly."""
         )
         contradiction_count = len(list(contra_result.scalars().all()))
 
-        article.confidence_score = compute_confidence(
-            source_count=source_count,
-            newest_source_age_days=newest_age_days,
-            contradiction_count=contradiction_count,
+        # Aggregate from claim-level scores when claims exist (issue #465).
+        claims_result = await session.execute(
+            select(CompiledClaim.confidence_score).where(
+                CompiledClaim.article_id == article.id,
+            )
         )
+        claim_scores = [row[0] for row in claims_result.all()]
+
+        if claim_scores:
+            article.confidence_score = aggregate_claim_confidence(claim_scores)
+        else:
+            article.confidence_score = compute_confidence(
+                source_count=source_count,
+                newest_source_age_days=newest_age_days,
+                contradiction_count=contradiction_count,
+            )
+
         article.last_reinforced_at = now
         session.add(article)
 
@@ -815,17 +831,28 @@ Compile this into a wiki article following the JSON schema exactly."""
         source: Source,
         session: AsyncSession,
     ) -> None:
-        """Persist CompiledClaim rows for each key_claim in the compilation result."""
+        """Persist CompiledClaim rows for each key_claim in the compilation result.
+
+        Each claim receives a numeric ``confidence_score`` computed from its
+        categorical confidence label and the number of backing sources
+        (issue #465).
+        """
         for dto in result.key_claims:
+            claim_source_ids = dto.source_ids or [source.id]
+            confidence_level = dto.confidence.value if hasattr(dto.confidence, "value") else str(dto.confidence)
             claim = CompiledClaim(
                 article_id=article_id,
                 user_id=self.user_id,
                 text=dto.claim,
                 subjects=json.dumps(dto.subjects),
                 predicate=dto.predicate,
-                confidence_level=dto.confidence.value if hasattr(dto.confidence, "value") else str(dto.confidence),
+                confidence_level=confidence_level,
+                confidence_score=compute_claim_confidence(
+                    confidence_level=confidence_level,
+                    source_count=len(claim_source_ids),
+                ),
                 quote=dto.quote,
-                source_ids=json.dumps(dto.source_ids or [source.id]),
+                source_ids=json.dumps(claim_source_ids),
             )
             session.add(claim)
         await session.commit()

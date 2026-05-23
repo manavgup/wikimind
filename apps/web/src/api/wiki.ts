@@ -261,3 +261,32 @@ export function compileWithGuidance(
     { method: "POST" },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Per-claim confidence (issue #465)
+// ---------------------------------------------------------------------------
+
+export interface ClaimConfidenceItem {
+  id: string;
+  text: string;
+  confidence_level: string;
+  confidence_score: number;
+  source_ids: string[];
+  last_reinforced_at: string;
+  created_at: string;
+}
+
+export interface ArticleClaimsResponse {
+  article_id: string;
+  article_title: string;
+  article_confidence_score: number;
+  claims: ClaimConfidenceItem[];
+}
+
+export function getArticleClaims(
+  idOrSlug: string,
+): Promise<ArticleClaimsResponse> {
+  return apiFetch<ArticleClaimsResponse>(
+    `/api/wiki/articles/${encodeURIComponent(idOrSlug)}/claims`,
+  );
+}

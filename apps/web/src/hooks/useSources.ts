@@ -9,6 +9,7 @@ import {
   deleteSource,
   getDraft,
   getSourceDetail,
+  getSourceSpans,
   ingestPdf,
   ingestUrl,
   listSources,
@@ -16,7 +17,7 @@ import {
   retryCompile,
   type ListSourcesParams,
 } from "../api/sources";
-import type { Source, SourceDetailResponse } from "../types/api";
+import type { Source, SourceDetailResponse, SourceSpanResponse } from "../types/api";
 
 const SOURCES_KEY = ["sources"] as const;
 
@@ -82,6 +83,18 @@ export function useSourceDetail(
   return useQuery({
     queryKey: [...SOURCE_DETAIL_KEY, sourceId],
     queryFn: () => getSourceDetail(sourceId!),
+    enabled: !!sourceId,
+  });
+}
+
+const SOURCE_SPANS_KEY = ["source-spans"] as const;
+
+export function useSourceSpans(
+  sourceId: string | undefined,
+): UseQueryResult<SourceSpanResponse[]> {
+  return useQuery({
+    queryKey: [...SOURCE_SPANS_KEY, sourceId],
+    queryFn: () => getSourceSpans(sourceId!),
     enabled: !!sourceId,
   });
 }

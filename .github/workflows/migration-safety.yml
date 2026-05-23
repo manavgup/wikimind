@@ -1,0 +1,57 @@
+# ===============================================================
+# Migration Safety — Additive-Only Policy Enforcement
+# ===============================================================
+#
+#   - scans Alembic migration upgrade() functions for destructive ops
+#   - blocks DROP TABLE, DROP COLUMN, ALTER COLUMN type changes
+#   - ensures rollback to a previous image won't break on schema mismatch
+#   - destructive changes must use a two-phase deploy strategy
+#   - lines with `# rollback-safe: <reason>` are exempted
+#   - triggers on changes to alembic/ or this workflow
+# ---------------------------------------------------------------
+
+name: Migration Safety
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "scripts/check_migration_safety.py"
+      - ".github/workflows/migration-safety.yml"
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths:
+      - "alembic/**"
+      - "scripts/check_migration_safety.py"
+      - ".github/workflows/migration-safety.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  migration-safety:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Additive-only migration check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Check migration safety
+        run: python scripts/check_migration_safety.py

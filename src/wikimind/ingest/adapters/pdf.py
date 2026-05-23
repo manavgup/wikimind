@@ -31,6 +31,7 @@ import structlog
 from wikimind.api.routes.ws import emit_source_progress
 from wikimind.config import get_settings
 from wikimind.engine.llm_router import _LLM_PROVIDER_ERRORS, get_llm_router
+from wikimind.ingest.spans import extract_pdf_spans, persist_spans
 from wikimind.ingest.utils import (
     _check_source_dedup,
     chunk_text,
@@ -285,6 +286,19 @@ class PDFAdapter:
                     "PDF image extraction failed — continuing without images",
                     source_id=source.id,
                 )
+
+        # Source span extraction (issue #450): extract per-page paragraph
+        # spans for citation anchoring. Uses fitz per-page text for page-level
+        # locators; falls back to paragraph-only if page text is unavailable.
+        try:
+            page_texts = self._extract_per_page_text(file_bytes)
+            spans = extract_pdf_spans(clean_text, source.id, user_id, page_texts=page_texts)
+            await persist_spans(spans, session)
+        except Exception:
+            log.warning(
+                "PDF span extraction failed — continuing without spans",
+                source_id=source.id,
+            )
 
         token_count = estimate_tokens(clean_text)
         source.token_count = token_count

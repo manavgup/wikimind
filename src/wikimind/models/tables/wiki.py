@@ -24,7 +24,7 @@ class SourceSpan(SQLModel, table=True):
         sa_column=Column(String, ForeignKey("source.id", ondelete="CASCADE"), index=True),
     )
     user_id: str = Field(foreign_key="user.id", index=True)
-    locator_kind: LocatorKind  # "pdf-page-rect", "html-xpath-offset", etc.
+    locator_kind: LocatorKind  # "pdf-page-rect", "html-paragraph-offset", etc.
     locator: dict = Field(sa_column=Column(JSON, nullable=False))  # adapter-specific anchor
     text: str = Field(sa_type=Text)  # verbatim quoted text
     fingerprint: str = Field(index=True)  # SHA-256 of normalized text for re-anchoring

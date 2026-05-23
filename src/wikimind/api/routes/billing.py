@@ -20,6 +20,8 @@ from wikimind.services.billing import (
     LemonSqueezyClient,
     apply_entitlement,
     get_usage_stats,
+    handle_product_updated,
+    handle_variant_updated,
     verify_webhook_signature,
 )
 
@@ -355,6 +357,16 @@ async def _process_webhook_event(
     payload: dict,
 ) -> None:
     """Route webhook event to the appropriate handler."""
+    # Price-change events are not user-specific — handle them separately.
+    if event_type == "variant_updated":
+        await handle_variant_updated(session, payload)
+        log.info("Processed webhook", event_type=event_type)
+        return
+    if event_type == "product_updated":
+        await handle_product_updated(session, payload)
+        log.info("Processed webhook", event_type=event_type)
+        return
+
     attrs = payload.get("data", {}).get("attributes", {})
     custom_data = payload.get("meta", {}).get("custom_data", {})
 

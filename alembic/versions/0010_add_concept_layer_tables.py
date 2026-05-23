@@ -225,7 +225,7 @@ def upgrade() -> None:
         if has_new and has_old:
             # Only ``compilationschema`` can still reach this path. The
             # concept-layer collision is handled above to respect FK ordering.
-            op.drop_table(new_name)
+            op.drop_table(new_name)  # rollback-safe: drops empty duplicate before rename
             op.rename_table(old_name, new_name)
         elif has_new:
             # Scenario 4: already migrated — nothing to do.

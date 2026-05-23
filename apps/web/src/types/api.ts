@@ -95,6 +95,22 @@ export interface SourceDetailResponse {
   linked_articles: LinkedArticleSummary[];
 }
 
+export type LocatorKind =
+  | "pdf-page-rect"
+  | "html-xpath-offset"
+  | "text-byte-range"
+  | "youtube-timestamp";
+
+export interface SourceSpanResponse {
+  id: string;
+  source_id: string;
+  locator_kind: LocatorKind;
+  locator: Record<string, unknown>;
+  text: string;
+  fingerprint: string;
+  created_at: string;
+}
+
 export interface TagRef {
   id: string;
   name: string;
@@ -108,6 +124,7 @@ export interface Article {
   title: string;
   summary: string | null;
   confidence: ConfidenceLevel | null;
+  confidence_score?: number;
   linter_score: number | null;
   page_type: PageType;
   source_count: number;

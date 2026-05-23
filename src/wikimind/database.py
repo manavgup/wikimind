@@ -239,6 +239,69 @@ async def _run_versioned_migrations(engine, versioned_migrations, session_migrat
         await _record_migration(engine, version)
 
 
+def _column_default_sql(col, dialect) -> str:
+    """Return the DEFAULT clause for an ALTER TABLE ADD COLUMN statement.
+
+    SQLite requires NOT NULL columns added via ALTER TABLE to have a default.
+    """
+    default = ""
+    if col.server_default is not None:
+        default = f" DEFAULT {col.server_default.arg}"
+    elif col.default is not None and col.default.is_scalar:
+        val = col.default.arg
+        if isinstance(val, str):
+            default = f" DEFAULT '{val}'"
+        elif isinstance(val, (bool, int, float)) and val is not None:
+            default = f" DEFAULT {int(val) if isinstance(val, bool) else val}"
+    # NOT NULL columns need a fallback default for SQLite ALTER TABLE
+    if not default and not col.nullable:
+        col_type_upper = col.type.compile(dialect=dialect).upper()
+        is_numeric = any(t in col_type_upper for t in ("INT", "FLOAT", "BOOL"))
+        default = " DEFAULT 0" if is_numeric else " DEFAULT ''"
+    return default
+
+
+async def _add_missing_columns_sqlite(engine) -> None:
+    """Add columns present in SQLModel metadata but missing from existing SQLite tables.
+
+    **Dev-only (SQLite).**  This helper is only called when the database URL
+    targets SQLite.  Production (Postgres) uses Alembic migrations exclusively
+    for schema evolution — this function is never invoked in that path.
+
+    ``create_all()`` only creates tables that don't exist — it never alters
+    existing tables to add new columns.  On SQLite (dev mode), this function
+    fills the gap by inspecting each table and issuing ``ALTER TABLE ADD COLUMN``
+    for any columns defined in the model but absent from the physical schema.
+
+    Idempotent: re-running when all columns exist is a no-op.
+    """
+    async with engine.begin() as conn:
+
+        def _sync_columns(sync_conn):
+            inspector = sa_inspect(sync_conn)
+            existing_tables = inspector.get_table_names()
+
+            for table_name, table in SQLModel.metadata.tables.items():
+                if table_name not in existing_tables:
+                    continue  # create_all will handle it
+                existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+                for col in table.columns:
+                    if col.name in existing_cols:
+                        continue
+                    col_type = col.type.compile(dialect=sync_conn.dialect)
+                    nullable = "" if col.nullable else " NOT NULL"
+                    default = _column_default_sql(col, sync_conn.dialect)
+                    ddl = f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}{nullable}{default}'
+                    sync_conn.execute(sa_text(ddl))
+                    log.info(
+                        "added missing column to existing table",
+                        table=table_name,
+                        column=col.name,
+                    )
+
+        await conn.run_sync(_sync_columns)
+
+
 async def init_db():
     """Create all tables and run idempotent data migrations.
 
@@ -261,6 +324,14 @@ async def init_db():
             await conn.run_sync(SQLModel.metadata.create_all)
     else:
         log.info("skipping create_all — Alembic owns schema on Postgres")
+
+    # On SQLite (dev mode), add any columns that were added to models
+    # but are missing from existing tables. create_all only creates new
+    # tables — it never alters existing ones. Alembic handles this on
+    # Postgres; this bridges the gap for local dev.
+    settings = get_settings()
+    if is_sqlite(settings.database_url):
+        await _add_missing_columns_sqlite(engine)
 
     # Ensure the dev user row exists so FK constraints are satisfied
     # when running in dev mode with dev_auto_auth.

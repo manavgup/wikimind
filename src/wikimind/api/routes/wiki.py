@@ -8,6 +8,7 @@ from wikimind.api.deps import get_current_user_id, require_plan
 from wikimind.database import get_session
 from wikimind.models import (
     ArticleCitationsResponse,
+    ArticleClaimsResponse,
     ArticleEditRequest,
     ArticleRelationshipsResponse,
     ArticleResponse,
@@ -512,6 +513,28 @@ async def get_article_citations(
     specific paragraphs in the original source documents.
     """
     return await citation_service.get_article_citations(id_or_slug, session, user_id=user_id, wiki_service=wiki_service)
+
+
+@router.get(
+    "/articles/{id_or_slug}/claims",
+    response_model=ArticleClaimsResponse,
+    responses={404: {"description": "Article not found"}},
+)
+async def get_article_claims(
+    id_or_slug: str,
+    session: AsyncSession = Depends(get_session),
+    citation_service: CitationService = Depends(get_citation_service),
+    wiki_service: WikiService = Depends(get_wiki_service),
+    user_id: str = Depends(get_current_user_id),
+) -> ArticleClaimsResponse:
+    """Return persisted claims for an article with per-claim confidence scores.
+
+    Each claim includes a numeric ``confidence_score`` computed from its
+    categorical confidence label and the number of backing sources.
+    The ``article_confidence_score`` is the aggregate (weighted mean) of
+    all claim scores.
+    """
+    return await citation_service.get_article_claims(id_or_slug, session, user_id=user_id, wiki_service=wiki_service)
 
 
 # ---------------------------------------------------------------------------
