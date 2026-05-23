@@ -5,11 +5,13 @@ returns its compiled claims together with the source spans that anchor
 each claim to a precise location in the original source document.
 """
 
+from __future__ import annotations
+
 import json
+from typing import TYPE_CHECKING
 
 import structlog
 from sqlmodel import col, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from wikimind.errors import NotFoundError
 from wikimind.models import (
@@ -22,7 +24,11 @@ from wikimind.models import (
     SourceSpan,
     SourceSpanResponse,
 )
-from wikimind.services.wiki import WikiService
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from wikimind.services.wiki import WikiService
 
 log = structlog.get_logger()
 

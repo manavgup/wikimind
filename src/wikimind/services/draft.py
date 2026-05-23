@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from wikimind._datetime import utcnow_naive
 from wikimind.engine.compiler import Compiler
 from wikimind.errors import NotFoundError
-from wikimind.ingest.service import chunk_text, estimate_tokens
+from wikimind.ingest.utils import chunk_text, estimate_tokens
 from wikimind.models import (
     ApproveDraftResponse,
     CompilationDraft,

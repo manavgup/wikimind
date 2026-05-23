@@ -181,7 +181,7 @@ async def _queue_recompile_for_new_contradictions(
     # Lazy import to break circular dependency:
     # runner -> background -> worker -> runner
     # CodeQL: cyclic-import — unavoidable, see #649
-    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415
+    from wikimind.jobs.background import get_background_compiler  # noqa: PLC0415  # CodeQL[cyclic-import]
 
     # Collect unique article IDs that need recompilation
     article_ids_to_recompile: set[str] = set()

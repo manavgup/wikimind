@@ -26,7 +26,7 @@ from wikimind._datetime import utcnow_naive
 from wikimind.config import get_settings
 from wikimind.engine.confidence import apply_decay, compute_staleness
 from wikimind.errors import NotFoundError
-from wikimind.jobs.background import get_background_compiler
+from wikimind.jobs.background import get_background_compiler  # CodeQL[cyclic-import] — runtime call
 from wikimind.models import (
     Article,
     ArticleConcept,

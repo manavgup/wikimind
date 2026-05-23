@@ -23,7 +23,6 @@ from arq.connections import RedisSettings
 from sqlalchemy import distinct
 from sqlmodel import select
 
-import wikimind.ingest.service as _ingest_service
 from wikimind._datetime import utcnow_naive
 from wikimind.api.routes.ws import (
     emit_article_recompiled,
@@ -37,6 +36,7 @@ from wikimind.database import get_session_factory
 from wikimind.engine.compiler import Compiler
 from wikimind.engine.concept_compiler import ConceptCompiler
 from wikimind.engine.linter.runner import run_lint  # CodeQL[cyclic-import]
+from wikimind.ingest.utils import chunk_text, estimate_tokens
 from wikimind.jobs.sweep import sweep_wikilinks
 from wikimind.models import (
     AmbientAdapterSetting,
@@ -93,8 +93,8 @@ async def _build_normalized_doc(source: Source) -> NormalizedDocument:
         title=source.title or "Untitled",
         author=source.author,
         published_date=source.published_date,
-        estimated_tokens=_ingest_service.estimate_tokens(content),
-        chunks=_ingest_service.chunk_text(content, source.id),
+        estimated_tokens=estimate_tokens(content),
+        chunks=chunk_text(content, source.id),
     )
 
 
