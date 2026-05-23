@@ -478,11 +478,11 @@ test-matrix: ## Show how to run the LLM × document type benchmark
 
 .PHONY: export-openapi
 export-openapi: ## Regenerate docs/openapi.yaml from the FastAPI app
-	uv run python scripts/export_openapi.py
+	WIKIMIND_DEPLOYMENT_MODE=hosted uv run python scripts/export_openapi.py
 
 .PHONY: check-openapi
 check-openapi: ## Verify docs/openapi.yaml matches the FastAPI app
-	uv run python scripts/export_openapi.py --check
+	WIKIMIND_DEPLOYMENT_MODE=hosted uv run python scripts/export_openapi.py --check
 
 .PHONY: regenerate-adr-index
 regenerate-adr-index: ## Regenerate docs/adr/README.md from ADR files
