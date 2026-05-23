@@ -263,11 +263,14 @@ def _column_default_sql(col, dialect) -> str:
 async def _add_missing_columns_sqlite(engine) -> None:
     """Add columns present in SQLModel metadata but missing from existing SQLite tables.
 
+    **Dev-only (SQLite).**  This helper is only called when the database URL
+    targets SQLite.  Production (Postgres) uses Alembic migrations exclusively
+    for schema evolution — this function is never invoked in that path.
+
     ``create_all()`` only creates tables that don't exist — it never alters
-    existing tables to add new columns. On Postgres, Alembic migrations handle
-    schema evolution. On SQLite (dev mode), this function fills the gap by
-    inspecting each table and issuing ``ALTER TABLE ADD COLUMN`` for any columns
-    defined in the model but absent from the physical schema.
+    existing tables to add new columns.  On SQLite (dev mode), this function
+    fills the gap by inspecting each table and issuing ``ALTER TABLE ADD COLUMN``
+    for any columns defined in the model but absent from the physical schema.
 
     Idempotent: re-running when all columns exist is a no-op.
     """

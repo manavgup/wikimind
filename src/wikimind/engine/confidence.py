@@ -6,7 +6,7 @@ Confidence scoring operates at two levels:
   based on how many sources back it and the LLM's categorical confidence label.
   See :func:`compute_claim_confidence`.
 
-* **Article-level** — a weighted mean of its claims' confidence scores, or a
+* **Article-level** — an arithmetic mean of its claims' confidence scores, or a
   provenance-based fallback when the article has no persisted claims. See
   :func:`compute_confidence` and :func:`aggregate_claim_confidence`.
 
@@ -204,7 +204,7 @@ def compute_claim_confidence(
 
 
 def aggregate_claim_confidence(claim_scores: list[float]) -> float:
-    """Compute article-level confidence as the weighted mean of claim scores.
+    """Compute article-level confidence as the arithmetic mean of claim scores.
 
     Returns 0.5 (neutral default) when there are no claims, so the caller
     can fall back to the provenance-based ``compute_confidence`` if desired.

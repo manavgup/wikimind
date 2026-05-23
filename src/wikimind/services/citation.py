@@ -94,7 +94,10 @@ class CitationService:
         claim_responses: list[ClaimCitationResponse] = []
         for claim in claims:
             span_ids = json.loads(claim.source_span_ids) if claim.source_span_ids else []
-            source_ids = json.loads(claim.source_ids) if claim.source_ids else []
+            try:
+                source_ids = json.loads(claim.source_ids) if claim.source_ids else []
+            except (json.JSONDecodeError, TypeError):
+                source_ids = []
             span_responses = [
                 SourceSpanResponse(
                     id=span.id,
@@ -180,7 +183,10 @@ class CitationService:
 
         claim_responses: list[ClaimConfidenceResponse] = []
         for claim in claims:
-            source_ids = json.loads(claim.source_ids) if claim.source_ids else []
+            try:
+                source_ids = json.loads(claim.source_ids) if claim.source_ids else []
+            except (json.JSONDecodeError, TypeError):
+                source_ids = []
             claim_responses.append(
                 ClaimConfidenceResponse(
                     id=claim.id,

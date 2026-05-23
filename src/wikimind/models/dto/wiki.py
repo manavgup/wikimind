@@ -414,7 +414,7 @@ class ClaimCitationResponse(BaseModel):
     id: str
     text: str
     confidence_level: str
-    confidence_score: float
+    confidence_score: float | None = None
     source_ids: list[str] = []
     source_spans: list[SourceSpanResponse] = []
 
@@ -438,7 +438,7 @@ class ClaimConfidenceResponse(BaseModel):
     id: str
     text: str
     confidence_level: str
-    confidence_score: float
+    confidence_score: float | None = None
     source_ids: list[str] = []
     last_reinforced_at: datetime
     created_at: datetime
