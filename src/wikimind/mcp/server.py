@@ -54,8 +54,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-# Valid enum values for input validation
-_VALID_PAGE_TYPES = {"source", "concept", "synthesis", "answer"}
+# Valid enum values for input validation (used by tools_analysis)
 _VALID_INGEST_STATUSES = {"pending", "processing", "compiled", "failed"}
 _VALID_SYNTHESIS_TYPES = {"comparative", "chronological", "thematic", "gap_analysis"}
 

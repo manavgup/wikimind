@@ -13,7 +13,7 @@ import structlog
 from wikimind.services.admin import AdminService
 from wikimind.services.ambient import AmbientService
 from wikimind.services.capture import CaptureService
-from wikimind.services.citation import CitationService
+from wikimind.services.citation import CitationService  # CodeQL[cyclic-import] — runtime DI
 from wikimind.services.compilation_schema import CompilationSchemaService
 from wikimind.services.compiler import CompilerService
 from wikimind.services.contradiction import ContradictionService
@@ -30,7 +30,7 @@ from wikimind.services.search import SearchService
 from wikimind.services.sharing import SharingService
 from wikimind.services.tags import TagService
 from wikimind.services.user import UserService
-from wikimind.services.wiki import WikiService
+from wikimind.services.wiki import WikiService  # CodeQL[cyclic-import] — runtime DI
 from wikimind.services.wiki_export import WikiExportService
 
 log = structlog.get_logger()

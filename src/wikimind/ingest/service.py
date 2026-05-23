@@ -2,10 +2,6 @@
 
 Adapters save the source and return immediately. Compilation is scheduled
 separately by the outer service layer (see ``wikimind.services.ingest``).
-
-Re-exports from sub-modules are provided at the bottom of this file so that
-existing imports like ``from wikimind.ingest.service import PDFAdapter``
-continue to work without changes.
 """
 
 from __future__ import annotations
@@ -164,52 +160,12 @@ class IngestService:
         return await self.text_adapter.ingest(content, title, session, user_id=user_id)
 
 
-# ---------------------------------------------------------------------------
-# Backward-compatible re-exports
-#
-# Many modules and tests import symbols directly from
-# ``wikimind.ingest.service``.  The re-exports below keep those imports
-# working without requiring callers to change.
-# ---------------------------------------------------------------------------
-
-# Re-export third-party modules that tests patch via ``ingest_mod.<lib>``
-import fitz  # noqa: E402, F401
-import trafilatura  # noqa: E402, F401
-from youtube_transcript_api import YouTubeTranscriptApi  # noqa: E402, F401
-
-from wikimind.api.routes.ws import emit_source_progress  # noqa: E402, F401
-from wikimind.engine.llm_router import get_llm_router  # noqa: E402, F401
-from wikimind.ingest.adapters.pdf import (  # noqa: E402
-    _convert_via_docling_serve,
-    _extract_pdf_metadata,
-    _first_markdown_heading,
-    _parse_pdf_date,
-)
-from wikimind.ingest.utils import (  # noqa: E402
-    _check_source_dedup,
-    chunk_text,
-    compute_hash,
-    estimate_tokens,
-    find_source_by_hash,
-    reconstruct_normalized_doc,
-)
-
 __all__ = [
     "IngestService",
     "PDFAdapter",
     "TextAdapter",
     "URLAdapter",
     "YouTubeAdapter",
-    "_check_source_dedup",
-    "_convert_via_docling_serve",
-    "_extract_pdf_metadata",
-    "_first_markdown_heading",
-    "_parse_pdf_date",
-    "chunk_text",
-    "compute_hash",
-    "estimate_tokens",
-    "find_source_by_hash",
     "is_youtube_url",
-    "reconstruct_normalized_doc",
     "validate_url_host",
 ]
