@@ -61,7 +61,7 @@ repos:
 
       - id: check-openapi
         name: OpenAPI schema — verify docs/openapi.yaml matches FastAPI app
-        entry: bash -c 'WIKIMIND_DEPLOYMENT_MODE=hosted uv run python scripts/export_openapi.py --check'
+        entry: bash -c 'WIKIMIND_DEPLOYMENT_MODE=hosted WIKIMIND_BILLING__LEMON_SQUEEZY_API_KEY=dummy WIKIMIND_BILLING__LEMON_SQUEEZY_STORE_ID=0 WIKIMIND_BILLING__LEMON_SQUEEZY_WEBHOOK_SECRET=dummy uv run python scripts/export_openapi.py --check'
         language: system
         pass_filenames: false
         files: ^(src/wikimind/api/|src/wikimind/models\.py)
