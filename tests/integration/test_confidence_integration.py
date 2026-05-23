@@ -255,12 +255,14 @@ async def test_persist_claims_stores_source_ids_and_subjects(
     from sqlmodel import select
 
     claims = (
-        await db_session.execute(
-            select(CompiledClaim)
-            .where(CompiledClaim.article_id == article.id)
-            .order_by(CompiledClaim.text)
+        (
+            await db_session.execute(
+                select(CompiledClaim).where(CompiledClaim.article_id == article.id).order_by(CompiledClaim.text)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     assert len(claims) == 2
 
