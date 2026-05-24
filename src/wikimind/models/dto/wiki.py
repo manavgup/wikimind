@@ -405,6 +405,7 @@ class SourceSpanResponse(BaseModel):
     locator: dict
     text: str
     fingerprint: str
+    stale: bool = False
     created_at: datetime
 
 
