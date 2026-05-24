@@ -17,7 +17,7 @@ import { ExportDropdown } from "./ExportDropdown";
 import { ShareButton } from "./ShareButton";
 import { TagSelector } from "./TagSelector";
 import { preprocessMarkdown, extractSynthesizedFrom, extractConceptKind } from "./preprocessMarkdown";
-import { markdownComponents } from "./markdownComponents";
+import { createMarkdownComponents } from "./markdownComponents";
 import { useArticleEditor } from "./useArticleEditor";
 import { ClaimsPanel } from "./ClaimsPanel";
 import { DiscussionPanel } from "./DiscussionPanel";
@@ -52,6 +52,11 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
   const conceptKind = useMemo(
     () => (isConcept ? extractConceptKind(article.content ?? "") : null),
     [article.content, isConcept],
+  );
+
+  const mdComponents = useMemo(
+    () => createMarkdownComponents(article.sources),
+    [article.sources],
   );
 
   const primaryConcept = article.concepts.length > 0 ? article.concepts[0] : null;
@@ -172,7 +177,7 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
             rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
-            components={markdownComponents}
+            components={mdComponents}
           >
             {processed}
           </ReactMarkdown>
@@ -182,7 +187,7 @@ export function ArticleReader({ article, onArticleUpdated }: ArticleReaderProps)
       {/* Per-claim confidence panel */}
       {!isEditing && (
         <div className="mt-8 border-t border-slate-200 pt-6">
-          <ClaimsPanel articleId={article.id} />
+          <ClaimsPanel articleId={article.id} sources={article.sources} />
         </div>
       )}
 

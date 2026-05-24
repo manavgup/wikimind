@@ -9,15 +9,25 @@ import { ArticleCardGrid } from "./ArticleCardGrid";
 import { ArticleOutline } from "./ArticleOutline";
 import { ArticleReader } from "./ArticleReader";
 import { BacklinkPanel } from "./BacklinkPanel";
+import { CitationProvider, useCitation } from "./CitationContext";
 import { ConceptTree } from "./ConceptTree";
 import { CreateStubModal } from "./CreateStubModal";
 import { FiguresPanel } from "./FiguresPanel";
 import { InArticleSearch } from "./InArticleSearch";
 import { SavedSearches } from "./SavedSearches";
 import { SearchBar } from "./SearchBar";
+import { SourceHighlightPanel } from "./SourceHighlightPanel";
 import { SourcePanel } from "./SourcePanel";
 
 export function WikiExplorerView() {
+  return (
+    <CitationProvider>
+      <WikiExplorerViewInner />
+    </CitationProvider>
+  );
+}
+
+function WikiExplorerViewInner() {
   const params = useParams<{ slug?: string }>();
   const slug = params.slug;
   const articleQuery = useArticle(slug);
@@ -26,6 +36,7 @@ export function WikiExplorerView() {
   const [figureCount, setFigureCount] = useState(0);
   const navigate = useNavigate();
   const [showSources, setShowSources] = useState(false);
+  const { activeCitation } = useCitation();
   const executeSavedSearchMutation = useMutation({
     mutationFn: (searchId: string) => executeSavedSearch(searchId),
     onSuccess: () => {
@@ -146,7 +157,7 @@ export function WikiExplorerView() {
       {slug ? (
         <div
           className={`grid flex-1 overflow-hidden ${
-            showSources
+            activeCitation || showSources
               ? "grid-cols-[15rem_1fr_22rem]"
               : "grid-cols-[15rem_1fr_15rem]"
           }`}
@@ -187,7 +198,9 @@ export function WikiExplorerView() {
           </section>
 
           <aside className="overflow-y-auto border-l border-slate-200 bg-white">
-            {showSources && articleQuery.data?.sources ? (
+            {activeCitation ? (
+              <SourceHighlightPanel citation={activeCitation} />
+            ) : showSources && articleQuery.data?.sources ? (
               <SourcePanel
                 sources={articleQuery.data.sources}
                 onClose={() => setShowSources(false)}
