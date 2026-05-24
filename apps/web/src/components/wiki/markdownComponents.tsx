@@ -6,7 +6,7 @@ import { slugify } from "../../utils/slugify";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { InlineCitationMarker } from "./InlineCitationMarker";
 
-const CONFIDENCE_TAG_REGEX = /\[(sourced|mixed|inferred|opinion)\]/gi;
+const CONFIDENCE_TAG_REGEX = /[\[(](sourced|mixed|inferred|opinion)[\])]/gi;
 
 function childrenToText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
