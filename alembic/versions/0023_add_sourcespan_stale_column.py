@@ -33,7 +33,7 @@ def upgrade() -> None:
         if "stale" not in columns:
             op.add_column(
                 "sourcespan",
-                sa.Column("stale", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+                sa.Column("stale", sa.Boolean(), nullable=False, server_default=sa.text("false")),
             )
 
 
