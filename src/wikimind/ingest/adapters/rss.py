@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import TYPE_CHECKING
-from xml.etree.ElementTree import ParseError
+from xml.etree.ElementTree import ParseError  # nosec B405 -- exception class only, parsing uses defusedxml
 
 import defusedxml.ElementTree as DefusedET
 import httpx
@@ -26,7 +26,7 @@ from wikimind.models import (
 )
 
 if TYPE_CHECKING:
-    from xml.etree.ElementTree import Element
+    from xml.etree.ElementTree import Element  # nosec B405 -- exception class only, parsing uses defusedxml
 
     from sqlmodel.ext.asyncio.session import AsyncSession
 

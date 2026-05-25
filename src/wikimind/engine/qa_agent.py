@@ -171,9 +171,11 @@ def _format_external_tools_block(tools: list[ExternalToolInfo]) -> str:
 
     lines = [
         "",
-        "You also have access to external tools. If the wiki context is insufficient, "
-        "you MAY suggest calling one of these tools by including a 'tool_calls' array "
-        "in your response:",
+        (
+            "You also have access to external tools. If the wiki context is insufficient, "
+            "you MAY suggest calling one of these tools by including a 'tool_calls' array "
+            "in your response:"
+        ),
         "",
     ]
     for info in tools:

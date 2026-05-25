@@ -71,7 +71,7 @@ async def _build_source_material(articles: list[Article], user_id: str) -> str:
                 fc = fc[:max_chars] + "\n[...truncated...]"
             section += f"\nContent:\n{fc}\n"
         except (OSError, ValueError):
-            pass
+            log.debug("skipped article content", article_id=article.id, reason="storage read failed")
         parts.append(section)
     return "\n---\n".join(parts)
 
