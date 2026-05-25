@@ -1,11 +1,17 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArticleClaims, type ClaimConfidenceItem } from "../../api/wiki";
+import { getSourceSpans } from "../../api/sources";
+import type { ArticleSourceRef, SourceSpanResponse } from "../../types/api";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Spinner } from "../shared/Spinner";
+import { CitationPopover } from "./CitationPopover";
+import type { CitationTarget } from "./CitationContext";
+import { formatLocator } from "./citationUtils";
 
 interface ClaimsPanelProps {
   articleId: string;
+  sources?: ArticleSourceRef[];
 }
 
 function confidenceColor(score: number): string {
@@ -39,12 +45,74 @@ function levelLabel(level: string): string {
   return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
-function ClaimCard({ claim }: { claim: ClaimConfidenceItem }) {
+function ClaimCard({
+  claim,
+  sources,
+}: {
+  claim: ClaimConfidenceItem;
+  sources?: ArticleSourceRef[];
+}) {
   const pct = Math.round(claim.confidence_score * 100);
+  const [popoverCitation, setPopoverCitation] = useState<CitationTarget | null>(
+    null,
+  );
+  const [popoverRect, setPopoverRect] = useState<DOMRect | null>(null);
+  const [loadingSpans, setLoadingSpans] = useState(false);
+  const markerRef = useRef<HTMLButtonElement>(null);
+
+  const handleCitationClick = useCallback(async () => {
+    if (claim.source_ids.length === 0) return;
+    if (popoverCitation) {
+      setPopoverCitation(null);
+      return;
+    }
+
+    setLoadingSpans(true);
+    try {
+      // Fetch spans for the first source
+      const sourceId = claim.source_ids[0];
+      const spans: SourceSpanResponse[] = await getSourceSpans(sourceId);
+      const source = sources?.find((s) => s.id === sourceId);
+
+      if (spans.length > 0) {
+        const span = spans[0];
+        const citation: CitationTarget = {
+          sourceId,
+          spanText: span.text,
+          sourceName: source?.title ?? null,
+          locatorInfo: formatLocator(span),
+        };
+        setPopoverCitation(citation);
+        if (markerRef.current) {
+          setPopoverRect(markerRef.current.getBoundingClientRect());
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch source spans:", err);
+    } finally {
+      setLoadingSpans(false);
+    }
+  }, [claim.source_ids, popoverCitation, sources]);
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-800">{claim.text}</p>
+      <div className="flex items-start gap-1">
+        <p className="flex-1 text-sm text-slate-800">{claim.text}</p>
+        {claim.source_ids.length > 0 && (
+          <button
+            ref={markerRef}
+            onClick={handleCitationClick}
+            className="mt-0.5 shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-800"
+            title="View source citation"
+          >
+            {loadingSpans ? (
+              <Spinner size={12} />
+            ) : (
+              <span className="cursor-pointer">[{claim.source_ids.length}]</span>
+            )}
+          </button>
+        )}
+      </div>
       <div className="mt-3 flex items-center gap-3">
         {/* Confidence bar */}
         <div className="flex flex-1 items-center gap-2">
@@ -69,11 +137,19 @@ function ClaimCard({ claim }: { claim: ClaimConfidenceItem }) {
           </span>
         )}
       </div>
+
+      {popoverCitation && (
+        <CitationPopover
+          citation={popoverCitation}
+          onClose={() => setPopoverCitation(null)}
+          anchorRect={popoverRect}
+        />
+      )}
     </div>
   );
 }
 
-export function ClaimsPanel({ articleId }: ClaimsPanelProps) {
+export function ClaimsPanel({ articleId, sources }: ClaimsPanelProps) {
   const [open, setOpen] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
@@ -192,7 +268,7 @@ export function ClaimsPanel({ articleId }: ClaimsPanelProps) {
             {data.claims.length > 0 ? (
               <div className="space-y-3">
                 {data.claims.map((claim) => (
-                  <ClaimCard key={claim.id} claim={claim} />
+                  <ClaimCard key={claim.id} claim={claim} sources={sources} />
                 ))}
               </div>
             ) : (

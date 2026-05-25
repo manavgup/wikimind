@@ -1,11 +1,12 @@
 import type { Components } from "react-markdown";
 import { Link } from "react-router-dom";
-import type { ConfidenceLevel } from "../../types/api";
+import type { ArticleSourceRef, ConfidenceLevel } from "../../types/api";
 import { getBaseUrl } from "../../api/client";
 import { slugify } from "../../utils/slugify";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { InlineCitationMarker } from "./InlineCitationMarker";
 
-const CONFIDENCE_TAG_REGEX = /\[(sourced|mixed|inferred|opinion)\]/gi;
+const CONFIDENCE_TAG_REGEX = /(?:\[(sourced|mixed|inferred|opinion)\]|\((sourced|mixed|inferred|opinion)\))/gi;
 
 function childrenToText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -21,14 +22,17 @@ function childrenToText(children: React.ReactNode): string {
   return "";
 }
 
-function decorateConfidence(children: React.ReactNode): React.ReactNode {
+function decorateConfidence(
+  children: React.ReactNode,
+  sources?: ArticleSourceRef[],
+): React.ReactNode {
   if (typeof children === "string") {
-    return splitConfidence(children);
+    return splitConfidence(children, sources);
   }
   if (Array.isArray(children)) {
     return children.map((child, idx) => {
       if (typeof child === "string") {
-        return <span key={idx}>{splitConfidence(child)}</span>;
+        return <span key={idx}>{splitConfidence(child, sources)}</span>;
       }
       return child;
     });
@@ -36,7 +40,10 @@ function decorateConfidence(children: React.ReactNode): React.ReactNode {
   return children;
 }
 
-function splitConfidence(text: string): React.ReactNode[] {
+function splitConfidence(
+  text: string,
+  sources?: ArticleSourceRef[],
+): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -45,10 +52,13 @@ function splitConfidence(text: string): React.ReactNode[] {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    const level = match[1].toLowerCase() as ConfidenceLevel;
+    const level = (match[1] || match[2]).toLowerCase() as ConfidenceLevel;
     parts.push(
       <span key={`${match.index}-${level}`} className="ml-1 align-middle">
         <ConfidenceBadge level={level} />
+        {sources && sources.length > 0 && (
+          <InlineCitationMarker sources={sources} />
+        )}
       </span>,
     );
     lastIndex = match.index + match[0].length;
@@ -59,7 +69,14 @@ function splitConfidence(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
-export const markdownComponents: Components = {
+/** Legacy static components (no citation markers). */
+export const markdownComponents: Components = createMarkdownComponents();
+
+/** Factory to create markdown components with optional citation markers. */
+export function createMarkdownComponents(
+  sources?: ArticleSourceRef[],
+): Components {
+  return {
   a: ({ node: _node, href, children }) => {
     if (href && href.startsWith("/wiki/")) {
       return (
@@ -152,6 +169,7 @@ export const markdownComponents: Components = {
     const text = childrenToText(children);
     return <h3 id={slugify(text)}>{children}</h3>;
   },
-  li: ({ children }) => <li>{decorateConfidence(children)}</li>,
-  p: ({ children }) => <p>{decorateConfidence(children)}</p>,
+  li: ({ children }) => <li>{decorateConfidence(children, sources)}</li>,
+  p: ({ children }) => <p>{decorateConfidence(children, sources)}</p>,
 };
+}
