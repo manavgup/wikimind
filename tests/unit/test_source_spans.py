@@ -1,17 +1,22 @@
 """Tests for span-level citation extraction and fingerprinting (issue #450).
 
 Covers the fingerprint utility, span extraction functions for each adapter,
-the SourceSpan persistence, and the GET /api/sources/{id}/spans endpoint.
+the SourceSpan persistence, re-anchoring on source updates, and the
+GET /api/sources/{id}/spans endpoint.
 """
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
+from wikimind.engine.linter.stale_spans import detect_stale_spans
 from wikimind.ingest.spans import (
     compute_fingerprint,
     extract_pdf_spans,
@@ -19,8 +24,9 @@ from wikimind.ingest.spans import (
     extract_url_spans,
     normalize_text,
     persist_spans,
+    reanchor_spans,
 )
-from wikimind.models import LocatorKind, Source, SourceSpan
+from wikimind.models import Article, CompiledClaim, LocatorKind, Source, SourceSpan
 
 
 def _uid() -> str:
@@ -211,8 +217,6 @@ class TestPersistSpans:
         await db_session.flush()
 
         # Read back
-        from sqlmodel import select
-
         stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
         result = (await db_session.exec(stmt)).all()
         assert len(result) == 2
@@ -222,6 +226,240 @@ class TestPersistSpans:
     async def test_persist_empty_list(self, db_session: AsyncSession) -> None:
         # Should be a no-op
         await persist_spans([], db_session)
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestReanchorSpans:
+    """Verify re-anchoring preserves span IDs and marks stale spans."""
+
+    @pytest.mark.asyncio
+    async def test_matching_fingerprint_preserves_id(self, db_session: AsyncSession) -> None:
+        """Spans with matching fingerprints keep their original IDs."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        # Create original spans
+        old_spans = extract_text_spans("Hello world.\n\nGoodbye world.", source_id, TEST_USER_ID)
+        for span in old_spans:
+            db_session.add(span)
+        await db_session.flush()
+
+        original_ids = {s.id for s in old_spans}
+        original_fingerprints = {s.fingerprint for s in old_spans}
+
+        # Re-ingest with same paragraphs in different positions
+        new_text = "Extra paragraph.\n\nHello world.\n\nGoodbye world."
+        new_spans = extract_text_spans(new_text, source_id, TEST_USER_ID)
+
+        result = await reanchor_spans(source_id, new_spans, db_session)
+        await db_session.flush()
+
+        # The two matching paragraphs should keep their original IDs
+        result_ids = {s.id for s in result if s.fingerprint in original_fingerprints}
+        assert result_ids == original_ids
+
+    @pytest.mark.asyncio
+    async def test_unmatched_old_spans_become_stale(self, db_session: AsyncSession) -> None:
+        """Old spans with no matching fingerprint are marked stale."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        # Create original spans
+        text = "Will be removed.\n\nStays the same."
+        old_spans = extract_text_spans(text, source_id, TEST_USER_ID)
+        removed_id = old_spans[0].id
+        for span in old_spans:
+            db_session.add(span)
+        await db_session.flush()
+
+        # Re-ingest without the first paragraph
+        new_spans = extract_text_spans("Stays the same.\n\nBrand new.", source_id, TEST_USER_ID)
+        await reanchor_spans(source_id, new_spans, db_session)
+        await db_session.flush()
+
+        # The removed paragraph's span should be stale
+        stmt = select(SourceSpan).where(SourceSpan.id == removed_id)
+        result = await db_session.execute(stmt)
+        stale_span = result.scalar_one()
+        assert stale_span.stale is True
+
+    @pytest.mark.asyncio
+    async def test_new_spans_are_created(self, db_session: AsyncSession) -> None:
+        """Spans with no matching fingerprint in old set are created normally."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        # Create original spans
+        old_spans = extract_text_spans("Old paragraph.", source_id, TEST_USER_ID)
+        for span in old_spans:
+            db_session.add(span)
+        await db_session.flush()
+
+        old_id = old_spans[0].id
+
+        # Re-ingest with a new paragraph added
+        new_text = "Old paragraph.\n\nBrand new paragraph."
+        new_spans = extract_text_spans(new_text, source_id, TEST_USER_ID)
+        result = await reanchor_spans(source_id, new_spans, db_session)
+        await db_session.flush()
+
+        assert len(result) == 2
+        # Old span preserved
+        assert any(s.id == old_id for s in result)
+        # New span is genuinely new (different ID)
+        new_ids = {s.id for s in result} - {old_id}
+        assert len(new_ids) == 1
+
+    @pytest.mark.asyncio
+    async def test_persist_spans_auto_reanchors(self, db_session: AsyncSession) -> None:
+        """persist_spans delegates to reanchor when existing spans are found."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        # First persist — normal path
+        spans_v1 = extract_text_spans("Paragraph A.\n\nParagraph B.", source_id, TEST_USER_ID)
+        await persist_spans(spans_v1, db_session)
+        await db_session.flush()
+
+        original_ids = {s.id for s in spans_v1}
+
+        # Second persist — should auto-reanchor
+        spans_v2 = extract_text_spans("Paragraph A.\n\nParagraph C.", source_id, TEST_USER_ID)
+        await persist_spans(spans_v2, db_session)
+        await db_session.flush()
+
+        # Check Paragraph A kept its ID
+        stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
+        result = await db_session.execute(stmt)
+        all_spans = list(result.scalars().all())
+
+        a_spans = [s for s in all_spans if "paragraph a" in s.text.lower()]
+        assert len(a_spans) == 1
+        assert a_spans[0].id in original_ids
+        assert a_spans[0].stale is False
+
+        # Check Paragraph B is stale
+        b_spans = [s for s in all_spans if "paragraph b" in s.text.lower()]
+        assert len(b_spans) == 1
+        assert b_spans[0].stale is True
+
+    @pytest.mark.asyncio
+    async def test_reanchor_no_existing_spans(self, db_session: AsyncSession) -> None:
+        """When no existing spans exist, reanchor just persists normally."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        new_spans = extract_text_spans("Brand new text.", source_id, TEST_USER_ID)
+        result = await reanchor_spans(source_id, new_spans, db_session)
+
+        assert len(result) == 1
+        assert result[0].text == "Brand new text."
+
+
+# ---------------------------------------------------------------------------
+# Stale-span linter tests
+# ---------------------------------------------------------------------------
+
+
+class TestDetectStaleSpans:
+    """Verify stale-span linter detection."""
+
+    @pytest.mark.asyncio
+    async def test_no_stale_spans_returns_empty(self, db_session: AsyncSession) -> None:
+        findings = await detect_stale_spans(db_session, "report-1", TEST_USER_ID)
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_stale_spans_with_claim_refs(self, db_session: AsyncSession) -> None:
+        """Claims referencing stale spans produce linter findings."""
+        source_id = _uid()
+        source = Source(
+            id=source_id,
+            user_id=TEST_USER_ID,
+            source_type="text",
+            title="Test Source",
+        )
+        db_session.add(source)
+
+        # Create a stale span
+        span_id = _uid()
+        span = SourceSpan(
+            id=span_id,
+            source_id=source_id,
+            user_id=TEST_USER_ID,
+            locator_kind=LocatorKind.TEXT_BYTE_RANGE,
+            locator={"start": 0, "end": 10},
+            text="Old text.",
+            fingerprint=compute_fingerprint("Old text."),
+            stale=True,
+        )
+        db_session.add(span)
+
+        # Create article and claim referencing the stale span
+        article_id = _uid()
+        article = Article(
+            id=article_id,
+            user_id=TEST_USER_ID,
+            slug="test-article",
+            title="Test Article",
+            file_path="test.md",
+        )
+        db_session.add(article)
+
+        claim = CompiledClaim(
+            article_id=article_id,
+            user_id=TEST_USER_ID,
+            text="Some claim text",
+            confidence_level="sourced",
+            source_span_ids=json.dumps([span_id]),
+        )
+        db_session.add(claim)
+        await db_session.flush()
+
+        findings = await detect_stale_spans(db_session, "report-1", TEST_USER_ID)
+        assert len(findings) == 1
+        assert findings[0].article_id == article_id
+        assert findings[0].violation_type == "stale_source_spans"
+        assert "1 claim(s) referencing stale source spans" in findings[0].description
 
 
 # ---------------------------------------------------------------------------
@@ -239,8 +477,6 @@ class TestSourceSpansEndpoint:
 
     @pytest.mark.asyncio
     async def test_spans_endpoint_empty(self, client, async_engine) -> None:
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
         source_id = _uid()
         async with factory() as session:
@@ -259,8 +495,6 @@ class TestSourceSpansEndpoint:
 
     @pytest.mark.asyncio
     async def test_spans_endpoint_with_spans(self, client, async_engine) -> None:
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
         source_id = _uid()

@@ -26,6 +26,7 @@ from wikimind.database import get_session_factory
 from wikimind.engine.backlink_enforcer import enforce_backlinks
 from wikimind.engine.linter.contradictions import detect_contradictions
 from wikimind.engine.linter.orphans import detect_orphans
+from wikimind.engine.linter.stale_spans import detect_stale_spans
 from wikimind.engine.linter.staleness import detect_stale_articles
 from wikimind.engine.llm_router import get_llm_router
 from wikimind.models import (
@@ -378,6 +379,10 @@ async def run_lint(
         # Phase 4: Staleness detection (issue #425)
         stale_findings = await detect_stale_articles(session, settings, report.id, user_id=user_id)
         structurals.extend(stale_findings)
+
+        # Phase 5: Stale source-span detection (issue #450)
+        stale_span_findings = await detect_stale_spans(session, report.id, user_id=user_id)
+        structurals.extend(stale_span_findings)
 
         # Apply dismiss suppression
         await _apply_dismiss_suppression(session, contradictions, orphans, structurals)

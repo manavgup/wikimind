@@ -12,6 +12,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 import structlog
+from sqlmodel import select
 
 from wikimind.models.enums import LocatorKind
 from wikimind.models.tables.wiki import SourceSpan
@@ -245,13 +246,113 @@ async def persist_spans(
 ) -> None:
     """Persist a batch of SourceSpan instances to the database.
 
+    If the source already has spans in the database, delegates to
+    :func:`reanchor_spans` for fingerprint-based matching so that
+    existing span IDs (and thus claim references) are preserved.
+
     Args:
         spans: List of SourceSpan instances to save.
         session: Async database session.
     """
     if not spans:
         return
+
+    # Check if this source already has spans — if so, re-anchor
+    source_id = spans[0].source_id
+    existing_stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
+    existing_result = await session.execute(existing_stmt)
+    existing_spans = list(existing_result.scalars().all())
+
+    if existing_spans:
+        await reanchor_spans(source_id, spans, session, existing_spans=existing_spans)
+        return
+
     for span in spans:
         session.add(span)
     await session.flush()
-    log.info("Persisted source spans", count=len(spans), source_id=spans[0].source_id)
+    log.info("Persisted source spans", count=len(spans), source_id=source_id)
+
+
+# ---------------------------------------------------------------------------
+# Re-anchoring on source update
+# ---------------------------------------------------------------------------
+
+
+async def reanchor_spans(
+    source_id: str,
+    new_spans: list[SourceSpan],
+    session: AsyncSession,
+    *,
+    existing_spans: list[SourceSpan] | None = None,
+) -> list[SourceSpan]:
+    """Re-anchor existing spans after a source is re-ingested.
+
+    Matches old spans to new spans by fingerprint so that claim references
+    (via ``CompiledClaim.source_span_ids``) remain valid after content
+    updates.  Unmatched old spans are marked stale; genuinely new spans
+    are created normally.
+
+    Args:
+        source_id: The source whose spans are being refreshed.
+        new_spans: Freshly extracted spans from the updated content.
+        session: Async database session.
+        existing_spans: Pre-loaded existing spans to avoid a redundant
+            database query when the caller already has them.
+
+    Returns:
+        The final list of spans (updated + new) that were persisted.
+    """
+    if existing_spans is not None:
+        old_spans = existing_spans
+    else:
+        # Load existing spans for this source
+        stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
+        result = await session.execute(stmt)
+        old_spans = list(result.scalars().all())
+
+    if not old_spans:
+        # No existing spans — just persist the new ones directly
+        await persist_spans(new_spans, session)
+        return new_spans
+
+    # Build lookup from fingerprint -> old span (first match wins)
+    old_by_fingerprint: dict[str, SourceSpan] = {}
+    for span in old_spans:
+        if span.fingerprint not in old_by_fingerprint:
+            old_by_fingerprint[span.fingerprint] = span
+
+    matched_old_ids: set[str] = set()
+    final_spans: list[SourceSpan] = []
+
+    for new_span in new_spans:
+        old_span = old_by_fingerprint.get(new_span.fingerprint)
+        if old_span and old_span.id not in matched_old_ids:
+            # Matched: update locator to new position, keep same ID
+            old_span.locator = new_span.locator
+            old_span.text = new_span.text
+            old_span.stale = False
+            session.add(old_span)
+            matched_old_ids.add(old_span.id)
+            final_spans.append(old_span)
+        else:
+            # Genuinely new span — persist it
+            session.add(new_span)
+            final_spans.append(new_span)
+
+    # Mark unmatched old spans as stale
+    stale_count = 0
+    for old_span in old_spans:
+        if old_span.id not in matched_old_ids:
+            old_span.stale = True
+            session.add(old_span)
+            stale_count += 1
+
+    await session.flush()
+    log.info(
+        "Re-anchored source spans",
+        source_id=source_id,
+        matched=len(matched_old_ids),
+        new=len(final_spans) - len(matched_old_ids),
+        stale=stale_count,
+    )
+    return final_spans

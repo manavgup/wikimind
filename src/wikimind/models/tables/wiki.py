@@ -28,6 +28,7 @@ class SourceSpan(SQLModel, table=True):
     locator: dict = Field(sa_column=Column(JSON, nullable=False))  # adapter-specific anchor
     text: str = Field(sa_type=Text)  # verbatim quoted text
     fingerprint: str = Field(index=True)  # SHA-256 of normalized text for re-anchoring
+    stale: bool = Field(default=False)  # True when source re-ingested and span no longer matches
     created_at: datetime = Field(default_factory=utcnow_naive)
 
 
