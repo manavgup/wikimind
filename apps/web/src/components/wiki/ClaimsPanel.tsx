@@ -7,6 +7,7 @@ import { Badge, type BadgeTone } from "../shared/Badge";
 import { Spinner } from "../shared/Spinner";
 import { CitationPopover } from "./CitationPopover";
 import type { CitationTarget } from "./CitationContext";
+import { formatLocator } from "./citationUtils";
 
 interface ClaimsPanelProps {
   articleId: string;
@@ -79,13 +80,15 @@ function ClaimCard({
           sourceId,
           spanText: span.text,
           sourceName: source?.title ?? null,
-          locatorInfo: formatLocatorBrief(span),
+          locatorInfo: formatLocator(span),
         };
         setPopoverCitation(citation);
         if (markerRef.current) {
           setPopoverRect(markerRef.current.getBoundingClientRect());
         }
       }
+    } catch (err) {
+      console.error("Failed to fetch source spans:", err);
     } finally {
       setLoadingSpans(false);
     }
@@ -144,27 +147,6 @@ function ClaimCard({
       )}
     </div>
   );
-}
-
-function formatLocatorBrief(span: SourceSpanResponse): string {
-  switch (span.locator_kind) {
-    case "pdf-page-rect": {
-      const page = span.locator.page ?? span.locator.page_number;
-      return page != null ? `page ${page}` : "";
-    }
-    case "html-xpath-offset": {
-      const para = span.locator.paragraph ?? span.locator.index;
-      return para != null ? `paragraph #${para}` : "";
-    }
-    case "text-byte-range":
-      return "text";
-    case "youtube-timestamp": {
-      const ts = span.locator.timestamp ?? span.locator.start;
-      return ts != null ? `${ts}s` : "";
-    }
-    default:
-      return "";
-  }
 }
 
 export function ClaimsPanel({ articleId, sources }: ClaimsPanelProps) {

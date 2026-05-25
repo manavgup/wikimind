@@ -6,7 +6,7 @@ import { slugify } from "../../utils/slugify";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { InlineCitationMarker } from "./InlineCitationMarker";
 
-const CONFIDENCE_TAG_REGEX = /[\[(](sourced|mixed|inferred|opinion)[\])]/gi;
+const CONFIDENCE_TAG_REGEX = /(?:\[(sourced|mixed|inferred|opinion)\]|\((sourced|mixed|inferred|opinion)\))/gi;
 
 function childrenToText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
@@ -52,7 +52,7 @@ function splitConfidence(
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    const level = match[1].toLowerCase() as ConfidenceLevel;
+    const level = (match[1] || match[2]).toLowerCase() as ConfidenceLevel;
     parts.push(
       <span key={`${match.index}-${level}`} className="ml-1 align-middle">
         <ConfidenceBadge level={level} />
