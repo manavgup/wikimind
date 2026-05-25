@@ -18,9 +18,9 @@
 - [x] WebSocket event streaming
 - [x] All API routes
 - [x] OpenAPI spec
-- [ ] React UI — Inbox view
-- [ ] React UI — Wiki Explorer
-- [ ] React UI — Ask view
+- [x] React UI — Inbox view
+- [x] React UI — Wiki Explorer
+- [x] React UI — Ask view
 - [ ] Electron shell
 - [ ] End-to-end test: ingest → compile → read
 
