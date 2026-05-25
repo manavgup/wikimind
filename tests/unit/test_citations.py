@@ -14,10 +14,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
 from wikimind.engine import base_compiler as base_compiler_mod
+from wikimind.engine.compiler import Compiler
 from wikimind.models import (
     Article,
     CompilationResult,
@@ -426,8 +428,6 @@ def _fake_settings() -> SimpleNamespace:
 
 
 def _make_compiler():
-    from wikimind.engine.compiler import Compiler
-
     with (
         patch.object(base_compiler_mod, "get_llm_router"),
         patch.object(base_compiler_mod, "get_settings", return_value=_fake_settings()),
@@ -556,8 +556,6 @@ class TestPersistClaimsWithSpanValidation:
         await c._persist_claims(article_id, result, source, db_session)
 
         # Verify the claim was persisted with span IDs
-        from sqlmodel import select
-
         stmt = select(CompiledClaim).where(CompiledClaim.article_id == article_id)
         claims = (await db_session.exec(stmt)).all()
         assert len(claims) == 1
@@ -616,8 +614,6 @@ class TestPersistClaimsWithSpanValidation:
 
         await c._persist_claims(article_id, result, source, db_session)
 
-        from sqlmodel import select
-
         stmt = select(CompiledClaim).where(CompiledClaim.article_id == article_id)
         claims = (await db_session.exec(stmt)).all()
         assert len(claims) == 1
@@ -664,8 +660,6 @@ class TestPersistClaimsWithSpanValidation:
         )
 
         await c._persist_claims(article_id, result, source, db_session)
-
-        from sqlmodel import select
 
         stmt = select(CompiledClaim).where(CompiledClaim.article_id == article_id)
         claims = (await db_session.exec(stmt)).all()

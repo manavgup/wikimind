@@ -71,6 +71,8 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+_SPAN_PREVIEW_MAX_CHARS = 120
+
 
 def _normalize_backlink_suggestions(raw: list[str | dict]) -> list[str]:
     """Normalize typed backlink suggestions to plain strings for CompilationResult.
@@ -499,7 +501,7 @@ class Compiler(BaseCompiler):
             span_section = "\n\n## Source Spans\n\nCite these span IDs in key_claims.source_span_ids:\n"
             used_chars = 0
             for span in spans:
-                preview = span.text[:120]
+                preview = span.text[:_SPAN_PREVIEW_MAX_CHARS]
                 line = f'- {span.id}: "{preview}"\n'
                 if used_chars + len(line) > max_span_chars:
                     break
