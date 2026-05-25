@@ -40,7 +40,8 @@ Output schema:
       "confidence": "sourced|inferred|opinion",
       "subjects": ["canonical-subject-name"],
       "source_ids": ["<source_id from metadata>"],
-      "quote": "Optional direct quote under 15 words if the exact wording matters"
+      "quote": "Optional direct quote under 15 words if the exact wording matters",
+      "source_span_ids": ["span-uuid-1"]
     }
   ],
   "concepts": ["concept-name-1", "concept-name-2"],
@@ -63,6 +64,7 @@ Rules:
 - article_body must be substantive -- at least 300 words
 - Never fabricate quotes or statistics not in the source
 - For concepts: reuse existing concept names when they match your intent -- do not invent synonyms or near-duplicates
+- For source_span_ids: if the source material includes a "## Source Spans" section with span IDs, cite the span IDs that support each claim. Only use span IDs listed in that section. If no spans are provided, omit source_span_ids or use an empty list
 
 Rich content preservation:
 - Math: if the source contains mathematical expressions, reproduce them in LaTeX using $...$ for inline math and $$...$$ for display math blocks. Copy formulas verbatim from the source -- do not simplify or rewrite them.
