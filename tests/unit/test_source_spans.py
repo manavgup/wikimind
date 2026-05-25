@@ -7,13 +7,16 @@ GET /api/sources/{id}/spans endpoint.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests.conftest import TEST_USER_ID
+from wikimind.engine.linter.stale_spans import detect_stale_spans
 from wikimind.ingest.spans import (
     compute_fingerprint,
     extract_pdf_spans,
@@ -23,7 +26,7 @@ from wikimind.ingest.spans import (
     persist_spans,
     reanchor_spans,
 )
-from wikimind.models import LocatorKind, Source, SourceSpan
+from wikimind.models import Article, CompiledClaim, LocatorKind, Source, SourceSpan
 
 
 def _uid() -> str:
@@ -214,8 +217,6 @@ class TestPersistSpans:
         await db_session.flush()
 
         # Read back
-        from sqlmodel import select
-
         stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
         result = (await db_session.exec(stmt)).all()
         assert len(result) == 2
@@ -282,7 +283,8 @@ class TestReanchorSpans:
         await db_session.flush()
 
         # Create original spans
-        old_spans = extract_text_spans("Will be removed.\n\nStays the same.", source_id, TEST_USER_ID)
+        text = "Will be removed.\n\nStays the same."
+        old_spans = extract_text_spans(text, source_id, TEST_USER_ID)
         removed_id = old_spans[0].id
         for span in old_spans:
             db_session.add(span)
@@ -321,7 +323,8 @@ class TestReanchorSpans:
         old_id = old_spans[0].id
 
         # Re-ingest with a new paragraph added
-        new_spans = extract_text_spans("Old paragraph.\n\nBrand new paragraph.", source_id, TEST_USER_ID)
+        new_text = "Old paragraph.\n\nBrand new paragraph."
+        new_spans = extract_text_spans(new_text, source_id, TEST_USER_ID)
         result = await reanchor_spans(source_id, new_spans, db_session)
         await db_session.flush()
 
@@ -402,19 +405,12 @@ class TestDetectStaleSpans:
 
     @pytest.mark.asyncio
     async def test_no_stale_spans_returns_empty(self, db_session: AsyncSession) -> None:
-        from wikimind.engine.linter.stale_spans import detect_stale_spans
-
         findings = await detect_stale_spans(db_session, "report-1", TEST_USER_ID)
         assert findings == []
 
     @pytest.mark.asyncio
     async def test_stale_spans_with_claim_refs(self, db_session: AsyncSession) -> None:
         """Claims referencing stale spans produce linter findings."""
-        import json
-
-        from wikimind.engine.linter.stale_spans import detect_stale_spans
-        from wikimind.models import Article, CompiledClaim
-
         source_id = _uid()
         source = Source(
             id=source_id,
@@ -481,8 +477,6 @@ class TestSourceSpansEndpoint:
 
     @pytest.mark.asyncio
     async def test_spans_endpoint_empty(self, client, async_engine) -> None:
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
         source_id = _uid()
         async with factory() as session:
@@ -501,8 +495,6 @@ class TestSourceSpansEndpoint:
 
     @pytest.mark.asyncio
     async def test_spans_endpoint_with_spans(self, client, async_engine) -> None:
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         factory = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
         source_id = _uid()

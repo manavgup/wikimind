@@ -58,8 +58,9 @@ async def detect_stale_spans(
         List of StructuralFinding instances for articles with stale span refs.
     """
     # Load all stale span IDs for this user in one query
-    stale_stmt = (
-        select(SourceSpan.id).where(SourceSpan.user_id == user_id).where(SourceSpan.stale.is_(True))  # type: ignore[attr-defined]
+    stale_stmt = select(SourceSpan.id).where(
+        SourceSpan.user_id == user_id,
+        SourceSpan.stale.is_(True),  # type: ignore[attr-defined]
     )
     stale_result = await session.execute(stale_stmt)
     stale_span_ids: set[str] = {row[0] for row in stale_result.all()}
@@ -102,11 +103,12 @@ async def detect_stale_spans(
     findings: list[StructuralFinding] = []
     for article_id, stale_count in articles_with_stale.items():
         title = article_titles.get(article_id, article_id)
+        desc = f"Article '{title}' has {stale_count} claim(s) referencing stale source spans"
         findings.append(
             StructuralFinding(
                 report_id=report_id,
                 severity=LintSeverity.WARN,
-                description=(f"Article '{title}' has {stale_count} claim(s) referencing stale source spans"),
+                description=desc,
                 content_hash=_content_hash(article_id),
                 article_id=article_id,
                 violation_type=VIOLATION_TYPE,

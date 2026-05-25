@@ -264,7 +264,7 @@ async def persist_spans(
     existing_spans = list(existing_result.scalars().all())
 
     if existing_spans:
-        await reanchor_spans(source_id, spans, session)
+        await reanchor_spans(source_id, spans, session, existing_spans=existing_spans)
         return
 
     for span in spans:
@@ -282,6 +282,8 @@ async def reanchor_spans(
     source_id: str,
     new_spans: list[SourceSpan],
     session: AsyncSession,
+    *,
+    existing_spans: list[SourceSpan] | None = None,
 ) -> list[SourceSpan]:
     """Re-anchor existing spans after a source is re-ingested.
 
@@ -294,14 +296,19 @@ async def reanchor_spans(
         source_id: The source whose spans are being refreshed.
         new_spans: Freshly extracted spans from the updated content.
         session: Async database session.
+        existing_spans: Pre-loaded existing spans to avoid a redundant
+            database query when the caller already has them.
 
     Returns:
         The final list of spans (updated + new) that were persisted.
     """
-    # Load existing spans for this source
-    stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
-    result = await session.execute(stmt)
-    old_spans = list(result.scalars().all())
+    if existing_spans is not None:
+        old_spans = existing_spans
+    else:
+        # Load existing spans for this source
+        stmt = select(SourceSpan).where(SourceSpan.source_id == source_id)
+        result = await session.execute(stmt)
+        old_spans = list(result.scalars().all())
 
     if not old_spans:
         # No existing spans — just persist the new ones directly
