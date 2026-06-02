@@ -5,18 +5,20 @@
 # Replaces the managed Upstash Redis instance (~$141/mo) with a single
 # always-on shared-cpu-1x machine backed by a persistent volume.
 #
-# Redis is a TCP service (not HTTP), so there is no [http_service] block.
-# Apps on the same org are reachable over Fly's private 6PN network
-# without any public service mapping. The machine is kept always-on
-# (auto_stop_machines = "off", min_machines_running = 1) because it is a
-# persistent store and the ARQ worker polls it constantly.
+# Redis is reached purely over Fly's private 6PN network at
+# wikimind-redis.internal:6379, so this app defines NO services at all
+# (no [http_service], no [[services]]). A [[services]] block would require
+# a public [[services.ports]] entry — which Fly now hard-fails on — and we
+# do not want Redis publicly routable. With no service, the Fly proxy never
+# auto-stops the machine, so the single deployed machine simply stays up
+# continuously, which is exactly what a persistent queue store needs.
 #
 # Eviction policy is intentionally "noeviction" (NOT allkeys-lru): under
 # memory pressure Redis must refuse writes rather than silently evict
 # queued ARQ jobs. Persistence (--appendonly yes) keeps the queue across
 # machine restarts.
 #
-# First-time setup:
+# First-time setup (CI does this idempotently; manual fallback):
 #   fly apps create wikimind-redis
 #   fly volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes
 #
@@ -35,21 +37,6 @@ primary_region = "ord"
 # (see header) and persistence is enabled with --appendonly yes.
 [processes]
   app = "redis-server --maxmemory 256mb --maxmemory-policy noeviction --appendonly yes"
-
-# Internal-only TCP service. No public ports are exposed; this block exists
-# to pin the machine always-on (no auto-stop) so the worker can always
-# reach the queue. Reachable on the 6PN network at wikimind-redis.internal:6379.
-[[services]]
-  internal_port = 6379
-  protocol = "tcp"
-  auto_stop_machines = "off"
-  auto_start_machines = false
-  min_machines_running = 1
-
-  [[services.tcp_checks]]
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "30s"
 
 [mounts]
   source = "wikimind_redis_data"
