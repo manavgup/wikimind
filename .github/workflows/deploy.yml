@@ -446,13 +446,27 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
       - name: 🧱  Deploy self-hosted Redis
+        # Idempotent: creates the app + persistent volume on first run, then
+        # deploys. Requires FLY_API_TOKEN to have org scope (the same token
+        # already deploys the separate wikimind-docling app, so it does).
         run: |
-          if ! flyctl status --app wikimind-redis 2>/dev/null; then
-            echo "::error::Production Redis app 'wikimind-redis' does not exist. Create it manually:"
-            echo "::error::  fly apps create wikimind-redis --org personal"
-            echo "::error::  fly volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes"
-            exit 1
+          # 1. Create the app if absent.
+          if flyctl apps list --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind-redis' in [a['Name'] for a in json.load(sys.stdin)] else 1)" 2>/dev/null; then
+            echo "Redis app 'wikimind-redis' already exists."
+          else
+            echo "Creating Redis app 'wikimind-redis'."
+            flyctl apps create wikimind-redis --org personal
           fi
+          # 2. Create the persistent volume if absent. Required before deploy —
+          #    flyctl deploy attaches the volume named in [mounts] but never
+          #    creates it. Guarded by name so we never make a duplicate.
+          if flyctl volumes list --app wikimind-redis --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind_redis_data' in [v['Name'] for v in json.load(sys.stdin)] else 1)" 2>/dev/null; then
+            echo "Redis volume 'wikimind_redis_data' already exists."
+          else
+            echo "Creating Redis volume 'wikimind_redis_data'."
+            flyctl volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes
+          fi
+          # 3. Deploy.
           flyctl deploy --app wikimind-redis --config fly.redis.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
