@@ -90,7 +90,7 @@ fi
 
 # 2. Create volume
 step "Volume: ${VOLUME_NAME} (${VOLUME_SIZE_GB} GB in ${REGION})"
-if flyctl volumes list --app "$APP_NAME" --json | python3 -c "import sys,json; vols=[v['Name'] for v in json.load(sys.stdin)]; sys.exit(0 if '${VOLUME_NAME}' in vols else 1)" 2>/dev/null; then
+if flyctl volumes list --app "$APP_NAME" --json | python3 -c "import sys,json; vols=[v['name'] for v in json.load(sys.stdin)]; sys.exit(0 if '${VOLUME_NAME}' in vols else 1)" 2>/dev/null; then
     info "Already exists"
 else
     flyctl volumes create "$VOLUME_NAME" \
@@ -133,7 +133,7 @@ else
 fi
 
 step "Redis volume: ${REDIS_VOLUME_NAME} (${REDIS_VOLUME_SIZE_GB} GB in ${REGION})"
-if flyctl volumes list --app "$REDIS_APP_NAME" --json | python3 -c "import sys,json; vols=[v['Name'] for v in json.load(sys.stdin)]; sys.exit(0 if '${REDIS_VOLUME_NAME}' in vols else 1)" 2>/dev/null; then
+if flyctl volumes list --app "$REDIS_APP_NAME" --json | python3 -c "import sys,json; vols=[v['name'] for v in json.load(sys.stdin)]; sys.exit(0 if '${REDIS_VOLUME_NAME}' in vols else 1)" 2>/dev/null; then
     info "Already exists"
 else
     flyctl volumes create "$REDIS_VOLUME_NAME" \
