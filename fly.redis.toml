@@ -1,0 +1,61 @@
+# fly.redis.toml — Fly.io config for the self-hosted Redis queue/cache.
+#
+# This runs on the Fly internal network (no public routing). The main
+# wikimind app reaches it at redis://wikimind-redis.internal:6379.
+# Replaces the managed Upstash Redis instance (~$141/mo) with a single
+# always-on shared-cpu-1x machine backed by a persistent volume.
+#
+# Redis is a TCP service (not HTTP), so there is no [http_service] block.
+# Apps on the same org are reachable over Fly's private 6PN network
+# without any public service mapping. The machine is kept always-on
+# (auto_stop_machines = "off", min_machines_running = 1) because it is a
+# persistent store and the ARQ worker polls it constantly.
+#
+# Eviction policy is intentionally "noeviction" (NOT allkeys-lru): under
+# memory pressure Redis must refuse writes rather than silently evict
+# queued ARQ jobs. Persistence (--appendonly yes) keeps the queue across
+# machine restarts.
+#
+# First-time setup:
+#   fly apps create wikimind-redis
+#   fly volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes
+#
+# Deploy (done automatically by CI):
+#   fly deploy --app wikimind-redis --config fly.redis.toml
+
+app = "wikimind-redis"
+primary_region = "ord"
+
+[build]
+  image = "redis:7-alpine"
+
+# The redis:7-alpine entrypoint (docker-entrypoint.sh) passes its arguments
+# straight to redis-server, so this mirrors the docker-compose.prod.yml
+# command — except --maxmemory-policy is "noeviction" instead of allkeys-lru
+# (see header) and persistence is enabled with --appendonly yes.
+[processes]
+  app = "redis-server --maxmemory 256mb --maxmemory-policy noeviction --appendonly yes"
+
+# Internal-only TCP service. No public ports are exposed; this block exists
+# to pin the machine always-on (no auto-stop) so the worker can always
+# reach the queue. Reachable on the 6PN network at wikimind-redis.internal:6379.
+[[services]]
+  internal_port = 6379
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.tcp_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[mounts]
+  source = "wikimind_redis_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

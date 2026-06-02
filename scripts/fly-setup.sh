@@ -28,6 +28,10 @@ REGION="ord"
 VOLUME_NAME="wikimind_data"
 VOLUME_SIZE_GB=1
 PG_NAME="wikimind-db"
+REDIS_APP_NAME="wikimind-redis"
+REDIS_VOLUME_NAME="wikimind_redis_data"
+REDIS_VOLUME_SIZE_GB=1
+REDIS_URL="redis://wikimind-redis.internal:6379/0"
 
 # ---------------------------------------------------------------
 # Helpers
@@ -119,7 +123,34 @@ else
     info "Already attached"
 fi
 
-# 4. Configure secrets
+# 4. Create self-hosted Redis app + volume
+step "Redis app: ${REDIS_APP_NAME}"
+if flyctl apps list --json | python3 -c "import sys,json; apps=[a['Name'] for a in json.load(sys.stdin)]; sys.exit(0 if '${REDIS_APP_NAME}' in apps else 1)" 2>/dev/null; then
+    info "Already exists"
+else
+    flyctl apps create "$REDIS_APP_NAME" --json
+    info "Created"
+fi
+
+step "Redis volume: ${REDIS_VOLUME_NAME} (${REDIS_VOLUME_SIZE_GB} GB in ${REGION})"
+if flyctl volumes list --app "$REDIS_APP_NAME" --json | python3 -c "import sys,json; vols=[v['Name'] for v in json.load(sys.stdin)]; sys.exit(0 if '${REDIS_VOLUME_NAME}' in vols else 1)" 2>/dev/null; then
+    info "Already exists"
+else
+    flyctl volumes create "$REDIS_VOLUME_NAME" \
+        --app "$REDIS_APP_NAME" \
+        --region "$REGION" \
+        --size "$REDIS_VOLUME_SIZE_GB" \
+        --yes
+    info "Created"
+fi
+
+# Deploy the Redis app, then point the main app at it via WIKIMIND_REDIS_URL.
+# (Deploy of fly.redis.toml itself is handled by CI / run manually — see PR runbook.)
+step "Staging WIKIMIND_REDIS_URL on ${APP_NAME}"
+flyctl secrets set "WIKIMIND_REDIS_URL=${REDIS_URL}" --app "$APP_NAME" --stage
+info "Staged WIKIMIND_REDIS_URL=${REDIS_URL}"
+
+# 5. Configure secrets
 step "Secrets"
 
 # LLM provider key
@@ -154,7 +185,7 @@ step "Deploying staged secrets"
 flyctl secrets deploy --app "$APP_NAME"
 info "All secrets deployed"
 
-# 5. Generate deploy token
+# 6. Generate deploy token
 step "Deploy token for CI"
 echo "  Add this token as FLY_API_TOKEN in GitHub repo secrets:"
 echo "  GitHub → Settings → Secrets and variables → Actions → New repository secret"
@@ -162,7 +193,7 @@ echo ""
 flyctl tokens create deploy --app "$APP_NAME" -x 999999h
 echo ""
 
-# 6. Summary
+# 7. Summary
 step "Setup complete!"
 echo ""
 echo "  Next steps:"

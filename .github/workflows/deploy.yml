@@ -91,7 +91,7 @@
 #   wikimind-staging-db │ (Postgres cluster) │ Staging database
 #   wikimind-db         │ (Postgres cluster) │ Production database
 #   wikimind-staging-redis │ (Upstash Redis)  │ Staging queue
-#   wikimind-redis         │ (Upstash Redis)  │ Production queue
+#   wikimind-redis         │ fly.redis.toml   │ Self-hosted Redis queue (production)
 #
 # ---------------------------------------------------------------
 
@@ -444,6 +444,18 @@ jobs:
           JWT_SECRET_KEY: ${{ secrets.WIKIMIND_AUTH__JWT_SECRET_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
+
+      - name: 🧱  Deploy self-hosted Redis
+        run: |
+          if ! flyctl status --app wikimind-redis 2>/dev/null; then
+            echo "::error::Production Redis app 'wikimind-redis' does not exist. Create it manually:"
+            echo "::error::  fly apps create wikimind-redis --org personal"
+            echo "::error::  fly volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes"
+            exit 1
+          fi
+          flyctl deploy --app wikimind-redis --config fly.redis.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: 🧠  Deploy docling-serve sidecar
         run: |
