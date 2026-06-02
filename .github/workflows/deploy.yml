@@ -460,7 +460,7 @@ jobs:
           # 2. Create the persistent volume if absent. Required before deploy —
           #    flyctl deploy attaches the volume named in [mounts] but never
           #    creates it. Guarded by name so we never make a duplicate.
-          if flyctl volumes list --app wikimind-redis --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind_redis_data' in [v['Name'] for v in json.load(sys.stdin)] else 1)" 2>/dev/null; then
+          if flyctl volumes list --app wikimind-redis --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind_redis_data' in [v['name'] for v in json.load(sys.stdin)] else 1)" 2>/dev/null; then
             echo "Redis volume 'wikimind_redis_data' already exists."
           else
             echo "Creating Redis volume 'wikimind_redis_data'."
