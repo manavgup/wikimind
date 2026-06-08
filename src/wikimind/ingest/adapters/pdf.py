@@ -219,9 +219,13 @@ class PDFAdapter:
         # when docling-serve is unavailable.
         try:
             clean_text, page_count = await self._extract_via_docling(raw_pdf_path, source.id, user_id)
+            extraction_engine = "docling-serve"
         except (httpx.HTTPError, httpx.ConnectError) as exc:
             log.warning("docling-serve unavailable, falling back to fitz", error=str(exc))
             clean_text, page_count = self._extract_via_fitz(file_bytes)
+            extraction_engine = "pymupdf"
+        source.extraction_engine = extraction_engine
+        source.extraction_page_count = page_count
 
         # If the title is still the filename fallback (no PDF metadata title),
         # try extracting the first markdown heading from the converted text.

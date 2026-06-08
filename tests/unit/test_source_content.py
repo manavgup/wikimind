@@ -12,7 +12,7 @@ from wikimind.api.deps import get_current_user_id
 from wikimind.database import get_session
 from wikimind.errors import NotFoundError
 from wikimind.main import app
-from wikimind.models import Source, SourceContentResponse, SourceType
+from wikimind.models import IngestStatus, Source, SourceContentResponse, SourceType
 from wikimind.services.factories import get_ingest_service
 from wikimind.services.ingest import IngestService
 from wikimind.storage import LocalFileStorage
@@ -151,6 +151,29 @@ async def test_content_endpoint_passes_user_id() -> None:
     call_kwargs = mock_svc.get_source_content.call_args
     assert call_kwargs[0][0] == "src-abc"
     assert call_kwargs[1]["user_id"] == "test-user-456"
+
+
+async def test_source_detail_includes_extraction_metadata(client: AsyncClient, db_session) -> None:
+    """Source detail exposes lightweight PDF extraction metadata."""
+    source = Source(
+        id="src-meta",
+        source_type=SourceType.PDF,
+        title="Metadata PDF",
+        user_id=TEST_USER_ID,
+        status=IngestStatus.PROCESSING,
+        clean_text="Extracted text",
+        extraction_engine="docling-serve",
+        extraction_page_count=7,
+    )
+    db_session.add(source)
+    await db_session.commit()
+
+    resp = await client.get("/api/ingest/sources/src-meta/detail")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["extraction_engine"] == "docling-serve"
+    assert data["extraction_page_count"] == 7
 
 
 async def test_service_get_source_content_reads_file(tmp_path: Path) -> None:

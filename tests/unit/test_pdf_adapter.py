@@ -116,6 +116,8 @@ class TestPDFAdapterFitzFallback:
         assert source.source_type == SourceType.PDF
         assert source.title == "fallback"
         assert source.status == IngestStatus.PROCESSING
+        assert source.extraction_engine == "pymupdf"
+        assert source.extraction_page_count == 1
         assert "Fallback page text" in doc.clean_text
         assert doc.estimated_tokens > 0
         assert doc.chunks  # at least one chunk
@@ -215,6 +217,8 @@ class TestPDFAdapterDoclingServePath:
 
         assert doc.clean_text == markdown
         assert "# Slide deck" in doc.clean_text
+        assert source.extraction_engine == "docling-serve"
+        assert source.extraction_page_count == 1
         assert source.file_path == f"{source.id}.txt"
         assert (isolated_data_dir / "raw" / TEST_USER_ID / f"{source.id}.txt").read_text(encoding="utf-8") == markdown
 

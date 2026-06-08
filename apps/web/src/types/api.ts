@@ -49,6 +49,8 @@ export interface Source {
   token_count: number | null;
   error_message: string | null;
   file_path: string | null;
+  extraction_engine: string | null;
+  extraction_page_count: number | null;
   has_original: boolean;
 }
 
@@ -56,6 +58,7 @@ export interface SourceContentResponse {
   content: string;
   source_type: SourceType;
   title: string | null;
+  truncated?: boolean;
 }
 
 export interface PipelineStep {
@@ -90,6 +93,8 @@ export interface SourceDetailResponse {
   token_count: number | null;
   error_message: string | null;
   has_original: boolean;
+  extraction_engine: string | null;
+  extraction_page_count: number | null;
   pipeline_steps: PipelineStep[];
   images: SourceImageEntry[];
   linked_articles: LinkedArticleSummary[];

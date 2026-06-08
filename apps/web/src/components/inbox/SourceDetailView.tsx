@@ -5,6 +5,7 @@ import { getBaseUrl } from "../../api/client";
 import { Badge, type BadgeTone } from "../shared/Badge";
 import { Card } from "../shared/Card";
 import { Spinner } from "../shared/Spinner";
+import { ExtractionPreviewModal } from "../viewers/ExtractionPreviewModal";
 import { SourceSpansPanel } from "../viewers/SourceSpansPanel";
 import type { IngestStatus, PipelineStep, SourceType } from "../../types/api";
 
@@ -86,6 +87,7 @@ export function SourceDetailView() {
   const { id } = useParams<{ id: string }>();
   const { data: source, isLoading, isError } = useSourceDetail(id);
   const [selectedImg, setSelectedImg] = useState<string | null>(null);
+  const [extractPreviewOpen, setExtractPreviewOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -194,20 +196,46 @@ export function SourceDetailView() {
               Processing Pipeline
             </h2>
             <div className="relative">
-              {source.pipeline_steps.map((step, idx) => (
-                <div key={step.name} className="flex gap-3 pb-4 last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <StepIcon status={step.status} />
-                    {idx < source.pipeline_steps.length - 1 ? (
-                      <div className="mt-1 h-full w-px bg-slate-200" />
-                    ) : null}
-                  </div>
-                  <div className="pt-0.5">
-                    <p className="text-sm font-medium text-slate-900">{step.name}</p>
-                    <p className="text-xs text-slate-500">{step.description}</p>
-                  </div>
-                </div>
-              ))}
+              {source.pipeline_steps.map((step, idx) => {
+                const canPreviewExtraction =
+                  step.name === "Extract" &&
+                  step.status === "complete" &&
+                  source.source_type === "pdf" &&
+                  source.has_original;
+                const row = (
+                  <>
+                    <div className="flex flex-col items-center">
+                      <StepIcon status={step.status} />
+                      {idx < source.pipeline_steps.length - 1 ? (
+                        <div className="mt-1 h-full w-px bg-slate-200" />
+                      ) : null}
+                    </div>
+                    <div className="pt-0.5">
+                      <p className="text-sm font-medium text-slate-900">{step.name}</p>
+                      <p className="text-xs text-slate-500">{step.description}</p>
+                    </div>
+                  </>
+                );
+
+                if (!canPreviewExtraction) {
+                  return (
+                    <div key={step.name} className="flex gap-3 pb-4 last:pb-0">
+                      {row}
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={step.name}
+                    type="button"
+                    onClick={() => setExtractPreviewOpen(true)}
+                    className="flex w-full gap-3 rounded-md pb-4 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 last:pb-0"
+                  >
+                    {row}
+                  </button>
+                );
+              })}
             </div>
           </Card>
 
@@ -319,6 +347,13 @@ export function SourceDetailView() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {extractPreviewOpen ? (
+        <ExtractionPreviewModal
+          source={source}
+          onClose={() => setExtractPreviewOpen(false)}
+        />
       ) : null}
     </div>
   );
