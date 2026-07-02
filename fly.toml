@@ -26,7 +26,9 @@ primary_region = "ord"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 1
+  # Scale to zero when idle — personal deployment, cold starts are acceptable.
+  # The proxy starts a machine on the first incoming request.
+  min_machines_running = 0
   processes = ["web"]
 
   [http_service.concurrency]
