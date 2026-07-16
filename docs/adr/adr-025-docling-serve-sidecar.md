@@ -21,8 +21,8 @@ Replace in-process Docling with [docling-serve](https://github.com/docling-proje
 
 The main WikiMind container calls `POST /v1/convert/source` on the sidecar to extract PDF content. The sidecar runs as:
 
-- A Docker Compose service in dev/staging
-- A separate Fly.io app (`wikimind-docling`) on the internal network in production
+- A Docker Compose service in dev
+- A separate Fly.io app (`wikimind-docling`) on the internal network in the cloud, shared by production and the ephemeral CI staging environment (the sidecar is stateless and scale-to-zero, so a dedicated staging copy isn't warranted)
 
 ## Consequences
 
