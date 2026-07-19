@@ -1,0 +1,41 @@
+# ===============================================================
+# Postgres Integration — path-filter mirror
+# ===============================================================
+#
+# "Postgres integration tests" is a REQUIRED status check on main,
+# but postgres-integration.yml is path-filtered to code paths. A PR
+# that touches none of those paths (workflow-only or docs-only
+# changes) never gets the check reported, so it stays BLOCKED
+# forever — this deadlocked PRs #836 and #832.
+#
+# This is GitHub's documented fix: a mirror workflow with an
+# identically named job that succeeds instantly, triggered by the
+# exact inverse path filter (paths-ignore with the same list the
+# real workflow uses for paths). PRs touching code paths run the
+# real tests; PRs touching nothing relevant get the green check
+# from here. Keep the two path lists in sync.
+
+name: Postgres Integration (skip)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: ["main"]
+    paths-ignore:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/postgres-integration.yml"
+
+permissions: {}
+
+jobs:
+  postgres-integration-skip:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Postgres integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: ✅  No code paths changed — Postgres tests not required
+        run: echo "No src/tests/dependency changes in this PR; reporting success for the required check."
