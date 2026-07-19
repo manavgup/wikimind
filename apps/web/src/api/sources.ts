@@ -61,7 +61,7 @@ export function retryCompile(sourceId: string): Promise<TriggerCompileResponse> 
 
 export function getSourceContent(sourceId: string): Promise<SourceContentResponse> {
   return apiFetch<SourceContentResponse>(
-    `/ingest/sources/${encodeURIComponent(sourceId)}/content`,
+    `/api/ingest/sources/${encodeURIComponent(sourceId)}/content`,
   );
 }
 

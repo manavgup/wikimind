@@ -33,6 +33,8 @@ class Source(SQLModel, table=True):
         sa_type=Text,
         exclude=True,
     )  # DB-backed source content; excluded from API responses
+    extraction_engine: str | None = None  # e.g. "docling-serve" or "pymupdf"
+    extraction_page_count: int | None = None
     # SHA-256 hex digest of the raw payload (issue #67). Used by the ingest
     # layer to detect duplicates: re-ingesting the same content returns the
     # existing source instead of creating a second row.

@@ -221,6 +221,8 @@ async def get_source_detail(
         token_count=source.token_count,
         error_message=source.error_message,
         has_original=source.has_original,
+        extraction_engine=source.extraction_engine,
+        extraction_page_count=source.extraction_page_count,
         pipeline_steps=pipeline_steps,
         images=images,
         linked_articles=linked_articles,

@@ -119,6 +119,8 @@ class SourceDetailResponse(BaseModel):
     token_count: int | None
     error_message: str | None
     has_original: bool
+    extraction_engine: str | None = None
+    extraction_page_count: int | None = None
     pipeline_steps: list[PipelineStep]
     images: list[SourceImageEntry]
     linked_articles: list[LinkedArticleSummary]
