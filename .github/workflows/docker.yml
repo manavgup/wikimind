@@ -249,7 +249,10 @@ jobs:
     name: publish prod image to GHCR
     needs: [build, scan]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45 min: a cold arm64 build under QEMU takes ~30 min, which sat
+    # exactly at the old limit and cancelled two of three main builds
+    # (skipping their deploys). Warm-cache publishes are much faster.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -298,8 +301,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=prod-${{ steps.cache-key.outputs.week }}
-          cache-to: type=gha,scope=prod-${{ steps.cache-key.outputs.week }},mode=max
+          # Dedicated multi-arch scope: the amd64-only `build` job writes
+          # to the plain weekly scope on every PR/push, clobbering arm64
+          # layers cached there — which forced a full ~30min QEMU rebuild
+          # on every publish. Reading both scopes keeps amd64 layer reuse;
+          # writing only the multiarch scope preserves arm64 layers
+          # between publishes.
+          cache-from: |
+            type=gha,scope=prod-multiarch-${{ steps.cache-key.outputs.week }}
+            type=gha,scope=prod-${{ steps.cache-key.outputs.week }}
+          cache-to: type=gha,scope=prod-multiarch-${{ steps.cache-key.outputs.week }},mode=max
 
   # ---------------------------------------------------------------
   # Alert — auto-create an issue when the deploy pipeline breaks
