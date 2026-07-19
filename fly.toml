@@ -1,5 +1,10 @@
 # fly.toml — Fly.io deployment for WikiMind.
 #
+# Single machine runs web + ARQ worker + Redis via docker/start-combined.sh.
+# Scale-to-zero applies to everything: Fly stops the machine when idle and
+# restarts it on the first incoming request. All three processes start and
+# stop together as one unit.
+#
 # First-time setup (creates app, volume, Postgres, secrets):
 #   ./scripts/fly-setup.sh
 #
@@ -10,6 +15,7 @@
 
 app = "wikimind"
 primary_region = "ord"
+kill_timeout = "30s"
 
 [build]
   dockerfile = "Dockerfile"
@@ -20,6 +26,7 @@ primary_region = "ord"
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
   WIKIMIND_AUTH__PUBLIC_URL = "https://wikimind.fly.dev"
   WIKIMIND_ENV = "production"
+  WIKIMIND_REDIS_URL = "redis://localhost:6379/0"
 
 [http_service]
   internal_port = 7842
@@ -38,8 +45,7 @@ primary_region = "ord"
 
 
 [processes]
-  web = "gunicorn wikimind.main:app -c gunicorn.conf.py"
-  worker = ".venv/bin/arq wikimind.jobs.worker.WorkerSettings"
+  web = "./docker/start-combined.sh"
 
 [deploy]
   strategy = "rolling"
@@ -50,7 +56,9 @@ primary_region = "ord"
   destination = "/home/wikimind/.wikimind"
 
 [[vm]]
-  memory = "1gb"
+  # Three processes share this machine (web + arq worker + redis).
+  # Cost only accrues while awake — scale-to-zero keeps idle cost at zero.
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
 

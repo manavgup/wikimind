@@ -32,7 +32,7 @@
 #   3️⃣  deploy-production
 #     │  • environment: production (manual approval gate)
 #     │  • validates prod infra (never creates it)
-#     │  • deploy docling-serve sidecar + self-hosted Redis
+#     │  • deploy docling-serve sidecar
 #     │  • deploy app from same GHCR sha-<commit> tag
 #     │
 #     ▼
@@ -58,7 +58,7 @@
 #               │ (app, volume, Postgres) and destroyed after the
 #               │ smoke gate. Fresh empty DB every run; migrations
 #               │ run via the alembic release_command. Queue uses
-#               │ the shared self-hosted Redis on DB index 1;
+#               │ in-machine Redis (localhost:6379/0 via [env]);
 #               │ docling uses the production sidecar (stateless,
 #               │ scale-to-zero).
 #   Production  │ PERSISTENT — must exist; deploy fails with setup
@@ -87,10 +87,9 @@
 #   ────────────────────┼────────────────────┼──────────────────────────
 #   wikimind-staging    │ fly.staging.toml   │ Pre-prod gate (EPHEMERAL, per-run)
 #   wikimind-staging-db │ (Postgres cluster) │ Staging database (EPHEMERAL, per-run)
-#   wikimind            │ fly.toml           │ Production
+#   wikimind            │ fly.toml           │ Production (web + worker + redis combined)
 #   wikimind-docling    │ fly.docling.toml   │ PDF sidecar (shared prod + staging)
 #   wikimind-db         │ (Postgres cluster) │ Production database
-#   wikimind-redis      │ fly.redis.toml     │ Self-hosted Redis (prod = DB 0, staging = DB 1)
 #
 # ---------------------------------------------------------------
 
@@ -159,8 +158,6 @@ jobs:
       - name: 🔐  Validate required secrets
         run: |
           missing=0
-          # WIKIMIND_REDIS_URL is verified separately in the infrastructure
-          # step below (must be set manually via `fly secrets set`).
           for var in ANTHROPIC_API_KEY JWT_SECRET_KEY GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
             if [ -z "${!var}" ]; then
               echo "::error::Required secret ${var} is empty or not configured"
@@ -195,17 +192,15 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       # 2️⃣  Stage secrets (--stage avoids double-restart before deploy).
-      # Staging shares the self-hosted production Redis on DB index 1 —
-      # ARQ queues are fully separated from production's DB 0, and no
-      # per-run Redis app is needed.
+      # WIKIMIND_REDIS_URL is supplied via [env] in fly.staging.toml (in-machine
+      # redis on localhost:6379/0) — no secret needed.
       - name: 🔑  Stage secrets for staging
         run: |
           flyctl secrets set --stage --app wikimind-staging \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            WIKIMIND_REDIS_URL="redis://wikimind-redis.internal:6379/1"
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -217,25 +212,6 @@ jobs:
       # (stateless, scale-to-zero) — no per-run sidecar deploy needed.
       - name: 🚀  Deploy to staging
         run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }} --remote-only --yes
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: 🔧  Ensure worker machines are running
-        run: |
-          # Worker machines don't receive HTTP traffic so Fly auto-stops
-          # them.  Configure restart=always and start any stopped workers.
-          WORKER_IDS=$(flyctl machines list --app wikimind-staging -j \
-            | jq -r '.[] | select(.config.metadata.fly_process_group == "worker") | .id')
-          for id in $WORKER_IDS; do
-            echo "Configuring worker machine $id ..."
-            flyctl machine update "$id" --restart always --app wikimind-staging --yes 2>&1 || true
-            STATE=$(flyctl machines list --app wikimind-staging -j | jq -r ".[] | select(.id == \"$id\") | .state")
-            if [ "$STATE" != "started" ]; then
-              echo "Starting worker machine $id (was $STATE) ..."
-              flyctl machine start "$id" --app wikimind-staging 2>&1 || true
-            fi
-          done
-          echo "Worker machines configured."
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -429,18 +405,20 @@ jobs:
             exit 1
           fi
 
-          # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
+          # Redis is now in-machine (localhost:6379) — WIKIMIND_REDIS_URL is set
+          # via [env] in fly.toml. If the old secret is still present it will
+          # silently override the [env] value (Fly secrets take precedence).
+          # Fail loudly so the operator knows to clean it up before deploying.
           REDIS_CHECK=$(flyctl secrets list --app wikimind 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
           if [ "$REDIS_CHECK" -gt 0 ]; then
-            echo "Redis URL secret exists"
-          else
-            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='redis://...' --app wikimind"
+            echo "::error::Stale WIKIMIND_REDIS_URL secret would override fly.toml [env] — run: fly secrets unset WIKIMIND_REDIS_URL --app wikimind"
             exit 1
           fi
+          echo "No stale WIKIMIND_REDIS_URL secret — OK"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      # WIKIMIND_REDIS_URL is managed manually via `fly secrets set` — not staged here.
+      # WIKIMIND_REDIS_URL is supplied via [env] in fly.toml — not staged here.
       - name: 🔑  Stage secrets for production
         run: |
           flyctl secrets set --stage --app wikimind \
@@ -455,32 +433,6 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      - name: 🧱  Deploy self-hosted Redis
-        # Idempotent: creates the app + persistent volume on first run, then
-        # deploys. Requires FLY_API_TOKEN to have org scope (the same token
-        # already deploys the separate wikimind-docling app, so it does).
-        run: |
-          # 1. Create the app if absent.
-          if flyctl apps list --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind-redis' in [a['Name'] for a in json.load(sys.stdin)] else 1)" 2>/dev/null; then
-            echo "Redis app 'wikimind-redis' already exists."
-          else
-            echo "Creating Redis app 'wikimind-redis'."
-            flyctl apps create wikimind-redis --org personal
-          fi
-          # 2. Create the persistent volume if absent. Required before deploy —
-          #    flyctl deploy attaches the volume named in [mounts] but never
-          #    creates it. Guarded by name so we never make a duplicate.
-          if flyctl volumes list --app wikimind-redis --json | python3 -c "import sys,json; sys.exit(0 if 'wikimind_redis_data' in [v['name'] for v in json.load(sys.stdin)] else 1)" 2>/dev/null; then
-            echo "Redis volume 'wikimind_redis_data' already exists."
-          else
-            echo "Creating Redis volume 'wikimind_redis_data'."
-            flyctl volumes create wikimind_redis_data --region ord --size 1 --app wikimind-redis --yes
-          fi
-          # 3. Deploy.
-          flyctl deploy --app wikimind-redis --config fly.redis.toml --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
       - name: 🧠  Deploy docling-serve sidecar
         run: |
           if ! flyctl status --app wikimind-docling 2>/dev/null; then
@@ -494,22 +446,6 @@ jobs:
 
       - name: 🚀  Deploy to production
         run: flyctl deploy --image ghcr.io/${{ github.repository }}:${{ needs.deploy-staging.outputs.image_tag }} --remote-only --yes
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: 🔧  Ensure worker machines are running
-        run: |
-          WORKER_IDS=$(flyctl machines list --app wikimind -j \
-            | jq -r '.[] | select(.config.metadata.fly_process_group == "worker") | .id')
-          for id in $WORKER_IDS; do
-            echo "Configuring worker machine $id ..."
-            flyctl machine update "$id" --restart always --app wikimind --yes 2>&1 || true
-            STATE=$(flyctl machines list --app wikimind -j | jq -r ".[] | select(.id == \"$id\") | .state")
-            if [ "$STATE" != "started" ]; then
-              echo "Starting worker machine $id (was $STATE) ..."
-              flyctl machine start "$id" --app wikimind 2>&1 || true
-            fi
-          done
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
