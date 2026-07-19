@@ -17,7 +17,7 @@ primary_region = "ord"
 # Graceful shutdown is ordered: drain gunicorn + arq first, then redis AOF
 # flush last.  30s equalled gunicorn's graceful_timeout, leaving zero
 # headroom for the redis flush — bumped to 60s.
-kill_timeout = "60s"
+kill_timeout = 60
 
 [build]
   dockerfile = "Dockerfile"

@@ -589,6 +589,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: verify-production
     if: failure()
+    permissions:
+      contents: read
 
     steps:
       - name: ⬇️  Checkout code
