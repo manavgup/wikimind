@@ -43,7 +43,7 @@ kill_timeout = "30s"
 
 
 [processes]
-  web = "./docker/start-combined.sh"
+  web = "./start-combined.sh"
 
 [deploy]
   strategy = "rolling"
@@ -55,6 +55,7 @@ kill_timeout = "30s"
 
 [[vm]]
   # Three processes share this machine (web + arq worker + redis).
+  # Cost only accrues while awake — scale-to-zero keeps idle cost at zero.
   memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
