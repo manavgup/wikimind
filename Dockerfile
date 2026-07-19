@@ -77,6 +77,8 @@ CMD ["uv", "run", "uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port",
 #      - Alembic migrations (for Postgres deployments)
 #      - gunicorn.conf.py (auto-tunes workers to CPU)
 #      - docker-entrypoint.sh (runs migrations before starting gunicorn)
+#      - start-combined.sh (optional: runs redis + arq worker + gunicorn in
+#        one container for combined/scale-to-zero single-machine deployments)
 #
 # Worker auto-tuning:
 #   gunicorn.conf.py sets workers = min(2 * CPU + 1, 8).
@@ -84,6 +86,13 @@ CMD ["uv", "run", "uvicorn", "wikimind.main:app", "--host", "0.0.0.0", "--port",
 #     docker run -e WEB_CONCURRENCY=4 wikimind:latest
 # ---------------------------------------------------------------------------
 FROM base AS prod
+
+# redis-server — required for the optional combined-process mode
+# (start-combined.sh runs redis, arq worker, and gunicorn in one container).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        redis-server \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock README.md ./
 
@@ -112,6 +121,11 @@ COPY gunicorn.conf.py ./
 # Entrypoint: run Alembic migrations (Postgres only), then exec CMD
 COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
+
+# Optional combined-process startup (redis + arq worker + gunicorn).
+# Invoked via: docker run ... --entrypoint ./docker-entrypoint.sh image ./start-combined.sh
+COPY docker/start-combined.sh ./start-combined.sh
+RUN chmod +x start-combined.sh
 
 # Run as a non-root user in production.
 RUN useradd --create-home --uid 1000 wikimind \
