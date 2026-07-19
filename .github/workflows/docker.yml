@@ -19,7 +19,10 @@
 #     Every build runs Trivy on the resulting image and fails the
 #     job on CRITICAL or HIGH CVEs that have a fix available.
 #     `ignore-unfixed: true` avoids noisy failures on upstream bugs
-#     we cannot act on.
+#     we cannot act on. HIGH findings published within the last
+#     7 days are ignored (.github/trivy/ignore-policy.rego) so a
+#     same-week advisory can't freeze unrelated in-flight merges;
+#     CRITICAL findings always block immediately.
 #
 #   Tier 4 — Publish to GHCR on merge
 #     On push to main, build the `prod` target multi-arch
@@ -51,6 +54,8 @@ on:
       - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
       - ".github/workflows/deploy.yml"
+      - ".trivyignore"
+      - ".github/trivy/**"
   pull_request:
     types: [opened, synchronize, ready_for_review]
     branches: ["main"]
@@ -72,6 +77,8 @@ on:
       - "gunicorn.conf.py"
       - ".github/workflows/docker.yml"
       - ".github/workflows/deploy.yml"
+      - ".trivyignore"
+      - ".github/trivy/**"
   schedule:
     # Weekly rebuild against the latest base image — catches bit-rot.
     - cron: "0 9 * * 1"
@@ -185,6 +192,7 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           trivyignores: .trivyignore
+          ignore-policy: .github/trivy/ignore-policy.rego
 
   # ---------------------------------------------------------------
   # Tier 2 — weekly rebuild from scratch against the latest base
@@ -231,6 +239,7 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           trivyignores: .trivyignore
+          ignore-policy: .github/trivy/ignore-policy.rego
 
   # ---------------------------------------------------------------
   # Tier 4 — publish the prod image to GHCR on merge to main
