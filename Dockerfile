@@ -123,9 +123,8 @@ COPY docker/entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 # Optional combined-process startup (redis + arq worker + gunicorn).
-# Invoked via: docker run ... --entrypoint ./docker-entrypoint.sh image ./start-combined.sh
-COPY docker/start-combined.sh ./start-combined.sh
-RUN chmod +x start-combined.sh
+# Invoked via CMD override in fly.toml (entrypoint stays docker-entrypoint.sh).
+COPY --chmod=755 docker/start-combined.sh ./start-combined.sh
 
 # Run as a non-root user in production.
 RUN useradd --create-home --uid 1000 wikimind \
