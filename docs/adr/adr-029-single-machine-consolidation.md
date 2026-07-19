@@ -1,6 +1,9 @@
 # ADR-029: Single-Machine Consolidation — Web, Worker, and Redis in One Scale-to-Zero Process
 
-**Status:** Accepted
+## Status
+
+Accepted
+
 **Date:** 2026-07-19
 
 ## Context
@@ -25,8 +28,8 @@ PostgreSQL (`wikimind-db`) deliberately remains a separate Fly Postgres app. It 
 
 Consolidate web, ARQ worker, and Redis into a single `web` Fly machine via `docker/start-combined.sh`. The startup sequence:
 
-1. **Redis** starts first (`redis-server` with AOF and 128 MB maxmemory, no RDB), writing its socket to the persistent volume. No restart loop — if it crashes, a machine restart self-heals.
-2. **ARQ worker** starts in a `while true` restart loop (exits between jobs; the loop keeps it alive).
+1. **Redis** starts first (`redis-server` with AOF and 128 MB maxmemory, no RDB), persisting its append-only-file data directory to the Fly volume. No restart loop — if it crashes, a machine restart self-heals.
+2. **ARQ worker** starts in a `while true` restart loop. The worker is long-running (no burst mode); the loop is crash-recovery supervision so a worker crash cannot kill the container.
 3. **Gunicorn** starts last and becomes the governing process. When gunicorn exits (SIGTERM from Fly), the script traps the signal, drains gunicorn and ARQ first, then sends TERM to Redis so its AOF flush covers all pending writes.
 
 `fly.toml` changes:
@@ -52,15 +55,15 @@ The docling-serve sidecar (ADR-025) remains a separate scale-to-zero Fly app (`w
 
 - **Cost**: ~$10/mo → ~$4-5/mo; worker machine and Redis Fly app eliminated.
 - **Unified lifecycle**: the entire application stack — HTTP, background jobs, and cache — scales to zero as a single unit and wakes together on the first request.
-- **Simpler deploy pipeline**: no separate `fly deploy --config fly.redis.toml` step; no worker machine management. The `fly-setup.sh` script is ~40 lines shorter.
+- **Simpler deploy pipeline**: no separate `fly deploy --config fly.redis.toml` step; no worker machine management. The `fly-setup.sh` script is 27 lines shorter.
 - **Queue durability preserved**: AOF on the persistent volume survives machine restarts (not just process restarts). Jobs survive controlled stop/start cycles.
 - **Operational coherence**: one `fly logs`, one `fly ssh console`, one machine to monitor.
 
 ### Negative
 
-- **Cron jobs are opportunistic**: ARQ cron jobs (weekly lint, daily wikilink sweep, 6-hourly billing reconciliation, 30-min ambient poll) only run while the machine is awake. Webhooks and user requests wake it; scheduled crons fire on the next wake cycle after their due time. Acceptable for personal-scale; not acceptable for a multi-user SLA.
+- **Cron jobs are opportunistic**: ARQ cron jobs (weekly lint, daily wikilink sweep, 6-hourly subscription and price reconciliation, 30-min ambient poll) only run while the machine is awake. Webhooks and user requests wake it; scheduled crons fire on the next wake cycle after their due time. Acceptable for personal-scale; not acceptable for a multi-user SLA.
 - **Redis has no restart loop**: gunicorn and ARQ are restarted on crash; Redis is not. If Redis crashes mid-session, `/health` remains green (it does not ping Redis) while job enqueues fail silently; `/health/deep` does report Redis. The machine's next auto-stop/auto-start cycle self-heals. This is a known resilience regression relative to the dedicated Redis machine's native Fly restart policy.
-- **Rollback requires matching pairs**: rolling back across this deploy boundary requires the matching `fly.toml` + image pair. Old images lack `/app/docker/start-combined.sh` and will crash if deployed with the new `fly.toml` process commands.
+- **Rollback requires matching pairs**: rolling back across this deploy boundary requires the matching `fly.toml` + image pair. Old images lack `/app/start-combined.sh` and will crash if deployed with the new `fly.toml` process commands.
 - **Queue durability window**: AOF `everysec` means up to ~1 s of enqueues can be lost on a hard kill (SIGKILL before the 60 s kill_timeout elapses). Controlled shutdowns lose nothing.
 
 ## Supersedes
