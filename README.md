@@ -60,6 +60,35 @@ make dev-api
 
 The frontend is built into the API server. Open **http://localhost:7842** after starting.
 
+### Local development notes
+
+- **Python version**: WikiMind requires Python 3.11+. If your system `python3` is older, create the venv with a managed runtime first:
+  ```bash
+  uv venv --python 3.12 .venv
+  make install-dev
+  ```
+- **Frontend in a source checkout**: `make dev-api` serves the API. For UI development, either run Vite separately with `make frontend-dev`, or build the frontend and expose it to the API:
+  ```bash
+  make frontend-build
+  ln -s apps/web/dist static
+  ```
+- **Saving API keys in the UI**: user-provided LLM keys are encrypted at rest. Set a local JWT secret before using Settings -> API Keys:
+  ```bash
+  WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32)
+  ```
+- **Docling sidecar**: PDF ingestion falls back to pymupdf when Docling is unavailable. To test structured Docling extraction while running the API on the host:
+  ```bash
+  docker run -d --name wikimind-docling -p 5001:5001 --restart unless-stopped \
+    quay.io/docling-project/docling-serve-cpu:latest
+  ```
+  New PDF ingests will use Docling once `/api/admin/docling-status` reports connected. Existing sources are not re-extracted automatically; delete and re-ingest a PDF to compare.
+- **LLM tracing**: cost/latency traces are opt-in. To also store the exact prompt and completion text shown in Admin -> Traces:
+  ```bash
+  WIKIMIND_LLM__TRACE_ENABLED=true
+  WIKIMIND_LLM__TRACE_STORE_CONTENT=true
+  ```
+  This stores source text, prompts, and model responses in the local database.
+
 ## Production deployment
 
 ### Docker Compose (self-hosted)
@@ -252,7 +281,7 @@ Providers auto-enable when their API key is detected. See `.env.example` for all
 | `make export-openapi` | Regenerate docs/openapi.yaml from the FastAPI app |
 | `make check-openapi` | Verify docs/openapi.yaml matches the FastAPI app |
 | `make regenerate-adr-index` | Regenerate docs/adr/README.md from ADR files |
-| `make check-adr-index` | Verify docs/adr/README.md is in sync with ADR files |
+| `make check-adr-index` | Verify docs/adr/README.md is in sync |
 | `make regenerate-readme-targets` | Regenerate README make-targets section from Makefile |
 | `make check-readme-targets` | Verify README make-targets section is in sync with Makefile |
 | `make regenerate-docs` | Regenerate all auto-generated docs |
