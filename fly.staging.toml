@@ -6,12 +6,18 @@
 # staging-related runs between deploys.  Same machine specs as
 # production (fly.toml).
 #
-# There is no manual first-time setup — CI provisions everything,
-# including secrets and the Redis URL (shared self-hosted Redis on
-# DB index 1; production uses DB 0).
+# There is no manual first-time setup — CI provisions everything.
+#
+# Single machine runs web + ARQ worker + Redis via docker/start-combined.sh
+# (same as production). Staging has its own in-machine Redis — it no longer
+# shares any external Redis with production.
 
 app = "wikimind-staging"
 primary_region = "ord"
+# Graceful shutdown is ordered: drain gunicorn + arq first, then redis AOF
+# flush last.  30s equalled gunicorn's graceful_timeout, leaving zero
+# headroom for the redis flush — bumped to 60s.
+kill_timeout = 60
 
 [build]
   dockerfile = "Dockerfile"
@@ -23,6 +29,7 @@ primary_region = "ord"
   # scale-to-zero, and the smoke tests don't exercise PDF conversion, so
   # a dedicated per-run sidecar (a 4GB-image deploy) isn't worth it.
   WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
+  WIKIMIND_REDIS_URL = "redis://localhost:6379/0"
 
 [http_service]
   internal_port = 7842
@@ -39,8 +46,7 @@ primary_region = "ord"
 
 
 [processes]
-  web = "gunicorn wikimind.main:app -c gunicorn.conf.py"
-  worker = ".venv/bin/arq wikimind.jobs.worker.WorkerSettings"
+  web = "./start-combined.sh"
 
 [deploy]
   strategy = "rolling"
@@ -51,7 +57,11 @@ primary_region = "ord"
   destination = "/home/wikimind/.wikimind"
 
 [[vm]]
-  memory = "1gb"
+  # Three processes share this machine (web + arq worker + redis).
+  # Staging pins min_machines_running = 1, so cost is bounded by the CI
+  # teardown job that destroys this app after the smoke gate — not by
+  # scale-to-zero (which does not apply here).
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
 
