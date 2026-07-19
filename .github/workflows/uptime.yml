@@ -2,15 +2,18 @@
 # External Uptime Monitor
 # ===============================================================
 #
-# Pings production and staging health endpoints from GitHub Actions
-# (outside Fly.io network) every 15 minutes. Creates an issue on
-# failure.
+# Pings the production health endpoint from GitHub Actions
+# (outside Fly.io network) once a day. Creates an issue on failure.
+#
+# Daily, not every 15 minutes: production scales to zero when idle
+# (fly.toml min_machines_running = 0) and each ping wakes the machine,
+# so a frequent monitor would keep it running around the clock.
 
 name: Uptime Monitor
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "0 14 * * *"
   workflow_dispatch:
 
 permissions:
@@ -33,18 +36,6 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           if [ "$status" != "ok" ]; then
             echo "::warning::Production health: $status"
-          fi
-
-      - name: Check staging health
-        id: staging
-        continue-on-error: true
-        run: |
-          status=$(curl -sf --max-time 10 https://wikimind-staging.fly.dev/health \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" \
-            2>/dev/null || echo "unreachable")
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" != "ok" ]; then
-            echo "::warning::Staging health: $status"
           fi
 
       - name: Alert on production failure
