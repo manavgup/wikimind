@@ -405,16 +405,14 @@ jobs:
             exit 1
           fi
 
-          # Redis is now in-machine (localhost:6379) — WIKIMIND_REDIS_URL is set
-          # via [env] in fly.toml. If the old secret is still present it will
-          # silently override the [env] value (Fly secrets take precedence).
-          # Fail loudly so the operator knows to clean it up before deploying.
-          REDIS_CHECK=$(flyctl secrets list --app wikimind 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
-          if [ "$REDIS_CHECK" -gt 0 ]; then
+          # Secrets override [env] — a stale WIKIMIND_REDIS_URL secret would
+          # silently repoint the app at the old external Redis.
+          SECRETS=$(flyctl secrets list --app wikimind)
+          if printf '%s\n' "$SECRETS" | awk 'NR>1 {print $1}' | grep -qx "WIKIMIND_REDIS_URL"; then
             echo "::error::Stale WIKIMIND_REDIS_URL secret would override fly.toml [env] — run: fly secrets unset WIKIMIND_REDIS_URL --app wikimind"
             exit 1
           fi
-          echo "No stale WIKIMIND_REDIS_URL secret — OK"
+          echo "No stale Redis secret."
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -593,6 +591,9 @@ jobs:
     if: failure()
 
     steps:
+      - name: ⬇️  Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 

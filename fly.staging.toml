@@ -14,7 +14,10 @@
 
 app = "wikimind-staging"
 primary_region = "ord"
-kill_timeout = "30s"
+# Graceful shutdown is ordered: drain gunicorn + arq first, then redis AOF
+# flush last.  30s equalled gunicorn's graceful_timeout, leaving zero
+# headroom for the redis flush — bumped to 60s.
+kill_timeout = "60s"
 
 [build]
   dockerfile = "Dockerfile"
@@ -55,7 +58,9 @@ kill_timeout = "30s"
 
 [[vm]]
   # Three processes share this machine (web + arq worker + redis).
-  # Cost only accrues while awake — scale-to-zero keeps idle cost at zero.
+  # Staging pins min_machines_running = 1, so cost is bounded by the CI
+  # teardown job that destroys this app after the smoke gate — not by
+  # scale-to-zero (which does not apply here).
   memory = "2gb"
   cpu_kind = "shared"
   cpus = 1
