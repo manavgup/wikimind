@@ -75,7 +75,7 @@ fly deploy
 fly secrets set OPENAI_API_KEY=sk-...
 ```
 
-CI deploys to staging first, runs smoke tests, then promotes to production. See `.github/workflows/deploy.yml`.
+CI provisions an ephemeral staging stack, runs smoke tests against it, promotes to production, then destroys staging. See `.github/workflows/deploy.yml`.
 
 ## Tech stack
 
@@ -90,7 +90,7 @@ CI deploys to staging first, runs smoke tests, then promotes to production. See 
 | Real-time | WebSocket (compilation progress), SSE (streaming Q&A) |
 | MCP server | stdio + HTTP transports, OAuth 2.1, JWT auth |
 | Browser extension | Chrome + Firefox (Manifest V3) |
-| Deployment | Docker + Fly.io (staging + production) |
+| Deployment | Docker + Fly.io (production + ephemeral staging) |
 | CI/CD | GitHub Actions (16 workflows) |
 | Testing | pytest (1700+ tests), Playwright e2e |
 

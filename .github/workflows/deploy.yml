@@ -1,11 +1,12 @@
 # ===============================================================
-# 🚀  Deploy to Fly.io — Staging-Gated Production Pipeline
+# 🚀  Deploy to Fly.io — Ephemeral-Staging Production Pipeline
 # ===============================================================
 #
 #   - chains after the Docker workflow (build → scan → GHCR publish)
-#   - deploys staging first, smoke-tests it, then promotes to prod
-#   - validates that apps, volumes, Postgres exist (never creates them)
-#   - fails loudly on real errors; suppresses only idempotent ones
+#   - creates a fresh staging stack, smoke-tests it, promotes to
+#     prod, then destroys staging — nothing staging-related runs
+#     (or bills) between deploys
+#   - production infrastructure is validated, never created
 #
 # ---------------------------------------------------------------
 # Pipeline
@@ -15,23 +16,23 @@
 #     │
 #     ▼
 #   1️⃣  deploy-staging
-#     │  • ensure app + volume exist
-#     │  • ensure Postgres cluster + attach
-#     │  • stage secrets (--stage, no restart)
-#     │  • deploy docling-serve sidecar
+#     │  • clean-slate: destroy any leftover staging app/db
+#     │  • create app + volume + Postgres, attach, set secrets
 #     │  • deploy app from GHCR sha-<commit>
 #     │
 #     ▼
 #   2️⃣  smoke-test-staging
-#     │  • 10 functional checks (health, deep health, docs, auth, API data)
+#     │  • 11 functional checks (health, deep health, docs, auth, API data)
 #     │  • authenticated tests require STAGING_DEV_TOKEN secret
 #     │  ✖ failure → summary alert, prod skipped
 #     │
+#     ├──▶ teardown-staging (always, even on smoke failure)
+#     │      • destroys wikimind-staging + wikimind-staging-db
 #     ▼
 #   3️⃣  deploy-production
 #     │  • environment: production (manual approval gate)
-#     │  • same provisioning as staging
-#     │  • deploy docling-serve sidecar
+#     │  • validates prod infra (never creates it)
+#     │  • deploy docling-serve sidecar + self-hosted Redis
 #     │  • deploy app from same GHCR sha-<commit> tag
 #     │
 #     ▼
@@ -48,21 +49,21 @@
 #        • creates GitHub issue for visibility
 #
 # ---------------------------------------------------------------
-# Infrastructure validation (both environments)
+# Infrastructure model
 # ---------------------------------------------------------------
 #
-#   Resource          │ Behavior
-#   ──────────────────┼─────────────────────────────────────────
-#   Fly app           │ Must exist; deploy fails with setup instructions if missing
-#   Volume            │ Must exist; created as part of initial app setup
-#   Postgres cluster  │ Must exist; deploy fails with setup instructions if missing
-#   Secrets           │ Staged (--stage) from GitHub secrets
-#   Docling sidecar   │ Must exist; deploy fails with setup instructions if missing
-#
-#   Infrastructure is NEVER created at deploy time. All resources
-#   must be provisioned manually before the first deploy. This
-#   prevents accidental creation of empty databases or duplicate
-#   apps during CI/CD runs.
+#   Environment │ Behavior
+#   ────────────┼─────────────────────────────────────────────────
+#   Staging     │ EPHEMERAL — created from scratch by this workflow
+#               │ (app, volume, Postgres) and destroyed after the
+#               │ smoke gate. Fresh empty DB every run; migrations
+#               │ run via the alembic release_command. Queue uses
+#               │ the shared self-hosted Redis on DB index 1;
+#               │ docling uses the production sidecar (stateless,
+#               │ scale-to-zero).
+#   Production  │ PERSISTENT — must exist; deploy fails with setup
+#               │ instructions if missing. Never created at deploy
+#               │ time to prevent accidental empty databases.
 #
 # ---------------------------------------------------------------
 # Required GitHub repository secrets
@@ -84,14 +85,12 @@
 #
 #   App                 │ Config             │ Purpose
 #   ────────────────────┼────────────────────┼──────────────────────────
-#   wikimind-staging    │ fly.staging.toml   │ Pre-prod gate
+#   wikimind-staging    │ fly.staging.toml   │ Pre-prod gate (EPHEMERAL, per-run)
+#   wikimind-staging-db │ (Postgres cluster) │ Staging database (EPHEMERAL, per-run)
 #   wikimind            │ fly.toml           │ Production
-#   wikimind-docling         │ fly.docling.toml   │ PDF sidecar (production)
-#   wikimind-staging-docling │ fly.docling.toml   │ PDF sidecar (staging)
-#   wikimind-staging-db │ (Postgres cluster) │ Staging database
+#   wikimind-docling    │ fly.docling.toml   │ PDF sidecar (shared prod + staging)
 #   wikimind-db         │ (Postgres cluster) │ Production database
-#   wikimind-staging-redis │ (Upstash Redis)  │ Staging queue
-#   wikimind-redis         │ fly.redis.toml   │ Self-hosted Redis queue (production)
+#   wikimind-redis      │ fly.redis.toml     │ Self-hosted Redis (prod = DB 0, staging = DB 1)
 #
 # ---------------------------------------------------------------
 
@@ -117,7 +116,7 @@ jobs:
   deploy-staging:
     name: deploy to staging
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15  # includes ~2min for ephemeral Postgres provisioning
     outputs:
       image_tag: ${{ steps.image.outputs.tag }}
     permissions:
@@ -175,43 +174,38 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      # 1️⃣  Validate staging infrastructure exists (never create at deploy time)
-      - name: 🏗️  Validate staging infrastructure
+      # 1️⃣  Provision ephemeral staging from a clean slate.
+      # Destroy-then-create is deliberate: it is immune to partial state
+      # left by a failed teardown (half-attached Postgres, stale DB users,
+      # orphaned volumes) that idempotent create-if-absent guards can't
+      # recover from. The staging DB is empty every run; the alembic
+      # release_command applies the full migration set on deploy.
+      - name: 🏗️  Provision ephemeral staging
         run: |
-          if ! flyctl status --app wikimind-staging 2>/dev/null; then
-            echo "::error::Staging app 'wikimind-staging' does not exist. Create it manually:"
-            echo "::error::  fly apps create wikimind-staging --org personal"
-            echo "::error::  fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes"
-            exit 1
-          fi
+          flyctl apps destroy wikimind-staging --yes 2>/dev/null || true
+          flyctl apps destroy wikimind-staging-db --yes 2>/dev/null || true
 
-          if ! flyctl status --app wikimind-staging-db 2>/dev/null; then
-            echo "::error::Staging Postgres 'wikimind-staging-db' does not exist. Create it manually:"
-            echo "::error::  fly postgres create --name wikimind-staging-db --org personal --region ord --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1"
-            echo "::error::  fly postgres attach wikimind-staging-db --app wikimind-staging"
-            exit 1
-          fi
-
-          # Redis — URL is set manually via `fly secrets set`. Just verify it exists.
-          REDIS_CHECK=$(flyctl secrets list --app wikimind-staging 2>/dev/null | grep -c "WIKIMIND_REDIS_URL" || echo "0")
-          if [ "$REDIS_CHECK" -gt 0 ]; then
-            echo "Redis URL secret exists"
-          else
-            echo "::error::WIKIMIND_REDIS_URL not set — run: fly secrets set WIKIMIND_REDIS_URL='redis://...' --app wikimind-staging"
-            exit 1
-          fi
+          flyctl apps create wikimind-staging --org personal
+          flyctl volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging --yes
+          flyctl postgres create --name wikimind-staging-db --org personal --region ord \
+            --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1 \
+            --password "$(openssl rand -hex 16)"
+          flyctl postgres attach wikimind-staging-db --app wikimind-staging --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      # 2️⃣  Stage secrets (--stage avoids double-restart before deploy)
-      # WIKIMIND_REDIS_URL is managed manually via `fly secrets set` — not staged here.
+      # 2️⃣  Stage secrets (--stage avoids double-restart before deploy).
+      # Staging shares the self-hosted production Redis on DB index 1 —
+      # ARQ queues are fully separated from production's DB 0, and no
+      # per-run Redis app is needed.
       - name: 🔑  Stage secrets for staging
         run: |
           flyctl secrets set --stage --app wikimind-staging \
             ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
             WIKIMIND_AUTH__JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
             WIKIMIND_AUTH__GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
-            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}"
+            WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+            WIKIMIND_REDIS_URL="redis://wikimind-redis.internal:6379/1"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -219,18 +213,8 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET }}
 
-      # 3️⃣  Deploy sidecar + app
-      - name: 🧠  Deploy staging docling-serve sidecar
-        run: |
-          if ! flyctl status --app wikimind-staging-docling 2>/dev/null; then
-            echo "::error::Staging docling app 'wikimind-staging-docling' does not exist. Create it manually:"
-            echo "::error::  fly apps create wikimind-staging-docling --org personal"
-            exit 1
-          fi
-          flyctl deploy --config fly.docling.toml --app wikimind-staging-docling --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
+      # 3️⃣  Deploy the app. Staging uses the production docling sidecar
+      # (stateless, scale-to-zero) — no per-run sidecar deploy needed.
       - name: 🚀  Deploy to staging
         run: flyctl deploy --config fly.staging.toml --image ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }} --remote-only --yes
         env:
@@ -383,6 +367,32 @@ jobs:
           echo "Production deploy was **skipped** because staging smoke tests did not pass." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Check the failed steps above for details." >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------
+  # 🧹  Teardown ephemeral staging (always — pass or fail)
+  # -----------------------------------------------------------
+  # Runs regardless of smoke-test outcome so the staging stack never
+  # outlives the run. `|| true` guards cover the case where
+  # deploy-staging failed before creating anything. Destroying the
+  # apps also destroys their machines and volumes.
+  teardown-staging:
+    name: teardown staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [deploy-staging, smoke-test-staging]
+    if: always() && needs.deploy-staging.result != 'skipped'
+
+    steps:
+      - name: 🪁  Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
+
+      - name: 🧹  Destroy staging app + database
+        run: |
+          flyctl apps destroy wikimind-staging --yes || true
+          flyctl apps destroy wikimind-staging-db --yes || true
+          echo "Ephemeral staging destroyed."
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   # -----------------------------------------------------------
   # 3️⃣  Deploy to production (only if staging passed)

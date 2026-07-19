@@ -1,20 +1,14 @@
 # fly.staging.toml — Fly.io deployment for WikiMind staging environment.
 #
-# Pre-prod environment used by CI to run smoke tests before promoting
-# to production.  Same machine specs as production (fly.toml).
+# EPHEMERAL pre-prod gate: the deploy workflow creates the staging app,
+# volume, and Postgres from scratch, deploys, smoke-tests, and destroys
+# the whole stack afterwards (see .github/workflows/deploy.yml). Nothing
+# staging-related runs between deploys.  Same machine specs as
+# production (fly.toml).
 #
-# First-time setup:
-#   fly apps create wikimind-staging
-#   fly volumes create wikimind_staging_data --region ord --size 1 --app wikimind-staging
-#   fly postgres attach wikimind-staging-db --app wikimind-staging
-#   fly secrets set --app wikimind-staging \
-#     ANTHROPIC_API_KEY=... \
-#     WIKIMIND_AUTH__JWT_SECRET_KEY=$(openssl rand -hex 32) \
-#     WIKIMIND_AUTH__GOOGLE_CLIENT_ID=... \
-#     WIKIMIND_AUTH__GOOGLE_CLIENT_SECRET=...
-#
-# Manual deploy:
-#   fly deploy --config fly.staging.toml --remote-only
+# There is no manual first-time setup — CI provisions everything,
+# including secrets and the Redis URL (shared self-hosted Redis on
+# DB index 1; production uses DB 0).
 
 app = "wikimind-staging"
 primary_region = "ord"
@@ -25,9 +19,10 @@ primary_region = "ord"
 [env]
   WIKIMIND_SERVER__HOST = "0.0.0.0"
   WIKIMIND_SERVER__PORT = "7842"
-  # Staging uses its own Docling sidecar (wikimind-staging-docling) to avoid
-  # affecting production during smoke tests.
-  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-staging-docling.internal:5001"
+  # Staging shares the production Docling sidecar — it is stateless and
+  # scale-to-zero, and the smoke tests don't exercise PDF conversion, so
+  # a dedicated per-run sidecar (a 4GB-image deploy) isn't worth it.
+  WIKIMIND_DOCLING_SERVE_URL = "http://wikimind-docling.internal:5001"
 
 [http_service]
   internal_port = 7842
